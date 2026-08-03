@@ -1,0 +1,68 @@
+{
+  "name": "lyricflow",
+  "version": "1.1.0",
+  "description": "LyricFlow",
+  "main": "main.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "electron . --no-sandbox",
+    "build:win": "electron-builder --win"
+  },
+  "keywords": [],
+  "author": "badghost",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^42.3.0",
+    "electron-builder": "^26.8.1"
+  },
+  "build": {
+    "appId": "com.badghost.lyricflow",
+    "productName": "LyricFlow",
+    "copyright": "Copyright © 2026 badghost",
+    "directories": {
+      "output": "dist"
+    },
+    "asarUnpack": [
+      "**/*.ps1"
+    ],
+    "icon": "build/icon.png",
+    "win": {
+      "icon": "build/icon.png",
+      "target": [
+        "portable",
+        "nsis",
+        "appx"
+      ],
+      "requestedExecutionLevel": "asInvoker"
+    },
+    "appx": {
+      "identityName": "badghost.LyricFlow",
+      "publisher": "CN=badghost",
+      "publisherDisplayName": "badghost",
+      "applicationId": "LyricFlow",
+      "languages": [
+        "en-US"
+      ],
+      "addAutoLaunchExtension": false
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "preload_taskbar.js",
+      "src/**/*",
+      "assets/**/*",
+      "smtc_reader.ps1",
+      "smtc_control.ps1",
+      "smtc_controller.ps1",
+      "preload_edge_glow.js"
+    ]
+  },
+  "dependencies": {
+    "@vitalets/google-translate-api": "^9.2.1",
+    "discord-rpc": "^4.0.1",
+    "kuroshiro": "^1.2.0",
+    "kuroshiro-analyzer-kuromoji": "^1.1.0",
+    "md5": "^2.3.0",
+    "pinyin-pro": "^3.28.1"
+  }
+}

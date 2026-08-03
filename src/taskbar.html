@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>LyricFlow Taskbar</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      /* Minimum alpha so Windows hit-tests the full window area */
+      background: rgba(0, 0, 0, 0.06);
+      font-family: 'Outfit', sans-serif;
+      user-select: none;
+    }
+
+    /* Lyrics float at a draggable X position, vertically centered */
+    #tb-lyric {
+      position: absolute;
+      top: 0;
+      bottom: 2px; /* leave room for progress bar */
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      white-space: nowrap;
+      font-size: 13px;
+      font-weight: 500;
+      color: #ffffff;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+      cursor: grab;
+      padding: 0 8px;
+    }
+
+    #tb-lyric.dragging {
+      cursor: grabbing;
+    }
+
+    /* Progress bar is FIXED to the window bottom — never moves with the lyrics */
+    #tb-progress {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      width: 0%;
+      height: 2px;
+      background: #1DB954;
+      transition: width 0.4s linear;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="tb-lyric">♫</div>
+  <div id="tb-progress"></div>
+  <script src="./taskbar_renderer.js"></script>
+</body>
+</html>

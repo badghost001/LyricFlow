@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: transparent;
+    }
+    .edge-glow-container {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      box-sizing: border-box;
+      border: 4px solid var(--glow-color, transparent);
+      box-shadow: inset 0 0 50px 15px var(--glow-color, transparent);
+      opacity: 0.5;
+      transition: border-color 0.8s ease, box-shadow 0.8s ease;
+      pointer-events: none;
+    }
+    #visualizer {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="edge-glow-container" id="glow"></div>
+  <canvas id="visualizer"></canvas>
+  <script>
+    // Uses preload_edge_glow.js contextBridge API
+    let currentColor = 'rgba(29, 185, 84, 0.5)';
+    
+    window.edgeGlowAPI.onUpdateColor((color) => {
+      document.documentElement.style.setProperty('--glow-color', color);
+      currentColor = color;
+    });
+
+    const canvas = document.getElementById('visualizer');
+    const ctx = canvas.getContext('2d');
+    let width, height;
+    
+    function resize() {
+      width = window.innerWidth;
+      height = window.innerHeight;
+      canvas.width = width;
+      canvas.height = height;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    let analyser = null;
+    let dataArray = null;
+
+    async function initAudio() {
+      try {
+        const sources = await window.edgeGlowAPI.getDesktopSources();
+        if (sources.length === 0) return;
+        
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            mandatory: {
+              chromeMediaSource: 'desktop'
+            }
+          },
+          video: {
+            mandatory: {
+              chromeMediaSource: 'desktop',
+              chromeMediaSourceId: sources[0].id,
+              minWidth: 1, maxWidth: 1, minHeight: 1, maxHeight: 1
+            }
+          }
+        });
+
+        const audioCtx = new AudioContext();
+        const source = audioCtx.createMediaStreamSource(stream);
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 256;
+        analyser.smoothingTimeConstant = 0.7; // Smooths the frequency data between frames
+        source.connect(analyser);
+        
+        const bufferLength = analyser.frequencyBinCount;
+        dataArray = new Uint8Array(bufferLength);
+      } catch (e) {
+        console.error("Audio capture failed:", e);
+      }
+    }
+    
+    initAudio();
+
+    function drawSmoothLine(points) {
+      if (points.length === 0) return;
+      ctx.beginPath();
+      ctx.moveTo(points[0].x, points[0].y);
+      for (let i = 1; i < points.length - 1; i++) {
+        const xc = (points[i].x + points[i+1].x) / 2;
+        const yc = (points[i].y + points[i+1].y) / 2;
+        ctx.quadraticCurveTo(points[i].x, points[i].y, xc, yc);
+      }
+      ctx.lineTo(points[points.length-1].x, points[points.length-1].y);
+      ctx.stroke();
+    }
+
+    // A helper array to smoothly animate frequencies even beyond smoothingTimeConstant
+    let smoothFrequencies = new Array(128).fill(0);
+
+    function render() {
+      requestAnimationFrame(render);
+      ctx.clearRect(0, 0, width, height);
+
+      if (!analyser || !dataArray) return;
+      
+      analyser.getByteFrequencyData(dataArray);
+
+      // Interpolate for extreme smoothness
+      for (let i = 0; i < dataArray.length; i++) {
+        smoothFrequencies[i] += ((dataArray[i] / 255.0) - smoothFrequencies[i]) * 0.2;
+      }
+
+      ctx.shadowBlur = 25;
+      ctx.shadowColor = currentColor;
+      ctx.strokeStyle = currentColor;
+      ctx.lineWidth = 5;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      const numPoints = 64; // Use first 64 bins (lower and mid frequencies usually have more energy)
+      
+      // Bottom Edge
+      let pointsBottom = [];
+      for (let i = 0; i < numPoints; i++) {
+        let x = (i / (numPoints - 1)) * width;
+        // Apply a bell curve window function so ends fade to 0 amplitude
+        let windowFunc = Math.sin((i / (numPoints - 1)) * Math.PI);
+        let amp = smoothFrequencies[i] * 120 * windowFunc;
+        pointsBottom.push({ x: x, y: height - amp });
+      }
+      drawSmoothLine(pointsBottom);
+
+      // Top Edge
+      let pointsTop = [];
+      for (let i = 0; i < numPoints; i++) {
+        let x = (i / (numPoints - 1)) * width;
+        let windowFunc = Math.sin((i / (numPoints - 1)) * Math.PI);
+        let amp = smoothFrequencies[i] * 120 * windowFunc;
+        pointsTop.push({ x: x, y: amp });
+      }
+      drawSmoothLine(pointsTop);
+
+      // Left Edge
+      let pointsLeft = [];
+      for (let i = 0; i < numPoints; i++) {
+        let y = (i / (numPoints - 1)) * height;
+        let windowFunc = Math.sin((i / (numPoints - 1)) * Math.PI);
+        let amp = smoothFrequencies[i] * 120 * windowFunc;
+        pointsLeft.push({ x: amp, y: y });
+      }
+      drawSmoothLine(pointsLeft);
+
+      // Right Edge
+      let pointsRight = [];
+      for (let i = 0; i < numPoints; i++) {
+        let y = (i / (numPoints - 1)) * height;
+        let windowFunc = Math.sin((i / (numPoints - 1)) * Math.PI);
+        let amp = smoothFrequencies[i] * 120 * windowFunc;
+        pointsRight.push({ x: width - amp, y: y });
+      }
+      drawSmoothLine(pointsRight);
+    }
+    
+    render();
+  </script>
+</body>
+</html>
