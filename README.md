@@ -4,10 +4,10 @@
   <p><strong>A premium, glassmorphic desktop lyrics overlay with real-time sync for Spotify and local media.</strong></p>
   
   <p>
-    <a href="#✨-features">Features</a> •
-    <a href="#🖼️-screenshots">Screenshots</a> •
-    <a href="#🚀-installation">Installation</a> •
-    <a href="#🛠️-technologies-used">Technologies Used</a>
+    <a href="#features">Features</a> •
+    <a href="#screenshots">Screenshots</a> •
+    <a href="#installation">Installation</a> •
+    <a href="#technologies-used">Technologies Used</a>
   </p>
 </div>
 
@@ -16,7 +16,7 @@
 
 ---
 
-## ✨ Features
+## Features
 
 - 🎵 **Real-Time Lyrics Sync:** Follows your music word-for-word using the LRCLIB API.
 - 🪟 **Taskbar Mode:** A sleek, non-intrusive mode that docks lyrics directly into your Windows taskbar.
@@ -28,7 +28,7 @@
 - 👾 **Discord Rich Presence:** Show off what you're listening to on Discord with a custom status.
 - 📰 **Music News:** An integrated feed of the latest music headlines.
 
-## 🖼️ Screenshots
+## Screenshots
 
 - **Main View:** `<img width="1111" height="790" alt="image" src="https://github.com/user-attachments/assets/701d21e8-cdc2-4c1a-8f74-eaf560745b35" />
 
@@ -37,7 +37,7 @@
 - **Settings Panel:** `<img width="1116" height="829" alt="image" src="https://github.com/user-attachments/assets/f59feb51-12a3-4dad-b590-cf02ec847160" />
 
 
-## 🚀 Installation
+## Installation
 
 ### Using the Pre-compiled Executable (Recommended for Windows)
 
@@ -67,7 +67,7 @@ If you want to modify the app or run it from the source code:
    npm run build:win
    ```
 
-## 🛠️ Technologies Used
+## Technologies Used
 
 - **[Electron](https://www.electronjs.org/)** - For the desktop application framework.
 - **Vanilla JS / HTML / CSS** - For a lightweight, fast, and responsive user interface without framework bloat.
