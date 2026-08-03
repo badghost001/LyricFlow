@@ -28,9 +28,12 @@
 ## 🖼️ Screenshots
 
 *(Add screenshots here)*
-- **Main View:** `![Main View](link_to_image)`
-- **Taskbar Mode:** `![Taskbar Mode](link_to_image)`
-- **Settings Panel:** `![Settings](link_to_image)`
+- **Main View:** `<img width="1111" height="790" alt="image" src="https://github.com/user-attachments/assets/701d21e8-cdc2-4c1a-8f74-eaf560745b35" />
+
+- **Taskbar Mode:** `<img width="1919" height="445" alt="image" src="https://github.com/user-attachments/assets/8d7eaf30-19e1-41e4-811a-c4cd7fcfa85c" />
+
+- **Settings Panel:** `<img width="1116" height="829" alt="image" src="https://github.com/user-attachments/assets/f59feb51-12a3-4dad-b590-cf02ec847160" />
+
 
 ## 🚀 Installation
 
