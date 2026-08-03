@@ -398,10 +398,15 @@ function applyVisualSettings(fromTray = false) {
   // Handle legacy settings.customBg by migrating it to customBgSrc/Type
   if (settings.customBg && !settings.customBgSrc) {
     const isVideo = settings.customBg.endsWith('.mp4') || settings.customBg.endsWith('.webm');
-    settings.customBgSrc = `file:///${settings.customBg.replace(/\\/g, "/")}`;
+    settings.customBgSrc = `lyricflow-media:///${settings.customBg.replace(/\\/g, "/")}`;
     settings.customBgType = isVideo ? "video" : "image";
     settings.customBgName = settings.customBg.split(/[\\/]/).pop();
     delete settings.customBg; // Migrate away from old key
+    saveLocalSettings();
+  }
+  
+  if (settings.customBgSrc && settings.customBgSrc.startsWith('file:///')) {
+    settings.customBgSrc = settings.customBgSrc.replace('file:///', 'lyricflow-media:///');
     saveLocalSettings();
   }
   
@@ -929,7 +934,7 @@ function setupUIHandlers() {
       const isVideo = file.type.startsWith("video/") || file.name.endsWith(".mp4") || file.name.endsWith(".webm");
       let fileSrc = "";
       if (file.path) {
-        fileSrc = `file:///${file.path.replace(/\\/g, "/")}`;
+        fileSrc = `lyricflow-media:///${file.path.replace(/\\/g, "/")}`;
       } else {
         fileSrc = URL.createObjectURL(file);
       }

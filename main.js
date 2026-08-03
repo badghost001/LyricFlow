@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, globalShortcut, screen, Tray, Menu, nativeImage, session } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, globalShortcut, screen, Tray, Menu, nativeImage, session, protocol, net } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
@@ -7,6 +7,11 @@ const md5 = require('md5');
 
 process.noDeprecation = true;
 // process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'; // REMOVED: Disabling TLS validation is a critical security risk
+
+// Register custom protocol for local media before app is ready
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'lyricflow-media', privileges: { standard: true, secure: true, supportFetchAPI: true, bypassCSP: true } }
+]);
 
 app.commandLine.appendSwitch('no-sandbox');
 
@@ -399,6 +404,14 @@ if (global.gc) {
 }
 
 app.whenReady().then(async () => {
+  // Handle custom media protocol
+  protocol.handle('lyricflow-media', (request) => {
+    let url = request.url.replace('lyricflow-media://', 'file://');
+    // Ensure proper triple slashes for local files
+    url = url.replace('file:////', 'file:///');
+    return net.fetch(url);
+  });
+
   // Stagger startup to prevent CPU spikes
   setTimeout(() => {
     startLocalPlaybackMonitor();

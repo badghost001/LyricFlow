@@ -11,8 +11,6 @@
   </p>
 </div>
 
-> [!WARNING]
-> **Beta Release:** LyricFlow is currently in active development. Some features, such as the Custom Background feature, are not fully functional yet and will be enabled in a future update.
 
 ---
 
