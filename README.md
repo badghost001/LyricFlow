@@ -75,6 +75,12 @@ If you want to modify the app or run it from the source code:
 - **[Genius API](https://genius.com/developers)** - For song annotations and trivia.
 - **Windows SMTC (System Media Transport Controls)** - For detecting local media playback via PowerShell scripts.
 
+## 🎉 Special Thanks & Acknowledgements
+
+A massive shoutout to the amazing community over at **[BHABHI KI कुटिया](https://discord.gg/bhabhi)**! 
+
+This project wouldn't be where it is today without the early testers, feedback, and endless support from the members of the server. Thank you for helping shape LyricFlow into what it is today!
+
 ## 📝 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
