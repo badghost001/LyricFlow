@@ -4,10 +4,10 @@
   <p><strong>A premium, glassmorphic desktop lyrics overlay with real-time sync for Spotify and local media.</strong></p>
   
   <p>
-    <a href="#features">Features</a> •
-    <a href="#installation">Installation</a> •
-    <a href="#how-it-works">How It Works</a> •
-    <a href="#contributing">Contributing</a>
+    <a href="#-features">Features</a> •
+    <a href="#-screenshots">Screenshots</a> •
+    <a href="#-installation">Installation</a> •
+    <a href="#️-technologies-used">Technologies Used</a>
   </p>
 </div>
 
