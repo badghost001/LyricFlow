@@ -81,7 +81,7 @@ This project wouldn't be where it is today without the early testers, feedback, 
 
 ## 📝 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under a Proprietary License (All Rights Reserved). You may not copy, distribute, or modify this software for commercial use. See the [LICENSE](LICENSE) file for details.
 
 ---
 
