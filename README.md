@@ -35,6 +35,14 @@
 - **Settings Panel:** <img width="1116" height="829" alt="image" src="https://github.com/user-attachments/assets/f59feb51-12a3-4dad-b590-cf02ec847160" />
 
 
+## System Requirements
+
+- **OS:** Windows 10 (Version 1809 or newer) or Windows 11
+- **RAM:** 4 GB minimum
+- **Storage:** ~500 MB available space
+- **Network:** Active internet connection (required for fetching lyrics and translation)
+- **Media Player:** Spotify Desktop App (recommended) or any Windows-compatible media player that supports SMTC (System Media Transport Controls).
+
 ## Installation
 
 ### Using the Pre-compiled Executable (Recommended for Windows)
