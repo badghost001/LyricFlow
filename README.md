@@ -28,18 +28,18 @@
 
 ## Screenshots
 
-- **Main View:** `<img width="1111" height="790" alt="image" src="https://github.com/user-attachments/assets/701d21e8-cdc2-4c1a-8f74-eaf560745b35" />
+- **Main View:** <img width="1111" height="790" alt="image" src="https://github.com/user-attachments/assets/701d21e8-cdc2-4c1a-8f74-eaf560745b35" />
 
-- **Taskbar Mode:** `<img width="1919" height="445" alt="image" src="https://github.com/user-attachments/assets/8d7eaf30-19e1-41e4-811a-c4cd7fcfa85c" />
+- **Taskbar Mode:** <img width="1919" height="445" alt="image" src="https://github.com/user-attachments/assets/8d7eaf30-19e1-41e4-811a-c4cd7fcfa85c" />
 
-- **Settings Panel:** `<img width="1116" height="829" alt="image" src="https://github.com/user-attachments/assets/f59feb51-12a3-4dad-b590-cf02ec847160" />
+- **Settings Panel:** <img width="1116" height="829" alt="image" src="https://github.com/user-attachments/assets/f59feb51-12a3-4dad-b590-cf02ec847160" />
 
 
 ## Installation
 
 ### Using the Pre-compiled Executable (Recommended for Windows)
 
-1. Go to the [Releases](https://github.com/badghost/LyricFlow/releases) page.
+1. Go to the [Releases](https://github.com/badghost001/LyricFlow/releases) page.
 2. Download `LyricFlow Setup X.X.X.exe`.
 3. Run the installer and launch LyricFlow!
 
@@ -49,7 +49,7 @@ If you want to modify the app or run it from the source code:
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/badghost/LyricFlow.git
+   git clone https://github.com/badghost001/LyricFlow.git
    cd LyricFlow
    ```
 2. **Install dependencies:**
@@ -86,5 +86,5 @@ This project is licensed under a Proprietary License (All Rights Reserved). You 
 ---
 
 <div align="center">
-  <i>Crafted with ❤️ by <a href="https://github.com/badghost">badghost</a></i>
+  <i>Crafted with ❤️ by <a href="https://github.com/badghost001">badghost</a></i>
 </div>

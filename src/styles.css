@@ -47,6 +47,43 @@ body {
   width: 100vw;
 }
 
+.wallpaper-album-bg {
+  display: none;
+  position: fixed;
+  inset: -7vh -7vw;
+  width: 114vw;
+  height: 114vh;
+  object-fit: cover;
+  z-index: -3;
+  opacity: 0;
+  filter: blur(52px) saturate(1.35) brightness(0.72);
+  transform: scale(1.05);
+  pointer-events: none;
+  transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+body.wallpaper-mode {
+  background-color: #050507 !important;
+}
+
+body.wallpaper-mode .wallpaper-album-bg {
+  display: block;
+}
+
+body.wallpaper-mode .wallpaper-album-bg.has-art {
+  opacity: 0.82;
+}
+
+body.wallpaper-mode.custom-bg-active .wallpaper-album-bg {
+  display: none;
+}
+
+body.wallpaper-mode #custom-bg-video,
+body.wallpaper-mode #custom-bg-img {
+  z-index: -3 !important;
+  opacity: 1 !important;
+}
+
 /* 1. Dynamic Ambient Glow Background */
 .ambient-glow {
   position: fixed;
@@ -137,6 +174,337 @@ body {
   opacity: 1;
 }
 
+body.wallpaper-mode .app-container {
+  border: 0;
+  border-radius: 0;
+  background:
+    radial-gradient(ellipse at center, rgba(var(--art-color-1-rgb, 29, 185, 84), 0.16), transparent 55%),
+    rgba(5, 5, 7, 0.52) !important;
+}
+
+body.wallpaper-mode .hud-header,
+body.wallpaper-mode .app-container:hover .hud-header,
+body.wallpaper-mode .playback-widget,
+body.wallpaper-mode .app-container:hover .playback-widget,
+body.wallpaper-mode .settings-panel,
+body.wallpaper-mode #news-panel,
+body.wallpaper-mode #search-overlay,
+body.wallpaper-mode #btn-sync-lyrics,
+body.wallpaper-mode #sync-resume-btn,
+body.wallpaper-mode #genius-fact-card {
+  display: none !important;
+}
+
+body.wallpaper-mode .app-screen {
+  padding: 0 8vw;
+}
+
+body.wallpaper-mode .lyrics-view {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 22%, black 78%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, black 22%, black 78%, transparent 100%);
+}
+
+body.wallpaper-mode .lyric-line {
+  text-shadow: 0 4px 22px rgba(0, 0, 0, 0.85);
+}
+
+.wallpaper-now-playing {
+  display: none;
+}
+
+body.wallpaper-mode.wallpaper-style-2 {
+  background-color: #050507 !important;
+  background: #050507 !important;
+}
+
+body.wallpaper-mode.wallpaper-style-2 .ambient-glow {
+  display: none !important;
+}
+
+body.wallpaper-mode.wallpaper-style-2 .app-container {
+  background: rgba(0, 0, 0, 0.3) !important;
+}
+
+body.wallpaper-mode.wallpaper-style-2 .wallpaper-album-bg {
+  display: block;
+  opacity: 1 !important;
+  filter: blur(80px) saturate(2) brightness(0.45);
+  transform: scale(1.15);
+  animation: appleMusicBgPan 30s infinite alternate ease-in-out;
+}
+
+@keyframes appleMusicBgPan {
+  0% { transform: scale(1.15) translate(0, 0); }
+  50% { transform: scale(1.25) translate(-2%, 2%); }
+  100% { transform: scale(1.15) translate(2%, -2%); }
+}
+
+body.wallpaper-mode.wallpaper-style-2 #screen-lyrics {
+  display: grid !important;
+  grid-template-columns: minmax(350px, 42vw) 1fr !important;
+  align-items: center !important;
+  gap: clamp(40px, 8vw, 120px) !important;
+  padding: clamp(30px, 6vh, 60px) clamp(50px, 8vw, 160px) !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  box-sizing: border-box !important;
+}
+
+body.wallpaper-mode.wallpaper-style-2 #custom-bg-video,
+body.wallpaper-mode.wallpaper-style-2 #custom-bg-img {
+  display: none !important;
+}
+
+body.wallpaper-mode.wallpaper-style-2 .wallpaper-now-playing {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  align-items: flex-start !important;
+  flex-shrink: 0 !important;
+  width: 100% !important;
+  max-width: 400px !important;
+}
+
+body.wallpaper-mode .wallpaper-art-shell {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 16px;
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.02)),
+    rgba(12, 12, 16, 0.82);
+  box-shadow:
+    0 30px 90px rgba(0, 0, 0, 0.7),
+    0 12px 40px rgba(var(--art-color-1-rgb, 29, 185, 84), 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+body.wallpaper-mode .wallpaper-style-art {
+  display: none;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+body.wallpaper-mode .wallpaper-art-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.34);
+}
+
+body.wallpaper-mode .wallpaper-track-meta {
+  width: 100%;
+  margin-top: 28px;
+  text-align: left;
+}
+
+body.wallpaper-mode .wallpaper-track-title {
+  color: #ffffff;
+  font-size: clamp(30px, 3.2vw, 54px);
+  line-height: 1.1;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+}
+
+body.wallpaper-mode .wallpaper-track-artist {
+  margin-top: 10px;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: clamp(18px, 1.6vw, 26px);
+  line-height: 1.25;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.wallpaper-mode.wallpaper-style-2 .lyrics-view {
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 0 !important;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%) !important;
+  mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%) !important;
+}
+
+body.wallpaper-mode.wallpaper-style-2 #lyrics-container {
+  padding: 45vh 0 !important;
+  width: 100% !important;
+}
+
+body.wallpaper-mode.wallpaper-style-2 .lyric-line {
+  text-align: left !important;
+  transform-origin: left center !important;
+  font-size: clamp(32px, 3.5vw, 60px) !important;
+  line-height: 1.35 !important;
+  padding: 18px 0 !important;
+  opacity: 0.45 !important;
+  color: #ffffff !important;
+  transition: opacity 0.4s ease, transform 0.4s ease, color 0.4s ease, filter 0.4s ease !important;
+  filter: blur(1.5px);
+  font-weight: 700 !important;
+}
+
+body.wallpaper-mode.wallpaper-style-2 .lyric-line.active {
+  opacity: 1 !important;
+  color: #ffffff !important;
+  font-weight: 800 !important;
+  transform: scale(1.02) !important;
+  filter: blur(0px) !important;
+  text-shadow: 0 4px 30px rgba(0, 0, 0, 0.4) !important;
+}
+
+body.wallpaper-mode.wallpaper-style-2 .lyric-line.active::before {
+  display: none !important;
+}
+
+/* Override WBW highlight colors for Style 2 to keep it Apple Music themed (white) */
+body.wallpaper-mode.wallpaper-style-2.wbw-active .lyric-line.active .lyric-word.lyric-word-passed {
+  color: #ffffff !important;
+  opacity: 0.6 !important;
+}
+
+body.wallpaper-mode.wallpaper-style-2.wbw-active .lyric-line.active .lyric-word.lyric-word-active {
+  color: #ffffff !important;
+  opacity: 1 !important;
+  text-shadow: 0 4px 20px rgba(0, 0, 0, 0.5) !important;
+  transform: scale(1.05) translateY(-2px) !important;
+}
+
+body.wallpaper-mode.wallpaper-style-2.wbw-active .lyric-line.active .lyric-word.lyric-word-upcoming {
+  color: rgba(255, 255, 255, 0.4) !important;
+  opacity: 0.4 !important;
+}
+
+/* Style 3: Transparent Customizable Lyric Overlay */
+body.wallpaper-style-3 {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+body.wallpaper-style-3 .wallpaper-album-bg,
+body.wallpaper-style-3 .ambient-glow,
+body.wallpaper-style-3 .wallpaper-now-playing,
+body.wallpaper-style-3 #custom-bg-video,
+body.wallpaper-style-3 #custom-bg-img,
+body.wallpaper-style-3 .wallpaper-album-bg {
+  display: none !important;
+}
+
+body.wallpaper-style-3 .app-container {
+  background: transparent !important;
+}
+
+body.wallpaper-style-3 #screen-lyrics {
+  display: flex !important;
+  position: relative !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  background: transparent !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+}
+
+body.wallpaper-style-3 .lyrics-view {
+  position: absolute !important;
+  left: var(--overlay-x, 50%) !important;
+  top: var(--overlay-y, 50%) !important;
+  transform: translate(-50%, -50%) !important;
+  width: var(--overlay-width, 60%) !important;
+  height: 70vh !important;
+  max-width: none !important;
+  background: transparent !important;
+  border: none !important;
+  backdrop-filter: none !important;
+  box-shadow: none !important;
+}
+
+body.wallpaper-style-3 #lyrics-mask {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);
+}
+
+body.wallpaper-style-3 #lyrics-container {
+  padding: 40vh 0;
+}
+
+body.wallpaper-style-3 .lyric-line {
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.95), 0 0 6px rgba(0, 0, 0, 1) !important;
+  -webkit-text-stroke: 1px rgba(0, 0, 0, 0.8);
+  font-size: var(--wallpaper-font-size, 32px) !important;
+  opacity: 0.55 !important;
+  transition: opacity 0.4s ease, transform 0.4s ease, color 0.4s ease !important;
+}
+
+body.wallpaper-style-3 .lyric-line.active {
+  opacity: 1 !important;
+  color: var(--highlight-color, #ffffff) !important;
+  font-weight: 800 !important;
+  transform: scale(1.05) !important;
+  -webkit-text-stroke: 0 !important;
+  text-shadow:
+    0 2px 16px rgba(0, 0, 0, 0.95),
+    0 0 10px rgba(0, 0, 0, 1) !important;
+}
+
+/* Word-by-word active word styling in Wallpaper Mode */
+body.wallpaper-mode.wbw-active .lyric-line.active .lyric-word.lyric-word-passed {
+  color: var(--highlight-color, #ffffff) !important;
+  opacity: 0.7 !important;
+}
+
+body.wallpaper-mode.wbw-active .lyric-line.active .lyric-word.lyric-word-active {
+  color: var(--highlight-color, #ffffff) !important;
+  opacity: 1 !important;
+  text-shadow:
+    0 0 20px var(--highlight-glow, rgba(29, 185, 84, 0.8)),
+    0 0 35px var(--highlight-glow, rgba(29, 185, 84, 0.5)),
+    0 4px 20px rgba(0, 0, 0, 0.9) !important;
+  transform: scale(1.08) translateY(-2px) !important;
+}
+
+body.wallpaper-mode.wbw-active .lyric-line.active .lyric-word.lyric-word-upcoming {
+  color: rgba(255, 255, 255, 0.6) !important;
+  opacity: 0.35 !important;
+}
+
+/* Removed Drag Handle CSS */
+
+@media (max-width: 900px) {
+  body.wallpaper-mode.wallpaper-style-2 #screen-lyrics {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 30px !important;
+    padding: 40px !important;
+  }
+
+  body.wallpaper-mode.wallpaper-style-2 .wallpaper-now-playing {
+    align-items: center !important;
+    text-align: center !important;
+  }
+
+  body.wallpaper-mode.wallpaper-style-2 .wallpaper-art-shell {
+    width: min(52vw, 320px) !important;
+  }
+
+  body.wallpaper-mode.wallpaper-style-2 .wallpaper-track-info {
+    text-align: center !important;
+    align-items: center !important;
+  }
+
+  body.wallpaper-mode.wallpaper-style-2 .lyric-line {
+    text-align: center !important;
+    transform-origin: center center !important;
+  }
+}
+
 .drag-handle {
   display: flex;
   align-items: center;
@@ -213,6 +581,17 @@ body {
   justify-content: flex-start;
   padding: 24px 40px;
   overflow-y: auto;
+}
+
+.onboarding-card:hover {
+  background: rgba(29, 185, 84, 0.1) !important;
+  border-color: rgba(29, 185, 84, 0.5) !important;
+  transform: translateY(-4px);
+}
+.onboarding-card.selected {
+  background: rgba(29, 185, 84, 0.2) !important;
+  border-color: #1DB954 !important;
+  box-shadow: 0 8px 24px rgba(29, 185, 84, 0.3);
 }
 
 .login-card {

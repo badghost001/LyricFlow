@@ -6,13 +6,13 @@ function escapeHTML(str) {
 }
 
 // DOM Elements
-let screenLogin, screenLyrics, formAuth, btnSubmitAuth, authStatus, btnLocalMode;
+let screenLogin, screenLyrics, screenOnboarding, formAuth, btnSubmitAuth, authStatus, btnLocalMode;
 let clientIDInput;
 let lyricsViewport, lyricsContainer;
 let widgetAlbumArt, widgetArtFallback, widgetTrackName, widgetArtistName, widgetPlaycount, widgetProgressFill, widgetTimeCurrent, widgetTimeDuration;
 let btnClickThrough, checkAlwaysOnTop, btnMinimize, btnSettings, btnClose, btnSettingsClose, settingsPanel, btnLogout;
 let btnNews, btnNewsClose, newsPanel, newsBody, inputNewsFilter;
-let sliderFontSize, valFontSize, selectAlign, sliderBgOpacity, valBgOpacity, sliderGlow, valGlow;
+let selectFontSize, valFontSize, selectAlign, sliderBgOpacity, valBgOpacity, sliderGlow, valGlow;
 let selectFont, sliderLineSpacing, valLineSpacing, checkShowWidget, selectHighlightColor, selectDblclickAction;
 let appContainer, ambientGlow, hudHeader, playbackWidget;
 let toastNotification, historyContainer;
@@ -21,11 +21,15 @@ let btnLoveTrack, svgLoveUnfilled, svgLoveFilled, btnLastfmConnect, lastfmConnec
 
 // Playback & Taskbar Mode controls DOM
 let btnPrev, btnPlayPause, btnNext, btnPlaySvg, btnPauseSvg, btnShareLyric, btnSleepTimer, sleepTimerBadge;
-let checkTaskbarMode, taskbarContainer, tbLyricLine, checkFullscreenLyrics, checkEdgeGlow;
+let checkTaskbarMode, taskbarContainer, tbLyricLine, checkFullscreenLyrics, checkEdgeGlow, checkWallpaperMode;
+let selectWallpaperStyle;
+let sliderOverlayX, valOverlayX, sliderOverlayY, valOverlayY, sliderOverlayWidth, valOverlayWidth, selectWallpaperFontSize;
+let settingOverlayXRow, settingOverlayYRow, settingOverlayWidthRow, settingOverlayPosRow, settingWallpaperFontSizeRow, previewCanvas, previewBox;
 let selectTbAlign, selectTbTranslation, sliderTbOffset, valTbOffset, settingTbAlignRow, settingTbTranslationRow, settingTbOffsetRow;
 let checkAutoLaunch, sliderTbFontsize, valTbFontsize, settingTbFontsizeRow, tbProgress, settingFsLyricsRow;
 let checkShowNextUp, checkShowGenius, selectGeniusPosition;
-let customBgVideo, customBgImg, inputBgFile, btnPickBg, btnClearBg, labelBgFilename;
+let customBgVideo, customBgImg, wallpaperAlbumBg, inputBgFile, btnPickBg, btnClearBg, labelBgFilename;
+let wallpaperStyleArt, wallpaperArtFallback, wallpaperTrackTitle, wallpaperTrackArtist;
 let geniusFactCard, geniusFactContent;
 let geniusFactInterval;
 let geniusFactChunks = [];
@@ -46,6 +50,12 @@ let settings = {
   dblclickAction: 'copy',
   clickThrough: false,
   alwaysOnTop: false,
+  wallpaperMode: false,
+  wallpaperStyle: 'style1',
+  wallpaperOverlayX: 50,
+  wallpaperOverlayY: 50,
+  wallpaperOverlayWidth: 60,
+  wallpaperFontSize: 32,
   taskbarMode: false,
   tbAlign: 'center',
   tbTranslation: 'none',
@@ -68,6 +78,7 @@ let settings = {
 let currentTrackId = null;
 let trackDuration = 0;
 let isPlaying = false;
+let lastSpotifyPlaybackData = null;
 let lyrics = [];
 let activeLineIndex = -1;
 let pollingIntervalId = null;
@@ -92,6 +103,7 @@ let userScrolling = false;
 let userScrollTimeout = null;
 let clickThroughState = null;
 let lastSentTaskbarMode = null;
+let lastSentWallpaperMode = null;
 let _lastSyncedTaskbarMode = null;
 let _lastSyncedFullscreen = null;
 let localArtCache = {};
@@ -188,6 +200,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   // Initialize DOM queries
   screenLogin = document.getElementById("screen-login");
   screenLyrics = document.getElementById("screen-lyrics");
+  screenOnboarding = document.getElementById("screen-onboarding");
   formAuth = document.getElementById("form-auth");
   btnSubmitAuth = document.getElementById("btn-submit-auth");
   authStatus = document.getElementById("auth-status");
@@ -231,6 +244,16 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   // Controls & Taskbar DOM Elements
   checkTaskbarMode = document.getElementById("check-taskbar-mode");
+  checkWallpaperMode = document.getElementById("check-wallpaper-mode");
+  selectWallpaperStyle = document.getElementById("select-wallpaper-style");
+  previewCanvas = document.getElementById("preview-canvas");
+  previewBox = document.getElementById("preview-box");
+  sliderOverlayWidth = document.getElementById("slider-wallpaper-overlay-width");
+  valOverlayWidth = document.getElementById("val-wallpaper-overlay-width");
+  selectWallpaperFontSize = document.getElementById("select-wallpaper-font-size");
+  settingWallpaperFontSizeRow = document.getElementById("setting-wallpaper-font-size-row");
+  settingOverlayPosRow = document.getElementById("setting-wallpaper-overlay-pos");
+  settingOverlayWidthRow = document.getElementById("setting-wallpaper-overlay-width");
   checkFullscreenLyrics = document.getElementById("check-fullscreen-lyrics");
   checkEdgeGlow = document.getElementById("check-edge-glow");
   taskbarContainer = document.getElementById("taskbar-container");
@@ -254,6 +277,11 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   customBgVideo = document.getElementById("custom-bg-video");
   customBgImg = document.getElementById("custom-bg-img");
+  wallpaperAlbumBg = document.getElementById("wallpaper-album-bg");
+  wallpaperStyleArt = document.getElementById("wallpaper-style-art");
+  wallpaperArtFallback = document.getElementById("wallpaper-art-fallback");
+  wallpaperTrackTitle = document.getElementById("wallpaper-track-title");
+  wallpaperTrackArtist = document.getElementById("wallpaper-track-artist");
   inputBgFile = document.getElementById("input-bg-file");
   btnPickBg = document.getElementById("btn-pick-bg");
   btnClearBg = document.getElementById("btn-clear-bg");
@@ -280,9 +308,36 @@ window.addEventListener("DOMContentLoaded", async () => {
   newsPanel = document.getElementById("news-panel");
   newsBody = document.getElementById("news-body");
   inputNewsFilter = document.getElementById("input-news-filter");
+  sliderOverlayX = document.getElementById("slider-overlay-x");
+  valOverlayX = document.getElementById("val-overlay-x");
+  sliderOverlayY = document.getElementById("slider-overlay-y");
+  valOverlayY = document.getElementById("val-overlay-y");
+  settingOverlayPosRow = document.getElementById("setting-wallpaper-overlay-pos");
 
-  sliderFontSize = document.getElementById("slider-font-size");
-  valFontSize = document.getElementById("val-font-size");
+  const presetPositions = {
+    'btn-pos-tl': {x: 10, y: 10},
+    'btn-pos-tr': {x: 90, y: 10},
+    'btn-pos-c': {x: 50, y: 50},
+    'btn-pos-bl': {x: 10, y: 90},
+    'btn-pos-br': {x: 90, y: 90}
+  };
+
+  Object.keys(presetPositions).forEach(id => {
+    const btn = document.getElementById(id);
+    if (btn) {
+      btn.addEventListener('click', () => {
+        settings.wallpaperOverlayX = presetPositions[id].x;
+        settings.wallpaperOverlayY = presetPositions[id].y;
+        applyVisualSettings();
+        saveLocalSettings();
+      });
+    }
+  });
+
+
+
+  selectFontSize = document.getElementById("select-font-size");
+  // valFontSize is no longer needed but leaving variable to avoid breaking anything
   selectAlign = document.getElementById("select-align");
   sliderBgOpacity = document.getElementById("slider-bg-opacity");
   valBgOpacity = document.getElementById("val-bg-opacity");
@@ -349,9 +404,16 @@ function loadLocalSettings() {
     try {
       const parsed = JSON.parse(saved);
       settings = { ...settings, ...parsed };
-      // Force taskbarMode and alwaysOnTop to false on startup so it always opens as a normal window
+      
+      // FORCE firstRun to true so the user can see the new window
+      settings.firstRun = true;
+      
+      // Force taskbarMode, wallpaperMode, and alwaysOnTop to false on startup so it always opens as a normal window
       if (settings.taskbarMode) {
         settings.taskbarMode = false;
+      }
+      if (settings.wallpaperMode) {
+        settings.wallpaperMode = false;
       }
       settings.alwaysOnTop = false;
       saveLocalSettings();
@@ -383,10 +445,43 @@ function clearLyricsCaches() {
   keysToRemove.forEach(k => localStorage.removeItem(k));
 }
 
+function setWallpaperAlbumArt(src) {
+  if (!wallpaperAlbumBg) return;
+
+  if (!src) {
+    wallpaperAlbumBg.removeAttribute("src");
+    wallpaperAlbumBg.classList.remove("has-art");
+    if (wallpaperStyleArt) {
+      wallpaperStyleArt.removeAttribute("src");
+      wallpaperStyleArt.style.display = "none";
+    }
+    if (wallpaperArtFallback) wallpaperArtFallback.style.display = "flex";
+    return;
+  }
+
+  if (wallpaperAlbumBg.src !== src) {
+    wallpaperAlbumBg.src = src;
+  }
+  wallpaperAlbumBg.classList.add("has-art");
+
+  if (wallpaperStyleArt && wallpaperStyleArt.src !== src) {
+    wallpaperStyleArt.src = src;
+  }
+  if (wallpaperStyleArt) wallpaperStyleArt.style.display = "block";
+  if (wallpaperArtFallback) wallpaperArtFallback.style.display = "none";
+}
+
 function applyVisualSettings(fromTray = false) {
   if (config && config.sp_dc) {
     const inputSpDc = document.getElementById("input-sp-dc");
     if (inputSpDc) inputSpDc.value = config.sp_dc;
+  }
+
+  if (settings.wallpaperMode && settings.taskbarMode) {
+    settings.taskbarMode = false;
+  }
+  if (!['style1', 'style2', 'style3'].includes(settings.wallpaperStyle)) {
+    settings.wallpaperStyle = 'style1';
   }
 
   // Custom Background Logic
@@ -398,25 +493,33 @@ function applyVisualSettings(fromTray = false) {
   // Handle legacy settings.customBg by migrating it to customBgSrc/Type
   if (settings.customBg && !settings.customBgSrc) {
     const isVideo = settings.customBg.endsWith('.mp4') || settings.customBg.endsWith('.webm');
-    settings.customBgSrc = `lyricflow-media:///${settings.customBg.replace(/\\/g, "/")}`;
+    settings.customBgSrc = `file:///${settings.customBg.replace(/\\/g, "/")}`;
     settings.customBgType = isVideo ? "video" : "image";
     settings.customBgName = settings.customBg.split(/[\\/]/).pop();
     delete settings.customBg; // Migrate away from old key
     saveLocalSettings();
   }
   
-  if (settings.customBgSrc && settings.customBgSrc.startsWith('file:///')) {
-    settings.customBgSrc = settings.customBgSrc.replace('file:///', 'lyricflow-media:///');
-    saveLocalSettings();
+  if (settings.customBgSrc) {
+    if (settings.customBgSrc.startsWith('lyricflow-media://local/')) {
+      settings.customBgSrc = settings.customBgSrc.replace('lyricflow-media://local/', 'file:///');
+      saveLocalSettings();
+    } else if (settings.customBgSrc.startsWith('lyricflow-media:///')) {
+      settings.customBgSrc = settings.customBgSrc.replace('lyricflow-media:///', 'file:///');
+      saveLocalSettings();
+    }
   }
   
   if (settings.customBgSrc && settings.customBgType) {
     if (labelBgFilename) labelBgFilename.textContent = settings.customBgName || "Selected File";
     if (btnClearBg) btnClearBg.style.display = "block";
     
+    // Make body opaque so custom bg doesn't merge with desktop/other apps
+    document.body.style.backgroundColor = '#000';
+    
     // Hide ambient glow when custom bg is active
     const glowDiv = document.querySelector('.ambient-glow');
-    if (glowDiv) glowDiv.style.opacity = '1';
+    if (glowDiv) glowDiv.style.opacity = '0';
 
     if (settings.customBgType === "video") {
       if (customBgImg) customBgImg.style.display = "none";
@@ -453,14 +556,55 @@ function applyVisualSettings(fromTray = false) {
     if (btnClearBg) btnClearBg.style.display = "none";
     if (labelBgFilename) labelBgFilename.textContent = "None selected";
     
+    // Restore transparent body so overlay mode works normally
+    document.body.style.backgroundColor = 'transparent';
+    
     const glowDiv = document.querySelector('.ambient-glow');
     if (glowDiv) glowDiv.style.opacity = '1';
   }
 
+  const wStyle = settings.wallpaperStyle || 'style1';
+  const hasCustomBackground = Boolean(settings.customBgSrc && settings.customBgType && wStyle !== 'style2');
+
+  if (settings.wallpaperMode) {
+    if (screenLyrics) screenLyrics.style.display = "flex";
+    if (screenLogin) screenLogin.style.display = "none";
+  }
+
+  document.body.classList.toggle("wallpaper-mode", settings.wallpaperMode === true);
+  document.body.classList.toggle("wallpaper-style-1", settings.wallpaperMode && wStyle === 'style1');
+  document.body.classList.toggle("wallpaper-style-2", settings.wallpaperMode && wStyle === 'style2');
+  document.body.classList.toggle("wallpaper-style-3", settings.wallpaperMode && wStyle === 'style3');
+  document.body.classList.toggle("custom-bg-active", settings.wallpaperMode && hasCustomBackground);
+  if (appContainer) appContainer.classList.toggle("wallpaper-mode", settings.wallpaperMode === true);
+
+  // Overlay Sliders UI (Style 3)
+  const showOverlaySettings = wStyle === 'style3';
+  if (settingOverlayPosRow) settingOverlayPosRow.style.display = showOverlaySettings ? 'flex' : 'none';
+  if (settingOverlayWidthRow) settingOverlayWidthRow.style.display = showOverlaySettings ? 'flex' : 'none';
+  if (settingWallpaperFontSizeRow) settingWallpaperFontSizeRow.style.display = showOverlaySettings ? 'flex' : 'none';
+
+  const overlayX = settings.wallpaperOverlayX !== undefined ? settings.wallpaperOverlayX : 50;
+  const overlayY = settings.wallpaperOverlayY !== undefined ? settings.wallpaperOverlayY : 50;
+  const overlayWidth = settings.wallpaperOverlayWidth || 60;
+  const overlayFontSize = settings.wallpaperFontSize || 32;
+
+  document.documentElement.style.setProperty('--overlay-x', `${overlayX}%`);
+  document.documentElement.style.setProperty('--overlay-y', `${overlayY}%`);
+  document.documentElement.style.setProperty('--overlay-width', `${overlayWidth}%`);
+  document.documentElement.style.setProperty('--wallpaper-font-size', `${overlayFontSize}px`);
+
+  if (previewBox) {
+    previewBox.style.left = `${overlayX}%`;
+    previewBox.style.top = `${overlayY}%`;
+  }
+  if (sliderOverlayWidth) sliderOverlayWidth.value = overlayWidth;
+  if (valOverlayWidth) valOverlayWidth.textContent = `${overlayWidth}%`;
+  if (selectWallpaperFontSize) selectWallpaperFontSize.value = overlayFontSize;
+
   // Font Size
   document.documentElement.style.setProperty('--font-size', `${settings.fontSize}px`);
-  if (sliderFontSize) sliderFontSize.value = settings.fontSize;
-  if (valFontSize) valFontSize.textContent = `${settings.fontSize}px`;
+  if (selectFontSize) selectFontSize.value = settings.fontSize;
 
   // Taskbar Font Size
   document.documentElement.style.setProperty('--tb-font-size', `${settings.taskbarFontSize || 14}px`);
@@ -535,6 +679,9 @@ function applyVisualSettings(fromTray = false) {
   }
   if (checkShowWidget) checkShowWidget.checked = settings.showWidget;
   if (checkFullscreenLyrics) checkFullscreenLyrics.checked = settings.fullscreenLyrics || false;
+  if (checkTaskbarMode) checkTaskbarMode.checked = settings.taskbarMode || false;
+  if (checkWallpaperMode) checkWallpaperMode.checked = settings.wallpaperMode || false;
+  if (selectWallpaperStyle) selectWallpaperStyle.value = settings.wallpaperStyle || 'style1';
 
   // Window Toggles (sync UI states)
 
@@ -652,6 +799,11 @@ function applyVisualSettings(fromTray = false) {
     window.electronAPI.syncTaskbarModeState(settings.taskbarMode);
   }
 
+  if ((settings.wallpaperMode || false) !== lastSentWallpaperMode) {
+    lastSentWallpaperMode = settings.wallpaperMode || false;
+    window.electronAPI.setWallpaperMode(lastSentWallpaperMode);
+  }
+
   if (settings.alwaysOnTop !== window._lastSyncedAlwaysOnTop) {
     window._lastSyncedAlwaysOnTop = settings.alwaysOnTop;
     window.electronAPI.setAlwaysOnTop(settings.alwaysOnTop || false);
@@ -720,6 +872,125 @@ function applyTaskbarOffset() {
 
 // Setup Event Handlers
 function setupUIHandlers() {
+  const obPage1 = document.getElementById('ob-page-1');
+  const obPage2 = document.getElementById('ob-page-2');
+  const obCardWallpaper = document.getElementById('ob-card-wallpaper');
+  const obCardTaskbar = document.getElementById('ob-card-taskbar');
+  const obCardStandard = document.getElementById('ob-card-standard');
+  const obCardStyle1 = document.getElementById('ob-card-style1');
+  const obCardStyle2 = document.getElementById('ob-card-style2');
+  const obCardStyle3 = document.getElementById('ob-card-style3');
+  
+  const btnNextPage = document.getElementById('btn-next-onboarding');
+  const btnFinish1 = document.getElementById('btn-finish-onboarding-1');
+  const btnFinish2 = document.getElementById('btn-finish-onboarding-2');
+  const btnBack = document.getElementById('btn-back-onboarding');
+
+  if (obPage1 && obPage2 && obCardWallpaper && obCardTaskbar && obCardStandard) {
+    let pickedMode = null;
+    let pickedStyle = null;
+    
+    const updateModeSelection = (mode, selectedElem) => {
+      [obCardWallpaper, obCardTaskbar, obCardStandard].forEach(el => el.classList.remove('selected'));
+      selectedElem.classList.add('selected');
+      pickedMode = mode;
+      
+      if (mode === 'wallpaper') {
+        btnNextPage.style.display = 'block';
+        btnFinish1.style.display = 'none';
+        
+        // Use timeout to allow display:block to render before fading in
+        setTimeout(() => {
+          btnNextPage.style.opacity = '1';
+          btnNextPage.style.pointerEvents = 'auto';
+        }, 10);
+      } else {
+        btnNextPage.style.display = 'none';
+        btnFinish1.style.display = 'block';
+        
+        setTimeout(() => {
+          btnFinish1.style.opacity = '1';
+          btnFinish1.style.pointerEvents = 'auto';
+        }, 10);
+      }
+    };
+
+    const updateStyleSelection = (style, selectedElem) => {
+      [obCardStyle1, obCardStyle2, obCardStyle3].forEach(el => el.classList.remove('selected'));
+      selectedElem.classList.add('selected');
+      pickedStyle = style;
+      btnFinish2.style.opacity = '1';
+      btnFinish2.style.pointerEvents = 'auto';
+    };
+
+    obCardStandard.addEventListener('click', () => updateModeSelection('standard', obCardStandard));
+    obCardWallpaper.addEventListener('click', () => updateModeSelection('wallpaper', obCardWallpaper));
+    obCardTaskbar.addEventListener('click', () => updateModeSelection('taskbar', obCardTaskbar));
+    
+    if (obCardStyle1) obCardStyle1.addEventListener('click', () => updateStyleSelection('style1', obCardStyle1));
+    if (obCardStyle2) obCardStyle2.addEventListener('click', () => updateStyleSelection('style2', obCardStyle2));
+    if (obCardStyle3) obCardStyle3.addEventListener('click', () => updateStyleSelection('style3', obCardStyle3));
+
+    // Next Button (Transition to Page 2)
+    btnNextPage.addEventListener('click', () => {
+      obPage1.style.opacity = '0';
+      setTimeout(() => {
+        obPage1.style.display = 'none';
+        obPage2.style.display = 'flex';
+        setTimeout(() => {
+          obPage2.style.opacity = '1';
+        }, 50);
+      }, 300);
+    });
+
+    // Back Button (Transition to Page 1)
+    btnBack.addEventListener('click', () => {
+      obPage2.style.opacity = '0';
+      setTimeout(() => {
+        obPage2.style.display = 'none';
+        obPage1.style.display = 'flex';
+        setTimeout(() => {
+          obPage1.style.opacity = '1';
+        }, 50);
+      }, 300);
+    });
+
+    const finalizeSetup = () => {
+      if (pickedMode === 'wallpaper') {
+        settings.wallpaperMode = true;
+        settings.taskbarMode = false;
+        settings.wallpaperStyle = pickedStyle || 'style3';
+      } else if (pickedMode === 'taskbar') {
+        settings.taskbarMode = true;
+        settings.wallpaperMode = false;
+      } else if (pickedMode === 'standard') {
+        settings.wallpaperMode = false;
+        settings.taskbarMode = false;
+      }
+      
+      settings.firstRun = false;
+      saveLocalSettings();
+      
+      const screenOnboarding = document.getElementById('screen-onboarding');
+      if (screenOnboarding) {
+        screenOnboarding.classList.remove("active");
+        screenOnboarding.style.display = "none";
+      }
+      
+      applyVisualSettings();
+      
+      if (screenLyrics) {
+        screenLyrics.style.display = 'flex';
+        screenLyrics.classList.add('active');
+      }
+      
+      // Auto-open settings on first run so they can adjust font size/etc
+      if (settingsPanel) settingsPanel.classList.add("open");
+    };
+
+    btnFinish1.addEventListener('click', finalizeSetup);
+    btnFinish2.addEventListener('click', finalizeSetup);
+  }
   // Auth Form Submission (Seamless Web Flow)
   const btnLoginWeb = document.getElementById("btn-login-web");
   if (btnLoginWeb) {
@@ -892,8 +1163,8 @@ function setupUIHandlers() {
   }
 
   // Settings Panel sliders
-  if (sliderFontSize) {
-    sliderFontSize.addEventListener("input", (e) => {
+  if (selectFontSize) {
+    selectFontSize.addEventListener("change", (e) => {
       settings.fontSize = parseInt(e.target.value, 10);
       applyVisualSettings();
       saveLocalSettings();
@@ -922,29 +1193,23 @@ function setupUIHandlers() {
   }
 
   // Custom Background file pick & clear listeners
-  if (btnPickBg && inputBgFile) {
-    btnPickBg.addEventListener("click", () => {
-      inputBgFile.click();
-    });
+  if (btnPickBg) {
+    btnPickBg.addEventListener("click", async () => {
+      if (window.electronAPI && window.electronAPI.selectBackgroundFile) {
+        const filePath = await window.electronAPI.selectBackgroundFile();
+        if (filePath) {
+          const isVideo = filePath.endsWith(".mp4") || filePath.endsWith(".webm");
+          const fileSrc = `file:///${filePath.replace(/\\/g, "/")}`;
+          settings.customBgSrc = fileSrc;
+          settings.customBgType = isVideo ? "video" : "image";
+          settings.customBgName = filePath.split(/[\\/]/).pop();
 
-    inputBgFile.addEventListener("change", (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-
-      const isVideo = file.type.startsWith("video/") || file.name.endsWith(".mp4") || file.name.endsWith(".webm");
-      let fileSrc = "";
-      if (file.path) {
-        fileSrc = `lyricflow-media:///${file.path.replace(/\\/g, "/")}`;
+          applyVisualSettings();
+          saveLocalSettings();
+        }
       } else {
-        fileSrc = URL.createObjectURL(file);
+        console.error("selectBackgroundFile IPC not available");
       }
-
-      settings.customBgSrc = fileSrc;
-      settings.customBgType = isVideo ? "video" : "image";
-      settings.customBgName = file.name;
-
-      applyVisualSettings();
-      saveLocalSettings();
     });
   }
 
@@ -1028,10 +1293,57 @@ function setupUIHandlers() {
     });
   }
 
+  // Wallpaper Mode checkbox listener
+  if (checkWallpaperMode) {
+    checkWallpaperMode.addEventListener("change", (e) => {
+      console.log('[WALLPAPER MODE UI] Checkbox changed:', e.target.checked);
+      settings.wallpaperMode = e.target.checked;
+      
+      // If turning on Wallpaper Mode, turn off Taskbar Mode
+      if (settings.wallpaperMode) {
+        settings.taskbarMode = false;
+        if (checkTaskbarMode) checkTaskbarMode.checked = false;
+      }
+      
+      applyVisualSettings();
+      saveLocalSettings();
+    });
+  }
+
+  if (selectWallpaperStyle) {
+    selectWallpaperStyle.value = settings.wallpaperStyle || 'style1';
+    selectWallpaperStyle.addEventListener("change", (e) => {
+      settings.wallpaperStyle = ['style1', 'style2', 'style3'].includes(e.target.value) ? e.target.value : 'style1';
+      applyVisualSettings();
+      saveLocalSettings();
+    });
+  }
+
+  if (sliderOverlayWidth) {
+    sliderOverlayWidth.addEventListener("input", (e) => {
+      settings.wallpaperOverlayWidth = parseInt(e.target.value, 10);
+      if (valOverlayWidth) valOverlayWidth.textContent = `${settings.wallpaperOverlayWidth}%`;
+      applyVisualSettings();
+      saveLocalSettings();
+    });
+  }
+
+  if (selectWallpaperFontSize) {
+    selectWallpaperFontSize.addEventListener("change", (e) => {
+      settings.wallpaperFontSize = parseInt(e.target.value, 10);
+      applyVisualSettings();
+      saveLocalSettings();
+    });
+  }
+
   // Taskbar Mode checkbox listener
   if (checkTaskbarMode) {
     checkTaskbarMode.addEventListener("change", (e) => {
       settings.taskbarMode = e.target.checked;
+      if (settings.taskbarMode) {
+        settings.wallpaperMode = false;
+        if (checkWallpaperMode) checkWallpaperMode.checked = false;
+      }
       applyVisualSettings();
       saveLocalSettings();
     });
@@ -1226,8 +1538,20 @@ function setupUIHandlers() {
   });
 
   if (btnSettings) {
-    btnSettings.addEventListener("click", () => {
+    btnSettings.addEventListener("click", async () => {
       if (settingsPanel) settingsPanel.classList.add("open");
+      try {
+        if (window.api && window.api.getDesktopWallpaper) {
+          const wpPath = await window.api.getDesktopWallpaper();
+          if (wpPath && previewCanvas) {
+            previewCanvas.style.backgroundImage = `url('lyricflow-media://${wpPath.replace(/\\/g, '/')}')`;
+            previewCanvas.style.backgroundSize = 'cover';
+            previewCanvas.style.backgroundPosition = 'center';
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load wallpaper for preview", err);
+      }
     });
   }
 
@@ -1445,11 +1769,93 @@ function setupUIHandlers() {
 
   if (window.electronAPI.onForceNormalMode) {
     window.electronAPI.onForceNormalMode(() => {
-      if (settings.taskbarMode) {
+      if (settings.taskbarMode || settings.wallpaperMode) {
         settings.taskbarMode = false;
+        settings.wallpaperMode = false;
         if (checkTaskbarMode) checkTaskbarMode.checked = false;
+        if (checkWallpaperMode) checkWallpaperMode.checked = false;
         applyVisualSettings();
         saveLocalSettings();
+      }
+    });
+  }
+
+  if (window.electronAPI.onWallpaperModeState) {
+    window.electronAPI.onWallpaperModeState((enabled) => {
+      settings.wallpaperMode = Boolean(enabled);
+      if (settings.wallpaperMode) {
+        settings.taskbarMode = false;
+        if (checkTaskbarMode) checkTaskbarMode.checked = false;
+      }
+      if (checkWallpaperMode) checkWallpaperMode.checked = settings.wallpaperMode;
+      applyVisualSettings();
+      saveLocalSettings();
+    });
+  }
+
+  const desktopEditOverlay = document.getElementById('desktop-edit-overlay');
+  const btnDesktopEditDone = document.getElementById('btn-desktop-edit-done');
+  
+  if (window.electronAPI.onWallpaperEditStarted) {
+    window.electronAPI.onWallpaperEditStarted(() => {
+      if (settingsPanel) settingsPanel.classList.remove('open');
+      desktopEditOverlay.style.display = 'block';
+      lyricsViewport.style.outline = '2px dashed rgba(255,255,255,0.8)';
+      lyricsViewport.style.background = 'rgba(0,0,0,0.4)';
+    });
+  }
+
+  if (window.electronAPI.onWallpaperEditEnded) {
+    window.electronAPI.onWallpaperEditEnded(() => {
+      desktopEditOverlay.style.display = 'none';
+      lyricsViewport.style.outline = '';
+      lyricsViewport.style.background = '';
+      if (settingsPanel) settingsPanel.classList.add('open');
+    });
+  }
+
+  if (desktopEditOverlay && btnDesktopEditDone) {
+    let isDraggingDesktop = false;
+    
+    const updateDesktopPosition = (e) => {
+      const rect = document.body.getBoundingClientRect();
+      let x = e.clientX;
+      let y = e.clientY;
+      
+      x = Math.max(0, Math.min(rect.width, x));
+      y = Math.max(0, Math.min(rect.height, y));
+      
+      const percentX = Math.round((x / rect.width) * 100);
+      const percentY = Math.round((y / rect.height) * 100);
+      
+      settings.wallpaperOverlayX = percentX;
+      settings.wallpaperOverlayY = percentY;
+      applyVisualSettings();
+    };
+
+    desktopEditOverlay.addEventListener('mousedown', (e) => {
+      if (e.target === btnDesktopEditDone) return;
+      isDraggingDesktop = true;
+      updateDesktopPosition(e);
+      document.body.style.cursor = 'crosshair';
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!isDraggingDesktop) return;
+      updateDesktopPosition(e);
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (isDraggingDesktop) {
+        isDraggingDesktop = false;
+        document.body.style.cursor = '';
+        saveLocalSettings();
+      }
+    });
+
+    btnDesktopEditDone.addEventListener('click', () => {
+      if (window.electronAPI.endWallpaperEdit) {
+        window.electronAPI.endWallpaperEdit();
       }
     });
   }
@@ -1463,6 +1869,42 @@ function setupUIHandlers() {
       handlePlaybackData(data);
     }
   });
+
+  // Instantly freeze/unfreeze the internal clock the moment Windows detects pause/play
+  // This fires BEFORE the Spotify API poll and eliminates the jump-ahead-then-back jitter
+  window.electronAPI.onSmtcPlaybackStatus((data) => {
+    if (!config || config.localMode) return; // Only matters in Spotify API mode
+    if (data.isPlaying) {
+      // Song resumed: restart the internal clock from current frozen position
+      if (!isPlaying) {
+        if (typeof data.position === 'number') {
+          lastPollProgress = data.position;
+          currentProgress = data.position;
+        } else {
+          lastPollProgress = currentProgress;
+        }
+        lastPollTimestamp = Date.now();
+        isPlaying = true;
+        if (btnPlaySvg) btnPlaySvg.style.display = 'none';
+        if (btnPauseSvg) btnPauseSvg.style.display = 'block';
+      }
+    } else {
+      // Song paused: freeze internal clock exactly here, right now
+      if (isPlaying) {
+        if (typeof data.position === 'number') {
+          lastPollProgress = data.position;
+          currentProgress = data.position;
+        } else {
+          lastPollProgress = currentProgress;
+        }
+        lastPollTimestamp = Date.now();
+        isPlaying = false;
+        if (btnPlaySvg) btnPlaySvg.style.display = 'block';
+        if (btnPauseSvg) btnPauseSvg.style.display = 'none';
+      }
+    }
+  });
+
   let isTogglingFromTray = false;
   window.electronAPI.onToggleTaskbarModeTray(() => {
     isTogglingFromTray = true;
@@ -1477,6 +1919,10 @@ function setupUIHandlers() {
         return;
     }
     settings.taskbarMode = newState;
+    if (settings.taskbarMode) {
+      settings.wallpaperMode = false;
+      if (checkWallpaperMode) checkWallpaperMode.checked = false;
+    }
     if (checkTaskbarMode) checkTaskbarMode.checked = settings.taskbarMode;
     applyVisualSettings(isTogglingFromTray);
     saveLocalSettings();
@@ -1488,8 +1934,29 @@ function setupUIHandlers() {
       applyVisualSettings();
       saveLocalSettings();
     }
-    if (settingsPanel) settingsPanel.classList.add("open");
+    document.getElementById("settings-panel").classList.add("open");
   });
+
+  if (window.electronAPI.onShowToast) {
+    window.electronAPI.onShowToast((message) => {
+      if (toastNotification) {
+        toastNotification.textContent = message;
+        toastNotification.classList.add("show");
+        setTimeout(() => toastNotification.classList.remove("show"), 5000);
+      }
+    });
+  }
+
+  if (window.electronAPI.onNudgeOverlay) {
+    window.electronAPI.onNudgeOverlay((dx, dy) => {
+      if (settings.wallpaperMode && settings.wallpaperStyle === 'style3') {
+        settings.wallpaperOverlayX = Math.max(0, Math.min(100, (settings.wallpaperOverlayX || 50) + dx));
+        settings.wallpaperOverlayY = Math.max(0, Math.min(100, (settings.wallpaperOverlayY || 50) + dy));
+        applyVisualSettings();
+        saveLocalSettings();
+      }
+    });
+  }
 
   // Lyric Copy shortcut listener
   window.electronAPI.onCopyActiveLyric(() => {
@@ -1757,10 +2224,29 @@ function showLoginScreen() {
 }
 
 function showLyricsScreen() {
-  screenLogin.classList.remove("active");
-  screenLogin.style.display = "none";
-  screenLyrics.classList.add("active");
-  screenLyrics.style.display = "flex";
+  if (screenLogin) {
+    screenLogin.classList.remove("active");
+    screenLogin.style.display = "none";
+  }
+  
+  if (settings.firstRun !== false && screenOnboarding) {
+    screenOnboarding.style.display = "block";
+    screenOnboarding.classList.add("active");
+    if (screenLyrics) {
+      screenLyrics.style.display = "none";
+      screenLyrics.classList.remove("active");
+    }
+  } else {
+    if (screenLyrics) {
+      screenLyrics.classList.add("active");
+      screenLyrics.style.display = "flex";
+    }
+  }
+
+  if (settings.offlineMode) { 
+    // Handle offline logic if needed
+  }
+  
   startPolling();
 
   // Set default window properties from settings on start
@@ -1802,10 +2288,46 @@ async function pollSpotifyPlayback(_retried = false) {
 
     if (res.status === 200) {
       const data = await res.json();
-      if (data && data.item && data.is_playing) {
-        // Compensate for network latency so the playhead doesn't drift
+      if (data && data.item) {
+        lastSpotifyPlaybackData = JSON.parse(JSON.stringify(data));
+        
+        try {
+          const localData = await window.electronAPI.getLocalPlayback();
+          if (localData && localData.item) {
+            const localTitle = localData.item.name.toLowerCase().trim();
+            const spotTitle = data.item.name.toLowerCase().trim();
+            const durationDiff = Math.abs((localData.item.duration_ms || 0) - (data.item.duration_ms || 0));
+            const isSameSong = durationDiff < 3000 || localTitle === spotTitle || localTitle.includes(spotTitle) || spotTitle.includes(localTitle);
+
+            if (isSameSong) {
+              // Override Spotify Web API's lagging state with SMTC's instant state
+              data.is_playing = localData.is_playing;
+              if (localData.progress_ms > 0) {
+                 // Subtract latency here so when it's added below, it perfectly matches the instant local time
+                 data.progress_ms = localData.progress_ms - ((Date.now() - fetchStart) / 2);
+              }
+            } else if (localData.is_playing && !data.is_playing) {
+              // SMTC is playing something else, and Spotify is paused.
+              handlePlaybackData(localData);
+              return;
+            }
+          }
+        } catch (e) {}
+        
         const latency = (Date.now() - fetchStart) / 2;
         data.progress_ms += latency;
+
+        // KEY FIX: If paused and same track already loaded, skip full UI update.
+        // Calling handlePlaybackData with a lagging progress_ms while paused is what
+        // causes the lyrics to jitter/snap backward every 1.5s poll.
+        if (!data.is_playing && data.item.id === currentTrackId) {
+          isPlaying = false;
+          // Update play/pause button only
+          if (btnPlaySvg) btnPlaySvg.style.display = 'block';
+          if (btnPauseSvg) btnPauseSvg.style.display = 'none';
+          return;
+        }
+
         handlePlaybackData(data);
         return;
       }
@@ -1841,6 +2363,19 @@ async function pollLocalPlayback() {
   try {
     const data = await window.electronAPI.getLocalPlayback();
     if (data && data.item) {
+      if (typeof lastSpotifyPlaybackData !== 'undefined' && lastSpotifyPlaybackData && lastSpotifyPlaybackData.item) {
+        const localTitle = data.item.name.toLowerCase().trim();
+        const spotTitle = lastSpotifyPlaybackData.item.name.toLowerCase().trim();
+        const durationDiff = Math.abs((data.item.duration_ms || 0) - (lastSpotifyPlaybackData.item.duration_ms || 0));
+        const isSameSong = durationDiff < 3000 || localTitle === spotTitle || localTitle.includes(spotTitle) || spotTitle.includes(localTitle);
+
+        if (isSameSong) {
+           lastSpotifyPlaybackData.is_playing = data.is_playing;
+           lastSpotifyPlaybackData.progress_ms = data.progress_ms;
+           handlePlaybackData(lastSpotifyPlaybackData);
+           return;
+        }
+      }
       handlePlaybackData(data);
     } else {
       handleEmptyPlayback();
@@ -1863,6 +2398,9 @@ function handleEmptyPlayback() {
 
   widgetTrackName.textContent = "Not Playing";
   widgetArtistName.textContent = "Spotify";
+  if (wallpaperTrackTitle) wallpaperTrackTitle.textContent = "Not Playing";
+  if (wallpaperTrackArtist) wallpaperTrackArtist.textContent = "Spotify";
+  setWallpaperAlbumArt(null);
   if (widgetPlaycount) widgetPlaycount.style.display = "none";
   widgetAlbumArt.style.display = "none";
   widgetArtFallback.style.display = "flex";
@@ -1889,29 +2427,35 @@ async function handlePlaybackData(data) {
   const progressMs = data.progress_ms;
 
   // Real-time synchronization: Sync Latching Logic
-  // We maintain our own high-precision internal clock. We only "Snap" to the
-  // external time (from the browser/app) if it differs significantly (> 2.5s),
-  // which handles manual seeks while ignoring small jitter/latency.
-  const timeDrift = Math.abs(currentProgress - progressMs);
   const isNewTrack = track.id !== currentTrackId;
-  const isManualSeek = timeDrift > 2500;
 
   // SPECIAL FIX: Some browser players (Apple Music Web) report progressMs = 0
   // even when playing. We ignore 0-syncs if we are already playing to prevent
   // the slider from snapping back to the start.
   const isZeroReset = progressMs === 0 && isPlaying && !isNewTrack;
 
-  // Always update on song change, manual seek, or if we were paused
-  if ((isNewTrack || isManualSeek || !isPlaying) && !isZeroReset) {
+  if (isNewTrack && !isZeroReset) {
+    // New song: snap immediately to the API timestamp
     lastPollProgress = progressMs;
     lastPollTimestamp = Date.now();
-    currentProgress = progressMs; // Immediate snap
-  } else if (!isZeroReset && isPlaying) {
-    const signedDrift = currentProgress - progressMs;
-    // Tightly correct drift: if we are off by more than 50ms, pull aggressively (80%)
-    if (Math.abs(signedDrift) > 50 && Math.abs(signedDrift) <= 2500) {
-      lastPollTimestamp += (signedDrift * 0.8);
+    currentProgress = progressMs;
+  } else if (!isZeroReset && isCurrentlyPlaying) {
+    // Song is playing: only correct if drift is genuinely large (user manually seeked)
+    const timeDrift = currentProgress - progressMs;
+    if (Math.abs(timeDrift) > 5000) {
+      // Manual seek detected — snap hard
+      lastPollProgress = progressMs;
+      lastPollTimestamp = Date.now();
+      currentProgress = progressMs;
     }
+    // Otherwise: trust our internal clock. Do NOT touch lastPollProgress/lastPollTimestamp.
+    // The 60fps updatePlayhead() tick is more accurate than the API polling interval.
+  } else if (!isZeroReset && !isCurrentlyPlaying) {
+    // Song is PAUSED: freeze currentProgress exactly where it is right now.
+    // NEVER snap to the API progress_ms when paused — it is always lagging behind
+    // and causes the visible backwards jitter.
+    lastPollProgress = currentProgress;
+    lastPollTimestamp = Date.now();
   }
 
   isPlaying = isCurrentlyPlaying;
@@ -1936,16 +2480,21 @@ async function handlePlaybackData(data) {
 
   // Track Info UI update
   widgetTrackName.textContent = track.name;
-  widgetArtistName.textContent = track.artists.map(a => a.name).join(", ");
+  const artistText = track.artists.map(a => a.name).join(", ");
+  widgetArtistName.textContent = artistText;
+  if (wallpaperTrackTitle) wallpaperTrackTitle.textContent = track.name;
+  if (wallpaperTrackArtist) wallpaperTrackArtist.textContent = artistText;
 
   const albumArtUrl = track.album?.images?.[0]?.url || track.album?.images?.[1]?.url || track.album?.images?.[2]?.url;
   if (albumArtUrl) {
     widgetAlbumArt.src = albumArtUrl;
     widgetAlbumArt.style.display = "block";
     widgetArtFallback.style.display = "none";
+    setWallpaperAlbumArt(albumArtUrl);
   } else {
     widgetAlbumArt.style.display = "none";
     widgetArtFallback.style.display = "flex";
+    setWallpaperAlbumArt(null);
   }
 
   widgetTimeDuration.textContent = formatTime(trackDuration);
@@ -2019,6 +2568,7 @@ async function handlePlaybackData(data) {
           widgetAlbumArt.src = artUrl;
           widgetAlbumArt.style.display = "block";
           widgetArtFallback.style.display = "none";
+          setWallpaperAlbumArt(artUrl);
 
           if (!settings.taskbarMode && settings.showNextUp) {
             window.electronAPI.showNextUp({
@@ -3736,4 +4286,3 @@ async function startPreCacheRoutine() {
     btnCacheTopTracks.disabled = false;
   }
 }
-

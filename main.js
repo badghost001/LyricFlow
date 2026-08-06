@@ -4,6 +4,7 @@ const fs = require('fs');
 const http = require('http');
 const { exec, spawn } = require('child_process');
 const md5 = require('md5');
+const { autoUpdater } = require('electron-updater');
 
 process.noDeprecation = true;
 // process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'; // REMOVED: Disabling TLS validation is a critical security risk
@@ -135,6 +136,7 @@ function startLocalPlaybackMonitor() {
       if (trimmed) {
         try {
           const parsed = JSON.parse(trimmed);
+          const prevStatus = lastLocalPlaybackState ? lastLocalPlaybackState.status : null;
           lastLocalPlaybackState = parsed;
           
           // Toggle window visibility based on taskbar auto-hide state
@@ -163,6 +165,16 @@ function startLocalPlaybackMonitor() {
           
           if (parsed.status === 'Closed') {
             lastTrackId = null;
+          }
+
+          // Instantly push pause/play state changes to renderer — no Spotify API poll delay
+          if (parsed.title && parsed.status !== prevStatus && (parsed.status === 'Playing' || parsed.status === 'Paused')) {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send('smtc-playback-status', {
+                isPlaying: parsed.status === 'Playing',
+                position: parsed.position || 0
+              });
+            }
           }
 
           if (parsed.status !== 'Closed' && parsed.title) {
@@ -419,6 +431,31 @@ app.whenReady().then(async () => {
   
   createWindow();
   createTray();
+  
+  // Setup OTA updates
+  autoUpdater.autoDownload = true;
+  autoUpdater.on('update-available', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('show-toast', 'Downloading update...');
+    }
+  });
+  autoUpdater.on('update-downloaded', () => {
+    const { dialog } = require('electron');
+    dialog.showMessageBox({
+      type: 'info',
+      title: 'Update Ready',
+      message: 'A new version of LyricFlow has been downloaded. Would you like to restart and install it now?',
+      buttons: ['Restart Now', 'Later']
+    }).then((result) => {
+      if (result.response === 0) {
+        autoUpdater.quitAndInstall(false, true);
+      }
+    });
+  });
+  autoUpdater.on('error', (err) => {
+    console.error('Update error:', err);
+  });
+  autoUpdater.checkForUpdatesAndNotify().catch(() => {});
 
   screen.on('display-metrics-changed', () => {
     if (taskbarWindow && isTaskbarMode && !taskbarWindow.isDestroyed()) {
@@ -445,6 +482,21 @@ app.whenReady().then(async () => {
     if (mainWindow) {
       mainWindow.webContents.send('share-active-lyric');
     }
+  });
+
+  // Nudge shortcuts for Wallpaper Style 3 positioning
+  const nudgeStep = 1;
+  globalShortcut.register('CommandOrControl+Shift+Left', () => {
+    if (mainWindow) mainWindow.webContents.send('nudge-overlay', -nudgeStep, 0);
+  });
+  globalShortcut.register('CommandOrControl+Shift+Right', () => {
+    if (mainWindow) mainWindow.webContents.send('nudge-overlay', nudgeStep, 0);
+  });
+  globalShortcut.register('CommandOrControl+Shift+Up', () => {
+    if (mainWindow) mainWindow.webContents.send('nudge-overlay', 0, -nudgeStep);
+  });
+  globalShortcut.register('CommandOrControl+Shift+Down', () => {
+    if (mainWindow) mainWindow.webContents.send('nudge-overlay', 0, nudgeStep);
   });
 
   // Register global media keys and custom shortcuts
@@ -620,6 +672,127 @@ ipcMain.on('set-always-on-top', (event, alwaysOnTop) => {
   }
 });
 
+// Wallpaper Mode — compile wallpaper_helper.cs to exe on first run for fast attach/detach
+const { execFileSync, execFile: execFileAsync } = require('child_process');
+const os = require('os');
+const wallpaperExePath = path.join(os.tmpdir(), 'lyricflow_wallpaper_helper.exe');
+let wallpaperHelperReady = false;
+
+function ensureWallpaperHelper() {
+  if (wallpaperHelperReady) return true;
+  if (fs.existsSync(wallpaperExePath)) { wallpaperHelperReady = true; return true; }
+  try {
+    const csPath = getScriptPath('wallpaper_helper.cs');
+    if (!fs.existsSync(csPath)) return false;
+    // Use csc.exe from .NET Framework (ships with every Windows install)
+    const cscPaths = [
+      'C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe',
+      'C:\\Windows\\Microsoft.NET\\Framework\\v4.0.30319\\csc.exe',
+    ];
+    const csc = cscPaths.find(p => fs.existsSync(p));
+    if (!csc) return false;
+    execFileSync(csc, ['/nologo', '/target:exe', `/out:${wallpaperExePath}`, csPath], { timeout: 15000, stdio: ['ignore', 'pipe', 'pipe'] });
+    wallpaperHelperReady = fs.existsSync(wallpaperExePath);
+    console.log('[Wallpaper] Helper compiled to', wallpaperExePath);
+    return wallpaperHelperReady;
+  } catch (e) {
+    console.warn('[Wallpaper] Failed to compile helper, falling back to PS1:', e.message);
+    return false;
+  }
+}
+
+function runWallpaperHelper(hwnd, mode, callback) {
+  if (ensureWallpaperHelper()) {
+    // Fast path: native exe, ~20ms cold start
+    execFileAsync(wallpaperExePath, [hwnd, mode], (err, stdout) => {
+      if (err) console.error(`Wallpaper ${mode} (exe) error:`, err.message);
+      else console.log(`Wallpaper ${mode} (exe):`, stdout.trim());
+      if (callback) callback(err);
+    });
+  } else {
+    // Slow fallback: PowerShell, ~700ms cold start
+    const scriptPath = getScriptPath('wallpaper.ps1');
+    execFileAsync('powershell.exe', [
+      '-NoProfile', '-ExecutionPolicy', 'Bypass',
+      '-File', scriptPath, '-HandleString', hwnd, '-Mode', mode
+    ], (err, stdout) => {
+      if (err) console.error(`Wallpaper ${mode} (ps1) error:`, err.message);
+      else console.log(`Wallpaper ${mode} (ps1):`, stdout.trim());
+      if (callback) callback(err);
+    });
+  }
+}
+
+// Pre-compile on app start so first toggle is instant
+app.whenReady().then(() => { setTimeout(ensureWallpaperHelper, 3000); });
+
+// Wallpaper Mode IPC Handlers
+ipcMain.on('set-wallpaper-mode', (event, enabled) => {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const { screen } = require('electron');
+
+  if (enabled) {
+    // Resize to cover full primary display first
+    const primaryDisplay = screen.getPrimaryDisplay();
+    const { bounds } = primaryDisplay;
+    mainWindow.setResizable(true);
+    mainWindow.setBounds({ x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height });
+    mainWindow.setSkipTaskbar(true);
+    mainWindow.setAlwaysOnTop(false); // Must NOT be always-on-top for WorkerW embed to work
+
+    const hwnd = mainWindow.getNativeWindowHandle().readBigInt64LE(0).toString();
+    runWallpaperHelper(hwnd, 'attach');
+  } else {
+    const hwnd = mainWindow.getNativeWindowHandle().readBigInt64LE(0).toString();
+    runWallpaperHelper(hwnd, 'detach');
+    
+    // Defer the restoration slightly. If the user is transitioning to Taskbar mode,
+    // the next IPC will set isTaskbarMode=true and hide the window.
+    // If they are just returning to Normal mode, this will properly restore the bounds and styles.
+    setTimeout(() => {
+      if (!mainWindow || mainWindow.isDestroyed()) return;
+      if (!isTaskbarMode) {
+        restoreNormalWindow();
+      }
+    }, 50);
+  }
+  mainWindow.webContents.send('set-wallpaper-mode-state', enabled);
+});
+
+ipcMain.on('start-wallpaper-edit', () => {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.setIgnoreMouseEvents(false);
+  const hwnd = mainWindow.getNativeWindowHandle().readBigInt64LE(0).toString();
+  // Temporarily detach so it pops over desktop icons for editing
+  runWallpaperHelper(hwnd, 'detach');
+  mainWindow.setAlwaysOnTop(true, 'screen-saver');
+  mainWindow.webContents.send('wallpaper-edit-started');
+});
+
+ipcMain.on('end-wallpaper-edit', () => {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.setAlwaysOnTop(false);
+  const hwnd = mainWindow.getNativeWindowHandle().readBigInt64LE(0).toString();
+  // Re-attach behind desktop icons
+  runWallpaperHelper(hwnd, 'attach');
+  mainWindow.setIgnoreMouseEvents(true, { forward: true });
+  mainWindow.webContents.send('wallpaper-edit-ended');
+});
+
+ipcMain.handle('get-desktop-wallpaper', async () => {
+  try {
+    const { execSync } = require('child_process');
+    const result = execSync(
+      'powershell -NoProfile -Command "(Get-ItemProperty -Path \'HKCU:\\Control Panel\\Desktop\' -Name Wallpaper).Wallpaper"',
+      { encoding: 'utf8', timeout: 3000 }
+    ).trim();
+    return result || null;
+  } catch (e) {
+    return null;
+  }
+});
+
+
 // Edge Glow Window Controller
 ipcMain.on('set-edge-glow', (event, enabled, color) => {
   if (enabled) {
@@ -752,6 +925,7 @@ function restoreNormalWindow(fromTray = false) {
   mainWindow.setSkipTaskbar(false);
   mainWindow.setIgnoreMouseEvents(false);
   mainWindow.setAlwaysOnTop(false);
+  mainWindow.setOpacity(1);
 
   if (normalBounds) {
     mainWindow.setBounds(normalBounds);
@@ -787,6 +961,14 @@ ipcMain.on('set-taskbar-mode', (event, enabled, fromTray = false) => {
     
     // Hide the main window instead of resizing it
     mainWindow.hide();
+    mainWindow.setOpacity(0); // Aggressive hide to prevent ghost windows
+    
+    // Forcefully hide again after a short delay in case OS events (like SetParent or SkipTaskbar) unhide it
+    setTimeout(() => {
+      if (isTaskbarMode && mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.hide();
+      }
+    }, 150);
     
     createTaskbarWindow();
   } else {

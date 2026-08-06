@@ -1,16 +1,17 @@
 {
   "name": "lyricflow",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "LyricFlow",
   "main": "main.js",
   "type": "commonjs",
   "scripts": {
     "start": "electron . --no-sandbox",
-    "build:win": "electron-builder --win"
+    "build:win": "electron-builder --win",
+    "publish": "electron-builder --win -p always"
   },
   "keywords": [],
   "author": "badghost",
-  "license": "MIT",
+  "license": "Proprietary",
   "devDependencies": {
     "electron": "^42.3.0",
     "electron-builder": "^26.8.1"
@@ -18,6 +19,13 @@
   "build": {
     "appId": "com.badghost.lyricflow",
     "productName": "LyricFlow",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "badghost001",
+        "repo": "LyricFlow"
+      }
+    ],
     "copyright": "Copyright © 2026 badghost",
     "directories": {
       "output": "dist"
@@ -29,11 +37,24 @@
     "win": {
       "icon": "build/icon.png",
       "target": [
-        "portable",
-        "nsis",
-        "appx"
+        {
+          "target": "nsis",
+          "arch": [
+            "x64",
+            "ia32"
+          ]
+        },
+        "portable"
       ],
       "requestedExecutionLevel": "asInvoker"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "LyricFlow"
     },
     "appx": {
       "identityName": "badghost.LyricFlow",
@@ -54,12 +75,15 @@
       "smtc_reader.ps1",
       "smtc_control.ps1",
       "smtc_controller.ps1",
+      "wallpaper.ps1",
+      "wallpaper_helper.cs",
       "preload_edge_glow.js"
     ]
   },
   "dependencies": {
     "@vitalets/google-translate-api": "^9.2.1",
     "discord-rpc": "^4.0.1",
+    "electron-updater": "^6.8.9",
     "kuroshiro": "^1.2.0",
     "kuroshiro-analyzer-kuromoji": "^1.1.0",
     "md5": "^2.3.0",
