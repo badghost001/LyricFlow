@@ -197,6 +197,9 @@ function endTaskbarDrag() {
 
 
 window.addEventListener("DOMContentLoaded", async () => {
+  // Clear any previously cached (and potentially incorrect) lyrics from the old bug
+  clearLyricsCaches();
+
   // Initialize DOM queries
   screenLogin = document.getElementById("screen-login");
   screenLyrics = document.getElementById("screen-lyrics");
@@ -3089,15 +3092,39 @@ async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = nu
           if (resNoDur.ok) data = await resNoDur.json();
         }
 
+        // Helper function to validate search results
+        const getBestResult = (results) => {
+          if (!results || results.length === 0) return null;
+          
+          // Try to find a result that at least partially matches the artist or track name
+          const validResults = results.filter(r => {
+            if (!r) return false;
+            const rArtist = (r.artistName || "").toLowerCase();
+            const rTrack = (r.trackName || "").toLowerCase();
+            const sArtist = cleanArtist.toLowerCase();
+            const sTrack = cleanTrack.toLowerCase();
+            
+            // Allow if artist matches at all, or track matches at all
+            return rArtist.includes(sArtist) || sArtist.includes(rArtist) || 
+                   rTrack.includes(sTrack) || sTrack.includes(rTrack);
+          });
+          
+          // If we found validated results, prefer synced
+          if (validResults.length > 0) {
+            return validResults.find(r => r.syncedLyrics) || validResults[0];
+          }
+          
+          // If no results passed validation, the search is a hallucination (like Kali Uchis for Drake).
+          // Return null so we don't display completely wrong lyrics.
+          return null;
+        };
+
         // Attempt 3: Search using track_name and artist_name explicitly
         if (!data || (!data.syncedLyrics && !data.plainLyrics)) {
           const searchParams = new URLSearchParams({ track_name: cleanTrack, artist_name: cleanArtist });
           const searchRes = await fetch(`https://lrclib.net/api/search?${searchParams}`, { signal });
           if (searchRes.ok) {
-            const results = await searchRes.json();
-            if (results && results.length > 0) {
-              data = results.find(r => r.syncedLyrics) || results[0];
-            }
+            data = getBestResult(await searchRes.json());
           }
         }
 
@@ -3105,10 +3132,7 @@ async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = nu
         if (!data || (!data.syncedLyrics && !data.plainLyrics)) {
           const searchRes = await fetch(`https://lrclib.net/api/search?q=${encodeURIComponent(cleanTrack + " " + cleanArtist)}`, { signal });
           if (searchRes.ok) {
-            const results = await searchRes.json();
-            if (results && results.length > 0) {
-              data = results.find(r => r.syncedLyrics) || results[0];
-            }
+            data = getBestResult(await searchRes.json());
           }
         }
         
