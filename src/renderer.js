@@ -2925,7 +2925,12 @@ async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = nu
   const signal = fetchAbortController.signal;
 
   const cleanArtist = artistName.replace(/VEVO$/i, '').replace(/- Topic$/i, '').replace(/Official$/i, '').trim() || artistName;
-  const cleanTrack = trackName.replace(/\[.*?\]/g, '').replace(/\(.*?(Official|Audio|Video).*?\)/ig, '').replace(/ - (Remastered|Radio Edit|Live|Instrumental|Acoustic|Single Version).*/i, '').trim() || trackName;
+  const cleanTrack = trackName
+    .replace(/\[.*?\]/g, '')
+    .replace(/\(.*?(Official|Audio|Video|feat\.|ft\.|with).*?\)/ig, '')
+    .replace(/ - (Remastered|Radio Edit|Live|Instrumental|Acoustic|Single Version).*/i, '')
+    .replace(/\s+(feat\.|ft\.).*$/i, '')
+    .trim() || trackName;
 
   const cacheKey = `lyrics_cache_v21_${trackId}`;
   const cachedStr = localStorage.getItem(cacheKey);
