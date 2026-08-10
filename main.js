@@ -1335,6 +1335,9 @@ ipcMain.handle('login-via-web', () => {
       }
     });
 
+    // Fix Google/Apple/Facebook login blocks by masquerading as a standard browser
+    loginWin.webContents.userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
+
     loginWin.loadURL('https://accounts.spotify.com/en/login?continue=https:%2F%2Fopen.spotify.com%2F');
 
     const checkCookie = setInterval(async () => {
