@@ -1869,9 +1869,34 @@ ipcMain.handle('translate-text', async (event, text, targetLang, skipLang) => {
     return { text: null, src: 'cooldown' };
   }
   try {
-    const { translate } = require('@vitalets/google-translate-api');
-    const res = await translate(text, { to: targetLang });
-    const srcLang = res.raw && res.raw.src ? res.raw.src : 'unknown';
+    // Replace unstable @vitalets/google-translate-api with a robust direct POST request
+    const params = new URLSearchParams({
+      client: 'gtx',
+      sl: 'auto',
+      tl: targetLang,
+      dt: 't'
+    });
+    
+    const body = new URLSearchParams({ q: text });
+    
+    const response = await fetch(`https://translate.googleapis.com/translate_a/single?${params}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+      },
+      body: body.toString()
+    });
+
+    if (!response.ok) {
+      throw new Error(`Google API returned ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    // data[0] contains an array of translated segments, data[2] is the detected language
+    const fullTranslation = data[0].map(item => item[0]).join('');
+    const srcLang = data[2] || 'unknown';
     
     // Skip translation if the song is already in the target language, 
     // OR if the song's language matches the user's explicit skip preference.
@@ -1879,11 +1904,9 @@ ipcMain.handle('translate-text', async (event, text, targetLang, skipLang) => {
       return { text: null, src: srcLang };
     }
     
-    return { text: res.text, src: srcLang };
+    return { text: fullTranslation, src: srcLang };
   } catch (err) {
-    if (err.name === 'TooManyRequestsError' || (err.message && err.message.includes('Too Many Requests')) || (err.message && err.message.includes('429'))) {
-      // Silently cool down to avoid spamming the console
-
+    if (err.message && (err.message.includes('429') || err.message.includes('Too Many Requests'))) {
       translationCooldownUntil = Date.now() + 3600000; // 1 hour
     } else {
       console.error('Translation failed:', err);
