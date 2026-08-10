@@ -3074,14 +3074,35 @@ async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = nu
       try {
         if (lyrics.length > 0) return false;
         
+        let data = null;
+
+        // Attempt 1: Exact get with duration
         const params = new URLSearchParams({ artist_name: cleanArtist, track_name: cleanTrack });
         if (trackDuration > 0) params.set("duration", Math.round(trackDuration / 1000));
-        
         let res = await fetch(`https://lrclib.net/api/get?${params}`, { signal });
-        let data = res.ok ? await res.json() : null;
+        if (res.ok) data = await res.json();
         
+        // Attempt 2: Exact get WITHOUT duration (duration often mismatches by a few seconds)
         if (!data || (!data.syncedLyrics && !data.plainLyrics)) {
-          // Try search
+          const paramsNoDur = new URLSearchParams({ artist_name: cleanArtist, track_name: cleanTrack });
+          let resNoDur = await fetch(`https://lrclib.net/api/get?${paramsNoDur}`, { signal });
+          if (resNoDur.ok) data = await resNoDur.json();
+        }
+
+        // Attempt 3: Search using track_name and artist_name explicitly
+        if (!data || (!data.syncedLyrics && !data.plainLyrics)) {
+          const searchParams = new URLSearchParams({ track_name: cleanTrack, artist_name: cleanArtist });
+          const searchRes = await fetch(`https://lrclib.net/api/search?${searchParams}`, { signal });
+          if (searchRes.ok) {
+            const results = await searchRes.json();
+            if (results && results.length > 0) {
+              data = results.find(r => r.syncedLyrics) || results[0];
+            }
+          }
+        }
+
+        // Attempt 4: Fallback generic search (q=)
+        if (!data || (!data.syncedLyrics && !data.plainLyrics)) {
           const searchRes = await fetch(`https://lrclib.net/api/search?q=${encodeURIComponent(cleanTrack + " " + cleanArtist)}`, { signal });
           if (searchRes.ok) {
             const results = await searchRes.json();
