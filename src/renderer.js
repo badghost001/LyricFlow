@@ -3063,10 +3063,15 @@ async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = nu
             const parsed = parseLRC(data.rawLRC);
             if (parsed.length > 0) {
               const hasWords = parsed.some(l => l.words && l.words.length > 0);
-              applyLyricsData(parsed, hasWords ? 3 : (data.syncType === "LINE_SYNCED" ? 2 : 1));
+              const level = hasWords ? 3 : (data.syncType === "LINE_SYNCED" ? 2 : 1);
+              applyLyricsData(parsed, level);
+              // Only block further fetching if we got synced lyrics
+              // If unsynced, let localLrclibFetch try to find a synced version
+              return level >= 2;
             } else if (data.syncType === "UNSYNCED") {
               const plainParsed = data.rawLRC.split('\n').map(l => l.trim()).filter(l => l && !l.match(/^\[[a-z]+:/i)).map((text) => ({ timeMs: 9999999, text }));
               applyLyricsData(plainParsed, 1);
+              return false; // Let localLrclibFetch try to upgrade to synced
             }
             return true;
           }
@@ -3220,7 +3225,7 @@ async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = nu
       }
     });
 
-    // Safety timeout: if nothing loaded after 12 seconds, show placeholder
+    // Safety timeout: if nothing loaded after 20 seconds, show placeholder
     setTimeout(() => {
       if (trackId === currentTrackId && lyrics.length === 0) {
         const msg = rateLimited ? "Rate limited by server. Please wait a moment..." : "Lyrics unavailable.";
@@ -3228,7 +3233,7 @@ async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = nu
         if (tbLyricLine) { tbLyricLine.textContent = msg; sendTaskbarLyric(msg); }
         updateTimingStatus(1);
       }
-    }, 12000);
+    }, 20000);
 
     manageLyricsCache(cacheKey);
   } catch (err) {
