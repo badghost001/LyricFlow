@@ -3216,9 +3216,9 @@ async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = nu
       } catch (e) {}
     };
 
-    // Start proxy fetch, if it fails, run local LRCLIB fallback
+    // Start proxy fetch, if it fails or only found unsynced, run local LRCLIB fallback
     proxyFetch().then(proxySuccess => {
-      if (!proxySuccess && lyrics.length === 0 && trackId === currentTrackId) {
+      if (!proxySuccess && trackId === currentTrackId) {
         localLrclibFetch().then(localSuccess => {
           if (!localSuccess && lyrics.length === 0 && trackId === currentTrackId) {
             ovhFetch();
