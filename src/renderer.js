@@ -3085,7 +3085,9 @@ async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = nu
     // 2. Fallback: Local LRCLIB (In case Cloudflare proxy is rate-limited by LRCLIB)
     const localLrclibFetch = async () => {
       try {
-        if (lyrics.length > 0) return false;
+        // Skip only if we already have synced lyrics (level 2+).
+        // If we only have unsynced/plain lyrics (level 1), keep searching for synced.
+        if (currentSourceLevel >= 2) return false;
         
         let data = null;
         let plainFallback = null; // Save plain-only results as a fallback
