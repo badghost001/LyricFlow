@@ -2633,10 +2633,16 @@ async function handlePlaybackData(data) {
 
     // Trigger slide-in Next Up popup window!
     const popupArtUrl = track.album?.images?.[1]?.url || track.album?.images?.[0]?.url;
-    if (!albumArtUrl && !localArtCache[track.id]) {
+    if (!albumArtUrl && (!localArtCache[track.id] || localArtCache[track.id] === 'notfound')) {
       localArtCache[track.id] = 'fetching';
       fetchFallbackAlbumArt(track.name, track.artists?.[0]?.name || '').then(artUrl => {
-        localArtCache[track.id] = artUrl || 'notfound';
+        if (artUrl) {
+          localArtCache[track.id] = artUrl;
+        } else {
+          localArtCache[track.id] = 'notfound';
+          // Clear notfound after 10s so it can retry later
+          setTimeout(() => { if (localArtCache[track.id] === 'notfound') delete localArtCache[track.id]; }, 10000);
+        }
         if (artUrl && currentTrackId === track.id) {
           track.album.images = [{ url: artUrl }, { url: artUrl }, { url: artUrl }];
           widgetAlbumArt.src = artUrl;
@@ -4180,43 +4186,78 @@ async function updateTaskbarColors() {
 }
 
 async function fetchFallbackAlbumArt(trackName, artistName) {
-  try {
-    const query = encodeURIComponent(`${trackName} ${artistName}`);
-    const source = settings.artSource || 'itunes';
+  if (!trackName) return null;
+  const rawArtist = (artistName || "").replace(/\s*-\s*Topic$/i, "").trim();
+  const rawTrack = trackName.trim();
 
-    if (source === 'lastfm') {
-      const res = await fetch(`https://ws.audioscrobbler.com/2.0/?method=track.getInfo&api_key=4d2626ea4637769ef9d4e56eb6cb66db&artist=${encodeURIComponent(artistName)}&track=${encodeURIComponent(trackName)}&format=json`);
+  // Clean title: strip feature tags, parentheticals, and remaster tags
+  const cleanTrack = rawTrack
+    .replace(/\s*[\(\[](feat\.|ft\.|with|remix|version|deluxe|explicit|remastered|bonus).*?[\)\]]/ig, "")
+    .replace(/\s*-\s*(feat\.|ft\.|with|remix|version|deluxe|explicit|remastered|bonus).*$/ig, "")
+    .replace(/\s*\(.*?\)/g, "")
+    .trim() || rawTrack;
+
+  const cleanArtist = rawArtist
+    .replace(/\s*[\(\[](feat\.|ft\.|with).*?[\)\]]/ig, "")
+    .replace(/\s*,\s*.*$/, "")
+    .trim() || rawArtist;
+
+  // Helper to query iTunes API
+  const queryItunes = async (queryStr) => {
+    try {
+      const url = `https://itunes.apple.com/search?term=${encodeURIComponent(queryStr)}&limit=1&entity=song`;
+      const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
-        if (data.track && data.track.album && data.track.album.image) {
-          const images = data.track.album.image;
-          const largest = images[images.length - 1]['#text'];
-          if (largest) return largest;
-        }
-      }
-    } else if (source === 'musicbrainz') {
-      const res = await fetch(`https://musicbrainz.org/ws/2/recording/?query=recording:${encodeURIComponent(trackName)}%20AND%20artist:${encodeURIComponent(artistName)}&fmt=json`, {
-        headers: { 'User-Agent': 'SpotifyLyricsOverlay/1.0.0' }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.recordings && data.recordings.length > 0) {
-          const releaseId = data.recordings[0].releases?.[0]?.id;
-          if (releaseId) {
-            return `https://coverartarchive.org/release/${releaseId}/front-500`;
+        if (data.results && data.results.length > 0) {
+          const raw = data.results[0].artworkUrl100 || data.results[0].artworkUrl60;
+          if (raw) {
+            return raw.replace(/\/\d+x\d+bb?\.(jpg|png|webp)/i, '/600x600bb.$1');
           }
         }
       }
+    } catch (e) {}
+    return null;
+  };
+
+  // Helper to query MusicBrainz Cover Art Archive
+  const queryMusicBrainz = async (queryStr) => {
+    try {
+      const url = `https://musicbrainz.org/ws/2/recording/?query=${encodeURIComponent(queryStr)}&fmt=json`;
+      const res = await fetch(url, { headers: { 'User-Agent': 'LyricFlow/1.2.0 (contact@lyricflow.app)' } });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.recordings && data.recordings.length > 0) {
+          for (const rec of data.recordings.slice(0, 3)) {
+            const relId = rec.releases?.[0]?.id;
+            if (relId) {
+              return `https://coverartarchive.org/release/${relId}/front-500`;
+            }
+          }
+        }
+      }
+    } catch (e) {}
+    return null;
+  };
+
+  try {
+    // Attempt 1: iTunes with clean track & clean artist
+    let art = await queryItunes(`${cleanTrack} ${cleanArtist}`);
+    if (art) return art;
+
+    // Attempt 2: iTunes with raw track & raw artist
+    if (cleanTrack !== rawTrack || cleanArtist !== rawArtist) {
+      art = await queryItunes(`${rawTrack} ${rawArtist}`);
+      if (art) return art;
     }
 
-    // Default: iTunes
-    const res = await fetch(`https://itunes.apple.com/search?term=${query}&limit=1&entity=song`);
-    if (res.ok) {
-      const data = await res.json();
-      if (data.results && data.results.length > 0) {
-        return data.results[0].artworkUrl100.replace('100x100bb.jpg', '500x500bb.jpg');
-      }
-    }
+    // Attempt 3: iTunes with just clean track name
+    art = await queryItunes(cleanTrack);
+    if (art) return art;
+
+    // Attempt 4: MusicBrainz fallback
+    art = await queryMusicBrainz(`${cleanTrack} ${cleanArtist}`);
+    if (art) return art;
   } catch (err) {
     console.error("Failed to fetch fallback album art:", err);
   }
