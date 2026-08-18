@@ -1059,6 +1059,77 @@ function setupUIHandlers() {
     });
   }
 
+  // Manual Cookie fallback on Login screen
+  const btnToggleManual = document.getElementById("btn-toggle-manual-cookie");
+  const manualCookieSection = document.getElementById("manual-cookie-section");
+  const inputManualSpdc = document.getElementById("input-manual-spdc");
+  const btnSubmitManual = document.getElementById("btn-submit-manual-cookie");
+
+  if (btnToggleManual && manualCookieSection) {
+    btnToggleManual.addEventListener("click", (e) => {
+      e.preventDefault();
+      const isHidden = manualCookieSection.style.display === "none";
+      manualCookieSection.style.display = isHidden ? "block" : "none";
+      btnToggleManual.textContent = isHidden ? "Hide manual cookie entry" : "Or enter sp_dc cookie manually";
+      if (isHidden && inputManualSpdc) {
+        inputManualSpdc.focus();
+      }
+    });
+  }
+
+  if (btnSubmitManual && inputManualSpdc) {
+    btnSubmitManual.addEventListener("click", async () => {
+      const spDcVal = inputManualSpdc.value.trim();
+      if (!spDcVal) {
+        if (authStatus) {
+          authStatus.textContent = "Please paste a valid sp_dc cookie.";
+          authStatus.className = "status-msg error";
+        }
+        return;
+      }
+
+      btnSubmitManual.disabled = true;
+      btnSubmitManual.textContent = "Verifying...";
+      if (authStatus) {
+        authStatus.textContent = "Connecting to Spotify...";
+        authStatus.className = "status-msg";
+      }
+
+      try {
+        const token = await window.electronAPI.getAccessToken(spDcVal);
+        if (token) {
+          config = {
+            sp_dc: spDcVal,
+            access_token: token,
+            localMode: false
+          };
+          await window.electronAPI.saveConfig(config);
+          if (authStatus) {
+            authStatus.textContent = "Successfully connected!";
+            authStatus.className = "status-msg success";
+          }
+          setTimeout(() => {
+            showLyricsScreen();
+          }, 800);
+        } else {
+          if (authStatus) {
+            authStatus.textContent = "Invalid or expired sp_dc cookie. Please check and try again.";
+            authStatus.className = "status-msg error";
+          }
+          btnSubmitManual.disabled = false;
+          btnSubmitManual.textContent = "Connect";
+        }
+      } catch (err) {
+        if (authStatus) {
+          authStatus.textContent = "Connection error: " + err;
+          authStatus.className = "status-msg error";
+        }
+        btnSubmitManual.disabled = false;
+        btnSubmitManual.textContent = "Connect";
+      }
+    });
+  }
+
   const btnHideLyrics = document.getElementById("btn-hide-lyrics");
   if (btnHideLyrics) {
     btnHideLyrics.addEventListener("click", () => {

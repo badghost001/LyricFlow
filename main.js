@@ -1304,7 +1304,7 @@ ipcMain.handle('get-access-token', async (event, spDc) => {
     const res = await fetch("https://open.spotify.com/get_access_token?reason=transport&productType=web_player", {
       headers: {
         "Cookie": `sp_dc=${spDc}`,
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
         "Accept": "application/json",
         "App-Platform": "WebPlayer"
       }
@@ -1322,51 +1322,121 @@ ipcMain.handle('get-access-token', async (event, spDc) => {
 
 // 5. OAuth and Session Management
 ipcMain.handle('login-via-web', () => {
-  return new Promise((resolve) => {
+  return new Promise(async (resolve) => {
+    const CHROME_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36";
+
+    // Set fallback user-agent so any background/sub-requests never leak Electron headers
+    app.userAgentFallback = CHROME_UA;
+
     const loginWin = new BrowserWindow({
       width: 500,
-      height: 700,
+      height: 720,
       show: true,
       title: 'Login to Spotify',
+      autoHideMenuBar: true,
       webPreferences: {
-        // No preload — login window only needs cookie access, not the full API bridge
         nodeIntegration: false,
         contextIsolation: true
       }
     });
 
-    // Fix Google/Apple/Facebook login blocks by masquerading as a standard browser
-    loginWin.webContents.userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
+    // Set user-agent on both webContents and the session
+    loginWin.webContents.setUserAgent(CHROME_UA);
+    try {
+      loginWin.webContents.session.setUserAgent(CHROME_UA);
+      // Clear stale cookies and storage from previous failed sessions to prevent CSRF / "Something went wrong" errors
+      await loginWin.webContents.session.clearStorageData({
+        storages: ['cookies', 'localstorage', 'cachestorage']
+      });
+    } catch (e) {
+      console.warn("Storage cleanup error:", e);
+    }
 
-    loginWin.loadURL('https://accounts.spotify.com/en/login?continue=https:%2F%2Fopen.spotify.com%2F');
+    // Handle OAuth popups (e.g. Continue with Google / Apple / Facebook)
+    loginWin.webContents.setWindowOpenHandler(({ url }) => {
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: {
+          width: 500,
+          height: 720,
+          autoHideMenuBar: true,
+          webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true
+          }
+        }
+      };
+    });
 
+    loginWin.webContents.on('did-create-window', (childWin) => {
+      childWin.webContents.setUserAgent(CHROME_UA);
+    });
+
+    let resolved = false;
+    const finishLogin = (spDcValue) => {
+      if (resolved) return;
+      resolved = true;
+      clearInterval(checkCookie);
+      try {
+        loginWin.webContents.session.cookies.removeListener('changed', cookieChangeListener);
+      } catch (e) {}
+
+      const config = {
+        sp_dc: spDcValue,
+        localMode: false
+      };
+
+      fs.writeFileSync(getConfigPath(), JSON.stringify(config, null, 2), 'utf8');
+
+      if (!loginWin.isDestroyed()) {
+        loginWin.close();
+      }
+      resolve(config);
+    };
+
+    // Real-time cookie listener for instantaneous detection
+    const cookieChangeListener = (event, cookie, cause, removed) => {
+      if (!removed && cookie.name === 'sp_dc' && cookie.value) {
+        finishLogin(cookie.value);
+      }
+    };
+    loginWin.webContents.session.cookies.on('changed', cookieChangeListener);
+
+    // Fallback polling every 300ms
     const checkCookie = setInterval(async () => {
       if (loginWin.isDestroyed()) {
         clearInterval(checkCookie);
+        if (!resolved) {
+          resolved = true;
+          try {
+            loginWin.webContents.session.cookies.removeListener('changed', cookieChangeListener);
+          } catch (e) {}
+          resolve(null);
+        }
         return;
       }
-      
-      const cookies = await loginWin.webContents.session.cookies.get({ domain: '.spotify.com' });
-      const spDc = cookies.find(c => c.name === 'sp_dc');
-      
-      if (spDc) {
-        clearInterval(checkCookie);
-        const config = {
-          sp_dc: spDc.value,
-          localMode: false // Web API polling for Premium users
-        };
-        
-        // Save config
-        fs.writeFileSync(getConfigPath(), JSON.stringify(config, null, 2), 'utf8');
-        
-        loginWin.close();
-        resolve(config);
-      }
-    }, 1000);
+
+      try {
+        const cookies = await loginWin.webContents.session.cookies.get({});
+        const spDc = cookies.find(c => c.name === 'sp_dc' && c.value);
+        if (spDc) {
+          finishLogin(spDc.value);
+        }
+      } catch (e) {}
+    }, 300);
+
+    // Use accounts status as continue URL to avoid crashing in the heavy DRM web player
+    loginWin.loadURL('https://accounts.spotify.com/en/login?continue=https:%2F%2Faccounts.spotify.com%2Fen%2Fstatus');
 
     loginWin.on('closed', () => {
       clearInterval(checkCookie);
-      resolve(null);
+      try {
+        loginWin.webContents.session.cookies.removeListener('changed', cookieChangeListener);
+      } catch (e) {}
+      if (!resolved) {
+        resolved = true;
+        resolve(null);
+      }
     });
   });
 });

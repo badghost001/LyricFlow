@@ -73,6 +73,16 @@
             <p style="font-size: 10px; color: rgba(255,255,255,0.4); text-align: center; margin-top: -4px;">
               Opens a secure official Spotify login window.
             </p>
+            <div style="margin-top: 8px; text-align: center;">
+              <a id="btn-toggle-manual-cookie" href="#" style="font-size: 11px; color: #1DB954; text-decoration: none; opacity: 0.85;">Or enter sp_dc cookie manually</a>
+            </div>
+            <div id="manual-cookie-section" style="display: none; margin-top: 10px; text-align: left; background: rgba(255,255,255,0.04); padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">
+              <label for="input-manual-spdc" style="font-size: 11px; color: rgba(255,255,255,0.7); display: block; margin-bottom: 6px;">Spotify <code>sp_dc</code> Cookie:</label>
+              <div style="display: flex; gap: 8px;">
+                <input type="password" id="input-manual-spdc" placeholder="Paste sp_dc cookie here..." style="flex: 1; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 6px 10px; border-radius: 4px; font-size: 12px; font-family: monospace; outline: none;" />
+                <button id="btn-submit-manual-cookie" class="btn-primary" style="padding: 6px 14px; font-size: 12px; border-radius: 4px;">Connect</button>
+              </div>
+            </div>
           </div>
 
           <div class="or-divider">
