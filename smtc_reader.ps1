@@ -168,41 +168,71 @@ while ($true) {
                     }
                 } catch {}
                 
+                $appId = $s.SourceAppUserModelId
+                $lower = if ($appId) { $appId.ToLower() } else { "" }
+                $isMusic = $false
+                $isBrowser = $false
+
+                foreach ($m in @('spotify', 'applemusic', 'itunes', 'tidal', 'deezer', 'amazonmusic', 'youtubemusic', 'ytmusic', 'foobar', 'musicbee', 'aimp', 'vlc', 'winamp', 'dopamine', 'cider')) {
+                    if ($lower.Contains($m)) { $isMusic = $true; break }
+                }
+                if (-not $isMusic) {
+                    foreach ($b in @('chrome', 'msedge', 'firefox', 'brave', 'opera', 'vivaldi', 'arc', 'discord', 'telegram', 'whatsapp', 'slack', 'teams')) {
+                        if ($lower.Contains($b)) { $isBrowser = $true; break }
+                    }
+                }
+
+                $status = "Closed"
+                try {
+                    $info = $s.GetPlaybackInfo()
+                    if ($info) { $status = $info.PlaybackStatus.ToString() }
+                } catch {}
+
                 $mediaSessions += [PSCustomObject]@{
                     Session = $s
+                    IsMusic = $isMusic
+                    IsBrowser = $isBrowser
+                    Status = $status
                     LastUpdated = $lastUpdated
                 }
             }
+
             if ($mediaSessions.Count -gt 0) {
-                # Sort by LastUpdated descending (most recently active first)
-                $sortedSessions = $mediaSessions | Sort-Object -Property LastUpdated -Descending
-                
+                # 1. Any dedicated Music App that is Playing (Spotify, Apple Music, etc.)
+                # This guarantees browser videos (YouTube, Twitter, etc.) NEVER hijack active music!
+                $playingMusic = $mediaSessions | Where-Object { $_.IsMusic -and $_.Status -eq 'Playing' } | Sort-Object -Property LastUpdated -Descending
+                if ($playingMusic) {
+                    $session = $playingMusic[0].Session
+                }
 
-
-                # 2. Try to find any other app that is currently playing
+                # 2. Any dedicated Music App that is Paused
+                # When you pause Spotify, keep tracking Spotify rather than jumping to a browser video
                 if ($null -eq $session) {
-                    foreach ($item in $sortedSessions) {
-                        $s = $item.Session
-                        $info = $s.GetPlaybackInfo()
-                        if ($info -and $info.PlaybackStatus.ToString() -eq "Playing") {
-                            $session = $s
-                            break
-                        }
+                    $pausedMusic = $mediaSessions | Where-Object { $_.IsMusic -and $_.Status -eq 'Paused' } | Sort-Object -Property LastUpdated -Descending
+                    if ($pausedMusic) {
+                        $session = $pausedMusic[0].Session
                     }
                 }
-                # Fallback to the one that is paused
+
+                # 3. Any other non-browser app that is Playing
                 if ($null -eq $session) {
-                    foreach ($item in $sortedSessions) {
-                        $s = $item.Session
-                        $info = $s.GetPlaybackInfo()
-                        if ($info -and $info.PlaybackStatus.ToString() -eq "Paused") {
-                            $session = $s
-                            break
-                        }
+                    $playingOther = $mediaSessions | Where-Object { -not $_.IsBrowser -and $_.Status -eq 'Playing' } | Sort-Object -Property LastUpdated -Descending
+                    if ($playingOther) {
+                        $session = $playingOther[0].Session
                     }
                 }
-                # Fallback to the most recently updated one
+
+                # 4. Fallback: Any playing app (only if no dedicated music app exists)
                 if ($null -eq $session) {
+                    $anyPlaying = $mediaSessions | Where-Object { $_.Status -eq 'Playing' } | Sort-Object -Property LastUpdated -Descending
+                    if ($anyPlaying) {
+                        $session = $anyPlaying[0].Session
+                    }
+                }
+
+                # 5. Fallback: Most recently updated session
+                if ($null -eq $session) {
+                    $sortedSessions = $mediaSessions | Sort-Object -Property LastUpdated -Descending
                     $session = $sortedSessions[0].Session
                 }
             }

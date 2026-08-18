@@ -32,13 +32,24 @@ function Await-WinRT {
 try {
     $sessionManager = Await-WinRT ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager])
     
-    # Try to get the current session automatically (works for Apple Music, Spotify, etc.)
-    $session = $sessionManager.GetCurrentSession()
-    
-    # Fallback if no current session is definitively set
-    if ($null -eq $session) {
-        $sessions = $sessionManager.GetSessions()
-        if ($sessions.Count -gt 0) {
+    $sessions = $sessionManager.GetSessions()
+    $session = $null
+    if ($sessions.Count -gt 0) {
+        # 1. Prioritize dedicated music apps (Spotify, Apple Music, Tidal, etc.)
+        foreach ($s in $sessions) {
+            $appId = $s.SourceAppUserModelId
+            $lower = if ($appId) { $appId.ToLower() } else { "" }
+            foreach ($m in @('spotify', 'applemusic', 'itunes', 'tidal', 'deezer', 'amazonmusic', 'youtubemusic', 'ytmusic', 'foobar', 'musicbee', 'aimp', 'vlc', 'winamp', 'dopamine', 'cider')) {
+                if ($lower.Contains($m)) { $session = $s; break }
+            }
+            if ($session) { break }
+        }
+        # 2. Fallback to current session
+        if ($null -eq $session) {
+            $session = $sessionManager.GetCurrentSession()
+        }
+        # 3. Fallback to first session
+        if ($null -eq $session) {
             $session = $sessions[0]
         }
     }
