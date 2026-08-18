@@ -2955,6 +2955,7 @@ async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = nu
     let currentSourceLevel = 0;
 
     const applyLyricsData = async (parsedLines, sourceLevel) => {
+      console.error(`[LF-DEBUG] applyLyricsData: sourceLevel=${sourceLevel}, parsedLines.length=${parsedLines.length}, trackId=${trackId}, currentTrackId=${currentTrackId}`);
       // Strip structural tags that often have bad timestamps (e.g., "[Outro]", "Intro", "Chorus")
       parsedLines = parsedLines.filter(line => {
         if (!line.text) return false;
@@ -2966,7 +2967,10 @@ async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = nu
         return true;
       });
 
-      if (trackId !== currentTrackId || parsedLines.length === 0) return false;
+      if (trackId !== currentTrackId || parsedLines.length === 0) {
+        console.error(`[LF-DEBUG] applyLyricsData REJECTED: trackId match=${trackId === currentTrackId}, filteredLines=${parsedLines.length}`);
+        return false;
+      }
 
       // 1. Blacklist Check: Has the user manually hidden lyrics for this specific source/track?
       const blacklistKey = `blacklist_lyrics_${trackId}`;
@@ -2983,7 +2987,10 @@ async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = nu
         return false;
       }
 
-      if (sourceLevel <= currentSourceLevel) return false;
+      if (sourceLevel <= currentSourceLevel) {
+        console.error(`[LF-DEBUG] applyLyricsData REJECTED: sourceLevel ${sourceLevel} <= currentSourceLevel ${currentSourceLevel}`);
+        return false;
+      }
 
       // Clear any existing subText from parsedLines before processing
       parsedLines.forEach(line => {
@@ -3003,8 +3010,12 @@ async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = nu
       try {
         const transRes = await transPromise;
 
+        console.error(`[LF-DEBUG] applyLyricsData: translation done, trackId=${trackId}, currentTrackId=${currentTrackId}`);
         // Ensure track hasn't changed while we were fetching
-        if (trackId !== currentTrackId) return false;
+        if (trackId !== currentTrackId) {
+          console.error(`[LF-DEBUG] applyLyricsData REJECTED after translation: trackId mismatch`);
+          return false;
+        }
 
         const transLines = (transRes && transRes.text) ? transRes.text.split('\n') : [];
 
@@ -3019,8 +3030,12 @@ async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = nu
       }
 
       // Ensure track hasn't changed while we were fetching translations/transliterations
-      if (trackId !== currentTrackId) return false;
+      if (trackId !== currentTrackId) {
+        console.error(`[LF-DEBUG] applyLyricsData REJECTED final trackId check: ${trackId} !== ${currentTrackId}`);
+        return false;
+      }
 
+      console.error(`[LF-DEBUG] applyLyricsData SUCCESS: setting ${parsedLines.length} lyrics lines, level=${sourceLevel}`);
       lyrics = parsedLines;
       currentSourceLevel = sourceLevel;
       updateTimingStatus(sourceLevel);
@@ -3052,10 +3067,13 @@ async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = nu
           url += `&token=${encodeURIComponent(config.access_token)}`;
         }
 
+        console.error(`[LF-DEBUG] proxyFetch: cleanTrack="${cleanTrack}", cleanArtist="${cleanArtist}"`);
         const response = await fetch(url, { signal });
+        console.error(`[LF-DEBUG] proxyFetch response status: ${response.status}`);
         if (response.status === 429) rateLimited = true;
         if (response.ok) {
           const data = await response.json();
+          console.error(`[LF-DEBUG] proxyFetch data.source="${data.source}", syncType="${data.syncType}", hasRawLRC=${!!data.rawLRC}, linesCount=${data.lines?.length || 0}`);
           if (data.source === "Spotify" && data.lines && data.lines.length > 0) {
             applyLyricsData(data.lines, (data.syncType === "WORD_SYNCED") ? 3 : 2);
             return true;
@@ -3064,20 +3082,21 @@ async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = nu
             if (parsed.length > 0) {
               const hasWords = parsed.some(l => l.words && l.words.length > 0);
               const level = hasWords ? 3 : (data.syncType === "LINE_SYNCED" ? 2 : 1);
+              console.error(`[LF-DEBUG] proxyFetch LRCLIB parsed ${parsed.length} lines, level=${level}`);
               applyLyricsData(parsed, level);
-              // Only block further fetching if we got synced lyrics
-              // If unsynced, let localLrclibFetch try to find a synced version
               return level >= 2;
             } else if (data.syncType === "UNSYNCED") {
               const plainParsed = data.rawLRC.split('\n').map(l => l.trim()).filter(l => l && !l.match(/^\[[a-z]+:/i)).map((text) => ({ timeMs: 9999999, text }));
               applyLyricsData(plainParsed, 1);
-              return false; // Let localLrclibFetch try to upgrade to synced
+              return false;
             }
             return true;
+          } else {
+            console.error(`[LF-DEBUG] proxyFetch: no matching source/data`);
           }
         }
       } catch (e) {
-        if (e.name !== 'AbortError') console.error("Proxy Fetch Error:", e);
+        if (e.name !== 'AbortError') console.error("[LF-DEBUG] Proxy Fetch Error:", e);
       }
       return false;
     };
@@ -3087,11 +3106,19 @@ async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = nu
       try {
         // Skip only if we already have synced lyrics (level 2+).
         // If we only have unsynced/plain lyrics (level 1), keep searching for synced.
+        console.error(`[LF-DEBUG] localLrclibFetch: currentSourceLevel=${currentSourceLevel}, lyrics.length=${lyrics.length}`);
         if (currentSourceLevel >= 2) return false;
         
         let data = null;
         let plainFallback = null; // Save plain-only results as a fallback
         const durationSec = trackDuration > 0 ? Math.round(trackDuration / 1000) : 0;
+
+        // Helper: check if a syncedLyrics string actually contains LRC timestamps
+        const hasLrcTimestamps = (text) => {
+          if (!text || typeof text !== 'string') return false;
+          // Real LRC has timestamps like [00:11.00] or [01:23.45]
+          return /\[\d{1,2}:\d{2}[.\:]\d{2,3}\]/.test(text);
+        };
 
         // Helper: validate and rank search results, preferring synced + closest duration
         const getBestResult = (results) => {
@@ -3111,8 +3138,8 @@ async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = nu
           
           if (validResults.length === 0) return null;
           
-          // Among valid results, strongly prefer synced lyrics
-          const syncedResults = validResults.filter(r => r.syncedLyrics);
+          // Among valid results, strongly prefer REAL synced lyrics (with actual timestamps)
+          const syncedResults = validResults.filter(r => hasLrcTimestamps(r.syncedLyrics));
           const pool = syncedResults.length > 0 ? syncedResults : validResults;
           
           // Pick the one with the closest duration match
@@ -3130,23 +3157,29 @@ async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = nu
         // Attempt 1: Exact get with duration
         const params = new URLSearchParams({ artist_name: cleanArtist, track_name: cleanTrack });
         if (durationSec > 0) params.set("duration", durationSec);
+        console.error(`[LF-DEBUG] Attempt 1: GET https://lrclib.net/api/get?${params}`);
         let res = await fetch(`https://lrclib.net/api/get?${params}`, { signal });
+        console.error(`[LF-DEBUG] Attempt 1 status: ${res.status}`);
         if (res.ok) {
           const d = await res.json();
-          if (d && d.syncedLyrics) {
+          console.error(`[LF-DEBUG] Attempt 1 result: syncedLyrics=${!!d?.syncedLyrics}, validLRC=${hasLrcTimestamps(d?.syncedLyrics)}, plainLyrics=${!!d?.plainLyrics}`);
+          if (d && hasLrcTimestamps(d.syncedLyrics)) {
             data = d;
           } else if (d && d.plainLyrics) {
-            plainFallback = d; // Save plain but keep searching for synced
+            plainFallback = d;
           }
         }
         
-        // Attempt 2: Exact get WITHOUT duration (duration often mismatches by a few seconds)
+        // Attempt 2: Exact get WITHOUT duration
         if (!data) {
           const paramsNoDur = new URLSearchParams({ artist_name: cleanArtist, track_name: cleanTrack });
+          console.error(`[LF-DEBUG] Attempt 2: GET https://lrclib.net/api/get?${paramsNoDur}`);
           let resNoDur = await fetch(`https://lrclib.net/api/get?${paramsNoDur}`, { signal });
+          console.error(`[LF-DEBUG] Attempt 2 status: ${resNoDur.status}`);
           if (resNoDur.ok) {
             const d = await resNoDur.json();
-            if (d && d.syncedLyrics) {
+            console.error(`[LF-DEBUG] Attempt 2 result: syncedLyrics=${!!d?.syncedLyrics}, validLRC=${hasLrcTimestamps(d?.syncedLyrics)}, plainLyrics=${!!d?.plainLyrics}`);
+            if (d && hasLrcTimestamps(d.syncedLyrics)) {
               data = d;
             } else if (d && d.plainLyrics && !plainFallback) {
               plainFallback = d;
@@ -3157,10 +3190,15 @@ async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = nu
         // Attempt 3: Search using track_name and artist_name explicitly
         if (!data) {
           const searchParams = new URLSearchParams({ track_name: cleanTrack, artist_name: cleanArtist });
+          console.error(`[LF-DEBUG] Attempt 3: SEARCH https://lrclib.net/api/search?${searchParams}`);
           const searchRes = await fetch(`https://lrclib.net/api/search?${searchParams}`, { signal });
+          console.error(`[LF-DEBUG] Attempt 3 status: ${searchRes.status}`);
           if (searchRes.ok) {
-            const best = getBestResult(await searchRes.json());
-            if (best && best.syncedLyrics) {
+            const results = await searchRes.json();
+            console.error(`[LF-DEBUG] Attempt 3 results count: ${results?.length}, synced count: ${results?.filter(r => r.syncedLyrics)?.length}`);
+            const best = getBestResult(results);
+            console.error(`[LF-DEBUG] Attempt 3 best: ${best ? `"${best.trackName}" by "${best.artistName}", synced=${!!best.syncedLyrics}` : 'null'}`);
+            if (best && hasLrcTimestamps(best.syncedLyrics)) {
               data = best;
             } else if (best && best.plainLyrics && !plainFallback) {
               plainFallback = best;
@@ -3170,10 +3208,15 @@ async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = nu
 
         // Attempt 4: Fallback generic search (q=)
         if (!data) {
-          const searchRes = await fetch(`https://lrclib.net/api/search?q=${encodeURIComponent(cleanTrack + " " + cleanArtist)}`, { signal });
+          const q = cleanTrack + " " + cleanArtist;
+          console.error(`[LF-DEBUG] Attempt 4: SEARCH https://lrclib.net/api/search?q=${encodeURIComponent(q)}`);
+          const searchRes = await fetch(`https://lrclib.net/api/search?q=${encodeURIComponent(q)}`, { signal });
+          console.error(`[LF-DEBUG] Attempt 4 status: ${searchRes.status}`);
           if (searchRes.ok) {
-            const best = getBestResult(await searchRes.json());
-            if (best && best.syncedLyrics) {
+            const results = await searchRes.json();
+            console.error(`[LF-DEBUG] Attempt 4 results count: ${results?.length}`);
+            const best = getBestResult(results);
+            if (best && hasLrcTimestamps(best.syncedLyrics)) {
               data = best;
             } else if (best && best.plainLyrics && !plainFallback) {
               plainFallback = best;
@@ -3183,20 +3226,46 @@ async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = nu
 
         // Use synced data if found, otherwise fall back to plain
         const final = data || plainFallback;
+        console.error(`[LF-DEBUG] Final result: data=${!!data}, plainFallback=${!!plainFallback}, final=${!!final}, hasSynced=${!!final?.syncedLyrics}, hasPlain=${!!final?.plainLyrics}`);
         
         if (final && (final.syncedLyrics || final.plainLyrics)) {
-          const lrcText = final.syncedLyrics || final.plainLyrics;
+          // Prefer synced lyrics, but only if they actually contain LRC timestamps
+          let lrcText = hasLrcTimestamps(final.syncedLyrics) ? final.syncedLyrics : null;
+          let isSynced = !!lrcText;
+          
+          if (lrcText) {
+            console.error(`[LF-DEBUG] Using validated synced lyrics, length=${lrcText.length}`);
+          } else {
+            // Fall back to plain lyrics
+            lrcText = final.plainLyrics || (plainFallback && plainFallback.plainLyrics);
+            isSynced = false;
+            console.error(`[LF-DEBUG] Synced lyrics invalid/missing, falling back to plain, length=${lrcText?.length}`);
+          }
+          
+          if (!lrcText) return false;
+          
           const parsed = parseLRC(lrcText);
+          console.error(`[LF-DEBUG] parseLRC returned ${parsed.length} lines, isSynced=${isSynced}`);
           if (parsed.length > 0) {
             const hasWords = parsed.some(l => l.words && l.words.length > 0);
-            applyLyricsData(parsed, hasWords ? 3 : (final.syncedLyrics ? 2 : 1));
-          } else if (!final.syncedLyrics) {
-            const plainParsed = lrcText.split('\n').map(l => l.trim()).filter(l => l && !l.match(/^\[[a-z]+:/i)).map((text) => ({ timeMs: 9999999, text }));
-            applyLyricsData(plainParsed, 1);
+            const level = hasWords ? 3 : (isSynced ? 2 : 1);
+            console.error(`[LF-DEBUG] Calling applyLyricsData with ${parsed.length} lines, level=${level}`);
+            await applyLyricsData(parsed, level);
+            console.error(`[LF-DEBUG] applyLyricsData finished, lyrics.length=${lyrics.length}`);
+          } else {
+            // parseLRC returned 0 — treat as plain text
+            const plainText = lrcText || final.plainLyrics || '';
+            const plainParsed = plainText.split('\n').map(l => l.trim()).filter(l => l && !l.match(/^\[[a-z]+:/i)).map((text) => ({ timeMs: 9999999, text }));
+            console.error(`[LF-DEBUG] parseLRC failed, falling back to plain text: ${plainParsed.length} lines`);
+            if (plainParsed.length > 0) {
+              await applyLyricsData(plainParsed, 1);
+            }
           }
           return true;
         }
-      } catch (e) {}
+      } catch (e) {
+        console.error("[LF-DEBUG] localLrclibFetch EXCEPTION:", e);
+      }
       return false;
     };
 
@@ -3218,8 +3287,10 @@ async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = nu
 
     // Start proxy fetch, if it fails or only found unsynced, run local LRCLIB fallback
     proxyFetch().then(proxySuccess => {
+      console.error(`[LF-DEBUG] proxyFetch done: proxySuccess=${proxySuccess}, lyrics.length=${lyrics.length}, currentSourceLevel=${currentSourceLevel}`);
       if (!proxySuccess && trackId === currentTrackId) {
         localLrclibFetch().then(localSuccess => {
+          console.error(`[LF-DEBUG] localLrclibFetch done: localSuccess=${localSuccess}, lyrics.length=${lyrics.length}`);
           if (!localSuccess && lyrics.length === 0 && trackId === currentTrackId) {
             ovhFetch();
           }
