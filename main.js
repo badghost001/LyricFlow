@@ -25,9 +25,7 @@ process.on('uncaughtException', (err) => {
   console.error("Uncaught Exception:", err);
 });
 
-// Optimize memory and disable unneeded Chromium features
-app.commandLine.appendSwitch('disable-site-isolation-trials'); // Huge memory saver
-app.commandLine.appendSwitch('js-flags', '--expose-gc'); // Allow manual garbage collection
+// Optimize memory and disable unneeded background throttling
 app.commandLine.appendSwitch('disable-background-timer-throttling');
 app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
@@ -1425,8 +1423,17 @@ ipcMain.handle('login-via-web', () => {
       } catch (e) {}
     }, 300);
 
-    // Use accounts status as continue URL to avoid crashing in the heavy DRM web player
-    loginWin.loadURL('https://accounts.spotify.com/en/login?continue=https:%2F%2Faccounts.spotify.com%2Fen%2Fstatus');
+    loginWin.webContents.on('dom-ready', () => {
+      loginWin.webContents.executeJavaScript(`
+        try {
+          Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+          delete window.gc;
+        } catch(e) {}
+      `);
+    });
+
+    // Use standard Spotify continue URL (whitelisted by Spotify OAuth servers)
+    loginWin.loadURL('https://accounts.spotify.com/en/login?continue=https:%2F%2Fopen.spotify.com%2F');
 
     loginWin.on('closed', () => {
       clearInterval(checkCookie);
