@@ -105,10 +105,23 @@ let clickThroughState = null;
 let lastSentTaskbarMode = null;
 let lastSentWallpaperMode = null;
 let _lastSyncedTaskbarMode = null;
-let _lastSyncedFullscreen = null;
 let localArtCache = {};
+try {
+  const savedArt = localStorage.getItem('lyricflow_local_art_cache');
+  if (savedArt) localArtCache = JSON.parse(savedArt);
+} catch (e) {}
 
-// Click-Through State Management
+function saveArtToCache(trackId, url) {
+  if (!trackId || !url) return;
+  localArtCache[trackId] = url;
+  try {
+    const keys = Object.keys(localArtCache);
+    if (keys.length > 800) {
+      delete localArtCache[keys[0]];
+    }
+    localStorage.setItem('lyricflow_local_art_cache', JSON.stringify(localArtCache));
+  } catch (e) {}
+}
 function setClickThroughCached(state) {
   if (state === clickThroughState) return;
   clickThroughState = state;
@@ -2637,7 +2650,7 @@ async function handlePlaybackData(data) {
       localArtCache[track.id] = 'fetching';
       fetchFallbackAlbumArt(track.name, track.artists?.[0]?.name || '').then(artUrl => {
         if (artUrl) {
-          localArtCache[track.id] = artUrl;
+          saveArtToCache(track.id, artUrl);
         } else {
           localArtCache[track.id] = 'notfound';
           // Clear notfound after 10s so it can retry later
@@ -4202,11 +4215,11 @@ async function fetchFallbackAlbumArt(trackName, artistName) {
     .replace(/\s*,\s*.*$/, "")
     .trim() || rawArtist;
 
-  // Helper to query iTunes API
+  // Fast helper with strict 2.5s timeout
   const queryItunes = async (queryStr) => {
     try {
       const url = `https://itunes.apple.com/search?term=${encodeURIComponent(queryStr)}&limit=1&entity=song`;
-      const res = await fetch(url);
+      const res = await fetch(url, { signal: AbortSignal.timeout(2500) });
       if (res.ok) {
         const data = await res.json();
         if (data.results && data.results.length > 0) {
@@ -4217,14 +4230,30 @@ async function fetchFallbackAlbumArt(trackName, artistName) {
         }
       }
     } catch (e) {}
-    return null;
+    throw new Error('iTunes not found');
   };
 
-  // Helper to query MusicBrainz Cover Art Archive
+  // Helper to query Deezer API with strict 2.5s timeout
+  const queryDeezer = async (queryStr) => {
+    try {
+      const url = `https://api.deezer.com/search?q=${encodeURIComponent(queryStr)}&limit=1`;
+      const res = await fetch(url, { signal: AbortSignal.timeout(2500) });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.data && data.data.length > 0) {
+          const cover = data.data[0].album?.cover_xl || data.data[0].album?.cover_big || data.data[0].album?.cover_medium;
+          if (cover) return cover;
+        }
+      }
+    } catch (e) {}
+    throw new Error('Deezer not found');
+  };
+
+  // Helper to query MusicBrainz
   const queryMusicBrainz = async (queryStr) => {
     try {
       const url = `https://musicbrainz.org/ws/2/recording/?query=${encodeURIComponent(queryStr)}&fmt=json`;
-      const res = await fetch(url, { headers: { 'User-Agent': 'LyricFlow/1.2.0 (contact@lyricflow.app)' } });
+      const res = await fetch(url, { headers: { 'User-Agent': 'LyricFlow/1.2.0 (contact@lyricflow.app)' }, signal: AbortSignal.timeout(2500) });
       if (res.ok) {
         const data = await res.json();
         if (data.recordings && data.recordings.length > 0) {
@@ -4237,27 +4266,34 @@ async function fetchFallbackAlbumArt(trackName, artistName) {
         }
       }
     } catch (e) {}
-    return null;
+    throw new Error('MusicBrainz not found');
   };
 
   try {
-    // Attempt 1: iTunes with clean track & clean artist
-    let art = await queryItunes(`${cleanTrack} ${cleanArtist}`);
-    if (art) return art;
+    // Run all fast queries simultaneously in parallel — fastest response wins immediately!
+    const candidates = [
+      queryItunes(`${cleanTrack} ${cleanArtist}`),
+      queryDeezer(`${cleanTrack} ${cleanArtist}`)
+    ];
 
-    // Attempt 2: iTunes with raw track & raw artist
     if (cleanTrack !== rawTrack || cleanArtist !== rawArtist) {
-      art = await queryItunes(`${rawTrack} ${rawArtist}`);
-      if (art) return art;
+      candidates.push(queryItunes(`${rawTrack} ${rawArtist}`));
+      candidates.push(queryDeezer(`${rawTrack} ${rawArtist}`));
     }
 
-    // Attempt 3: iTunes with just clean track name
-    art = await queryItunes(cleanTrack);
-    if (art) return art;
-
-    // Attempt 4: MusicBrainz fallback
-    art = await queryMusicBrainz(`${cleanTrack} ${cleanArtist}`);
-    if (art) return art;
+    try {
+      const fastest = await Promise.any(candidates);
+      if (fastest) return fastest;
+    } catch (e) {
+      // Primary batch failed, try single track search + MusicBrainz
+      try {
+        const fallback = await Promise.any([
+          queryItunes(cleanTrack),
+          queryMusicBrainz(`${cleanTrack} ${cleanArtist}`)
+        ]);
+        if (fallback) return fallback;
+      } catch (e2) {}
+    }
   } catch (err) {
     console.error("Failed to fetch fallback album art:", err);
   }
