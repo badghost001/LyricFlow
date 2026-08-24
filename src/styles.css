@@ -727,6 +727,17 @@ body.wallpaper-mode.wbw-active .lyric-line.active .lyric-word.lyric-word-upcomin
   box-shadow: 0 0 0 3px rgba(29, 185, 84, 0.15), 0 0 20px rgba(29, 185, 84, 0.06);
 }
 
+/* Explicit no-drag for all interactive elements to guarantee clicks register in Electron */
+button, input, select, textarea, a, .btn-primary, .btn-secondary, .hud-btn, .onboarding-card {
+  -webkit-app-region: no-drag !important;
+  pointer-events: auto !important;
+}
+
+#screen-onboarding:not(.active) {
+  display: none !important;
+  pointer-events: none !important;
+}
+
 .btn-primary {
   background: linear-gradient(135deg, var(--accent-violet) 0%, var(--accent-indigo) 100%);
   color: #ffffff;

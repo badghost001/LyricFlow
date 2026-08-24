@@ -394,7 +394,11 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   // Load settings from local storage
   loadLocalSettings();
-  setupUIHandlers();
+  try {
+    setupUIHandlers();
+  } catch (err) {
+    console.error("Error initializing UI handlers:", err);
+  }
 
   // Check if config exists in Electron main process
   try {
@@ -2168,67 +2172,72 @@ function setupUIHandlers() {
   }
 
   let currentSearchMatches = [];
-  inputSearchLyrics.addEventListener("input", (e) => {
-    const query = e.target.value.toLowerCase();
-    const lineEls = lyricsContainer.querySelectorAll(".lyric-line");
-    lineEls.forEach(el => el.classList.remove("search-match"));
-    currentSearchMatches = [];
+  if (inputSearchLyrics) {
+    inputSearchLyrics.addEventListener("input", (e) => {
+      const query = e.target.value.toLowerCase();
+      if (!lyricsContainer) return;
+      const lineEls = lyricsContainer.querySelectorAll(".lyric-line");
+      lineEls.forEach(el => el.classList.remove("search-match"));
+      currentSearchMatches = [];
 
-    if (!query) {
-      searchResultsInfo.textContent = "0 matches";
-      return;
-    }
+      if (!query) {
+        if (searchResultsInfo) searchResultsInfo.textContent = "0 matches";
+        return;
+      }
 
-    lineEls.forEach((el, index) => {
-      if (el.textContent.toLowerCase().includes(query) && lyrics[index]) {
-        el.classList.add("search-match");
-        currentSearchMatches.push(index);
+      lineEls.forEach((el, index) => {
+        if (el.textContent.toLowerCase().includes(query) && lyrics[index]) {
+          el.classList.add("search-match");
+          currentSearchMatches.push(index);
+        }
+      });
+
+      if (searchResultsInfo) searchResultsInfo.textContent = `${currentSearchMatches.length} matches`;
+      if (currentSearchMatches.length > 0) {
+        scrollLyrics(currentSearchMatches[0]);
       }
     });
 
-    searchResultsInfo.textContent = `${currentSearchMatches.length} matches`;
-    if (currentSearchMatches.length > 0) {
-      scrollLyrics(currentSearchMatches[0]);
-    }
-  });
-
-  inputSearchLyrics.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && currentSearchMatches.length > 0) {
-      const targetIndex = currentSearchMatches[0];
-      const targetLine = lyrics[targetIndex];
-      if (targetLine) {
-        const timeMs = targetLine.timeMs;
-        if (config.localMode) {
-          lastPollProgress = timeMs;
-          lastPollTimestamp = Date.now();
-        } else {
-          fetch('https://api.spotify.com/v1/me/player/seek?position_ms=' + timeMs, {
-            method: 'PUT',
-            headers: { 'Authorization': 'Bearer ' + config.access_token }
-          }).then(async res => {
-            if (res.status === 401) {
-              if (config.refresh_token) {
-                config.access_token = await window.electronAPI.refreshToken();
+    inputSearchLyrics.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && currentSearchMatches.length > 0) {
+        const targetIndex = currentSearchMatches[0];
+        const targetLine = lyrics[targetIndex];
+        if (targetLine) {
+          const timeMs = targetLine.timeMs;
+          if (config && config.localMode) {
+            lastPollProgress = timeMs;
+            lastPollTimestamp = Date.now();
+          } else if (config && config.access_token) {
+            fetch('https://api.spotify.com/v1/me/player/seek?position_ms=' + timeMs, {
+              method: 'PUT',
+              headers: { 'Authorization': 'Bearer ' + config.access_token }
+            }).then(async res => {
+              if (res.status === 401) {
+                if (config.refresh_token) {
+                  config.access_token = await window.electronAPI.refreshToken();
+                }
+                fetch('https://api.spotify.com/v1/me/player/seek?position_ms=' + timeMs, {
+                  method: 'PUT',
+                  headers: { 'Authorization': 'Bearer ' + config.access_token }
+                });
               }
-              fetch('https://api.spotify.com/v1/me/player/seek?position_ms=' + timeMs, {
-                method: 'PUT',
-                headers: { 'Authorization': 'Bearer ' + config.access_token }
-              });
-            }
-          }).catch(err => console.error("Failed to seek from search:", err));
+            }).catch(err => console.error("Failed to seek from search:", err));
+          }
+          scrollLyrics(targetIndex);
+          setTimeout(pollSpotifyPlayback, 300);
         }
-        scrollLyrics(targetIndex);
-        setTimeout(pollSpotifyPlayback, 300);
+        closeSearch();
       }
-      closeSearch();
-    }
-  });
+    });
+  }
 
   function closeSearch() {
-    searchOverlay.style.display = "none";
-    const lineEls = lyricsContainer.querySelectorAll(".lyric-line");
-    lineEls.forEach(el => el.classList.remove("search-match"));
-    inputSearchLyrics.blur();
+    if (searchOverlay) searchOverlay.style.display = "none";
+    if (lyricsContainer) {
+      const lineEls = lyricsContainer.querySelectorAll(".lyric-line");
+      lineEls.forEach(el => el.classList.remove("search-match"));
+    }
+    if (inputSearchLyrics) inputSearchLyrics.blur();
   }
 
   // Lyrics click & drag handler in Taskbar Mode (compact window — fully interactive)
@@ -2299,15 +2308,24 @@ function toggleClickThrough() {
 
 // Navigation Screens
 function showLoginScreen() {
-  screenLyrics.classList.remove("active");
-  screenLyrics.style.display = "none";
-  screenLogin.classList.add("active");
-  screenLogin.style.display = "flex";
+  if (screenOnboarding) {
+    screenOnboarding.classList.remove("active");
+    screenOnboarding.style.display = "none";
+  }
+  if (screenLyrics) {
+    screenLyrics.classList.remove("active");
+    screenLyrics.style.display = "none";
+  }
+  if (screenLogin) {
+    screenLogin.classList.add("active");
+    screenLogin.style.display = "flex";
+  }
   stopPolling();
 
   // Ensure taskbar mode is deactivated visually on logout/login screen
   applyVisualSettings();
   setClickThroughCached(false);
+  window.electronAPI.setClickThrough(false);
 }
 
 function showLyricsScreen() {
