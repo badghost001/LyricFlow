@@ -1,6 +1,6 @@
 {
   "name": "lyricflow",
-  "version": "1.2.3",
+  "version": "1.2.4",
   "description": "LyricFlow",
   "main": "main.js",
   "type": "commonjs",
@@ -46,12 +46,12 @@
         },
         "portable"
       ],
-      "requestedExecutionLevel": "asInvoker"
+      "requestedExecutionLevel": "highestAvailable"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "perMachine": false,
+      "perMachine": true,
       "allowElevation": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
