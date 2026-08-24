@@ -425,9 +425,6 @@ function loadLocalSettings() {
       const parsed = JSON.parse(saved);
       settings = { ...settings, ...parsed };
       
-      // FORCE firstRun to true so the user can see the new window
-      settings.firstRun = true;
-      
       // Force taskbarMode, wallpaperMode, and alwaysOnTop to false on startup so it always opens as a normal window
       if (settings.taskbarMode) {
         settings.taskbarMode = false;
@@ -1003,9 +1000,6 @@ function setupUIHandlers() {
         screenLyrics.style.display = 'flex';
         screenLyrics.classList.add('active');
       }
-      
-      // Auto-open settings on first run so they can adjust font size/etc
-      if (settingsPanel) settingsPanel.classList.add("open");
     };
 
     btnFinish1.addEventListener('click', finalizeSetup);
