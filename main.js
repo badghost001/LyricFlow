@@ -1320,10 +1320,10 @@ ipcMain.handle('get-access-token', async (event, spDc) => {
 
 // 5. OAuth and Session Management
 ipcMain.handle('login-via-web', () => {
-  return new Promise(async (resolve) => {
+  return new Promise((resolve) => {
     const CHROME_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36";
 
-    // Set fallback user-agent so any background/sub-requests never leak Electron headers
+    // Set fallback user-agent so background requests don't leak Electron headers
     app.userAgentFallback = CHROME_UA;
 
     const loginWin = new BrowserWindow({
@@ -1338,17 +1338,15 @@ ipcMain.handle('login-via-web', () => {
       }
     });
 
-    // Set user-agent on both webContents and the session
+    loginWin.center();
+    loginWin.show();
+    loginWin.focus();
+
+    // Set user-agent on webContents and session
     loginWin.webContents.setUserAgent(CHROME_UA);
     try {
       loginWin.webContents.session.setUserAgent(CHROME_UA);
-      // Clear stale cookies and storage from previous failed sessions to prevent CSRF / "Something went wrong" errors
-      await loginWin.webContents.session.clearStorageData({
-        storages: ['cookies', 'localstorage', 'cachestorage']
-      });
-    } catch (e) {
-      console.warn("Storage cleanup error:", e);
-    }
+    } catch (e) {}
 
     // Handle OAuth popups (e.g. Continue with Google / Apple / Facebook)
     loginWin.webContents.setWindowOpenHandler(({ url }) => {
@@ -1368,6 +1366,15 @@ ipcMain.handle('login-via-web', () => {
 
     loginWin.webContents.on('did-create-window', (childWin) => {
       childWin.webContents.setUserAgent(CHROME_UA);
+    });
+
+    loginWin.webContents.on('dom-ready', () => {
+      loginWin.webContents.executeJavaScript(`
+        try {
+          Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+          delete window.gc;
+        } catch(e) {}
+      `);
     });
 
     let resolved = false;
@@ -1423,16 +1430,7 @@ ipcMain.handle('login-via-web', () => {
       } catch (e) {}
     }, 300);
 
-    loginWin.webContents.on('dom-ready', () => {
-      loginWin.webContents.executeJavaScript(`
-        try {
-          Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-          delete window.gc;
-        } catch(e) {}
-      `);
-    });
-
-    // Use standard Spotify continue URL (whitelisted by Spotify OAuth servers)
+    // Load Spotify Login URL immediately
     loginWin.loadURL('https://accounts.spotify.com/en/login?continue=https:%2F%2Fopen.spotify.com%2F');
 
     loginWin.on('closed', () => {
