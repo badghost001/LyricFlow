@@ -1,6 +1,6 @@
 {
   "name": "lyricflow",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "LyricFlow",
   "main": "main.js",
   "type": "commonjs",
@@ -52,6 +52,7 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "perMachine": false,
+      "allowElevation": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "LyricFlow"

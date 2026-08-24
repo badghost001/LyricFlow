@@ -446,6 +446,7 @@ app.whenReady().then(async () => {
       buttons: ['Restart Now', 'Later']
     }).then((result) => {
       if (result.response === 0) {
+        forceQuit = true;
         autoUpdater.quitAndInstall(false, true);
       }
     });
