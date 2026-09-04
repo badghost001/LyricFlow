@@ -827,8 +827,8 @@ function applyVisualSettings(fromTray = false) {
   }
 
   // Sync fullscreen preference to main process (only if changed)
-  if ((settings.fullscreenLyrics || false) !== _lastSyncedFullscreen) {
-    _lastSyncedFullscreen = settings.fullscreenLyrics || false;
+  if ((settings.fullscreenLyrics || false) !== window._lastSyncedFullscreen) {
+    window._lastSyncedFullscreen = settings.fullscreenLyrics || false;
     window.electronAPI.setFullscreenLyrics(settings.fullscreenLyrics || false);
   }
 
@@ -1059,11 +1059,11 @@ function setupUIHandlers() {
   }
 
   if (btnLocalMode) {
-    btnLocalMode.addEventListener("click", async () => {
+    btnLocalMode.addEventListener("click", () => {
       config = { localMode: true };
+      showLyricsScreen();
       try {
-        await window.electronAPI.saveConfig(config);
-        showLyricsScreen();
+        window.electronAPI.saveConfig(config);
       } catch (err) {
         console.error("Failed to save local mode config:", err);
       }
@@ -1752,13 +1752,19 @@ function setupUIHandlers() {
   window.addEventListener('mousemove', (e) => {
     if (settings.taskbarMode && config) return;
 
+    // While on the login screen, never enable click-through
+    if (!config) {
+      setClickThroughCached(false);
+      return;
+    }
+
     if (!e.target || typeof e.target.closest !== 'function') return;
 
     const isOverInteractive = e.target.closest('button, input, select, .hud-header, .playback-widget, .settings-panel, a, label, .drag-handle');
     if (isOverInteractive) {
       setClickThroughCached(false);
     } else {
-      if (config && settings.clickThrough) {
+      if (settings.clickThrough) {
         setClickThroughCached(true);
       }
     }
@@ -2327,29 +2333,22 @@ function showLyricsScreen() {
     screenLogin.classList.remove("active");
     screenLogin.style.display = "none";
   }
-  
-  if (settings.firstRun !== false && screenOnboarding) {
-    screenOnboarding.style.display = "block";
-    screenOnboarding.classList.add("active");
-    if (screenLyrics) {
-      screenLyrics.style.display = "none";
-      screenLyrics.classList.remove("active");
-    }
-  } else {
-    if (screenLyrics) {
-      screenLyrics.classList.add("active");
-      screenLyrics.style.display = "flex";
-    }
+  if (screenOnboarding) {
+    screenOnboarding.classList.remove("active");
+    screenOnboarding.style.display = "none";
+  }
+  if (screenLyrics) {
+    screenLyrics.classList.add("active");
+    screenLyrics.style.display = "flex";
   }
 
-  if (settings.offlineMode) { 
-    // Handle offline logic if needed
-  }
-  
+  settings.firstRun = false;
+  saveLocalSettings();
+
   startPolling();
 
   // Set default window properties from settings on start
-  setClickThroughCached(settings.clickThrough);
+  setClickThroughCached(settings.clickThrough || false);
 
   // Apply visual settings (including taskbarMode toggles) after config is set
   applyVisualSettings();

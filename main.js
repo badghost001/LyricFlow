@@ -275,6 +275,8 @@ function createWindow() {
     }
   });
 
+  mainWindow.setIgnoreMouseEvents(false);
+
   mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
     console.log(`[Renderer Console] [Line ${line}] ${message}`);
   });

@@ -730,10 +730,25 @@ body.wallpaper-mode.wbw-active .lyric-line.active .lyric-word.lyric-word-upcomin
 /* Explicit no-drag for all interactive elements to guarantee clicks register in Electron */
 button, input, select, textarea, a, .btn-primary, .btn-secondary, .hud-btn, .onboarding-card {
   -webkit-app-region: no-drag !important;
+}
+
+#screen-login,
+#screen-login .login-card,
+#screen-login .auth-form,
+#btn-login-web,
+#btn-local-mode,
+#btn-toggle-manual-cookie,
+#btn-submit-manual-cookie {
+  -webkit-app-region: no-drag !important;
   pointer-events: auto !important;
 }
 
 #screen-onboarding:not(.active) {
+  display: none !important;
+  pointer-events: none !important;
+}
+
+.settings-panel:not(.open) {
   display: none !important;
   pointer-events: none !important;
 }
