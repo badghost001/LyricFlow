@@ -54,6 +54,7 @@ let edgeGlowWindow = null;
 let taskbarWindow = null;
 let tray = null;
 let isTaskbarMode = false;
+let isWallpaperMode = false;
 let taskbarLayout = { offset: 0, align: 'center', contentWidth: 280 };
 let restoreInterval = null;
 let visibilityInterval = null;
@@ -246,7 +247,15 @@ function createWindow() {
     const configPath = getConfigPath();
     if (fs.existsSync(configPath)) {
       const conf = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-      if (conf.bounds) bounds = conf.bounds;
+      if (conf.bounds) {
+        const { screen } = require('electron');
+        const primaryDisplay = screen.getPrimaryDisplay();
+        if (conf.bounds.width >= primaryDisplay.bounds.width && conf.bounds.height >= primaryDisplay.bounds.height) {
+          bounds = { width: 720, height: 700 };
+        } else {
+          bounds = conf.bounds;
+        }
+      }
     }
   } catch(e) {
     console.error("Failed to load bounds:", e);
@@ -308,14 +317,18 @@ function createWindow() {
       return;
     }
     // Save bounds
-    if (!isTaskbarMode) {
+    if (!isTaskbarMode && !isWallpaperMode) {
       try {
+        const { screen } = require('electron');
+        const primaryDisplay = screen.getPrimaryDisplay();
         const b = mainWindow.getBounds();
-        const cp = getConfigPath();
-        let conf = {};
-        if (fs.existsSync(cp)) conf = JSON.parse(fs.readFileSync(cp, 'utf8'));
-        conf.bounds = b;
-        fs.writeFileSync(cp, JSON.stringify(conf, null, 2), 'utf8');
+        if (b.width < primaryDisplay.bounds.width && b.height < primaryDisplay.bounds.height) {
+          const cp = getConfigPath();
+          let conf = {};
+          if (fs.existsSync(cp)) conf = JSON.parse(fs.readFileSync(cp, 'utf8'));
+          conf.bounds = b;
+          fs.writeFileSync(cp, JSON.stringify(conf, null, 2), 'utf8');
+        }
       } catch (err) {
         console.error("Failed to save bounds:", err);
       }
@@ -733,9 +746,16 @@ ipcMain.on('set-wallpaper-mode', (event, enabled) => {
   const { screen } = require('electron');
 
   if (enabled) {
-    // Resize to cover full primary display first
+    isWallpaperMode = true;
     const primaryDisplay = screen.getPrimaryDisplay();
     const { bounds } = primaryDisplay;
+
+    // Save normal window bounds before expanding to full display
+    const currentBounds = mainWindow.getBounds();
+    if (currentBounds.width < bounds.width || currentBounds.height < bounds.height) {
+      normalBounds = currentBounds;
+    }
+
     mainWindow.setResizable(true);
     mainWindow.setBounds({ x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height });
     mainWindow.setSkipTaskbar(true);
@@ -744,6 +764,7 @@ ipcMain.on('set-wallpaper-mode', (event, enabled) => {
     const hwnd = mainWindow.getNativeWindowHandle().readBigInt64LE(0).toString();
     runWallpaperHelper(hwnd, 'attach');
   } else {
+    isWallpaperMode = false;
     const hwnd = mainWindow.getNativeWindowHandle().readBigInt64LE(0).toString();
     runWallpaperHelper(hwnd, 'detach');
     

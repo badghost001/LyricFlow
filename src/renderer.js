@@ -44,9 +44,9 @@ let settings = {
   bgOpacity: 0,
   glowIntensity: 60,
   fontFamily: 'Outfit',
-  lineSpacing: 1.1,
+  lineSpacing: 11,
   showWidget: true,
-  highlightColor: '#1DB954',
+  highlightColor: 'dynamic',
   dblclickAction: 'copy',
   clickThrough: false,
   alwaysOnTop: false,
@@ -66,7 +66,7 @@ let settings = {
   autoLaunch: false,
   showNextUp: false,
   showGenius: false,
-  geniusPosition: 'top',
+  geniusPosition: 'top-left',
   discordRpc: false,
   syncOffsetMs: 0,
   trackOffsets: {},
@@ -433,6 +433,18 @@ function loadLocalSettings() {
         settings.wallpaperMode = false;
       }
       settings.alwaysOnTop = false;
+
+      // Migrate legacy default values
+      if (settings.lineSpacing === 1.1 || settings.lineSpacing === 12 || !settings.lineSpacing) {
+        settings.lineSpacing = 11;
+      }
+      if (settings.highlightColor === '#1DB954' || settings.highlightColor === '#1db954') {
+        settings.highlightColor = 'dynamic';
+      }
+      if (settings.geniusPosition === 'top') {
+        settings.geniusPosition = 'top-left';
+      }
+
       saveLocalSettings();
     } catch (e) {
       console.error("Error parsing settings:", e);
@@ -655,11 +667,12 @@ function applyVisualSettings(fromTray = false) {
   if (!settings.highlightColor) settings.highlightColor = 'dynamic';
   let colorVal = '#ffffff';
   let glowColor = 'rgba(255, 255, 255, 0.25)';
-  const glowInt = settings.glow / 100;
+  const glowRaw = typeof settings.glowIntensity === 'number' ? settings.glowIntensity : (typeof settings.glow === 'number' ? settings.glow : 65);
+  const glowInt = glowRaw / 100;
 
   if (settings.highlightColor === 'dynamic') {
-    colorVal = 'var(--art-color-1)';
-    glowColor = `rgba(var(--art-color-1-rgb, 167, 139, 250), ${glowInt})`;
+    colorVal = 'var(--art-color-1, #1DB954)';
+    glowColor = `rgba(var(--art-color-1-rgb, 29, 185, 84), ${glowInt})`;
   } else if (settings.highlightColor === 'green') {
     colorVal = '#1db954';
     glowColor = `rgba(29, 185, 84, ${glowInt})`;
@@ -683,6 +696,7 @@ function applyVisualSettings(fromTray = false) {
   document.documentElement.style.setProperty('--highlight-color', colorVal);
   document.documentElement.style.setProperty('--highlight-glow', glowColor);
   if (selectHighlightColor) selectHighlightColor.value = settings.highlightColor;
+  if (selectGeniusPosition) selectGeniusPosition.value = settings.geniusPosition || 'top-left';
 
   if (selectDblclickAction) selectDblclickAction.value = settings.dblclickAction || "rewind";
 
@@ -856,19 +870,31 @@ function applyGeniusPosition() {
   geniusFactCard.style.bottom = '';
   geniusFactCard.style.left = '';
   geniusFactCard.style.right = '';
+  geniusFactCard.style.transform = '';
 
   if (pos === 'top-left') {
     geniusFactCard.style.top = '60px';
     geniusFactCard.style.left = '20px';
+  } else if (pos === 'top-center') {
+    geniusFactCard.style.top = '60px';
+    geniusFactCard.style.left = '50%';
+    geniusFactCard.style.transform = 'translateX(-50%)';
   } else if (pos === 'top-right') {
     geniusFactCard.style.top = '60px';
     geniusFactCard.style.right = '20px';
   } else if (pos === 'bottom-left') {
     geniusFactCard.style.bottom = '120px';
     geniusFactCard.style.left = '20px';
+  } else if (pos === 'bottom-center') {
+    geniusFactCard.style.bottom = '120px';
+    geniusFactCard.style.left = '50%';
+    geniusFactCard.style.transform = 'translateX(-50%)';
   } else if (pos === 'bottom-right') {
     geniusFactCard.style.bottom = '120px';
     geniusFactCard.style.right = '20px';
+  } else {
+    geniusFactCard.style.top = '60px';
+    geniusFactCard.style.left = '20px';
   }
 }
 
@@ -4041,7 +4067,7 @@ function updatePlayhead() {
   requestAnimationFrame(updatePlayhead);
 }
 
-// Image Dominant Color Extractor
+// Image Dominant Color Extractor - Extracts vibrant album art color for lyrics
 function extractDominantColor(imgUrl) {
   return new Promise((resolve) => {
     const img = new Image();
@@ -4049,34 +4075,63 @@ function extractDominantColor(imgUrl) {
     img.onload = () => {
       try {
         const canvas = document.createElement("canvas");
-        canvas.width = 10;
-        canvas.height = 10;
+        const size = 24;
+        canvas.width = size;
+        canvas.height = size;
         const ctx = canvas.getContext("2d");
-        ctx.drawImage(img, 0, 0, 10, 10);
-        const data = ctx.getImageData(0, 0, 10, 10).data;
+        ctx.drawImage(img, 0, 0, size, size);
+        const data = ctx.getImageData(0, 0, size, size).data;
 
-        let rSum = 0, gSum = 0, bSum = 0, count = 0;
+        let bestScore = -1;
+        let bestR = 29, bestG = 185, bestB = 84;
+        let avgR = 0, avgG = 0, avgB = 0, count = 0;
+
         for (let i = 0; i < data.length; i += 4) {
-          rSum += data[i];
-          gSum += data[i + 1];
-          bSum += data[i + 2];
+          const r = data[i];
+          const g = data[i + 1];
+          const b = data[i + 2];
+          const a = data[i + 3];
+          if (a < 128) continue;
+
+          avgR += r;
+          avgG += g;
+          avgB += b;
           count++;
+
+          const max = Math.max(r, g, b);
+          const min = Math.min(r, g, b);
+          const delta = max - min;
+          const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+          const sat = max === 0 ? 0 : delta / max;
+
+          // Skip near-black or near-white colors for the vibrant pick
+          if (lum < 28 || lum > 240) continue;
+
+          // Score highly for saturated, medium-bright colors
+          const score = sat * 3 + (lum > 70 && lum < 200 ? 2 : 0.5);
+          if (score > bestScore) {
+            bestScore = score;
+            bestR = r;
+            bestG = g;
+            bestB = b;
+          }
         }
 
-        const r = Math.floor(rSum / count);
-        const g = Math.floor(gSum / count);
-        const b = Math.floor(bSum / count);
+        // If no saturated color was found, use adjusted average
+        let finalR = bestScore > 0.8 ? bestR : (count ? Math.round(avgR / count) : 29);
+        let finalG = bestScore > 0.8 ? bestG : (count ? Math.round(avgG / count) : 185);
+        let finalB = bestScore > 0.8 ? bestB : (count ? Math.round(avgB / count) : 84);
 
-        // Ensure color isn't completely dark or washed out (adjust contrast)
-        const max = Math.max(r, g, b);
-        let factor = 1;
-        if (max > 0 && max < 100) factor = 120 / max; // boost dark colors
+        // Ensure text contrast: boost brightness if too dark for lyrics text
+        const maxVal = Math.max(finalR, finalG, finalB);
+        if (maxVal > 0 && maxVal < 140) {
+          const factor = 150 / maxVal;
+          finalR = Math.min(255, Math.round(finalR * factor));
+          finalG = Math.min(255, Math.round(finalG * factor));
+          finalB = Math.min(255, Math.round(finalB * factor));
+        }
 
-        resolve({
-          r: Math.min(255, Math.round(r * factor)),
-          g: Math.min(255, Math.round(g * factor)),
-          b: Math.min(255, Math.round(b * factor))
-        });
+        resolve({ r: finalR, g: finalG, b: finalB });
       } catch (e) {
         resolve({ r: 29, g: 185, b: 84 }); // fallback Spotify Green
       }

@@ -379,8 +379,8 @@
             <div class="setting-row">
               <label for="slider-line-spacing">Line Spacing</label>
               <div class="slider-container">
-                <input type="range" id="slider-line-spacing" min="6" max="24" value="12" />
-                <span id="val-line-spacing">12px</span>
+                <input type="range" id="slider-line-spacing" min="4" max="28" value="11" />
+                <span id="val-line-spacing">11px</span>
               </div>
             </div>
             <div class="setting-row">
@@ -559,12 +559,14 @@
                 </div>
               </label>
             </div>
-            <div class="setting-row" style="margin-top: 6px; display: flex;" id="setting-genius-position-row">
-              <label class="setting-label">Fact Position</label>
-              <select class="setting-select" id="select-genius-position">
+            <div class="setting-row" id="setting-genius-position-row">
+              <label for="select-genius-position">Fact Position</label>
+              <select id="select-genius-position">
                 <option value="top-left">Top Left</option>
+                <option value="top-center">Top Center</option>
                 <option value="top-right">Top Right</option>
                 <option value="bottom-left">Bottom Left</option>
+                <option value="bottom-center">Bottom Center</option>
                 <option value="bottom-right">Bottom Right</option>
               </select>
             </div>
