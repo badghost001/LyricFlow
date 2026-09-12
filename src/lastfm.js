@@ -129,10 +129,57 @@ class LastFMManager {
         if (window.updatePlaycountUI) {
           window.updatePlaycountUI(this.userPlaycount);
         }
+        if (infoRes.track.album) {
+          const artUrl = this.extractImageFromList(infoRes.track.album.image);
+          if (artUrl && window.onLastfmArtFound) {
+            window.onLastfmArtFound(artUrl);
+          }
+        }
       }
     } catch(err) {
       console.error("Last.fm track change error:", err);
     }
+  }
+
+  extractImageFromList(images) {
+    if (!images || !Array.isArray(images) || images.length === 0) return null;
+    const img = images.find(i => i.size === "extralarge" || i.size === "large") || images[images.length - 1];
+    const url = img && img["#text"] ? img["#text"].trim() : "";
+    if (url && !url.includes("2a96cbd8b46e442fc41c2b86b821562f")) {
+      return url;
+    }
+    return null;
+  }
+
+  async getTrackAlbumArt(track, artist) {
+    if (!track) return null;
+    try {
+      const infoRes = await window.electronAPI.lastfmApi('track.getInfo', {
+        artist: artist || '',
+        track: track,
+        autocorrect: '1'
+      }, this.apiKey, this.apiSecret, null);
+
+      if (infoRes && infoRes.track && infoRes.track.album) {
+        const art = this.extractImageFromList(infoRes.track.album.image);
+        if (art) return art;
+
+        if (infoRes.track.album.title) {
+          const albumRes = await window.electronAPI.lastfmApi('album.getInfo', {
+            artist: infoRes.track.album.artist || artist || '',
+            album: infoRes.track.album.title,
+            autocorrect: '1'
+          }, this.apiKey, this.apiSecret, null);
+          if (albumRes && albumRes.album) {
+            const albumArt = this.extractImageFromList(albumRes.album.image);
+            if (albumArt) return albumArt;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Last.fm getTrackAlbumArt failed:", e);
+    }
+    return null;
   }
 
   updatePlaybackProgress(currentMs, durationMs) {

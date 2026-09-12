@@ -1,0 +1,78 @@
+/* Dynamic Ambient Glow Background */
+.ambient-glow {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: -2;
+  overflow: hidden;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 20% 50%, rgba(var(--accent-primary-rgb, 29, 185, 84), 0.04) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 50%, rgba(var(--accent-bright-rgb, 30, 215, 96), 0.03) 0%, transparent 60%),
+    rgba(10, 10, 15, 0.4);
+  transition: background 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+  contain: strict;
+}
+
+.glow-orb {
+  position: absolute;
+  border-radius: 50%;
+  opacity: calc(var(--glow-intensity) * 0.45);
+  transition: opacity 0.8s ease, transform 1.8s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
+  contain: strict;
+  pointer-events: none;
+}
+
+.orb-1 {
+  width: 50vw;
+  height: 50vw;
+  top: -10%;
+  left: -10%;
+  background: radial-gradient(circle at center, var(--art-color-1) 0%, rgba(var(--art-color-1-rgb, 29, 185, 84), 0.35) 40%, transparent 70%);
+  animation: floatOrb1 25s infinite alternate ease-in-out;
+}
+
+.orb-2 {
+  width: 60vw;
+  height: 60vw;
+  bottom: -15%;
+  right: -10%;
+  background: radial-gradient(circle at center, var(--art-color-2) 0%, rgba(var(--art-color-2-rgb, 18, 18, 26), 0.35) 40%, transparent 70%);
+  animation: floatOrb2 30s infinite alternate ease-in-out;
+}
+
+@keyframes floatOrb1 {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(15%, 10%) scale(1.1); }
+  100% { transform: translate(-5%, 5%) scale(0.9); }
+}
+
+@keyframes floatOrb2 {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-10%, -15%) scale(0.9); }
+  100% { transform: translate(10%, 10%) scale(1.2); }
+}
+
+/* Reduced motion fallbacks */
+@media (prefers-reduced-motion: reduce) {
+  .glow-orb {
+    animation: none;
+    filter: blur(60px);
+  }
+  .orb-1, .orb-2 {
+    animation: none;
+  }
+  .wallpaper-album-bg {
+    filter: blur(30px) saturate(1.2) brightness(0.72);
+  }
+  .lyric-line.active {
+    animation: none;
+  }
+  .lyrics-scroll-container {
+    transition-duration: 0.15s;
+  }
+}
+

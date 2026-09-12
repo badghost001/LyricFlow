@@ -1,15 +1,34 @@
+param(
+    [int]$ParentPid = 0,
+    [string]$DllPath = ""
+)
+
 # Load the required Windows Runtime assembly
 Add-Type -AssemblyName System.Runtime.WindowsRuntime
 
 # Determine parent process ID to prevent orphaned background processes
-$parentPid = try {
-    (Get-CimInstance Win32_Process -Filter "ProcessId = $PID").ParentProcessId
-} catch {
-    $null
+$parentPid = if ($ParentPid -gt 0) {
+    $ParentPid
+} else {
+    try {
+        (Get-CimInstance Win32_Process -Filter "ProcessId = $PID").ParentProcessId
+    } catch {
+        $null
+    }
 }
 
-# Declare Win32 methods for taskbar visibility detection
-Add-Type -TypeDefinition @"
+# Load Win32 helper: use precompiled DLL if available to avoid runtime csc.exe compilation overhead
+if ($DllPath -and (Test-Path -LiteralPath $DllPath)) {
+    try {
+        Add-Type -Path $DllPath -ErrorAction Stop
+    } catch {
+        $DllPath = ""
+    }
+}
+
+if (-not $DllPath -or -not ([System.Management.Automation.PSTypeName]'Win32').Type) {
+    # Fallback declaration of Win32 methods
+    Add-Type -TypeDefinition @"
 using System;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -31,6 +50,8 @@ public class Win32 {
     public static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
     [DllImport("user32.dll")]
     public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+    [DllImport("user32.dll", SetLastError=true)]
+    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
     [StructLayout(LayoutKind.Sequential)]
     public struct RECT {
         public int Left;
@@ -38,8 +59,40 @@ public class Win32 {
         public int Right;
         public int Bottom;
     }
+
+    public static bool IsShellWindow(IntPtr hWnd) {
+        if (hWnd == IntPtr.Zero) return true;
+        StringBuilder sb = new StringBuilder(256);
+        GetClassName(hWnd, sb, 256);
+        string c = sb.ToString();
+        if (string.IsNullOrEmpty(c)) return false;
+        if (c == "Shell_TrayWnd" || c == "Shell_SecondaryTrayWnd" || c == "Progman" || c == "WorkerW" ||
+            c == "XamlExplorerHostIslandWindow" || c == "Windows.UI.Core.CoreWindow" ||
+            c == "StartMenuExperienceHost" || c == "TaskSwitcherWnd" || c == "MultitaskingViewFrame" ||
+            c == "TopLevelWindowForOverflowXamlIsland" || c == "NotifyIconOverflowWindow" ||
+            c == "TrayFlyoutWClass" || c == "DV2ControlHost" || c == "ApplicationFrameWindow" ||
+            c.IndexOf("Xaml", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            c.IndexOf("Shell", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            c.IndexOf("Start", StringComparison.OrdinalIgnoreCase) >= 0) {
+            return true;
+        }
+        uint pid = 0;
+        GetWindowThreadProcessId(hWnd, out pid);
+        if (pid != 0) {
+            try {
+                string pName = System.Diagnostics.Process.GetProcessById((int)pid).ProcessName.ToLowerInvariant();
+                if (pName == "explorer" || pName == "startmenuexperiencehost" || pName == "searchhost" ||
+                    pName == "shellexperiencehost" || pName == "textinputhost" || pName == "searchapp" ||
+                    pName == "taskmgr") {
+                    return true;
+                }
+            } catch {}
+        }
+        return false;
+    }
 }
 "@
+}
 
 # Define the WinRT namespaces
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
@@ -73,79 +126,41 @@ try {
 }
 
 $lastFullscreenState = $false
+$lastJson = ""
 while ($true) {
     if ($parentPid -and -not (Get-Process -Id $parentPid -ErrorAction SilentlyContinue)) {
         exit
     }
     try {
-        # Find our app window and dynamically manage WS_EX_TOOLWINDOW based on height
-        # to exclude it from Alt+Tab switcher when in taskbar mode
-        $myHwnd = [Win32]::FindWindow("Chrome_WidgetWin_1", "LyricFlow")
-        if ($myHwnd -ne [IntPtr]::Zero) {
-            $myRect = New-Object Win32+RECT
-            if ([Win32]::GetWindowRect($myHwnd, [ref]$myRect)) {
-                $myHeight = $myRect.Bottom - $myRect.Top
-                $GWL_EXSTYLE = -20
-                $WS_EX_TOOLWINDOW = 0x80
-                $SWP_FLAGS = 0x37 # SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE
-                
-                $exStyle = [Win32]::GetWindowLong($myHwnd, $GWL_EXSTYLE)
-                if ($myHeight -gt 0 -and $myHeight -lt 100) {
-                    # Taskbar mode: ensure WS_EX_TOOLWINDOW is set
-                    if (($exStyle -band $WS_EX_TOOLWINDOW) -eq 0) {
-                        $null = [Win32]::SetWindowLong($myHwnd, $GWL_EXSTYLE, $exStyle -bor $WS_EX_TOOLWINDOW)
-                        $null = [Win32]::SetWindowPos($myHwnd, [IntPtr]::Zero, 0, 0, 0, 0, $SWP_FLAGS)
-                    }
-                } else {
-                    # Normal mode: ensure WS_EX_TOOLWINDOW is removed
-                    if (($exStyle -band $WS_EX_TOOLWINDOW) -ne 0) {
-                        $null = [Win32]::SetWindowLong($myHwnd, $GWL_EXSTYLE, $exStyle -band -not $WS_EX_TOOLWINDOW)
-                        $null = [Win32]::SetWindowPos($myHwnd, [IntPtr]::Zero, 0, 0, 0, 0, $SWP_FLAGS)
-                    }
-                }
-            }
-        }
-
         $hwnd = [Win32]::FindWindow("Shell_TrayWnd", $null)
         $isTaskbarHidden = $false
         if ($hwnd -ne [IntPtr]::Zero) {
             $rect = New-Object Win32+RECT
             if ([Win32]::GetWindowRect($hwnd, [ref]$rect)) {
+                $screenHeight = [Win32]::GetSystemMetrics(1)
+                $screenWidth  = [Win32]::GetSystemMetrics(0)
                 $tbWidth  = $rect.Right - $rect.Left
                 $tbHeight = $rect.Bottom - $rect.Top
-                # Taskbar is "hidden" only when it has actually slid off screen
-                # (auto-hide: height or width collapses to ~2px).
-                # A normal visible bottom taskbar has height ~40-60px, so we use a
-                # threshold of 5 to avoid false positives.
-                if ($tbHeight -le 5 -or $tbWidth -le 5) { $isTaskbarHidden = $true }
+                # Windows 10: Taskbar height/width collapses to <= 5px.
+                # Windows 11: Taskbar height stays ~48px, but rect.Top slides down to >= screenHeight - 4px.
+                # Also handles top/left/right auto-hiding taskbars.
+                if ($tbHeight -le 5 -or $tbWidth -le 5 -or $rect.Top -ge ($screenHeight - 4) -or $rect.Bottom -le 4 -or $rect.Right -le 4 -or $rect.Left -ge ($screenWidth - 4)) {
+                    $isTaskbarHidden = $true
+                }
             }
         }
 
         # Check if the currently active window is in fullscreen mode (to hide taskbar lyrics)
         $fgHwnd = [Win32]::GetForegroundWindow()
-        $isFullscreen = $lastFullscreenState
+        $isFullscreen = $false
         if ($fgHwnd -ne [IntPtr]::Zero) {
-            $sb = New-Object System.Text.StringBuilder 256
-            [void][Win32]::GetClassName($fgHwnd, $sb, 256)
-            $className = $sb.ToString()
-            
-            # If it's a transient system/shell window, we keep the last known fullscreen state to prevent flashing
-            if ($className -eq "MultitaskingViewFrame" -or $className -eq "TaskSwitcherWnd" -or $className -eq "Windows.UI.Core.CoreWindow" -or $className -eq "Shell_TrayWnd" -or $className -eq "Shell_SecondaryTrayWnd") {
-                # Keep the last known state
-            } else {
+            if (-not [Win32]::IsShellWindow($fgHwnd)) {
                 $fgRect = New-Object Win32+RECT
                 if ([Win32]::GetWindowRect($fgHwnd, [ref]$fgRect)) {
                     $screenWidth = [Win32]::GetSystemMetrics(0)
                     $screenHeight = [Win32]::GetSystemMetrics(1)
-                    
                     if ($fgRect.Left -le 0 -and $fgRect.Top -le 0 -and $fgRect.Right -ge $screenWidth -and $fgRect.Bottom -ge $screenHeight) {
-                        if ($className -ne "Progman" -and $className -ne "WorkerW") {
-                            $isFullscreen = $true
-                        } else {
-                            $isFullscreen = $false
-                        }
-                    } else {
-                        $isFullscreen = $false
+                        $isFullscreen = $true
                     }
                 }
             }
@@ -249,10 +264,18 @@ while ($true) {
             $position = if ($timeline) { $timeline.Position.TotalMilliseconds } else { 0 }
             $duration = if ($timeline) { $timeline.EndTime.TotalMilliseconds } else { 0 }
             
+            $playbackRate = 1.0
+            if ($info -and $info.PlaybackRate) {
+                try {
+                    $r = [double]$info.PlaybackRate
+                    if ($r -gt 0) { $playbackRate = $r }
+                } catch {}
+            }
+
             if ($timeline -and $info -and $info.PlaybackStatus.ToString() -eq "Playing") {
                 $now = [System.DateTimeOffset]::UtcNow
                 $elapsed = $now - $timeline.LastUpdatedTime
-                $position = $timeline.Position.TotalMilliseconds + $elapsed.TotalMilliseconds
+                $position = $timeline.Position.TotalMilliseconds + ($elapsed.TotalMilliseconds * $playbackRate)
                 if ($position -gt $duration) { $position = $duration }
                 if ($position -lt 0) { $position = 0 }
             }
@@ -263,23 +286,36 @@ while ($true) {
                 artist = $artist
                 position = $position
                 duration = $duration
+                playbackRate = $playbackRate
                 app = $session.SourceAppUserModelId
                 taskbarHidden = $isTaskbarHidden
             }
-            $data | ConvertTo-Json -Compress | Write-Host
+            $json = $data | ConvertTo-Json -Compress
+            if ($status -eq "Playing" -or $json -ne $lastJson) {
+                Write-Host $json
+                $lastJson = $json
+            }
         } else {
             $data = @{ 
                 status = "Closed"
                 taskbarHidden = $isTaskbarHidden
             }
-            $data | ConvertTo-Json -Compress | Write-Host
+            $json = $data | ConvertTo-Json -Compress
+            if ($json -ne $lastJson) {
+                Write-Host $json
+                $lastJson = $json
+            }
         }
     } catch {
         $data = @{ 
             status = "Closed"
             taskbarHidden = $isTaskbarHidden
         }
-        $data | ConvertTo-Json -Compress | Write-Host
+        $json = $data | ConvertTo-Json -Compress
+        if ($json -ne $lastJson) {
+            Write-Host $json
+            $lastJson = $json
+        }
     }
-    Start-Sleep -Milliseconds 80
+    Start-Sleep -Milliseconds 250
 }

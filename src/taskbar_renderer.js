@@ -14,8 +14,7 @@ let isClickThrough = true;
 // 'forward: true' means mousemove still gets forwarded even in click-through mode,
 // so we can detect when the cursor enters the lyric area.
 document.addEventListener('mousemove', (e) => {
-  const el = document.elementFromPoint(e.clientX, e.clientY);
-  const overLyric = el === lyricEl || lyricEl.contains(el);
+  const overLyric = e.target === lyricEl || (lyricEl && lyricEl.contains(e.target));
 
   if (overLyric && isClickThrough) {
     isClickThrough = false;
@@ -27,18 +26,47 @@ document.addEventListener('mousemove', (e) => {
 });
 
 // ── Drag & Click (moves text on drag, opens app on single click) ───────────
+let currentPosition = 'bottom'; // 'bottom' | 'top' | 'left' | 'right'
+document.body.classList.add(`pos-${currentPosition}`);
+
 let lyricOffsetX    = 0;
+let lyricOffsetY    = 0;
+
+try {
+  const savedX = parseFloat(localStorage.getItem('tb_lyric_offset_x'));
+  const savedY = parseFloat(localStorage.getItem('tb_lyric_offset_y'));
+  if (!isNaN(savedX)) lyricOffsetX = savedX;
+  if (!isNaN(savedY)) lyricOffsetY = savedY;
+} catch (e) {}
+
 let dragStartMouseX = 0;
+let dragStartMouseY = 0;
 let dragStartOffset = 0;
 let isDragging      = false;
 let hasMoved        = false;
 
-function applyOffset() {
-  const maxOffset = (window.innerWidth / 2) - 40;
-  lyricOffsetX = Math.max(-maxOffset, Math.min(maxOffset, lyricOffsetX));
-  lyricEl.style.left      = `calc(50% + ${lyricOffsetX}px)`;
-  lyricEl.style.transform = 'translateX(-50%)';
+function isVertical() {
+  return currentPosition === 'left' || currentPosition === 'right';
 }
+
+function applyOffset() {
+  if (isVertical()) {
+    const maxOffset = Math.max(10, (window.innerHeight / 2) - 40);
+    lyricOffsetY = Math.max(-maxOffset, Math.min(maxOffset, lyricOffsetY));
+    lyricEl.style.top       = `calc(50% + ${lyricOffsetY}px)`;
+    lyricEl.style.left      = '';
+    lyricEl.style.transform = 'translateY(-50%)';
+  } else {
+    const maxOffset = Math.max(10, (window.innerWidth / 2) - 40);
+    lyricOffsetX = Math.max(-maxOffset, Math.min(maxOffset, lyricOffsetX));
+    lyricEl.style.left      = `calc(50% + ${lyricOffsetX}px)`;
+    lyricEl.style.top       = '';
+    lyricEl.style.transform = 'translateX(-50%)';
+  }
+}
+
+applyOffset();
+
 
 lyricEl.addEventListener('mousedown', (e) => {
   if (e.button !== 0) return;
@@ -46,18 +74,23 @@ lyricEl.addEventListener('mousedown', (e) => {
   isDragging      = true;
   hasMoved        = false;
   dragStartMouseX = e.screenX;
-  dragStartOffset = lyricOffsetX;
+  dragStartMouseY = e.screenY;
+  dragStartOffset = isVertical() ? lyricOffsetY : lyricOffsetX;
   lyricEl.classList.add('dragging');
 });
 
 document.addEventListener('mousemove', (e) => {
   if (!isDragging) return;
-  const deltaX = e.screenX - dragStartMouseX;
-  if (Math.abs(deltaX) > 4) {
+  const delta = isVertical() ? (e.screenY - dragStartMouseY) : (e.screenX - dragStartMouseX);
+  if (Math.abs(delta) > 4) {
     hasMoved = true;
   }
   if (hasMoved) {
-    lyricOffsetX = dragStartOffset + deltaX;
+    if (isVertical()) {
+      lyricOffsetY = dragStartOffset + delta;
+    } else {
+      lyricOffsetX = dragStartOffset + delta;
+    }
     applyOffset();
   }
 }, { capture: false });
@@ -68,7 +101,15 @@ document.addEventListener('mouseup', () => {
   lyricEl.classList.remove('dragging');
 
   if (hasMoved) {
-    window.taskbarAPI.saveOffset(lyricOffsetX);
+    const offsetVal = isVertical() ? lyricOffsetY : lyricOffsetX;
+    try {
+      if (isVertical()) {
+        localStorage.setItem('tb_lyric_offset_y', String(lyricOffsetY));
+      } else {
+        localStorage.setItem('tb_lyric_offset_x', String(lyricOffsetX));
+      }
+    } catch (e) {}
+    window.taskbarAPI.saveOffset(offsetVal);
   } else {
     // Single click: restore/open the main application window
     window.taskbarAPI.openApp();
@@ -85,7 +126,15 @@ document.addEventListener('mouseleave', () => {
     isDragging = false;
     lyricEl.classList.remove('dragging');
     if (hasMoved) {
-      window.taskbarAPI.saveOffset(lyricOffsetX);
+      const offsetVal = isVertical() ? lyricOffsetY : lyricOffsetX;
+      try {
+        if (isVertical()) {
+          localStorage.setItem('tb_lyric_offset_y', String(lyricOffsetY));
+        } else {
+          localStorage.setItem('tb_lyric_offset_x', String(lyricOffsetX));
+        }
+      } catch (e) {}
+      window.taskbarAPI.saveOffset(offsetVal);
     }
     isClickThrough = true;
     window.taskbarAPI.setClickThrough(true);
@@ -94,20 +143,57 @@ document.addEventListener('mouseleave', () => {
 
 // ── IPC: lyrics + progress ─────────────────────────────────────────────────
 window.taskbarAPI.onUpdateLyric((data) => {
+  if (data.hidden !== undefined) {
+    if (data.hidden) {
+      lyricEl.classList.add('tb-hidden');
+      progressEl.classList.add('tb-hidden');
+    } else {
+      lyricEl.classList.remove('tb-hidden');
+      progressEl.classList.remove('tb-hidden');
+    }
+  }
+
   if (data.text !== undefined) {
-    lyricEl.textContent = data.text || '♫';
+    if (data.text) {
+      lyricEl.textContent = data.text;
+      if (data.hidden !== true) {
+        lyricEl.classList.remove('tb-hidden');
+        progressEl.classList.remove('tb-hidden');
+      }
+    } else if (!data.hidden) {
+      lyricEl.textContent = '♫';
+    }
   }
   if (data.progress !== undefined) {
-    progressEl.style.width = data.progress + '%';
+    if (isVertical()) {
+      progressEl.style.height = data.progress + '%';
+      progressEl.style.width = '2px';
+    } else {
+      progressEl.style.width = data.progress + '%';
+      progressEl.style.height = '2px';
+    }
   }
 });
 
 // ── IPC: config ────────────────────────────────────────────────────────────
 window.taskbarAPI.onSyncConfig((cfg) => {
+  if (cfg.position && cfg.position !== currentPosition) {
+    document.body.classList.remove(`pos-${currentPosition}`);
+    currentPosition = cfg.position;
+    document.body.classList.add(`pos-${currentPosition}`);
+    applyOffset();
+  }
   if (cfg.accentColor)    progressEl.style.background = cfg.accentColor;
   if (cfg.textColor)      lyricEl.style.color = cfg.textColor;
-  if (cfg.lyricOffsetX !== undefined) {
-    lyricOffsetX = cfg.lyricOffsetX;
+  const newOffset = cfg.lyricOffsetX !== undefined ? cfg.lyricOffsetX : cfg.taskbarOffset;
+  if (newOffset !== undefined && !isDragging) {
+    if (isVertical()) {
+      lyricOffsetY = newOffset;
+      try { localStorage.setItem('tb_lyric_offset_y', String(lyricOffsetY)); } catch (e) {}
+    } else {
+      lyricOffsetX = newOffset;
+      try { localStorage.setItem('tb_lyric_offset_x', String(lyricOffsetX)); } catch (e) {}
+    }
     applyOffset();
   }
 });

@@ -21,6 +21,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   stopTaskbarDrag: () => ipcRenderer.send('stop-taskbar-drag'),
   updateTaskbarLyric: (data) => ipcRenderer.send('update-taskbar-lyric', data),
   showNextUp: (track) => ipcRenderer.send('show-next-up', track),
+  showNowPlayingNotification: (track) => ipcRenderer.send('show-now-playing-notification', track),
   updateNextUpPlaycount: (playcount) => ipcRenderer.send('update-next-up-playcount', playcount),
   getLocalPlayback: () => ipcRenderer.invoke('get-local-playback'),
   triggerLocalPlaybackControl: (action, position) => ipcRenderer.send('trigger-local-playback-control', action, position),
@@ -90,14 +91,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.removeAllListeners('tray-edit-wallpaper');
     ipcRenderer.on('tray-edit-wallpaper', () => callback());
   },
-  onWallpaperEditStarted: (callback) => {
-    ipcRenderer.removeAllListeners('wallpaper-edit-started');
-    ipcRenderer.on('wallpaper-edit-started', () => callback());
-  },
-  onWallpaperEditEnded: (callback) => {
-    ipcRenderer.removeAllListeners('wallpaper-edit-ended');
-    ipcRenderer.on('wallpaper-edit-ended', () => callback());
-  },
   onShowToast: (callback) => {
     ipcRenderer.removeAllListeners('show-toast');
     ipcRenderer.on('show-toast', (event, message) => callback(message));
@@ -137,5 +130,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onSyncTaskbarConfig: (callback) => {
     ipcRenderer.removeAllListeners('sync-taskbar-config');
     ipcRenderer.on('sync-taskbar-config', (event, data) => callback(data));
+  },
+  onTbOffsetSaved: (callback) => {
+    ipcRenderer.removeAllListeners('tb-offset-saved');
+    ipcRenderer.on('tb-offset-saved', (event, offset) => callback(offset));
   }
 });
+

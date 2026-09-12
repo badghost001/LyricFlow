@@ -1,0 +1,231 @@
+/* Custom Variables & Design Tokens */
+:root,
+[data-theme="dark"] {
+  --font-size: 24px;
+  --font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --text-align: center;
+  --line-spacing: 11px;
+  --bg-opacity: 0.2;
+  --glow-intensity: 0.65;
+  --primary-color: #1DB954;
+  --primary-color-rgb: 29, 185, 84;
+  --spotify-black: #0a0a0f;
+
+  /* Surface Palette */
+  --bg-base: #0a0a0f;
+  --bg-surface: #12121a;
+  --bg-elevated: #1a1a2e;
+  --bg-glass: rgba(16, 16, 28, 0.65);
+  --bg-glass-heavy: rgba(15, 15, 25, 0.9);
+  --text-primary: #ffffff;
+  --text-secondary: rgba(255, 255, 255, 0.65);
+  --text-tertiary: rgba(255, 255, 255, 0.35);
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-accent: rgba(255, 255, 255, 0.1);
+
+  --surface-deep: #0a0a0f;
+  --surface-mid: #12121a;
+  --surface-raised: #1a1a2e;
+  --surface-glass: rgba(16, 16, 28, 0.65);
+
+  /* Dynamic Artwork Colors (Updated in JS) */
+  --art-color-1: #1DB954;
+  --art-color-2: #12121a;
+}
+
+/* Theme: OLED Black */
+[data-theme="oled"] {
+  --bg-base: #000000;
+  --bg-surface: #0a0a0a;
+  --bg-elevated: #141414;
+  --bg-glass: rgba(0, 0, 0, 0.85);
+  --bg-glass-heavy: rgba(0, 0, 0, 0.95);
+  --text-primary: #f5f5f5;
+  --text-secondary: rgba(245, 245, 245, 0.6);
+  --text-tertiary: rgba(245, 245, 245, 0.3);
+  --border-subtle: rgba(255, 255, 255, 0.05);
+  --border-accent: rgba(255, 255, 255, 0.1);
+  --surface-deep: #000000;
+  --surface-mid: #0a0a0a;
+  --surface-raised: #141414;
+  --surface-glass: rgba(0, 0, 0, 0.85);
+}
+
+/* Theme: Light */
+[data-theme="light"] {
+  --bg-base: #f5f5f7;
+  --bg-surface: #ffffff;
+  --bg-elevated: #e8e8ed;
+  --bg-glass: rgba(255, 255, 255, 0.75);
+  --bg-glass-heavy: rgba(245, 245, 247, 0.95);
+  --text-primary: #1d1d1f;
+  --text-secondary: rgba(0, 0, 0, 0.6);
+  --text-tertiary: rgba(0, 0, 0, 0.35);
+  --border-subtle: rgba(0, 0, 0, 0.08);
+  --border-accent: rgba(0, 0, 0, 0.14);
+  --surface-deep: #f5f5f7;
+  --surface-mid: #ffffff;
+  --surface-raised: #e8e8ed;
+  --surface-glass: rgba(255, 255, 255, 0.75);
+}
+
+/* Accent Presets */
+:root,
+[data-accent="green"] {
+  --accent-primary: #1DB954;
+  --accent-bright: #1ed760;
+  --accent-soft: #a7f3d0;
+  --accent-rose: #f43f5e;
+  --accent-primary-rgb: 29, 185, 84;
+  --accent-bright-rgb: 30, 215, 96;
+  --accent-soft-rgb: 167, 243, 208;
+  --accent-rose-rgb: 244, 63, 94;
+}
+
+[data-accent="purple"] {
+  --accent-primary: #8b5cf6;
+  --accent-bright: #a78bfa;
+  --accent-soft: #ddd6fe;
+  --accent-rose: #f43f5e;
+  --accent-primary-rgb: 139, 92, 246;
+  --accent-bright-rgb: 167, 139, 250;
+  --accent-soft-rgb: 221, 214, 254;
+  --accent-rose-rgb: 244, 63, 94;
+}
+
+[data-accent="blue"] {
+  --accent-primary: #3b82f6;
+  --accent-bright: #60a5fa;
+  --accent-soft: #bfdbfe;
+  --accent-rose: #f43f5e;
+  --accent-primary-rgb: 59, 130, 246;
+  --accent-bright-rgb: 96, 165, 250;
+  --accent-soft-rgb: 191, 219, 254;
+  --accent-rose-rgb: 244, 63, 94;
+}
+
+[data-accent="rose"] {
+  --accent-primary: #f43f5e;
+  --accent-bright: #fb7185;
+  --accent-soft: #fecdd3;
+  --accent-rose: #f43f5e;
+  --accent-primary-rgb: 244, 63, 94;
+  --accent-bright-rgb: 251, 113, 133;
+  --accent-soft-rgb: 254, 205, 211;
+  --accent-rose-rgb: 244, 63, 94;
+}
+
+[data-accent="orange"] {
+  --accent-primary: #f97316;
+  --accent-bright: #fb923c;
+  --accent-soft: #fed7aa;
+  --accent-rose: #f43f5e;
+  --accent-primary-rgb: 249, 115, 22;
+  --accent-bright-rgb: 251, 146, 60;
+  --accent-soft-rgb: 254, 215, 170;
+  --accent-rose-rgb: 244, 63, 94;
+}
+
+[data-accent="teal"] {
+  --accent-primary: #14b8a6;
+  --accent-bright: #2dd4bf;
+  --accent-soft: #99f6e4;
+  --accent-rose: #f43f5e;
+  --accent-primary-rgb: 20, 184, 166;
+  --accent-bright-rgb: 45, 212, 191;
+  --accent-soft-rgb: 153, 246, 228;
+  --accent-rose-rgb: 244, 63, 94;
+}
+
+/* Light Theme Component Specifics */
+[data-theme="light"] .settings-panel {
+  background: rgba(245, 245, 247, 0.94) !important;
+  color: #1d1d1f;
+}
+
+[data-theme="light"] .settings-header {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .settings-header h3 {
+  background: linear-gradient(135deg, #1d1d1f 30%, var(--accent-primary) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+[data-theme="light"] .settings-group h4 {
+  color: var(--accent-primary);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .setting-row label {
+  color: rgba(0, 0, 0, 0.75);
+}
+
+[data-theme="light"] select {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.12);
+  color: #1d1d1f;
+}
+
+[data-theme="light"] select option {
+  background: #ffffff;
+  color: #1d1d1f;
+}
+
+[data-theme="light"] .shortcut-tip {
+  background: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.06);
+  color: rgba(0, 0, 0, 0.55);
+}
+
+[data-theme="light"] .slider-container span {
+  color: rgba(0, 0, 0, 0.5);
+}
+
+[data-theme="light"] .genius-modal {
+  background: rgba(245, 245, 247, 0.96);
+  color: #1d1d1f;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="light"] .toast-notification {
+  background: rgba(245, 245, 247, 0.94);
+  color: #1d1d1f;
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+/* Accent Color Swatches UI */
+.accent-swatches {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 4px 0;
+}
+
+.accent-swatch {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  background: var(--swatch);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  outline: none;
+  padding: 0;
+}
+
+.accent-swatch:hover {
+  transform: scale(1.18);
+}
+
+.accent-swatch.active {
+  border-color: #ffffff;
+  box-shadow: 0 0 0 2px rgba(10, 10, 15, 0.8), 0 0 8px var(--swatch);
+}
+
+[data-theme="light"] .accent-swatch.active {
+  border-color: #1d1d1f;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9), 0 0 8px var(--swatch);
+}

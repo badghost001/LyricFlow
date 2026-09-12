@@ -1,0 +1,180 @@
+/* Compact & Taskbar Mode Styles */
+.compact-mode {
+  height: 60px !important;
+  border-radius: 8px;
+}
+
+.compact-mode.app-container {
+  background: rgba(10, 10, 15, 0.75);
+  backdrop-filter: blur(30px) saturate(1.3);
+  -webkit-backdrop-filter: blur(30px) saturate(1.3);
+}
+
+.compact-mode .hud-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(10, 10, 15, 0.88);
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  opacity: 0;
+  z-index: 20;
+  pointer-events: auto;
+  transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  -webkit-app-region: none;
+}
+
+.compact-mode .hud-header:hover {
+  opacity: 1;
+}
+
+.compact-mode .drag-handle {
+  display: flex !important;
+  align-items: center;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: move;
+  -webkit-app-region: drag;
+}
+
+.compact-mode .drag-handle .app-title {
+  display: none !important;
+}
+
+.compact-mode .window-controls {
+  pointer-events: auto;
+  -webkit-app-region: no-drag;
+}
+
+.compact-mode .app-screen {
+  padding: 0;
+  justify-content: center;
+}
+
+.compact-mode .playback-widget {
+  display: none !important;
+}
+
+.compact-mode .lyrics-view {
+  mask-image: none;
+  -webkit-mask-image: none;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-app-region: none;
+}
+
+.compact-mode .lyrics-scroll-container {
+  position: relative;
+  top: 0;
+  padding: 0;
+  transform: none !important;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.compact-mode .lyric-line {
+  padding: 0 10px;
+  font-size: calc(var(--font-size) - 4px);
+  pointer-events: none;
+}
+
+.compact-mode .lyric-line:not(.active) {
+  display: none !important;
+}
+
+/* Taskbar Mode Overlay Styles */
+.taskbar-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  box-sizing: border-box;
+  color: var(--taskbar-text-color, #ffffff);
+  font-family: var(--font-family), sans-serif;
+  overflow: hidden;
+  pointer-events: auto;
+  background: rgba(1, 1, 1, 0.01); /* CRITICAL: prevents click-through on Windows transparent windows */
+  -webkit-app-region: no-drag;
+  cursor: grab !important;
+}
+
+.tb-center {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+}
+
+.tb-lyric {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--tb-font-size, 14px);
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--taskbar-text-color, #ffffff);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  pointer-events: auto;
+  cursor: grab !important;
+  touch-action: none;
+  user-select: none;
+  -webkit-app-region: no-drag;
+}
+
+/* Taskbar Mode Word-by-Word Styling */
+.tb-lyric-word {
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  display: inline-block;
+  pointer-events: auto;
+}
+
+.tb-lyric-word.lyric-word-active {
+  color: var(--accent-primary, #1DB954);
+  transform: scale(1.05);
+  text-shadow: 0 0 10px rgba(var(--accent-primary-rgb, 29, 185, 84), 0.5);
+}
+
+.tb-lyric-word.lyric-word-passed {
+  opacity: 0.5;
+}
+
+.tb-lyric-word.lyric-word-upcoming {
+  opacity: 0.8;
+}
+
+/* Taskbar Mode HTML body overrides */
+body.taskbar-mode {
+  background: transparent !important;
+}
+
+.taskbar-mode .app-container {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  -webkit-app-region: no-drag;
+}
+
+.taskbar-mode .ambient-glow,
+.taskbar-mode .hud-header,
+.taskbar-mode .app-screen,
+.taskbar-mode .settings-panel {
+  display: none !important;
+}

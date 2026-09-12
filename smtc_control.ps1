@@ -56,14 +56,14 @@ try {
     
     if ($null -ne $session) {
         if ($action -eq "play-pause") {
-            $session.TryTogglePlayPauseAsync() | Out-Null
+            Await-WinRT ($session.TryTogglePlayPauseAsync()) ([bool]) | Out-Null
         } elseif ($action -eq "next") {
-            $session.TrySkipNextAsync() | Out-Null
+            Await-WinRT ($session.TrySkipNextAsync()) ([bool]) | Out-Null
         } elseif ($action -eq "previous") {
-            $session.TrySkipPreviousAsync() | Out-Null
+            Await-WinRT ($session.TrySkipPreviousAsync()) ([bool]) | Out-Null
         } elseif ($action -eq "seek") {
             # Windows uses 100-nanosecond ticks (1 ms = 10,000 ticks)
-            $session.TryChangePlaybackPositionAsync([System.TimeSpan]::FromTicks($position * 10000)) | Out-Null
+            Await-WinRT ($session.TryChangePlaybackPositionAsync([System.TimeSpan]::FromTicks($position * 10000))) ([bool]) | Out-Null
         }
     }
 } catch {

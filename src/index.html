@@ -2,14 +2,36 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <link rel="stylesheet" href="styles/_variables.css" />
+    <link rel="stylesheet" href="styles/_reset.css" />
+    <link rel="stylesheet" href="styles/_ambient.css" />
+    <link rel="stylesheet" href="styles/_layout.css" />
+    <link rel="stylesheet" href="styles/_hud.css" />
+    <link rel="stylesheet" href="styles/_login.css" />
+    <link rel="stylesheet" href="styles/_lyrics.css" />
+    <link rel="stylesheet" href="styles/_playback.css" />
+    <link rel="stylesheet" href="styles/_settings.css" />
+    <link rel="stylesheet" href="styles/_news.css" />
+    <link rel="stylesheet" href="styles/_taskbar.css" />
+    <link rel="stylesheet" href="styles/_wallpaper.css" />
+    <link rel="stylesheet" href="styles/_components.css" />
     <link rel="stylesheet" href="styles.css" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: file: lyricflow-media: https://*.scdn.co https://*.spotifycdn.com https://i.scdn.co https://*.mzstatic.com https://lastfm.freetls.fastly.net https://lastfm-img.freetls.fastly.net https://coverartarchive.org https://*.dzcdn.net https://*.deezer.com; media-src 'self' blob: file: data: lyricflow-media:; connect-src https://api.spotify.com https://accounts.spotify.com https://lrclib.net https://ws.audioscrobbler.com https://www.last.fm https://itunes.apple.com https://musicbrainz.org https://*.workers.dev https://api.lyrics.ovh https://genius.com https://api.deezer.com https://*.deezer.com http://127.0.0.1:4882" />
     <title>LyricFlow</title>
-    <!-- Google Fonts -->
+    <!-- Google Fonts (Loaded Asynchronously to eliminate render-blocking delay, strict CSP compliant) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&family=Poppins:wght@300;400;500;600;700&family=Nunito:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Raleway:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&family=Poppins:wght@300;400;500;600;700&family=Nunito:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Raleway:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap">
+    <link id="async-google-fonts" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&family=Poppins:wght@300;400;500;600;700&family=Nunito:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Raleway:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" media="print">
+    <noscript>
+      <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&family=Poppins:wght@300;400;500;600;700&family=Nunito:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Raleway:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    </noscript>
+    <script src="modules/utils.js" defer></script>
+    <script src="modules/parsers.js" defer></script>
+    <script src="modules/cache-manager.js" defer></script>
+    <script src="modules/share-card.js" defer></script>
+    <script src="modules/news.js" defer></script>
     <script src="lastfm.js" defer></script>
     <script src="renderer.js" defer></script>
   </head>
@@ -44,6 +66,9 @@
           <button id="btn-news" title="Music News" class="hud-btn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"></path><path d="M18 14h-8"></path><path d="M15 18h-5"></path><path d="M10 6h8v4h-8V6Z"></path></svg>
           </button>
+          <button id="btn-reload-hud" title="Find Alternative Lyrics / Reload (Ctrl+R)" class="hud-btn">
+            <svg class="reload-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
+          </button>
           <button id="btn-settings" title="Settings" class="hud-btn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
           </button>
@@ -56,8 +81,27 @@
         </div>
       </header>
 
+      <!-- 0. STARTUP LOADING SCREEN -->
+      <section class="app-screen active" id="screen-loading">
+        <div class="loading-card">
+          <div class="loading-logo-wrapper">
+            <div class="loading-pulse-ring"></div>
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="#1DB954">
+              <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.494 17.308c-.216.354-.664.464-1.018.248-2.825-1.727-6.38-2.118-10.567-1.163-.404.093-.811-.161-.904-.565s.161-.811.565-.904c4.582-1.045 8.528-.593 11.676 1.332.354.216.464.664.248 1.018zm1.464-3.26c-.272.443-.84.584-1.283.312-3.235-1.988-8.167-2.566-12.015-1.401-.497.151-1.02-.128-1.171-.625s.128-1.02.625-1.171c4.394-1.333 9.83-.67 13.532 1.602.443.272.584.84.312 1.283zm.127-3.4c-3.88-2.304-10.283-2.516-13.993-1.417-.597.181-1.23-.153-1.41-1.229.181-.597.153-1.23 1.229-1.41 4.262-1.293 11.332-1.056 15.8 1.6.536.318.712 1.013.393 1.549s-1.013.712-1.549.393z"/>
+            </svg>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <span style="font-size: 19px; font-weight: 700; letter-spacing: -0.02em; background: linear-gradient(135deg, #ffffff 0%, var(--accent-soft, #a7f3d0) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">LyricFlow</span>
+            <span id="loading-status-text" style="font-size: 12.5px; color: rgba(255, 255, 255, 0.65); min-height: 18px; transition: opacity 0.2s;">Starting up...</span>
+          </div>
+          <div class="loading-progress-track">
+            <div id="loading-progress-bar" class="loading-progress-bar"></div>
+          </div>
+        </div>
+      </section>
+
       <!-- 1. LOGIN / CONFIG SCREEN -->
-      <section class="app-screen active" id="screen-login">
+      <section class="app-screen" id="screen-login" style="display: none;">
         <div class="login-card">
           <div class="login-header">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="#1DB954"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.494 17.308c-.216.354-.664.464-1.018.248-2.825-1.727-6.38-2.118-10.567-1.163-.404.093-.811-.161-.904-.565s.161-.811.565-.904c4.582-1.045 8.528-.593 11.676 1.332.354.216.464.664.248 1.018zm1.464-3.26c-.272.443-.84.584-1.283.312-3.235-1.988-8.167-2.566-12.015-1.401-.497.151-1.02-.128-1.171-.625s.128-1.02.625-1.171c4.394-1.333 9.83-.67 13.532 1.602.443.272.584.84.312 1.283zm.127-3.4c-3.88-2.304-10.283-2.516-13.993-1.417-.597.181-1.23-.153-1.41-1.229.181-.597.153-1.23 1.229-1.41 4.262-1.293 11.332-1.056 15.8 1.6.536.318.712 1.013.393 1.549s-1.013.712-1.549.393z"/></svg>
@@ -105,6 +149,12 @@
       <section class="app-screen" id="screen-onboarding" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 99999; background: linear-gradient(145deg, #0a0a0a 0%, #121212 100%);">
         <div style="max-width: 600px; width: 100%; margin: 0 auto; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; padding: 40px; box-sizing: border-box; position: relative;">
           
+          <!-- Onboarding Progress Indicator -->
+          <div class="onboarding-steps-indicator" id="ob-steps-indicator">
+            <span class="ob-step-dot active" id="ob-step-dot-1"></span>
+            <span class="ob-step-dot" id="ob-step-dot-2"></span>
+          </div>
+
           <!-- PAGE 1: MODE SELECTION -->
           <div id="ob-page-1" style="width: 100%; display: flex; flex-direction: column; align-items: center; transition: opacity 0.3s;">
             <h1 style="font-size: 36px; margin-bottom: 12px; font-weight: 800; background: linear-gradient(to right, #1DB954, #1ed760); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Choose Your Experience</h1>
@@ -218,6 +268,13 @@
           <div class="genius-fact-content" id="genius-fact-content"></div>
         </div>
 
+        <!-- Floating Live Meaning Pill (Genius) -->
+        <div class="genius-live-meaning" id="genius-live-meaning" title="Click to view full Genius interpretation">
+          <span class="live-meaning-badge">💡 Meaning</span>
+          <span class="live-meaning-snippet" id="live-meaning-snippet"></span>
+          <span class="live-meaning-expand">View →</span>
+        </div>
+
         <!-- Mini Music Status Widget (Bottom Bar) -->
         <footer class="playback-widget" id="playback-widget">
           <div class="widget-art-container">
@@ -231,8 +288,11 @@
             <div class="track-details" style="display: flex; flex-direction: column;">
               <div style="display: flex; align-items: center; gap: 6px;">
                 <span id="widget-track-name" class="track-name">Not Playing</span>
-                <span id="timing-status-badge" style="font-size: 7px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; padding: 2px 4px; background: rgba(0,0,0,0.2); border-radius: 3px; display: none; white-space: nowrap;">Checking...</span>
-                <button id="btn-hide-lyrics" title="Mark lyrics as bad and hide them" style="display: none; align-items: center; justify-content: center; width: 14px; height: 14px; background: rgba(255,50,50,0.2); border: none; border-radius: 3px; color: #ff5555; cursor: pointer; padding: 0;">
+                <span id="timing-status-badge" class="timing-status-badge" title="Click to find alternative lyrics (Ctrl+R)" style="display: none;">
+                  <span class="status-dot"></span>
+                  <span class="status-text">Checking...</span>
+                </span>
+                <button id="btn-hide-lyrics" class="btn-hide-lyrics" title="Hide lyrics for this song" style="display: none;">
                   <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                 </button>
               </div>
@@ -257,6 +317,9 @@
             <button id="btn-sleep-timer" class="widget-ctrl-btn" title="Sleep Timer: Off" style="position: relative;">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
               <span id="sleep-timer-badge" style="display:none; position:absolute; top:-4px; right:-6px; font-size:9px; background:#1DB954; color:#ffffff; padding:1px 3px; border-radius:4px; font-weight:bold;">15m</span>
+            </button>
+            <button id="btn-reload-lyrics" class="widget-ctrl-btn" title="Find Alternative Lyrics / Reload (Ctrl+R)">
+              <svg class="reload-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
             </button>
             <button id="btn-share-lyric" class="widget-ctrl-btn" title="Share Lyric Card (Ctrl+Shift+S)">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
@@ -304,23 +367,6 @@
           <button class="news-pill" data-filter="billboard charts">Charts</button>
         </div>
         
-        <style>
-          #news-filter-pills::-webkit-scrollbar { display: none; }
-          .news-pill {
-            background: rgba(255,255,255,0.1);
-            border: 1px solid rgba(255,255,255,0.05);
-            color: rgba(255,255,255,0.7);
-            border-radius: 16px;
-            padding: 4px 12px;
-            font-size: 11px;
-            font-family: inherit;
-            cursor: pointer;
-            white-space: nowrap;
-            transition: all 0.2s;
-          }
-          .news-pill:hover { background: rgba(255,255,255,0.15); color: white; }
-          .news-pill.active { background: white; color: black; font-weight: 600; border-color: white; }
-        </style>
 
         <div class="settings-body" id="news-body" style="gap: 12px; display: flex; flex-direction: column;">
           <div style="text-align: center; color: rgba(255,255,255,0.5); font-size: 13px; margin-top: 20px;">
@@ -337,395 +383,541 @@
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
         </div>
+
+        <div class="settings-tabs">
+          <button type="button" class="settings-tab active" data-tab="appearance">🎨 Appearance</button>
+          <button type="button" class="settings-tab" data-tab="lyrics">🎵 Lyrics</button>
+          <button type="button" class="settings-tab" data-tab="connections">🔌 Connections</button>
+          <button type="button" class="settings-tab" data-tab="system">⚙ System</button>
+        </div>
         
         <div class="settings-body">
-          <div class="settings-group">
+          <!-- TAB 1: APPEARANCE -->
+          <div class="settings-tab-content active" data-tab="appearance">
+            <div class="settings-group">
+              <h4>Theme & Appearance</h4>
+              <div class="setting-row">
+                <label for="select-theme">Appearance</label>
+                <select id="select-theme">
+                  <option value="dark" selected>Dark (Obsidian)</option>
+                  <option value="oled">OLED Black</option>
+                  <option value="light">Light</option>
+                </select>
+              </div>
+              <div class="setting-row" style="flex-direction: column; align-items: flex-start; gap: 6px;">
+                <label>Accent Color</label>
+                <div id="accent-color-swatches" class="accent-swatches">
+                  <button type="button" class="accent-swatch active" data-accent="green" title="Spotify Green" style="--swatch: #1DB954"></button>
+                  <button type="button" class="accent-swatch" data-accent="purple" title="Neon Purple" style="--swatch: #8b5cf6"></button>
+                  <button type="button" class="accent-swatch" data-accent="blue" title="Electric Blue" style="--swatch: #3b82f6"></button>
+                  <button type="button" class="accent-swatch" data-accent="rose" title="Crimson Rose" style="--swatch: #f43f5e"></button>
+                  <button type="button" class="accent-swatch" data-accent="orange" title="Sunset Orange" style="--swatch: #f97316"></button>
+                  <button type="button" class="accent-swatch" data-accent="teal" title="Cyber Teal" style="--swatch: #14b8a6"></button>
+                </div>
+              </div>
+            </div>
 
-            <h4>Aesthetics</h4>
-            <div class="setting-row">
-              <label for="select-font-size">Font Size</label>
-              <select id="select-font-size">
-                <option value="16">16px (Small)</option>
-                <option value="18">18px</option>
-                <option value="20">20px</option>
-                <option value="22">22px</option>
-                <option value="24" selected>24px (Medium)</option>
-                <option value="28">28px</option>
-                <option value="32">32px (Large)</option>
-                <option value="36">36px (Extra Large)</option>
-              </select>
-            </div>
-            <div class="setting-row">
-              <label for="select-font">Font Family</label>
-              <select id="select-font">
-                <option value="Outfit" selected>Outfit</option>
-                <option value="Inter">Inter</option>
-                <option value="Poppins">Poppins</option>
-                <option value="Nunito">Nunito</option>
-                <option value="Raleway">Raleway</option>
-                <option value="Space Grotesk">Space Grotesk</option>
-                <option value="JetBrains Mono">JetBrains Mono</option>
-                <option value="Georgia">Georgia</option>
-              </select>
-            </div>
-            <div class="setting-row">
-              <label for="select-align">Text Align</label>
-              <select id="select-align">
-                <option value="left">Left</option>
-                <option value="center" selected>Center</option>
-                <option value="right">Right</option>
-              </select>
-            </div>
-            <div class="setting-row">
-              <label for="slider-line-spacing">Line Spacing</label>
-              <div class="slider-container">
-                <input type="range" id="slider-line-spacing" min="4" max="28" value="11" />
-                <span id="val-line-spacing">11px</span>
+            <div class="settings-group">
+              <h4>Aesthetics</h4>
+              <div class="setting-row">
+                <label for="select-font-size">Font Size</label>
+                <select id="select-font-size">
+                  <option value="16">16px (Small)</option>
+                  <option value="18">18px</option>
+                  <option value="20">20px</option>
+                  <option value="22">22px</option>
+                  <option value="24" selected>24px (Medium)</option>
+                  <option value="28">28px</option>
+                  <option value="32">32px (Large)</option>
+                  <option value="36">36px (Extra Large)</option>
+                </select>
               </div>
-            </div>
-            <div class="setting-row">
-              <label for="slider-bg-opacity">Overlay Opacity</label>
-              <div class="slider-container">
-                <input type="range" id="slider-bg-opacity" min="0" max="100" value="20" />
-                <span id="val-bg-opacity">20%</span>
+              <div class="setting-row">
+                <label for="select-font">Font Family</label>
+                <select id="select-font">
+                  <option value="Outfit" selected>Outfit</option>
+                  <option value="Inter">Inter</option>
+                  <option value="Poppins">Poppins</option>
+                  <option value="Nunito">Nunito</option>
+                  <option value="Raleway">Raleway</option>
+                  <option value="Space Grotesk">Space Grotesk</option>
+                  <option value="JetBrains Mono">JetBrains Mono</option>
+                  <option value="Georgia">Georgia</option>
+                </select>
               </div>
-            </div>
-            <div class="setting-row" style="margin-top: 6px; flex-direction: column; align-items: flex-start; gap: 4px;">
-              <label style="font-size: 12.5px; color: rgba(255,255,255,0.85);">Custom Background (Video/Image)</label>
-              <div style="display: flex; gap: 8px; width: 100%;">
-                <input type="file" id="input-bg-file" accept="video/mp4,video/webm,image/jpeg,image/png,image/gif" style="display: none;" />
-                <button id="btn-pick-bg" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 12px; transition: background 0.2s; flex-grow: 1;">Select File...</button>
-                <button id="btn-clear-bg" style="background: rgba(255,255,255,0.1); border: 1px solid #f43f5e; color: #f43f5e; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 12px; transition: background 0.2s; display: none;">Clear</button>
+              <div class="setting-row">
+                <label for="select-align">Text Align</label>
+                <select id="select-align">
+                  <option value="left">Left</option>
+                  <option value="center" selected>Center</option>
+                  <option value="right">Right</option>
+                </select>
               </div>
-              <div id="label-bg-filename" style="font-size: 10px; color: rgba(255,255,255,0.4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%;">None selected</div>
-            </div>
-            <div class="setting-row">
-              <label for="select-highlight-color">Highlight Color</label>
-              <select id="select-highlight-color">
-                <option value="dynamic" selected>Dynamic (Album Art)</option>
-                <option value="green">Spotify Green</option>
-                <option value="white">Classic White</option>
-                <option value="blue">Electric Blue</option>
-                <option value="purple">Neon Purple</option>
-                <option value="midnight">Midnight Velvet</option>
-                <option value="sunset">Sunset Orange</option>
-              </select>
-            </div>
-            <div class="setting-row">
-              <label for="slider-glow">Glow Intensity</label>
-              <div class="slider-container">
-                <input type="range" id="slider-glow" min="0" max="100" value="65" />
-                <span id="val-glow">65%</span>
-              </div>
-            </div>
-            <div class="setting-row" style="margin-top: 6px;">
-              <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Add ambient glowing borders to your screen edges synced with album art">
-                <span>Enable Screen Edge Glow</span>
-                <div class="toggle-switch">
-                  <input type="checkbox" id="check-edge-glow" />
-                  <span class="toggle-slider"></span>
+              <div class="setting-row">
+                <label for="slider-line-spacing">Line Spacing</label>
+                <div class="slider-container">
+                  <input type="range" id="slider-line-spacing" min="4" max="28" value="11" />
+                  <span id="val-line-spacing">11px</span>
                 </div>
-              </label>
-            </div>
-          </div>
-
-          <div class="settings-group">
-            <h4>Wallpaper Mode</h4>
-            <div class="setting-row" style="margin-top: 6px;">
-              <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Maximize the app to fill your screen as an immersive desktop background">
-                <span>Enable Wallpaper Mode</span>
-                <div class="toggle-switch">
-                  <input type="checkbox" id="check-wallpaper-mode" />
-                  <span class="toggle-slider"></span>
-                </div>
-              </label>
-            </div>
-            <div class="setting-row" style="margin-top: 8px;">
-              <label for="select-wallpaper-style">Wallpaper Style</label>
-              <select id="select-wallpaper-style">
-                <option value="style1">Style 1 - Immersive Lyrics</option>
-                <option value="style2">Style 2 - Apple Music</option>
-                <option value="style3">Style 3 - Lyric Overlay</option>
-              </select>
-            </div>
-            
-            <div class="setting-row wallpaper-overlay-setting" id="setting-wallpaper-overlay-pos" style="display: none; flex-direction: column; align-items: flex-start; gap: 10px; margin-top: 15px;">
-              <label>Position Lyrics (Shortcuts & Hotkeys)</label>
-              <div style="font-size: 11px; color: rgba(255,255,255,0.6); margin-bottom: 5px;">Use <b>Ctrl+Shift+Arrow Keys</b> on your desktop to nudge lyrics perfectly into place.</div>
-              <div style="display: flex; gap: 5px; flex-wrap: wrap; margin-top: 5px;">
-                <button id="btn-pos-tl" class="pos-preset-btn" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 11px;">Top Left</button>
-                <button id="btn-pos-tr" class="pos-preset-btn" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 11px;">Top Right</button>
-                <button id="btn-pos-c" class="pos-preset-btn" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 11px;">Center</button>
-                <button id="btn-pos-bl" class="pos-preset-btn" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 11px;">Bottom Left</button>
-                <button id="btn-pos-br" class="pos-preset-btn" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 11px;">Bottom Right</button>
               </div>
-            </div>
-            
-            <div class="setting-row wallpaper-overlay-setting" id="setting-wallpaper-overlay-width" style="display: none; margin-top: 8px;">
-              <label for="slider-wallpaper-overlay-width">Overlay Width</label>
-              <div class="slider-container">
-                <input type="range" id="slider-wallpaper-overlay-width" min="20" max="100" value="60" />
-                <span id="val-wallpaper-overlay-width">60%</span>
-              </div>
-            </div>
-            
-            <div class="setting-row wallpaper-overlay-setting" id="setting-wallpaper-font-size-row" style="display: none; margin-top: 8px;">
-              <label for="select-wallpaper-font-size">Lyrics Font Size</label>
-              <select id="select-wallpaper-font-size">
-                <option value="24">24px (Small)</option>
-                <option value="28">28px</option>
-                <option value="32" selected>32px (Medium)</option>
-                <option value="36">36px</option>
-                <option value="42">42px</option>
-                <option value="48">48px (Large)</option>
-                <option value="56">56px</option>
-                <option value="64">64px (Extra Large)</option>
-                <option value="72">72px (Giant)</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="settings-group">
-            <h4>Taskbar Mode</h4>
-            <div class="setting-row" style="margin-top: 6px;">
-              <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Overlay single-line lyrics dynamically onto the Windows taskbar">
-                <span>Enable Taskbar Mode</span>
-                <div class="toggle-switch">
-                  <input type="checkbox" id="check-taskbar-mode" />
-                  <span class="toggle-slider"></span>
+              <div class="setting-row">
+                <label for="slider-bg-opacity">Overlay Opacity</label>
+                <div class="slider-container">
+                  <input type="range" id="slider-bg-opacity" min="0" max="100" value="20" />
+                  <span id="val-bg-opacity">20%</span>
                 </div>
-              </label>
-            </div>
-            <div class="setting-row" style="margin-top: 6px;">
-              <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Show taskbar lyrics even when a fullscreen app/game is active">
-                <span>Show Lyrics in Fullscreen</span>
-                <div class="toggle-switch">
-                  <input type="checkbox" id="check-fullscreen-lyrics" />
-                  <span class="toggle-slider"></span>
-                </div>
-              </label>
-            </div>
-            <div class="setting-row" id="setting-tb-align-row" style="display: none; margin-top: 6px;">
-              <label for="select-tb-align">Taskbar Text Align</label>
-              <select id="select-tb-align">
-                <option value="left">Left</option>
-                <option value="center" selected>Center</option>
-                <option value="right">Right</option>
-              </select>
-            </div>
-            <div class="setting-row" id="setting-tb-translation-row" style="display: none; margin-top: 6px;">
-              <label for="select-tb-translation">Taskbar Translation Mode</label>
-              <select id="select-tb-translation">
-                <option value="original">Original Only</option>
-                <option value="translated">Translated Only</option>
-                <option value="both" selected>Original • Translated</option>
-              </select>
-            </div>
-            <div class="setting-row" id="setting-tb-offset-row" style="display: none; margin-top: 6px;">
-              <label for="slider-tb-offset">Taskbar Side Offset</label>
-              <div class="slider-container">
-                <input type="range" id="slider-tb-offset" min="0" max="600" value="0" step="10" />
-                <span id="val-tb-offset">0px</span>
               </div>
-            </div>
-            <div class="setting-row" id="setting-tb-fontsize-row" style="display: none; margin-top: 6px;">
-              <label for="slider-tb-fontsize">Taskbar Font Size</label>
-              <div class="slider-container">
-                <input type="range" id="slider-tb-fontsize" min="10" max="24" value="14" />
-                <span id="val-tb-fontsize">14px</span>
+              <div class="setting-row" style="margin-top: 6px; flex-direction: column; align-items: flex-start; gap: 4px;">
+                <label style="font-size: 12.5px; color: rgba(255,255,255,0.85);">Custom Background (Video/Image)</label>
+                <div style="display: flex; gap: 8px; width: 100%;">
+                  <input type="file" id="input-bg-file" accept="video/mp4,video/webm,image/jpeg,image/png,image/gif" style="display: none;" />
+                  <button id="btn-pick-bg" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 12px; transition: background 0.2s; flex-grow: 1;">Select File...</button>
+                  <button id="btn-clear-bg" style="background: rgba(255,255,255,0.1); border: 1px solid #f43f5e; color: #f43f5e; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 12px; transition: background 0.2s; display: none;">Clear</button>
+                </div>
+                <div id="label-bg-filename" style="font-size: 10px; color: rgba(255,255,255,0.4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%;">None selected</div>
+              </div>
+              <div class="setting-row">
+                <label for="select-highlight-color">Highlight Color</label>
+                <select id="select-highlight-color">
+                  <option value="dynamic" selected>Dynamic (Album Art)</option>
+                  <option value="green">Spotify Green</option>
+                  <option value="white">Classic White</option>
+                  <option value="blue">Electric Blue</option>
+                  <option value="purple">Neon Purple</option>
+                  <option value="midnight">Midnight Velvet</option>
+                  <option value="sunset">Sunset Orange</option>
+                </select>
+              </div>
+              <div class="setting-row">
+                <label for="slider-glow">Glow Intensity</label>
+                <div class="slider-container">
+                  <input type="range" id="slider-glow" min="0" max="100" value="65" />
+                  <span id="val-glow">65%</span>
+                </div>
+              </div>
+              <div class="setting-row" style="margin-top: 6px;">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Add ambient glowing borders to your screen edges synced with album art">
+                  <span>Enable Screen Edge Glow</span>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-edge-glow" />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
               </div>
             </div>
           </div>
 
-          <div class="settings-group">
-            <h4>Lyrics & Translation</h4>
-
-            <div class="setting-row">
-              <label for="input-sync-offset" title="Adjust this if lyrics are out of sync with the music (e.g. YouTube music videos with long intros)">Lyrics Sync Offset (ms)</label>
-              <div style="display: flex; gap: 8px;">
-                <input type="number" id="input-sync-offset" value="0" step="100" style="width: 80px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 4px; padding: 4px; font-family: inherit;" />
-                <button id="btn-reset-offset" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 12px; transition: background 0.2s;">Reset</button>
+          <!-- TAB 2: LYRICS -->
+          <div class="settings-tab-content" data-tab="lyrics">
+            <div class="settings-group">
+              <h4>Lyrics & Translation</h4>
+              <div class="setting-row">
+                <label for="input-sync-offset" title="Adjust this if lyrics are out of sync with the music (e.g. YouTube music videos with long intros)">Lyrics Sync Offset (ms)</label>
+                <div style="display: flex; gap: 8px;">
+                  <input type="number" id="input-sync-offset" value="0" step="100" style="width: 80px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 4px; padding: 4px; font-family: inherit;" />
+                  <button id="btn-reset-offset" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 12px; transition: background 0.2s;">Reset</button>
+                </div>
+              </div>
+              <div style="font-size: 10px; color: rgba(255,255,255,0.4); margin-bottom: 12px; margin-top: -4px; padding-left: 2px; line-height: 1.3;">
+                Notice: If you feel a delay in the lyrics, it is usually because of bad/desynced LRC files from the public source!
+              </div>
+              <div class="setting-row" style="margin-top: 6px;">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Show Genius 'Did you know?' song facts">
+                  <span>Show Genius Facts</span>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-show-genius" checked />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+              </div>
+              <div class="setting-row" style="margin-top: 6px;">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Show crowdsourced Genius line interpretations (bulb icon and yellow highlight on lyric lines)">
+                  <span>Genius Annotations & Meaning</span>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-show-annotations" checked />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+              </div>
+              <div class="setting-row" style="margin-top: 6px;">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Show a floating preview pill of the line interpretation on the main display">
+                  <span>Show Meaning Preview Pill</span>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-show-annotation-preview" />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+              </div>
+              <div class="setting-row" id="setting-genius-position-row">
+                <label for="select-genius-position">Fact Position</label>
+                <select id="select-genius-position">
+                  <option value="top-left">Top Left</option>
+                  <option value="top-center">Top Center</option>
+                  <option value="top-right">Top Right</option>
+                  <option value="bottom-left">Bottom Left</option>
+                  <option value="bottom-center">Bottom Center</option>
+                  <option value="bottom-right">Bottom Right</option>
+                </select>
+              </div>
+              <div class="setting-row">
+                <label for="select-translate">Auto-Translate Lyrics</label>
+                <select id="select-translate">
+                  <option value="none" selected>Off</option>
+                  <option value="en">English</option>
+                  <option value="es">Spanish</option>
+                  <option value="fr">French</option>
+                  <option value="de">German</option>
+                </select>
+              </div>
+              <div class="setting-row" style="margin-top: 6px;">
+                <label for="select-skip-lang" title="Skip translation if the original song is in this language">Skip Translation For</label>
+                <select id="select-skip-lang">
+                  <option value="none">None (Translate All)</option>
+                  <option value="en" selected>English</option>
+                  <option value="es">Spanish</option>
+                  <option value="fr">French</option>
+                  <option value="de">German</option>
+                  <option value="ja">Japanese</option>
+                  <option value="ko">Korean</option>
+                </select>
               </div>
             </div>
-            <div style="font-size: 10px; color: rgba(255,255,255,0.4); margin-bottom: 12px; margin-top: -4px; padding-left: 2px; line-height: 1.3;">
-              Notice: If you feel a delay in the lyrics, it is usually because of bad/desynced LRC files from the public source!
+
+            <div class="settings-group">
+              <h4>Interactions</h4>
+              <div class="setting-row">
+                <label for="select-dblclick-action">Double-Click Action</label>
+                <select id="select-dblclick-action">
+                  <option value="copy" selected>Copy Lyric to Clipboard</option>
+                  <option value="taskbar">Toggle Taskbar Mode</option>
+                  <option value="none">Do Nothing</option>
+                </select>
+              </div>
             </div>
-            <div class="setting-row" style="margin-top: 6px;">
-              <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Show Genius 'Did you know?' song facts">
-                <span>Show Genius Facts</span>
-                <div class="toggle-switch">
-                  <input type="checkbox" id="check-show-genius" checked />
-                  <span class="toggle-slider"></span>
+
+            <div class="settings-group">
+              <h4>Auto-Hide Lyrics</h4>
+              <div class="setting-row" style="margin-top: 6px;">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Automatically hide or collapse lyrics when music is inactive or has no lyrics">
+                  <span>Enable Auto-Hide</span>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-auto-hide-lyrics" />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+              </div>
+              <div class="setting-row" id="setting-auto-hide-trigger-row" style="display: none; margin-top: 6px;">
+                <label for="select-auto-hide-trigger">Hide Trigger</label>
+                <select id="select-auto-hide-trigger">
+                  <option value="paused" selected>When Paused / Stopped</option>
+                  <option value="no_lyrics">When No Lyrics Found</option>
+                  <option value="both">Paused or No Lyrics</option>
+                </select>
+              </div>
+              <div class="setting-row" id="setting-auto-hide-action-row" style="display: none; margin-top: 6px;">
+                <label for="select-auto-hide-action">Hide Style</label>
+                <select id="select-auto-hide-action">
+                  <option value="collapse" selected>Collapse to Mini Player</option>
+                  <option value="window">Hide Entire Window</option>
+                </select>
+              </div>
+              <div class="setting-row" id="setting-auto-hide-delay-row" style="display: none; margin-top: 6px;">
+                <label for="slider-auto-hide-delay">Hide Delay</label>
+                <div class="slider-container">
+                  <input type="range" id="slider-auto-hide-delay" min="0" max="10" value="3" step="1" />
+                  <span id="val-auto-hide-delay">3s</span>
                 </div>
-              </label>
-            </div>
-            <div class="setting-row" id="setting-genius-position-row">
-              <label for="select-genius-position">Fact Position</label>
-              <select id="select-genius-position">
-                <option value="top-left">Top Left</option>
-                <option value="top-center">Top Center</option>
-                <option value="top-right">Top Right</option>
-                <option value="bottom-left">Bottom Left</option>
-                <option value="bottom-center">Bottom Center</option>
-                <option value="bottom-right">Bottom Right</option>
-              </select>
+              </div>
             </div>
           </div>
 
-          <div class="settings-group">
-            <h4>Integrations & Accounts</h4>
-            <div class="setting-row" style="margin-top: 6px;">
-              <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Show the current playing song as your Discord Status">
-                <span>Discord Rich Presence</span>
-                <div class="toggle-switch">
-                  <input type="checkbox" id="check-discord-rpc" />
-                  <span class="toggle-slider"></span>
+          <!-- TAB 3: CONNECTIONS -->
+          <div class="settings-tab-content" data-tab="connections">
+            <div class="settings-group">
+              <h4>Integrations & Accounts</h4>
+              <div class="setting-row" style="margin-top: 6px;">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Show the current playing song as your Discord Status">
+                  <span>Discord Rich Presence</span>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-discord-rpc" />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+              </div>
+              <div class="setting-row">
+                <label for="select-art-source">Fallback Art Source (Local Mode)</label>
+                <select id="select-art-source">
+                  <option value="itunes" selected>Apple Music / iTunes</option>
+                  <option value="lastfm">Last.fm</option>
+                  <option value="musicbrainz">MusicBrainz</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="settings-group">
+              <h4>Last.fm Integration</h4>
+              <div id="lastfm-setup" style="display: flex; flex-direction: column; gap: 8px;">
+                <button id="btn-lastfm-connect" class="btn-primary" style="padding: 8px; font-size: 13px;">
+                  <span style="display: flex; align-items: center; justify-content: center; gap: 6px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                    Connect Last.fm
+                  </span>
+                </button>
+              </div>
+              <div id="lastfm-connected" style="display: none; flex-direction: column; gap: 8px; padding-top: 8px; color: #b3b3b3; font-size: 12.5px;">
+                <div style="display: flex; align-items: center; gap: 8px; color: #1DB954;">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                  <span>Connected to Last.fm</span>
                 </div>
-              </label>
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; cursor: pointer;">
+                  <span>Enable Scrobbling</span>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-lastfm-scrobble" checked />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+                <button id="btn-lastfm-disconnect" class="btn-secondary" style="padding: 6px; font-size: 12px; margin-top: 4px;">Disconnect</button>
+              </div>
             </div>
-            <div class="setting-row">
-              <label for="select-translate">Auto-Translate Lyrics</label>
-              <select id="select-translate">
-                <option value="none" selected>Off</option>
-                <option value="en">English</option>
-                <option value="es">Spanish</option>
-                <option value="fr">French</option>
-                <option value="de">German</option>
-              </select>
-            </div>
-            <div class="setting-row" style="margin-top: 6px;">
-              <label for="select-skip-lang" title="Skip translation if the original song is in this language">Skip Translation For</label>
-              <select id="select-skip-lang">
-                <option value="none">None (Translate All)</option>
-                <option value="en" selected>English</option>
-                <option value="es">Spanish</option>
-                <option value="fr">French</option>
-                <option value="de">German</option>
-                <option value="ja">Japanese</option>
-                <option value="ko">Korean</option>
-              </select>
-            </div>
-            <div class="setting-row">
-              <label for="select-art-source">Fallback Art Source (Local Mode)</label>
-              <select id="select-art-source">
-                <option value="itunes" selected>Apple Music / iTunes</option>
-                <option value="lastfm">Last.fm</option>
-                <option value="musicbrainz">MusicBrainz</option>
-              </select>
+
+            <div class="settings-group" id="spotify-account-group">
+              <h4>Spotify Account</h4>
+
+              <!-- Shown when Spotify is NOT connected (Local Mode or no credentials) -->
+              <div id="spotify-setup" style="display: none; flex-direction: column; gap: 8px;">
+                <div style="font-size: 12px; color: rgba(255,255,255,0.7); line-height: 1.4;">
+                  No Spotify account connected (Local Mode active). Connect your Spotify account to enable Web API sync, remote player controls, and offline caching.
+                </div>
+                <button id="btn-spotify-connect" class="btn-primary" style="padding: 8px; font-size: 13px;">
+                  <span style="display: flex; align-items: center; justify-content: center; gap: 6px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.485 17.303a.75.75 0 0 1-1.03.248c-2.822-1.724-6.374-2.115-10.558-1.16a.75.75 0 1 1-.334-1.462c4.582-1.046 8.528-.598 11.674 1.344a.75.75 0 0 1 .248 1.03zm1.464-3.255a.938.938 0 0 1-1.29.31c-3.23-1.986-8.156-2.56-11.977-1.4a.938.938 0 1 1-.548-1.794c4.37-1.326 9.803-.68 13.505 1.594a.938.938 0 0 1 .31 1.29zm.125-3.393c-3.874-2.3-10.264-2.512-13.972-1.386a1.125 1.125 0 1 1-.655-2.153c4.258-1.293 11.31-1.047 15.772 1.602a1.125 1.125 0 0 1-1.145 1.937z"/>
+                    </svg>
+                    Connect Spotify Account
+                  </span>
+                </button>
+                <button id="btn-switch-login-screen-setup" class="btn-secondary" style="padding: 6px; font-size: 11.5px; margin-top: 2px;">
+                  Switch to Welcome / Login Screen
+                </button>
+              </div>
+
+              <!-- Shown when Spotify IS connected -->
+              <div id="spotify-connected" style="display: none; flex-direction: column; gap: 8px; padding-top: 4px; color: #b3b3b3; font-size: 12.5px;">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                  <div style="display: flex; align-items: center; gap: 8px; color: #1DB954;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                    <span id="spotify-account-status">Connected to Spotify</span>
+                  </div>
+                </div>
+                <div style="display: flex; gap: 8px; margin-top: 4px;">
+                  <button id="btn-logout" class="btn-danger" style="flex: 1; padding: 8px; font-size: 12px;">
+                    <span>Disconnect Spotify</span>
+                  </button>
+                  <button id="btn-switch-login-screen" class="btn-secondary" style="flex: 1; padding: 8px; font-size: 12px;">
+                    <span>Welcome Screen</span>
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
-          <div class="settings-group">
-            <h4>Last.fm Integration</h4>
-            <div id="lastfm-setup" style="display: flex; flex-direction: column; gap: 8px;">
-              <button id="btn-lastfm-connect" class="btn-primary" style="padding: 8px; font-size: 13px;">
-                <span style="display: flex; align-items: center; justify-content: center; gap: 6px;">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-                  Connect Last.fm
-                </span>
+          <!-- TAB 4: SYSTEM -->
+          <div class="settings-tab-content" data-tab="system">
+            <div class="settings-group">
+              <h4>Wallpaper Mode</h4>
+              <div class="setting-row" style="margin-top: 6px;">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Maximize the app to fill your screen as an immersive desktop background">
+                  <span>Enable Wallpaper Mode</span>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-wallpaper-mode" />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+              </div>
+              <div class="setting-row" style="margin-top: 8px;">
+                <label for="select-wallpaper-style">Wallpaper Style</label>
+                <select id="select-wallpaper-style">
+                  <option value="style1">Style 1 - Immersive Lyrics</option>
+                  <option value="style2">Style 2 - Apple Music</option>
+                  <option value="style3">Style 3 - Lyric Overlay</option>
+                </select>
+              </div>
+              
+              <div class="setting-row wallpaper-overlay-setting" id="setting-wallpaper-overlay-pos" style="display: none; flex-direction: column; align-items: flex-start; gap: 10px; margin-top: 15px;">
+                <label>Position Lyrics (Shortcuts & Hotkeys)</label>
+                <div style="font-size: 11px; color: rgba(255,255,255,0.6); margin-bottom: 5px;">Use <b>Ctrl+Shift+Arrow Keys</b> on your desktop to nudge lyrics perfectly into place.</div>
+                <div style="display: flex; gap: 5px; flex-wrap: wrap; margin-top: 5px;">
+                  <button id="btn-pos-tl" class="pos-preset-btn" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 11px;">Top Left</button>
+                  <button id="btn-pos-tr" class="pos-preset-btn" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 11px;">Top Right</button>
+                  <button id="btn-pos-c" class="pos-preset-btn" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 11px;">Center</button>
+                  <button id="btn-pos-bl" class="pos-preset-btn" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 11px;">Bottom Left</button>
+                  <button id="btn-pos-br" class="pos-preset-btn" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 11px;">Bottom Right</button>
+                </div>
+              </div>
+              
+              <div class="setting-row wallpaper-overlay-setting" id="setting-wallpaper-overlay-width" style="display: none; margin-top: 8px;">
+                <label for="slider-wallpaper-overlay-width">Overlay Width</label>
+                <div class="slider-container">
+                  <input type="range" id="slider-wallpaper-overlay-width" min="20" max="100" value="60" />
+                  <span id="val-wallpaper-overlay-width">60%</span>
+                </div>
+              </div>
+              
+              <div class="setting-row wallpaper-overlay-setting" id="setting-wallpaper-font-size-row" style="display: none; margin-top: 8px;">
+                <label for="select-wallpaper-font-size">Lyrics Font Size</label>
+                <select id="select-wallpaper-font-size">
+                  <option value="24">24px (Small)</option>
+                  <option value="28">28px</option>
+                  <option value="32" selected>32px (Medium)</option>
+                  <option value="36">36px</option>
+                  <option value="42">42px</option>
+                  <option value="48">48px (Large)</option>
+                  <option value="56">56px</option>
+                  <option value="64">64px (Extra Large)</option>
+                  <option value="72">72px (Giant)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="settings-group">
+              <h4>Taskbar Mode</h4>
+              <div class="setting-row" style="margin-top: 6px;">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Overlay single-line lyrics dynamically onto the Windows taskbar">
+                  <span>Enable Taskbar Mode</span>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-taskbar-mode" />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+              </div>
+              <div class="setting-row" style="margin-top: 6px;">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Automatically hide lyrics on the taskbar when music is paused">
+                  <span>Auto-Hide When Paused</span>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-auto-hide-taskbar" checked />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+              </div>
+              <div class="setting-row" style="margin-top: 6px;">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Show taskbar lyrics even when a fullscreen app/game is active">
+                  <span>Show Lyrics in Fullscreen</span>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-fullscreen-lyrics" />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+              </div>
+              <div class="setting-row" id="setting-tb-align-row" style="display: none; margin-top: 6px;">
+                <label for="select-tb-align">Taskbar Text Align</label>
+                <select id="select-tb-align">
+                  <option value="left">Left</option>
+                  <option value="center" selected>Center</option>
+                  <option value="right">Right</option>
+                </select>
+              </div>
+              <div class="setting-row" id="setting-tb-translation-row" style="display: none; margin-top: 6px;">
+                <label for="select-tb-translation">Taskbar Translation Mode</label>
+                <select id="select-tb-translation">
+                  <option value="original">Original Only</option>
+                  <option value="translated">Translated Only</option>
+                  <option value="both" selected>Original • Translated</option>
+                </select>
+              </div>
+              <div class="setting-row" id="setting-tb-offset-row" style="display: none; margin-top: 6px;">
+                <label for="slider-tb-offset">Taskbar Side Offset</label>
+                <div class="slider-container">
+                  <input type="range" id="slider-tb-offset" min="0" max="600" value="0" step="10" />
+                  <span id="val-tb-offset">0px</span>
+                </div>
+              </div>
+              <div class="setting-row" id="setting-tb-fontsize-row" style="display: none; margin-top: 6px;">
+                <label for="slider-tb-fontsize">Taskbar Font Size</label>
+                <div class="slider-container">
+                  <input type="range" id="slider-tb-fontsize" min="10" max="24" value="14" />
+                  <span id="val-tb-fontsize">14px</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="settings-group">
+              <h4>General</h4>
+              <div class="setting-row" style="margin-top: 6px;">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Launch app automatically when Windows starts">
+                  <span>Launch on Windows Startup</span>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-auto-launch" />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+              </div>
+              <div class="setting-row" style="margin-top: 6px;">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Keep the app floating above all other windows">
+                  <span>Always on Top</span>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-always-on-top" />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+              </div>
+              <div class="setting-row" style="margin-top: 6px;">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;">
+                  <span>Show Music Controller</span>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-show-widget" checked />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+              </div>
+              <div class="setting-row" style="margin-top: 6px;">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Show a desktop notification whenever a new track begins playing">
+                  <span>Now Playing Notifications</span>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-show-next-up" checked />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+              </div>
+              <div class="setting-row" style="margin-top: 6px;">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Dynamically adapt lyric scroll easing and highlight responsiveness to track tempo">
+                  <span>Adaptive BPM Sync</span>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-adaptive-bpm" checked />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <div class="settings-group">
+              <h4>Keyboard Shortcuts</h4>
+              <div class="shortcut-tip">
+                <span><strong>Ctrl+Shift+L:</strong> Toggle Click-Through</span><br/>
+                <span style="margin-top: 4px; display: inline-block;"><strong>Ctrl+Shift+C:</strong> Copy Lyric</span><br/>
+                <span style="margin-top: 4px; display: inline-block;"><strong>Ctrl+Shift+S:</strong> Share Lyric Card</span><br/>
+                <span style="margin-top: 4px; display: inline-block;"><strong>Ctrl+F:</strong> Search Lyrics</span><br/>
+                <span style="margin-top: 4px; display: inline-block;"><strong>Alt + [ / ] :</strong> Adjust Sync Offset</span>
+              </div>
+            </div>
+
+            <div class="settings-group">
+              <h4>Listening History</h4>
+              <div id="history-container" style="display: flex; flex-direction: column; gap: 8px; max-height: 200px; overflow-y: auto; padding-right: 4px;">
+                <!-- History items will be populated here -->
+                <div style="font-size: 11px; color: rgba(255,255,255,0.4);">No history yet...</div>
+              </div>
+            </div>
+
+            <div class="settings-group">
+              <h4>Lyrics Storage & Cache</h4>
+              <div style="font-size: 12px; color: rgba(255,255,255,0.7); margin-bottom: 12px;">
+                Lyrics for played songs are automatically cached locally for instantaneous, offline-ready playback.
+              </div>
+              <button id="btn-clear-cache" class="btn-secondary" style="width: 100%; border-color: #f43f5e; color: #f43f5e;">
+                <span>Clear All Cached Lyrics</span>
               </button>
+              <div id="cache-manager-status" style="font-size: 11px; color: #1DB954; text-align: center; margin-top: 8px; display: none;"></div>
             </div>
-            <div id="lastfm-connected" style="display: none; flex-direction: column; gap: 8px; padding-top: 8px; color: #b3b3b3; font-size: 12.5px;">
-              <div style="display: flex; align-items: center; gap: 8px; color: #1DB954;">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-                <span>Connected to Last.fm</span>
-              </div>
-              <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; cursor: pointer;">
-                <span>Enable Scrobbling</span>
-                <div class="toggle-switch">
-                  <input type="checkbox" id="check-lastfm-scrobble" checked />
-                  <span class="toggle-slider"></span>
-                </div>
-              </label>
-              <button id="btn-lastfm-disconnect" class="btn-secondary" style="padding: 6px; font-size: 12px; margin-top: 4px;">Disconnect</button>
-            </div>
-          </div>
-
-          <div class="settings-group">
-            <h4>General</h4>
-            <div class="setting-row" style="margin-top: 6px;">
-              <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Launch app automatically when Windows starts">
-                <span>Launch on Windows Startup</span>
-                <div class="toggle-switch">
-                  <input type="checkbox" id="check-auto-launch" />
-                  <span class="toggle-slider"></span>
-                </div>
-              </label>
-            </div>
-            <div class="setting-row" style="margin-top: 6px;">
-              <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Keep the app floating above all other windows">
-                <span>Always on Top</span>
-                <div class="toggle-switch">
-                  <input type="checkbox" id="check-always-on-top" />
-                  <span class="toggle-slider"></span>
-                </div>
-              </label>
-            </div>
-            <div class="setting-row" style="margin-top: 6px;">
-              <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;">
-                <span>Show Music Controller</span>
-                <div class="toggle-switch">
-                  <input type="checkbox" id="check-show-widget" checked />
-                  <span class="toggle-slider"></span>
-                </div>
-              </label>
-            </div>
-            <div class="setting-row" style="margin-top: 6px;">
-              <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Show a popup notification when the next track starts playing">
-                <span>Show Next Up Widget</span>
-                <div class="toggle-switch">
-                  <input type="checkbox" id="check-show-next-up" checked />
-                  <span class="toggle-slider"></span>
-                </div>
-              </label>
-            </div>
-            <div class="setting-row">
-              <label for="select-dblclick-action">Double-Click Action</label>
-              <select id="select-dblclick-action">
-                <option value="copy" selected>Copy Lyric to Clipboard</option>
-                <option value="taskbar">Toggle Taskbar Mode</option>
-                <option value="none">Do Nothing</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="settings-group">
-            <h4>Keyboard Shortcuts</h4>
-            <div class="shortcut-tip">
-              <span><strong>Ctrl+Shift+L:</strong> Toggle Click-Through</span><br/>
-              <span style="margin-top: 4px; display: inline-block;"><strong>Ctrl+Shift+C:</strong> Copy Lyric</span><br/>
-              <span style="margin-top: 4px; display: inline-block;"><strong>Ctrl+Shift+S:</strong> Share Lyric Card</span><br/>
-              <span style="margin-top: 4px; display: inline-block;"><strong>Ctrl+F:</strong> Search Lyrics</span><br/>
-              <span style="margin-top: 4px; display: inline-block;"><strong>Alt + [ / ] :</strong> Adjust Sync Offset</span>
-            </div>
-          </div>
-
-          <div class="settings-group">
-            <h4>Listening History</h4>
-            <div id="history-container" style="display: flex; flex-direction: column; gap: 8px; max-height: 200px; overflow-y: auto; padding-right: 4px;">
-              <!-- History items will be populated here -->
-              <div style="font-size: 11px; color: rgba(255,255,255,0.4);">No history yet...</div>
-            </div>
-          </div>
-
-          <div class="settings-group">
-            <h4>Offline Cache Manager</h4>
-            <div style="font-size: 12px; color: rgba(255,255,255,0.7); margin-bottom: 12px;">
-              Pre-download lyrics for your top tracks so they load instantly without network latency. Requires Spotify Login.
-            </div>
-            <button id="btn-cache-top-tracks" class="btn-primary" style="width: 100%; margin-bottom: 8px;">
-              <span>Pre-Cache My Top Tracks</span>
-            </button>
-            <button id="btn-clear-cache" class="btn-secondary" style="width: 100%; border-color: #f43f5e; color: #f43f5e;">
-              <span>Clear All Cached Lyrics</span>
-            </button>
-            <div id="cache-manager-status" style="font-size: 11px; color: #1DB954; text-align: center; margin-top: 8px; display: none;"></div>
-          </div>
-
-          <div class="settings-group logout-group">
-            <button id="btn-logout" class="btn-danger">
-              <span>Disconnect Spotify Account</span>
-            </button>
           </div>
           
           <div style="text-align: center; margin-top: 24px; margin-bottom: 12px; font-size: 12px; color: rgba(255,255,255,0.5);">
@@ -754,6 +946,7 @@
           <button id="btn-desktop-edit-done" style="background: #1db954; color: black; border: none; border-radius: 20px; padding: 8px 24px; font-weight: bold; cursor: pointer; font-size: 14px; margin-top: 5px;">Done</button>
         </div>
       </div>
+
 
       <!-- Toast Notification for Lyric Copy -->
       <div id="toast-notification" class="toast-notification"></div>

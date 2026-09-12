@@ -1,0 +1,135 @@
+/* App Containers & Layout */
+.app-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  position: relative;
+  background:
+    linear-gradient(135deg, rgba(var(--accent-primary-rgb, 29, 185, 84), 0.03) 0%, transparent 50%, rgba(var(--accent-bright-rgb, 30, 215, 96), 0.02) 100%),
+    rgba(10, 10, 15, var(--bg-opacity));
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
+  border-radius: 12px;
+  overflow: hidden;
+  transition: background-color 0.4s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+[data-theme="oled"] .app-container {
+  border-color: rgba(255, 255, 255, 0.04);
+}
+
+[data-theme="light"] .app-container {
+  border-color: rgba(0, 0, 0, 0.08);
+  background:
+    linear-gradient(135deg, rgba(var(--accent-primary-rgb, 29, 185, 84), 0.05) 0%, transparent 50%, rgba(var(--accent-bright-rgb, 30, 215, 96), 0.03) 100%),
+    rgba(255, 255, 255, var(--bg-opacity));
+}
+
+/* Screens */
+.app-screen {
+  flex: 1;
+  display: none;
+  flex-direction: column;
+  padding: 16px 24px;
+  overflow: hidden;
+  position: relative;
+}
+
+.app-screen.active {
+  display: flex;
+}
+
+/* Responsive Window Breakpoints for Small Overlays */
+@media (max-width: 500px) {
+  .app-screen {
+    padding: 8px 12px;
+  }
+  .hud-header {
+    padding: 8px 12px;
+    height: 40px;
+  }
+  .playback-widget {
+    gap: 8px;
+    padding: 8px 12px;
+  }
+  .widget-art-container {
+    width: 32px;
+    height: 32px;
+  }
+  .lyrics-scroll-container {
+    padding: 40vh 0;
+  }
+}
+
+@media (max-height: 400px) {
+  .playback-widget {
+    padding: 6px 12px;
+  }
+  .lyrics-scroll-container {
+    padding: 30vh 0;
+  }
+}
+
+/* Auto-Hide Collapsed Mini Player State */
+.app-container.auto-hide-collapsed {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  pointer-events: auto;
+  transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.4s ease;
+}
+
+.app-container.auto-hide-collapsed #screen-lyrics {
+  justify-content: flex-end !important;
+  pointer-events: none;
+}
+
+.app-container.auto-hide-collapsed .lyrics-view,
+.app-container.auto-hide-collapsed #search-overlay,
+.app-container.auto-hide-collapsed .genius-fact-card,
+.app-container.auto-hide-collapsed .sync-resume-btn,
+.app-container.auto-hide-collapsed #btn-sync-lyrics {
+  display: none !important;
+}
+
+.app-container.auto-hide-collapsed .hud-header {
+  opacity: 0;
+  pointer-events: auto;
+  transition: opacity 0.25s ease;
+}
+
+.app-container.auto-hide-collapsed:hover .hud-header,
+.app-container.auto-hide-collapsed .hud-header:hover {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+.app-container.auto-hide-collapsed .playback-widget {
+  display: flex !important;
+  pointer-events: auto !important;
+  background: var(--bg-glass-heavy, rgba(15, 15, 25, 0.9)) !important;
+  backdrop-filter: blur(24px) saturate(1.8) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(1.8) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 18px !important;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.6) !important;
+  padding: 10px 18px !important;
+  margin: 12px auto 8px auto !important;
+  max-width: 480px;
+  width: 90%;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+body.auto-hide-collapsed .ambient-glow {
+  opacity: 0 !important;
+  transition: opacity 0.4s ease;
+}
+
+/* Auto-Hide Full Window Fade Out State */
+body.auto-hide-faded .ambient-glow,
+.app-container.auto-hide-faded {
+  opacity: 0 !important;
+  transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+

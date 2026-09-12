@@ -31,7 +31,8 @@
       "output": "dist"
     },
     "asarUnpack": [
-      "**/*.ps1"
+      "**/*.ps1",
+      "**/*.cs"
     ],
     "icon": "build/icon.png",
     "win": {

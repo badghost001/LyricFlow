@@ -47,41 +47,49 @@ while ($true) {
                     $lastUpdated = $timeline.LastUpdatedTime
                 }
             } catch {}
-            $mediaSessions += [PSCustomObject]@{ Session = $s; LastUpdated = $lastUpdated }
+            $appId = $s.SourceAppUserModelId
+            $lower = if ($appId) { $appId.ToLower() } else { "" }
+            $isMusic = $false
+            foreach ($m in @('spotify', 'applemusic', 'itunes', 'tidal', 'deezer', 'amazonmusic', 'youtubemusic', 'ytmusic', 'foobar', 'musicbee', 'aimp', 'vlc', 'winamp', 'dopamine', 'cider')) {
+                if ($lower.Contains($m)) { $isMusic = $true; break }
+            }
+            $status = "Closed"
+            try {
+                $info = $s.GetPlaybackInfo()
+                if ($info) { $status = $info.PlaybackStatus.ToString() }
+            } catch {}
+            $mediaSessions += [PSCustomObject]@{ Session = $s; IsMusic = $isMusic; Status = $status; LastUpdated = $lastUpdated }
         }
         if ($mediaSessions.Count -gt 0) {
-            $sortedSessions = $mediaSessions | Sort-Object -Property LastUpdated -Descending
-            foreach ($item in $sortedSessions) {
-                $s = $item.Session
-                $info = $s.GetPlaybackInfo()
-                if ($info -and $info.PlaybackStatus.ToString() -eq "Playing") {
-                    $session = $s
-                    break
+            $playingMusic = $mediaSessions | Where-Object { $_.IsMusic -and $_.Status -eq 'Playing' } | Sort-Object -Property LastUpdated -Descending
+            if ($playingMusic) {
+                $session = $playingMusic[0].Session
+            }
+            if ($null -eq $session) {
+                $pausedMusic = $mediaSessions | Where-Object { $_.IsMusic -and $_.Status -eq 'Paused' } | Sort-Object -Property LastUpdated -Descending
+                if ($pausedMusic) {
+                    $session = $pausedMusic[0].Session
                 }
             }
             if ($null -eq $session) {
-                foreach ($item in $sortedSessions) {
-                    $s = $item.Session
-                    $info = $s.GetPlaybackInfo()
-                    if ($info -and $info.PlaybackStatus.ToString() -eq "Paused") {
-                        $session = $s
-                        break
-                    }
+                $playing = $mediaSessions | Where-Object { $_.Status -eq 'Playing' } | Sort-Object -Property LastUpdated -Descending
+                if ($playing) {
+                    $session = $playing[0].Session
                 }
             }
             if ($null -eq $session) {
-                $session = $sortedSessions[0].Session
+                $session = $mediaSessions[0].Session
             }
         }
     } catch {}
 
     if ($null -ne $session) {
         if ($action -eq "play-pause") {
-            $session.TryTogglePlayPauseAsync() | Out-Null
+            Await-WinRT ($session.TryTogglePlayPauseAsync()) ([bool]) | Out-Null
         } elseif ($action -eq "next") {
-            $session.TrySkipNextAsync() | Out-Null
+            Await-WinRT ($session.TrySkipNextAsync()) ([bool]) | Out-Null
         } elseif ($action -eq "previous") {
-            $session.TrySkipPreviousAsync() | Out-Null
+            Await-WinRT ($session.TrySkipPreviousAsync()) ([bool]) | Out-Null
         }
     }
 }
