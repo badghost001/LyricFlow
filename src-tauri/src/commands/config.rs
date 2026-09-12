@@ -77,3 +77,131 @@ pub fn get_desktop_wallpaper() -> Result<Option<String>, String> {
 
     Ok(None)
 }
+
+#[tauri::command]
+pub fn get_auto_launch() -> Result<bool, String> {
+    #[cfg(target_os = "windows")]
+    {
+        use std::process::Command;
+        let out = Command::new("powershell")
+            .args(["-NoProfile", "-Command", "if (Get-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run' -Name 'LyricFlow' -ErrorAction SilentlyContinue) { 'true' } else { 'false' }"])
+            .output();
+        if let Ok(o) = out {
+            let s = String::from_utf8_lossy(&o.stdout).trim().to_string();
+            return Ok(s == "true");
+        }
+    }
+    Ok(false)
+}
+
+#[tauri::command]
+pub fn set_auto_launch(enabled: bool) -> Result<bool, String> {
+    #[cfg(target_os = "windows")]
+    {
+        use std::process::Command;
+        if enabled {
+            if let Ok(exe) = std::env::current_exe() {
+                let exe_str = exe.to_string_lossy().to_string();
+                let cmd = format!("Set-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run' -Name 'LyricFlow' -Value '\"{}\"'", exe_str);
+                let _ = Command::new("powershell").args(["-NoProfile", "-Command", &cmd]).output();
+            }
+        } else {
+            let _ = Command::new("powershell").args(["-NoProfile", "-Command", "Remove-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run' -Name 'LyricFlow' -ErrorAction SilentlyContinue"]).output();
+        }
+    }
+    Ok(enabled)
+}
+
+#[tauri::command]
+pub fn get_taskbar_color() -> Result<serde_json::Value, String> {
+    #[cfg(target_os = "windows")]
+    {
+        use std::process::Command;
+        let out = Command::new("cmd")
+            .args(["/C", "reg query \"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize\" /v SystemUsesLightTheme && reg query \"HKCU\\Software\\Microsoft\\Windows\\DWM\" /v ColorizationColor && reg query \"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize\" /v ColorPrevalence"])
+            .output();
+        if let Ok(o) = out {
+            let stdout = String::from_utf8_lossy(&o.stdout);
+            let mut is_light = false;
+            let mut color_prevalence = 0u32;
+            let mut colorization = 0u32;
+
+            for line in stdout.lines() {
+                if line.contains("SystemUsesLightTheme") {
+                    if let Some(pos) = line.find("0x") {
+                        let hex = line[pos..].trim();
+                        if let Ok(val) = u32::from_str_radix(hex.trim_start_matches("0x"), 16) {
+                            is_light = val == 1;
+                        }
+                    }
+                } else if line.contains("ColorizationColor") {
+                    if let Some(pos) = line.find("0x") {
+                        let hex = line[pos..].trim();
+                        if let Ok(val) = u32::from_str_radix(hex.trim_start_matches("0x"), 16) {
+                            colorization = val;
+                        }
+                    }
+                } else if line.contains("ColorPrevalence") {
+                    if let Some(pos) = line.find("0x") {
+                        let hex = line[pos..].trim();
+                        if let Ok(val) = u32::from_str_radix(hex.trim_start_matches("0x"), 16) {
+                            color_prevalence = val;
+                        }
+                    }
+                }
+            }
+
+            if color_prevalence == 1 && colorization > 0 {
+                let r = ((colorization >> 16) & 0xff) as f32;
+                let g = ((colorization >> 8) & 0xff) as f32;
+                let b = (colorization & 0xff) as f32;
+                let luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255.0;
+                let text_color = if luminance > 0.5 { "#121212" } else { "#ffffff" };
+                let theme = if luminance > 0.5 { "light" } else { "dark" };
+                return Ok(serde_json::json!({
+                    "theme": theme,
+                    "color": text_color,
+                    "bgColor": format!("rgba({r}, {g}, {b}, 0.85)"),
+                    "accentColor": format!("rgb({r}, {g}, {b})")
+                }));
+            }
+
+            if is_light {
+                return Ok(serde_json::json!({
+                    "theme": "light",
+                    "color": "#121212",
+                    "bgColor": "rgba(243, 243, 243, 0.75)",
+                    "accentColor": "#1DB954"
+                }));
+            } else {
+                return Ok(serde_json::json!({
+                    "theme": "dark",
+                    "color": "#ffffff",
+                    "bgColor": "rgba(32, 32, 32, 0.75)",
+                    "accentColor": "#1DB954"
+                }));
+            }
+        }
+    }
+    Ok(serde_json::json!({ "theme": "dark", "color": "#ffffff", "accentColor": "#1DB954" }))
+}
+
+#[tauri::command]
+pub fn select_background_file() -> Result<Option<String>, String> {
+    #[cfg(target_os = "windows")]
+    {
+        use std::process::Command;
+        let script = r#"[System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms') | Out-Null; $f = New-Object System.Windows.Forms.OpenFileDialog; $f.Filter = 'Media files (*.mp4;*.webm;*.jpg;*.jpeg;*.png;*.gif)|*.mp4;*.webm;*.jpg;*.jpeg;*.png;*.gif|All files (*.*)|*.*'; $f.Title = 'Select Background Media'; if ($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $f.FileName }"#;
+        let out = Command::new("powershell")
+            .args(["-NoProfile", "-Command", script])
+            .output();
+        if let Ok(o) = out {
+            let path = String::from_utf8_lossy(&o.stdout).trim().to_string();
+            if !path.is_empty() {
+                return Ok(Some(path));
+            }
+        }
+    }
+    Ok(None)
+}
+

@@ -98,11 +98,12 @@
     syncTaskbarLayout: (layout) => safeEmit('sync-taskbar-layout', layout),
     setAlwaysOnTop: (alwaysOnTop) => safeInvoke('set_always_on_top', { alwaysOnTop }, null),
     setEdgeGlow: (enabled, color) => safeInvoke('set_edge_glow', { enabled, color }, null),
-    refreshToken: () => Promise.resolve(null),
-    startOAuthServer: () => Promise.resolve(null),
+    refreshToken: () => safeInvoke('refresh_token', {}, null),
+    startOAuthServer: (clientId, codeVerifier, codeChallenge) =>
+      safeInvoke('start_oauth_server', { clientId, codeVerifier, codeChallenge }, null),
     closeApp: () => safeInvoke('close_app', {}, null),
     minimizeApp: () => safeInvoke('minimize_app', {}, null),
-    getTaskbarColor: () => Promise.resolve(null),
+    getTaskbarColor: () => safeInvoke('get_taskbar_color', {}, { theme: 'dark', color: '#ffffff', accentColor: '#1DB954' }),
     setTaskbarMode: (enabled, fromTray = false) => safeInvoke('set_taskbar_mode', { enabled, fromTray }, null),
     setWallpaperMode: (enabled) => safeInvoke('set_wallpaper_mode', { enabled }, null),
     syncTaskbarModeState: (isTaskbarMode) => safeEmit('sync-taskbar-mode-state', isTaskbarMode),
@@ -110,32 +111,55 @@
     startTaskbarDrag: (data) => safeEmit('start-taskbar-drag', data),
     stopTaskbarDrag: () => safeEmit('stop-taskbar-drag'),
     updateTaskbarLyric: (data) => safeEmit('update-taskbar-lyric', data),
-    showNextUp: () => {},
+    showNextUp: (track) => safeInvoke('show_now_playing_notification', { track }, null),
     showNowPlayingNotification: (track) => safeInvoke('show_now_playing_notification', { track }, null),
     updateNextUpPlaycount: () => {},
     getLocalPlayback: () => safeInvoke('get_local_playback', {}, null),
     triggerLocalPlaybackControl: (action, position = 0) =>
       safeInvoke('trigger_playback_control', { action, positionMs: position }, false),
-    selectBackgroundFile: () => Promise.resolve(null),
-    setFullscreenLyrics: () => {},
-    getAutoLaunch: () => Promise.resolve(false),
-    setAutoLaunch: () => Promise.resolve(false),
+    selectBackgroundFile: async () => {
+      const res = await safeInvoke('select_background_file', {}, null);
+      if (res) return res;
+      return new Promise((resolve) => {
+        let input = document.getElementById('input-bg-file');
+        if (!input) {
+          input = document.createElement('input');
+          input.type = 'file';
+          input.accept = 'video/mp4,video/webm,image/jpeg,image/png,image/gif';
+          input.style.display = 'none';
+          document.body.appendChild(input);
+        }
+        input.onchange = () => {
+          if (input.files && input.files[0]) {
+            const file = input.files[0];
+            resolve(file.path || (window.URL ? URL.createObjectURL(file) : null));
+          } else {
+            resolve(null);
+          }
+        };
+        input.click();
+      });
+    },
+    setFullscreenLyrics: (enabled) => safeInvoke('set_fullscreen_lyrics', { enabled }, null),
+    getAutoLaunch: () => safeInvoke('get_auto_launch', {}, false),
+    setAutoLaunch: (enabled) => safeInvoke('set_auto_launch', { enabled }, false),
     getDesktopWallpaper: () => safeInvoke('get_desktop_wallpaper', {}, null),
     loginViaWeb: () => Promise.resolve(null),
-    getAccessToken: () => Promise.resolve(null),
-    logout: () => Promise.resolve(),
+    getAccessToken: (spDc) => safeInvoke('get_access_token', { spDc }, null),
+    logout: () => safeInvoke('reset_config', {}, null),
     lastfmApi: (method, params, apiKey, apiSecret, sessionKey) =>
       safeInvoke('lastfm_api', { data: { method, params, apiKey, apiSecret, sessionKey } }, null),
     getGeniusFact: (artist, track) => safeInvoke('get_genius_fact', { artist, track }, null),
-    getGeniusAnnotations: (artist, track) => safeInvoke('get_genius_annotations', { artist, track }, null),
+    getGeniusAnnotations: (artist, track) => safeInvoke('get_genius_annotations', { artist, track }, []),
     fetchGeniusFact: (trackName, artistName) => safeInvoke('fetch_genius_fact', { trackName, artistName }, null),
     fetchGeniusLyrics: (trackName, artistName) => safeInvoke('fetch_genius_lyrics', { trackName, artistName }, null),
     fetchSpotifyLyrics: (trackId, token) => safeInvoke('fetch_spotify_lyrics', { trackId, token }, null),
     fetchNetEaseLyrics: (trackName, artistName) => safeInvoke('fetch_netease_lyrics', { trackName, artistName }, null),
     initDiscordRpc: (clientId) => safeInvoke('init_discord_rpc', { clientId }, null),
     updateDiscordRpc: (data) => safeInvoke('update_discord_rpc', { data }, null),
-    translateText: (text) => Promise.resolve(text),
-    fetchMusicNews: () => Promise.resolve([]),
+    translateText: (text, targetLang, skipLang) =>
+      safeInvoke('translate_text', { text, targetLang, skipLang }, { text: null, src: 'error' }),
+    fetchMusicNews: (query) => safeInvoke('fetch_music_news', { query }, ''),
 
     // Event Listeners
     onToggleClickThrough: (cb) => safeListen('toggle-click-through-shortcut', () => cb()),
@@ -166,7 +190,10 @@
   // Taskbar window bridge polyfill
   window.taskbarAPI = {
     setClickThrough: (ignore) => safeInvoke('set_click_through', { ignore }),
-    saveOffset: (x) => safeEmit('tb-save-offset', x),
+    saveOffset: (x) => {
+      safeEmit('tb-save-offset', x);
+      safeEmit('tb-offset-saved', x);
+    },
     openApp: () => safeInvoke('set_taskbar_mode', { enabled: false }),
     onUpdateLyric: (cb) => safeListen('update-taskbar-lyric', (data) => cb(data)),
     onSyncConfig: (cb) => safeListen('sync-taskbar-config', (cfg) => cb(cfg)),

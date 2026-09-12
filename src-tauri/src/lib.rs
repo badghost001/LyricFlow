@@ -24,6 +24,7 @@ pub fn run() {
             let play_item = MenuItem::with_id(app, "play", "Play / Pause", true, None::<&str>)?;
             let next_item = MenuItem::with_id(app, "next", "Next Track", true, None::<&str>)?;
             let prev_item = MenuItem::with_id(app, "prev", "Previous Track", true, None::<&str>)?;
+            let settings_item = MenuItem::with_id(app, "settings", "Show Settings", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit LyricFlow", true, None::<&str>)?;
 
             let menu = Menu::with_items(
@@ -34,6 +35,7 @@ pub fn run() {
                     &play_item,
                     &next_item,
                     &prev_item,
+                    &settings_item,
                     &quit_item,
                 ],
             )?;
@@ -56,8 +58,8 @@ pub fn run() {
                             let _ = app.emit("toggle-taskbar-mode-tray", ());
                         }
                         "play" => {
-                            let _ = app.emit("tray-playback-control", "toggle");
-                            media::get_platform_backend().trigger_control("toggle", 0);
+                            let _ = app.emit("tray-playback-control", "play-pause");
+                            media::get_platform_backend().trigger_control("play-pause", 0);
                         }
                         "next" => {
                             let _ = app.emit("tray-playback-control", "next");
@@ -66,6 +68,13 @@ pub fn run() {
                         "prev" => {
                             let _ = app.emit("tray-playback-control", "previous");
                             media::get_platform_backend().trigger_control("previous", 0);
+                        }
+                        "settings" => {
+                            if let Some(w) = app.get_webview_window("main") {
+                                let _ = w.show();
+                                let _ = w.set_focus();
+                            }
+                            let _ = app.emit("tray-show-settings", ());
                         }
                         "quit" => {
                             app.exit(0);
@@ -141,6 +150,10 @@ pub fn run() {
             config::save_config,
             config::reset_config,
             config::get_desktop_wallpaper,
+            config::get_auto_launch,
+            config::set_auto_launch,
+            config::get_taskbar_color,
+            config::select_background_file,
             window::set_click_through,
             window::set_always_on_top,
             window::minimize_app,
@@ -148,6 +161,7 @@ pub fn run() {
             window::set_taskbar_mode,
             window::set_edge_glow,
             window::set_wallpaper_mode,
+            window::set_fullscreen_lyrics,
             lyrics::fetch_spotify_lyrics,
             lyrics::fetch_netease_lyrics,
             lyrics::get_genius_fact,
@@ -159,8 +173,14 @@ pub fn run() {
             integrations::show_now_playing_notification,
             integrations::init_discord_rpc,
             integrations::update_discord_rpc,
-            integrations::lastfm_api
+            integrations::lastfm_api,
+            integrations::translate_text,
+            integrations::fetch_music_news,
+            integrations::get_access_token,
+            integrations::refresh_token,
+            integrations::start_oauth_server
         ])
         .run(tauri::generate_context!())
         .expect("error while running LyricFlow application");
 }
+

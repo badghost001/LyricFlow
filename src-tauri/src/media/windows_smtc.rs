@@ -72,7 +72,7 @@ impl MediaSessionBackend for WindowsSmtcBackend {
             match action {
                 "play" => { let _ = session.TryPlayAsync().map(|a| a.get()); },
                 "pause" => { let _ = session.TryPauseAsync().map(|a| a.get()); },
-                "toggle" | "toggle-play-pause" => { let _ = session.TryTogglePlayPauseAsync().map(|a| a.get()); },
+                "toggle" | "toggle-play-pause" | "play-pause" => { let _ = session.TryTogglePlayPauseAsync().map(|a| a.get()); },
                 "next" => { let _ = session.TrySkipNextAsync().map(|a| a.get()); },
                 "previous" => { let _ = session.TrySkipPreviousAsync().map(|a| a.get()); },
                 "seek" => {
