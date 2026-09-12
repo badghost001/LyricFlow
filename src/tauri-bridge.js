@@ -174,8 +174,19 @@
     onToggleTaskbarModeTray: (cb) => safeListen('toggle-taskbar-mode-tray', () => cb()),
     onTrayShowSettings: (cb) => safeListen('tray-show-settings', () => cb()),
     onTrayEditWallpaper: (cb) => safeListen('tray-edit-wallpaper', () => cb()),
+    copyToClipboard: (text) => safeInvoke('copy_to_clipboard', { text }, null),
     onShowToast: (cb) => safeListen('show-toast', (payload) => cb(payload)),
-    onNudgeOverlay: (cb) => safeListen('nudge-overlay', (payload) => cb(payload ? payload.dx : 0, payload ? payload.dy : 0)),
+    onNudgeOverlay: (cb) => safeListen('nudge-overlay', (payload) => {
+      let dx = 0, dy = 0;
+      if (Array.isArray(payload)) {
+        dx = payload[0] || 0;
+        dy = payload[1] || 0;
+      } else if (payload && typeof payload === 'object') {
+        dx = payload.dx || 0;
+        dy = payload.dy || 0;
+      }
+      cb(dx, dy);
+    }),
     onLocalPlaybackChange: (cb) => safeListen('local-playback-change', (payload) => cb(payload)),
     onSmtcPlaybackStatus: (cb) => safeListen('smtc-playback-status', (payload) => cb(payload)),
     onCopyActiveLyric: (cb) => safeListen('copy-active-lyric', () => cb()),

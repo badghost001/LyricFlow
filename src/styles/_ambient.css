@@ -24,7 +24,22 @@
   will-change: transform;
   contain: strict;
   pointer-events: none;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
 }
+
+body:not(.is-playing) .glow-orb,
+body.app-paused .glow-orb,
+body:not(.is-playing) .ambient-glow,
+body.app-paused .ambient-glow {
+  animation-play-state: paused !important;
+  display: none !important;
+}
+
+body.window-blurred .glow-orb {
+  animation-play-state: paused !important;
+}
+
 
 .orb-1 {
   width: 50vw;

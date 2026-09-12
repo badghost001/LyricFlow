@@ -11,12 +11,69 @@ use tauri::{
 use std::time::Duration;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
+use tauri_plugin_global_shortcut::GlobalShortcutExt;
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
-        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, shortcut, event| {
+                    if event.state() == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                        let text = format!("{:?}", shortcut).to_lowercase();
+                        if text.contains("shift") && text.contains("keyl") {
+                            let _ = app.emit("toggle-click-through-shortcut", ());
+                        } else if text.contains("shift") && text.contains("keyc") {
+                            let _ = app.emit("copy-active-lyric", ());
+                        } else if text.contains("shift") && text.contains("keys") {
+                            let _ = app.emit("share-active-lyric", ());
+                        } else if text.contains("shift") && text.contains("arrowleft") {
+                            let _ = app.emit("nudge-overlay", serde_json::json!({ "dx": -2, "dy": 0 }));
+                        } else if text.contains("shift") && text.contains("arrowright") {
+                            let _ = app.emit("nudge-overlay", serde_json::json!({ "dx": 2, "dy": 0 }));
+                        } else if text.contains("shift") && text.contains("arrowup") {
+                            let _ = app.emit("nudge-overlay", serde_json::json!({ "dx": 0, "dy": -2 }));
+                        } else if text.contains("shift") && text.contains("arrowdown") {
+                            let _ = app.emit("nudge-overlay", serde_json::json!({ "dx": 0, "dy": 2 }));
+                        } else if text.contains("mediaplaypause") || (text.contains("alt") && text.contains("space")) {
+                            let _ = app.emit("tray-playback-control", "play-pause");
+                            media::get_platform_backend().trigger_control("play-pause", 0);
+                        } else if text.contains("mediatracknext") || text.contains("medianexttrack") || (text.contains("alt") && text.contains("arrowright")) {
+                            let _ = app.emit("tray-playback-control", "next");
+                            media::get_platform_backend().trigger_control("next", 0);
+                        } else if text.contains("mediatrackprevious") || text.contains("mediaprevioustrack") || (text.contains("alt") && text.contains("arrowleft")) {
+                            let _ = app.emit("tray-playback-control", "previous");
+                            media::get_platform_backend().trigger_control("previous", 0);
+                        }
+                    }
+                })
+                .build(),
+        )
         .setup(|app| {
             let app_handle = app.handle().clone();
+
+            // Register Global Shortcuts
+            let shortcuts = [
+                "ctrl+shift+l",
+                "ctrl+shift+c",
+                "ctrl+shift+s",
+                "ctrl+shift+left",
+                "ctrl+shift+right",
+                "ctrl+shift+up",
+                "ctrl+shift+down",
+                "mediaplaypause",
+                "mediatracknext",
+                "mediatrackprevious",
+                "ctrl+alt+space",
+                "ctrl+alt+right",
+                "ctrl+alt+left",
+            ];
+            for sc_str in &shortcuts {
+                if let Ok(sc) = sc_str.parse::<tauri_plugin_global_shortcut::Shortcut>() {
+                    let _ = app.global_shortcut().register(sc);
+                }
+            }
+
 
             // Build System Tray
             let show_item = MenuItem::with_id(app, "show_main", "Show LyricFlow", true, None::<&str>)?;
@@ -126,15 +183,15 @@ pub fn run() {
                 })
                 .build(app)?;
 
-            // Windows: Enable WS_MINIMIZEBOX so borderless window minimizes and restores cleanly via taskbar
+            // Windows: Enable WS_MINIMIZEBOX & WS_SYSMENU so borderless window minimizes and restores cleanly via taskbar
             #[cfg(target_os = "windows")]
             {
                 if let Some(main_win) = app.get_webview_window("main") {
                     if let Ok(hwnd) = main_win.hwnd() {
-                        use windows::Win32::UI::WindowsAndMessaging::{GetWindowLongW, SetWindowLongW, GWL_STYLE, WS_MINIMIZEBOX};
+                        use windows::Win32::UI::WindowsAndMessaging::{GetWindowLongW, SetWindowLongW, GWL_STYLE, WS_MINIMIZEBOX, WS_SYSMENU};
                         unsafe {
                             let style = GetWindowLongW(windows::Win32::Foundation::HWND(hwnd.0 as _), GWL_STYLE);
-                            SetWindowLongW(windows::Win32::Foundation::HWND(hwnd.0 as _), GWL_STYLE, style | (WS_MINIMIZEBOX.0 as i32));
+                            SetWindowLongW(windows::Win32::Foundation::HWND(hwnd.0 as _), GWL_STYLE, style | (WS_MINIMIZEBOX.0 as i32) | (WS_SYSMENU.0 as i32));
                         }
                     }
                 }
@@ -195,6 +252,7 @@ pub fn run() {
             window::set_click_through,
             window::set_always_on_top,
             window::minimize_app,
+            window::copy_to_clipboard,
             window::close_app,
             window::set_taskbar_mode,
             window::set_edge_glow,
@@ -221,4 +279,5 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running LyricFlow application");
 }
+
 

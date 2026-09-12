@@ -16,7 +16,29 @@ pub fn minimize_app(window: WebviewWindow) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn copy_to_clipboard(text: String) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        use std::process::Command;
+        let mut child = Command::new("powershell")
+            .args(["-NoProfile", "-Command", "$input | Set-Clipboard"])
+            .stdin(std::process::Stdio::piped())
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        if let Some(mut stdin) = child.stdin.take() {
+            use std::io::Write;
+            let _ = stdin.write_all(text.as_bytes());
+        }
+        let _ = child.wait();
+        return Ok(());
+    }
+    #[allow(unreachable_code)]
+    Ok(())
+}
+
+#[tauri::command]
 pub fn close_app(app: AppHandle) -> Result<(), String> {
+
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.hide();
     }
