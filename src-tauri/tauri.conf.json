@@ -57,6 +57,11 @@
   "bundle": {
     "active": true,
     "targets": ["nsis", "appimage", "deb"],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
