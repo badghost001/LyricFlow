@@ -16,6 +16,7 @@ use tauri_plugin_global_shortcut::GlobalShortcutExt;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {
@@ -74,6 +75,23 @@ pub fn run() {
                 }
             }
 
+            // Background Auto-Updater (checks 15s after startup, identical to Electron behavior)
+            let updater_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                use tauri_plugin_updater::UpdaterExt;
+                tokio::time::sleep(std::time::Duration::from_secs(15)).await;
+                if let Ok(updater) = updater_handle.updater() {
+                    if let Ok(Some(update)) = updater.check().await {
+                        let _ = updater_handle.emit("show-toast", format!("Downloading LyricFlow update v{}...", update.version));
+                        let mut downloaded = 0;
+                        if let Ok(_) = update.download_and_install(|chunk_len, _| {
+                            downloaded += chunk_len;
+                        }, || {}).await {
+                            let _ = updater_handle.emit("update-downloaded", ());
+                        }
+                    }
+                }
+            });
 
             // Build System Tray
             let show_item = MenuItem::with_id(app, "show_main", "Show LyricFlow", true, None::<&str>)?;
@@ -254,6 +272,7 @@ pub fn run() {
             window::minimize_app,
             window::copy_to_clipboard,
             window::close_app,
+            window::check_for_updates,
             window::set_taskbar_mode,
             window::set_edge_glow,
             window::set_wallpaper_mode,

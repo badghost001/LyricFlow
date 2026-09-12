@@ -37,6 +37,17 @@ pub fn copy_to_clipboard(text: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub async fn check_for_updates(app: AppHandle) -> Result<Option<String>, String> {
+    use tauri_plugin_updater::UpdaterExt;
+    if let Ok(updater) = app.updater() {
+        if let Ok(Some(update)) = updater.check().await {
+            return Ok(Some(update.version));
+        }
+    }
+    Ok(None)
+}
+
+#[tauri::command]
 pub fn close_app(app: AppHandle) -> Result<(), String> {
 
     if let Some(w) = app.get_webview_window("main") {

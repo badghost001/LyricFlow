@@ -2513,6 +2513,12 @@ function setupUIHandlers() {
     });
   }
 
+  if (window.electronAPI.onUpdateDownloaded) {
+    window.electronAPI.onUpdateDownloaded(() => {
+      showToast("Update installed! Restart LyricFlow to apply changes.", 8000, 'success');
+    });
+  }
+
   if (window.electronAPI.onNudgeOverlay) {
     window.electronAPI.onNudgeOverlay((dx, dy) => {
       if (settings.wallpaperMode && settings.wallpaperStyle === 'style3') {

@@ -176,6 +176,7 @@
     onTrayEditWallpaper: (cb) => safeListen('tray-edit-wallpaper', () => cb()),
     copyToClipboard: (text) => safeInvoke('copy_to_clipboard', { text }, null),
     onShowToast: (cb) => safeListen('show-toast', (payload) => cb(payload)),
+    onUpdateDownloaded: (cb) => safeListen('update-downloaded', () => cb()),
     onNudgeOverlay: (cb) => safeListen('nudge-overlay', (payload) => {
       let dx = 0, dy = 0;
       if (Array.isArray(payload)) {
