@@ -8,6 +8,7 @@
     "devUrl": null
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": [
       {
         "label": "main",
@@ -17,7 +18,7 @@
         "height": 560,
         "decorations": false,
         "transparent": true,
-        "alwaysOnTop": true,
+        "alwaysOnTop": false,
         "shadow": false,
         "skipTaskbar": false
       },

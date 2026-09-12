@@ -514,15 +514,17 @@ window.addEventListener("DOMContentLoaded", async () => {
 
     // Stage 3: Config & Auth Verification
     try {
-      config = await window.electronAPI.loadConfig();
+      if (window.electronAPI && typeof window.electronAPI.loadConfig === 'function') {
+        config = await window.electronAPI.loadConfig();
+      } else {
+        config = null;
+      }
     } catch (err) {
       console.error("Failed to load config:", err);
       config = null;
     }
 
     // Stage 4: Instant Launch Transition
-    clearTimeout(safetyTimeout);
-
     if (config) {
       showLyricsScreen();
     } else {
@@ -532,12 +534,15 @@ window.addEventListener("DOMContentLoaded", async () => {
     if (isSpotifyConnected()) {
       checkAndVerifySpotifyConnection().then(() => updateSpotifyUI());
     }
-
-    dismissLoadingScreen();
   } catch (globalErr) {
     console.error("Critical bootstrap error:", globalErr);
+    try {
+      showLoginScreen();
+    } catch (e) {
+      console.error("Error showing login screen in bootstrap fallback:", e);
+    }
+  } finally {
     clearTimeout(safetyTimeout);
-    showLoginScreen();
     dismissLoadingScreen();
   }
 
@@ -2982,7 +2987,9 @@ function showLoginScreen() {
   // Ensure taskbar mode is deactivated visually on logout/login screen
   applyVisualSettings();
   setClickThroughCached(false);
-  window.electronAPI.setClickThrough(false);
+  if (window.electronAPI && typeof window.electronAPI.setClickThrough === 'function') {
+    window.electronAPI.setClickThrough(false);
+  }
 
   if (screenLogin) {
     screenLogin.classList.add("active");

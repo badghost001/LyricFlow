@@ -1,100 +1,182 @@
 /**
  * LyricFlow Tauri Compatibility Bridge
- * Polyfills `window.electronAPI` to seamlessly map frontend calls to Tauri v2 Rust commands.
+ * Polyfills `window.electronAPI`, `window.edgeGlowAPI`, and `window.taskbarAPI`
+ * to seamlessly map frontend calls to Tauri v2 Rust commands.
  */
 (function () {
-  if (!window.__TAURI_INTERNALS__) {
-    // Not running inside Tauri (e.g. running in standard Electron)
-    return;
+  console.log('[LyricFlow Bridge] Initializing Tauri v2 bridge...');
+
+  function getInvoke() {
+    if (typeof window !== 'undefined') {
+      if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === 'function') {
+        return window.__TAURI__.core.invoke;
+      }
+      if (window.__TAURI_INTERNALS__ && typeof window.__TAURI_INTERNALS__.invoke === 'function') {
+        return window.__TAURI_INTERNALS__.invoke;
+      }
+    }
+    return null;
   }
 
-  const { invoke } = window.__TAURI__.core;
-  const { listen, emit } = window.__TAURI__.event;
+  function getEvent() {
+    if (typeof window !== 'undefined' && window.__TAURI__ && window.__TAURI__.event) {
+      return window.__TAURI__.event;
+    }
+    return null;
+  }
+
+  async function safeInvoke(cmd, args = {}, fallback = null) {
+    try {
+      const fn = getInvoke();
+      if (!fn) {
+        return fallback;
+      }
+      return await fn(cmd, args);
+    } catch (err) {
+      console.warn(`[Tauri Bridge] invoke('${cmd}') warning/error:`, err);
+      return fallback;
+    }
+  }
+
+  async function safeEmit(event, payload) {
+    try {
+      const ev = getEvent();
+      if (ev && typeof ev.emit === 'function') {
+        return await ev.emit(event, payload);
+      }
+    } catch (err) {
+      console.warn(`[Tauri Bridge] emit('${event}') warning/error:`, err);
+    }
+  }
 
   const listeners = new Map();
 
-  function registerListener(event, callback) {
-    if (listeners.has(event)) {
-      // Unlisten previous
-      listeners.get(event)();
-      listeners.delete(event);
+  function safeListen(event, callback) {
+    try {
+      const ev = getEvent();
+      if (!ev || typeof ev.listen !== 'function') {
+        // Retry shortly in case Tauri global event API is still initializing
+        setTimeout(() => {
+          const retryEv = getEvent();
+          if (retryEv && typeof retryEv.listen === 'function') {
+            retryEv.listen(event, (e) => {
+              try { callback(e ? e.payload : null); } catch (cbErr) { console.error(`[Tauri Bridge] callback error for '${event}':`, cbErr); }
+            }).then((unlisten) => {
+              listeners.set(event, unlisten);
+            }).catch((e) => console.warn(`[Tauri Bridge] retry listen failed for '${event}':`, e));
+          }
+        }, 150);
+        return;
+      }
+
+      if (listeners.has(event)) {
+        try { listeners.get(event)(); } catch (_) {}
+        listeners.delete(event);
+      }
+
+      ev.listen(event, (e) => {
+        try {
+          callback(e ? e.payload : null);
+        } catch (cbErr) {
+          console.error(`[Tauri Bridge] Error in callback for event '${event}':`, cbErr);
+        }
+      }).then((unlisten) => {
+        listeners.set(event, unlisten);
+      }).catch((listenErr) => {
+        console.warn(`[Tauri Bridge] Failed to listen to '${event}':`, listenErr);
+      });
+    } catch (err) {
+      console.warn(`[Tauri Bridge] safeListen exception for '${event}':`, err);
     }
-    listen(event, (e) => callback(e.payload)).then((unlisten) => {
-      listeners.set(event, unlisten);
-    });
   }
 
   window.electronAPI = {
-    loadConfig: () => invoke('load_config'),
-    saveConfig: (config) => invoke('save_config', { config }),
-    resetConfig: () => invoke('reset_config'),
-    setClickThrough: (ignore) => invoke('set_click_through', { ignore }),
-    syncTaskbarLayout: (layout) => emit('sync-taskbar-layout', layout),
-    setAlwaysOnTop: (alwaysOnTop) => invoke('set_always_on_top', { alwaysOnTop }),
-    setEdgeGlow: (enabled, color) => invoke('set_edge_glow', { enabled, color }),
+    loadConfig: () => safeInvoke('load_config', {}, null),
+    saveConfig: (config) => safeInvoke('save_config', { config }, true),
+    resetConfig: () => safeInvoke('reset_config', {}, null),
+    setClickThrough: (ignore) => safeInvoke('set_click_through', { ignore }, null),
+    syncTaskbarLayout: (layout) => safeEmit('sync-taskbar-layout', layout),
+    setAlwaysOnTop: (alwaysOnTop) => safeInvoke('set_always_on_top', { alwaysOnTop }, null),
+    setEdgeGlow: (enabled, color) => safeInvoke('set_edge_glow', { enabled, color }, null),
     refreshToken: () => Promise.resolve(null),
     startOAuthServer: () => Promise.resolve(null),
-    closeApp: () => invoke('close_app'),
-    minimizeApp: () => invoke('minimize_app'),
+    closeApp: () => safeInvoke('close_app', {}, null),
+    minimizeApp: () => safeInvoke('minimize_app', {}, null),
     getTaskbarColor: () => Promise.resolve(null),
-    setTaskbarMode: (enabled, fromTray = false) => invoke('set_taskbar_mode', { enabled, fromTray }),
-    setWallpaperMode: (enabled) => invoke('set_wallpaper_mode', { enabled }),
-    syncTaskbarModeState: (isTaskbarMode) => emit('sync-taskbar-mode-state', isTaskbarMode),
-    syncTaskbarConfig: (config) => emit('sync-taskbar-config', config),
-    startTaskbarDrag: (data) => emit('start-taskbar-drag', data),
-    stopTaskbarDrag: () => emit('stop-taskbar-drag'),
-    updateTaskbarLyric: (data) => emit('update-taskbar-lyric', data),
+    setTaskbarMode: (enabled, fromTray = false) => safeInvoke('set_taskbar_mode', { enabled, fromTray }, null),
+    setWallpaperMode: (enabled) => safeInvoke('set_wallpaper_mode', { enabled }, null),
+    syncTaskbarModeState: (isTaskbarMode) => safeEmit('sync-taskbar-mode-state', isTaskbarMode),
+    syncTaskbarConfig: (config) => safeEmit('sync-taskbar-config', config),
+    startTaskbarDrag: (data) => safeEmit('start-taskbar-drag', data),
+    stopTaskbarDrag: () => safeEmit('stop-taskbar-drag'),
+    updateTaskbarLyric: (data) => safeEmit('update-taskbar-lyric', data),
     showNextUp: () => {},
-    showNowPlayingNotification: (track) => invoke('show_now_playing_notification', { track }),
+    showNowPlayingNotification: (track) => safeInvoke('show_now_playing_notification', { track }, null),
     updateNextUpPlaycount: () => {},
-    getLocalPlayback: () => invoke('get_local_playback'),
-    triggerLocalPlaybackControl: (action, position = 0) => invoke('trigger_playback_control', { action, positionMs: position }),
+    getLocalPlayback: () => safeInvoke('get_local_playback', {}, null),
+    triggerLocalPlaybackControl: (action, position = 0) =>
+      safeInvoke('trigger_playback_control', { action, positionMs: position }, false),
     selectBackgroundFile: () => Promise.resolve(null),
     setFullscreenLyrics: () => {},
     getAutoLaunch: () => Promise.resolve(false),
     setAutoLaunch: () => Promise.resolve(false),
-    getDesktopWallpaper: () => invoke('get_desktop_wallpaper'),
+    getDesktopWallpaper: () => safeInvoke('get_desktop_wallpaper', {}, null),
     loginViaWeb: () => Promise.resolve(null),
     getAccessToken: () => Promise.resolve(null),
     logout: () => Promise.resolve(),
     lastfmApi: (method, params, apiKey, apiSecret, sessionKey) =>
-      invoke('lastfm_api', { data: { method, params, apiKey, apiSecret, sessionKey } }),
-    getGeniusFact: (artist, track) => invoke('get_genius_fact', { artist, track }),
-    getGeniusAnnotations: (artist, track) => invoke('get_genius_annotations', { artist, track }),
-    fetchGeniusFact: (trackName, artistName) => invoke('fetch_genius_fact', { trackName, artistName }),
-    fetchGeniusLyrics: (trackName, artistName) => invoke('fetch_genius_lyrics', { trackName, artistName }),
-    fetchSpotifyLyrics: (trackId, token) => invoke('fetch_spotify_lyrics', { trackId, token }),
-    fetchNetEaseLyrics: (trackName, artistName) => invoke('fetch_netease_lyrics', { trackName, artistName }),
-    initDiscordRpc: (clientId) => invoke('init_discord_rpc', { clientId }),
-    updateDiscordRpc: (data) => invoke('update_discord_rpc', { data }),
+      safeInvoke('lastfm_api', { data: { method, params, apiKey, apiSecret, sessionKey } }, null),
+    getGeniusFact: (artist, track) => safeInvoke('get_genius_fact', { artist, track }, null),
+    getGeniusAnnotations: (artist, track) => safeInvoke('get_genius_annotations', { artist, track }, null),
+    fetchGeniusFact: (trackName, artistName) => safeInvoke('fetch_genius_fact', { trackName, artistName }, null),
+    fetchGeniusLyrics: (trackName, artistName) => safeInvoke('fetch_genius_lyrics', { trackName, artistName }, null),
+    fetchSpotifyLyrics: (trackId, token) => safeInvoke('fetch_spotify_lyrics', { trackId, token }, null),
+    fetchNetEaseLyrics: (trackName, artistName) => safeInvoke('fetch_netease_lyrics', { trackName, artistName }, null),
+    initDiscordRpc: (clientId) => safeInvoke('init_discord_rpc', { clientId }, null),
+    updateDiscordRpc: (data) => safeInvoke('update_discord_rpc', { data }, null),
     translateText: (text) => Promise.resolve(text),
     fetchMusicNews: () => Promise.resolve([]),
 
     // Event Listeners
-    onToggleClickThrough: (cb) => registerListener('toggle-click-through-shortcut', () => cb()),
-    onWindowRestored: (cb) => registerListener('window-restored', () => cb()),
-    onForceNormalMode: (cb) => registerListener('force-normal-mode', () => cb()),
-    onWallpaperModeState: (cb) => registerListener('set-wallpaper-mode-state', (payload) => cb(payload)),
-    onWallpaperEditStarted: (cb) => registerListener('wallpaper-edit-started', () => cb()),
-    onWallpaperEditEnded: (cb) => registerListener('wallpaper-edit-ended', () => cb()),
-    startWallpaperEdit: () => emit('wallpaper-edit-started'),
-    endWallpaperEdit: () => emit('wallpaper-edit-ended'),
-    onTrayPlaybackControl: (cb) => registerListener('tray-playback-control', (payload) => cb(payload)),
-    onToggleTaskbarModeTray: (cb) => registerListener('toggle-taskbar-mode-tray', () => cb()),
-    onTrayShowSettings: (cb) => registerListener('tray-show-settings', () => cb()),
-    onTrayEditWallpaper: (cb) => registerListener('tray-edit-wallpaper', () => cb()),
-    onShowToast: (cb) => registerListener('show-toast', (payload) => cb(payload)),
-    onNudgeOverlay: (cb) => registerListener('nudge-overlay', (payload) => cb(payload.dx, payload.dy)),
-    onLocalPlaybackChange: (cb) => registerListener('local-playback-change', (payload) => cb(payload)),
-    onSmtcPlaybackStatus: (cb) => registerListener('smtc-playback-status', (payload) => cb(payload)),
-    onCopyActiveLyric: (cb) => registerListener('copy-active-lyric', () => cb()),
-    onShareActiveLyric: (cb) => registerListener('share-active-lyric', () => cb()),
-    onTaskbarModeReady: (cb) => registerListener('taskbar-mode-ready', () => cb()),
-    onTaskbarDragEnded: (cb) => registerListener('taskbar-drag-ended', (payload) => cb(payload)),
-    onUpdateTaskbarLyric: (cb) => registerListener('update-taskbar-lyric', (payload) => cb(payload)),
-    onSyncTaskbarConfig: (cb) => registerListener('sync-taskbar-config', (payload) => cb(payload)),
-    onTbOffsetSaved: (cb) => registerListener('tb-offset-saved', (payload) => cb(payload)),
+    onToggleClickThrough: (cb) => safeListen('toggle-click-through-shortcut', () => cb()),
+    onWindowRestored: (cb) => safeListen('window-restored', () => cb()),
+    onForceNormalMode: (cb) => safeListen('force-normal-mode', () => cb()),
+    onWallpaperModeState: (cb) => safeListen('set-wallpaper-mode-state', (payload) => cb(payload)),
+    onWallpaperEditStarted: (cb) => safeListen('wallpaper-edit-started', () => cb()),
+    onWallpaperEditEnded: (cb) => safeListen('wallpaper-edit-ended', () => cb()),
+    startWallpaperEdit: () => safeEmit('wallpaper-edit-started'),
+    endWallpaperEdit: () => safeEmit('wallpaper-edit-ended'),
+    onTrayPlaybackControl: (cb) => safeListen('tray-playback-control', (payload) => cb(payload)),
+    onToggleTaskbarModeTray: (cb) => safeListen('toggle-taskbar-mode-tray', () => cb()),
+    onTrayShowSettings: (cb) => safeListen('tray-show-settings', () => cb()),
+    onTrayEditWallpaper: (cb) => safeListen('tray-edit-wallpaper', () => cb()),
+    onShowToast: (cb) => safeListen('show-toast', (payload) => cb(payload)),
+    onNudgeOverlay: (cb) => safeListen('nudge-overlay', (payload) => cb(payload ? payload.dx : 0, payload ? payload.dy : 0)),
+    onLocalPlaybackChange: (cb) => safeListen('local-playback-change', (payload) => cb(payload)),
+    onSmtcPlaybackStatus: (cb) => safeListen('smtc-playback-status', (payload) => cb(payload)),
+    onCopyActiveLyric: (cb) => safeListen('copy-active-lyric', () => cb()),
+    onShareActiveLyric: (cb) => safeListen('share-active-lyric', () => cb()),
+    onTaskbarModeReady: (cb) => safeListen('taskbar-mode-ready', () => cb()),
+    onTaskbarDragEnded: (cb) => safeListen('taskbar-drag-ended', (payload) => cb(payload)),
+    onUpdateTaskbarLyric: (cb) => safeListen('update-taskbar-lyric', (payload) => cb(payload)),
+    onSyncTaskbarConfig: (cb) => safeListen('sync-taskbar-config', (payload) => cb(payload)),
+    onTbOffsetSaved: (cb) => safeListen('tb-offset-saved', (payload) => cb(payload)),
   };
 
-  console.log('[LyricFlow] Tauri v2 bridge initialized successfully.');
+  // Taskbar window bridge polyfill
+  window.taskbarAPI = {
+    setClickThrough: (ignore) => safeInvoke('set_click_through', { ignore }),
+    saveOffset: (x) => safeEmit('tb-save-offset', x),
+    openApp: () => safeInvoke('set_taskbar_mode', { enabled: false }),
+    onUpdateLyric: (cb) => safeListen('update-taskbar-lyric', (data) => cb(data)),
+    onSyncConfig: (cb) => safeListen('sync-taskbar-config', (cfg) => cb(cfg)),
+  };
+
+  // Edge Glow window bridge polyfill
+  window.edgeGlowAPI = {
+    onUpdateColor: (cb) => safeListen('update-edge-glow-color', (color) => cb(color)),
+    getDesktopSources: () => Promise.resolve([]),
+  };
+
+  console.log('[LyricFlow Bridge] All bridge APIs initialized successfully.');
 })();
