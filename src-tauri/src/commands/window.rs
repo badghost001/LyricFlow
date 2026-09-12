@@ -17,7 +17,9 @@ pub fn minimize_app(window: WebviewWindow) -> Result<(), String> {
 
 #[tauri::command]
 pub fn close_app(app: AppHandle) -> Result<(), String> {
-    app.exit(0);
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.hide();
+    }
     Ok(())
 }
 

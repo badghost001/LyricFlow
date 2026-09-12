@@ -2552,8 +2552,72 @@ function setupUIHandlers() {
     });
   }
   if (timingStatusBadge) {
-    timingStatusBadge.addEventListener("click", () => {
-      cycleAlternativeLyrics();
+    timingStatusBadge.addEventListener("click", (e) => {
+      if (e.ctrlKey || e.altKey) {
+        cycleAlternativeLyrics();
+      } else {
+        userScrolling = false;
+        if (userScrollTimeout) {
+          clearTimeout(userScrollTimeout);
+          userScrollTimeout = null;
+        }
+        hideResyncButton();
+        const syncProgress = currentProgress + (settings.syncOffsetMs || 0);
+        let targetIndex = -1;
+        for (let i = 0; i < lyrics.length; i++) {
+          if (lyrics[i].timeMs <= syncProgress) {
+            targetIndex = i;
+          } else {
+            break;
+          }
+        }
+        if (targetIndex === -1 && lyrics.length > 0) targetIndex = 0;
+        activeLineIndex = -1;
+        scrollLyrics(targetIndex);
+        showToast("Synced to current playback", 2000, 'success');
+      }
+    });
+  }
+
+  const syncResumeBtn = document.getElementById("sync-resume-btn");
+  if (syncResumeBtn) {
+    syncResumeBtn.addEventListener("click", () => {
+      userScrolling = false;
+      if (userScrollTimeout) {
+        clearTimeout(userScrollTimeout);
+        userScrollTimeout = null;
+      }
+      syncResumeBtn.style.display = 'none';
+      const syncProgress = currentProgress + (settings.syncOffsetMs || 0);
+      let targetIndex = -1;
+      for (let i = 0; i < lyrics.length; i++) {
+        if (lyrics[i].timeMs <= syncProgress) targetIndex = i;
+        else break;
+      }
+      if (targetIndex === -1 && lyrics.length > 0) targetIndex = 0;
+      activeLineIndex = -1;
+      scrollLyrics(targetIndex);
+    });
+  }
+
+  const btnSyncLyrics = document.getElementById("btn-sync-lyrics");
+  if (btnSyncLyrics) {
+    btnSyncLyrics.addEventListener("click", () => {
+      userScrolling = false;
+      if (userScrollTimeout) {
+        clearTimeout(userScrollTimeout);
+        userScrollTimeout = null;
+      }
+      btnSyncLyrics.style.display = 'none';
+      const syncProgress = currentProgress + (settings.syncOffsetMs || 0);
+      let targetIndex = -1;
+      for (let i = 0; i < lyrics.length; i++) {
+        if (lyrics[i].timeMs <= syncProgress) targetIndex = i;
+        else break;
+      }
+      if (targetIndex === -1 && lyrics.length > 0) targetIndex = 0;
+      activeLineIndex = -1;
+      scrollLyrics(targetIndex);
     });
   }
 
@@ -3027,7 +3091,7 @@ function showLyricsScreen() {
 function startPolling() {
   stopPolling();
   pollSpotifyPlayback(); // Initial poll
-  const interval = (config && config.localMode) ? 200 : 1500;
+  const interval = (config && config.localMode) ? 1000 : 1500;
   pollingIntervalId = setInterval(pollSpotifyPlayback, interval);
 }
 
@@ -3131,10 +3195,13 @@ async function pollSpotifyPlayback(_retried = false) {
   }
 }
 
+let localEmptyPollCount = 0;
+
 async function pollLocalPlayback() {
   try {
     const data = await window.electronAPI.getLocalPlayback();
     if (data && data.item) {
+      localEmptyPollCount = 0;
       if (typeof lastSpotifyPlaybackData !== 'undefined' && lastSpotifyPlaybackData && lastSpotifyPlaybackData.item) {
         const localTitle = data.item.name.toLowerCase().trim();
         const spotTitle = lastSpotifyPlaybackData.item.name.toLowerCase().trim();
@@ -3153,11 +3220,24 @@ async function pollLocalPlayback() {
       }
       handlePlaybackData(data);
     } else {
-      handleEmptyPlayback();
+      localEmptyPollCount++;
+      if (localEmptyPollCount >= 5) {
+        handleEmptyPlayback();
+      } else {
+        // Transient pause or track switch: preserve lyrics on screen
+        isPlaying = false;
+        if (btnPlaySvg) btnPlaySvg.style.display = 'block';
+        if (btnPauseSvg) btnPauseSvg.style.display = 'none';
+        handleTaskbarPauseAutoHide(true);
+        updateAutoHideState();
+      }
     }
   } catch (err) {
     console.error("Failed to poll local playback:", err);
-    handleEmptyPlayback();
+    localEmptyPollCount++;
+    if (localEmptyPollCount >= 5) {
+      handleEmptyPlayback();
+    }
   }
 }
 
@@ -4668,10 +4748,19 @@ function showResyncButton() {
       }
       btn.style.opacity = '0';
       btn.style.pointerEvents = 'none';
-      // Force re-center on current active line
-      const idx = activeLineIndex;
+      // Accurately recalculate active lyric line from current song playback time
+      const syncProgress = currentProgress + (settings.syncOffsetMs || 0);
+      let targetIndex = -1;
+      for (let i = 0; i < lyrics.length; i++) {
+        if (lyrics[i].timeMs <= syncProgress) {
+          targetIndex = i;
+        } else {
+          break;
+        }
+      }
+      if (targetIndex === -1 && lyrics.length > 0) targetIndex = 0;
       activeLineIndex = -1;
-      scrollLyrics(idx);
+      scrollLyrics(targetIndex);
     });
     document.body.appendChild(btn);
   }

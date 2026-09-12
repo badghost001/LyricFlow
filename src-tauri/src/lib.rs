@@ -19,6 +19,7 @@ pub fn run() {
             let app_handle = app.handle().clone();
 
             // Build System Tray
+            let show_item = MenuItem::with_id(app, "show_main", "Show LyricFlow", true, None::<&str>)?;
             let toggle_item = MenuItem::with_id(app, "toggle", "Show / Hide", true, None::<&str>)?;
             let taskbar_item = MenuItem::with_id(app, "taskbar", "Taskbar Mode", true, None::<&str>)?;
             let play_item = MenuItem::with_id(app, "play", "Play / Pause", true, None::<&str>)?;
@@ -30,6 +31,7 @@ pub fn run() {
             let menu = Menu::with_items(
                 app,
                 &[
+                    &show_item,
                     &toggle_item,
                     &taskbar_item,
                     &play_item,
@@ -44,12 +46,26 @@ pub fn run() {
                 .menu(&menu)
                 .on_menu_event(|app, event| {
                     match event.id.as_ref() {
+                        "show_main" => {
+                            if let Some(w) = app.get_webview_window("main") {
+                                let _ = w.unminimize();
+                                let _ = w.show();
+                                let _ = w.set_focus();
+                            }
+                        }
                         "toggle" => {
                             if let Some(w) = app.get_webview_window("main") {
-                                if w.is_visible().unwrap_or(false) {
+                                let is_minimized = w.is_minimized().unwrap_or(false);
+                                let is_visible = w.is_visible().unwrap_or(false);
+                                if is_minimized {
+                                    let _ = w.unminimize();
+                                    let _ = w.show();
+                                    let _ = w.set_focus();
+                                } else if is_visible {
                                     let _ = w.hide();
                                 } else {
                                     let _ = w.show();
+                                    let _ = w.unminimize();
                                     let _ = w.set_focus();
                                 }
                             }
@@ -71,6 +87,7 @@ pub fn run() {
                         }
                         "settings" => {
                             if let Some(w) = app.get_webview_window("main") {
+                                let _ = w.unminimize();
                                 let _ = w.show();
                                 let _ = w.set_focus();
                             }
@@ -91,10 +108,17 @@ pub fn run() {
                     {
                         let app = tray.app_handle();
                         if let Some(w) = app.get_webview_window("main") {
-                            if w.is_visible().unwrap_or(false) {
+                            let is_minimized = w.is_minimized().unwrap_or(false);
+                            let is_visible = w.is_visible().unwrap_or(false);
+                            if is_minimized {
+                                let _ = w.unminimize();
+                                let _ = w.show();
+                                let _ = w.set_focus();
+                            } else if is_visible {
                                 let _ = w.hide();
                             } else {
                                 let _ = w.show();
+                                let _ = w.unminimize();
                                 let _ = w.set_focus();
                             }
                         }
@@ -102,7 +126,21 @@ pub fn run() {
                 })
                 .build(app)?;
 
-            // Background Media Polling Loop
+            // Windows: Enable WS_MINIMIZEBOX so borderless window minimizes and restores cleanly via taskbar
+            #[cfg(target_os = "windows")]
+            {
+                if let Some(main_win) = app.get_webview_window("main") {
+                    if let Ok(hwnd) = main_win.hwnd() {
+                        use windows::Win32::UI::WindowsAndMessaging::{GetWindowLongW, SetWindowLongW, GWL_STYLE, WS_MINIMIZEBOX};
+                        unsafe {
+                            let style = GetWindowLongW(windows::Win32::Foundation::HWND(hwnd.0 as _), GWL_STYLE);
+                            SetWindowLongW(windows::Win32::Foundation::HWND(hwnd.0 as _), GWL_STYLE, style | (WS_MINIMIZEBOX.0 as i32));
+                        }
+                    }
+                }
+            }
+
+            // Background Media Polling Loop (Throttled to 1000ms to eliminate CPU spikes)
             let bg_handle = app_handle.clone();
             tauri::async_runtime::spawn(async move {
                 let mut last_track_id = String::new();
@@ -110,7 +148,7 @@ pub fn run() {
                 let mut last_rate = 1.0;
 
                 loop {
-                    tokio::time::sleep(Duration::from_millis(250)).await;
+                    tokio::time::sleep(Duration::from_millis(1000)).await;
 
                     let backend = media::get_platform_backend();
                     if let Some(track) = backend.poll_playback() {

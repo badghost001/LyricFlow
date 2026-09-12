@@ -1,10 +1,14 @@
 use crate::models::TrackMetadata;
 use super::MediaSessionBackend;
+use std::sync::Mutex;
 use windows::Media::Control::{
     GlobalSystemMediaTransportControlsSession,
     GlobalSystemMediaTransportControlsSessionManager,
     GlobalSystemMediaTransportControlsSessionPlaybackStatus,
 };
+
+static CACHED_MANAGER: Mutex<Option<GlobalSystemMediaTransportControlsSessionManager>> = Mutex::new(None);
+static CACHED_TRACK: Mutex<Option<TrackMetadata>> = Mutex::new(None);
 
 pub struct WindowsSmtcBackend;
 
@@ -14,7 +18,17 @@ impl WindowsSmtcBackend {
     }
 
     fn get_manager() -> Option<GlobalSystemMediaTransportControlsSessionManager> {
-        GlobalSystemMediaTransportControlsSessionManager::RequestAsync().ok()?.get().ok()
+        let mut lock = CACHED_MANAGER.lock().unwrap();
+        if let Some(ref manager) = *lock {
+            return Some(manager.clone());
+        }
+        if let Ok(async_op) = GlobalSystemMediaTransportControlsSessionManager::RequestAsync() {
+            if let Ok(manager) = async_op.get() {
+                *lock = Some(manager.clone());
+                return Some(manager);
+            }
+        }
+        None
     }
 
     fn get_current_session() -> Option<GlobalSystemMediaTransportControlsSession> {
@@ -25,23 +39,29 @@ impl WindowsSmtcBackend {
 
 impl MediaSessionBackend for WindowsSmtcBackend {
     fn poll_playback(&self) -> Option<TrackMetadata> {
-        let session = Self::get_current_session()?;
-        let props = session.TryGetMediaPropertiesAsync().ok()?.get().ok()?;
-        let info = session.GetPlaybackInfo().ok()?;
+        let session = match Self::get_current_session() {
+            Some(s) => s,
+            None => {
+                // If session is temporarily lost (e.g. Spotify pause/idle), maintain cached track with is_playing = false
+                let mut lock = CACHED_TRACK.lock().unwrap();
+                if let Some(ref mut track) = *lock {
+                    track.is_playing = false;
+                    return Some(track.clone());
+                }
+                return None;
+            }
+        };
+
+        let info = session.GetPlaybackInfo().ok();
         let timeline = session.GetTimelineProperties().ok();
 
-        let title = props.Title().ok()?.to_string();
-        if title.is_empty() {
-            return None;
-        }
+        let is_playing = info.as_ref()
+            .and_then(|i| i.PlaybackStatus().ok())
+            .map(|s| s == GlobalSystemMediaTransportControlsSessionPlaybackStatus::Playing)
+            .unwrap_or(false);
 
-        let artist = props.Artist().ok().map(|s| s.to_string()).unwrap_or_default();
-        let album = props.AlbumTitle().ok().map(|s| s.to_string()).unwrap_or_default();
-
-        let status = info.PlaybackStatus().ok()?;
-        let is_playing = status == GlobalSystemMediaTransportControlsSessionPlaybackStatus::Playing;
-
-        let playback_rate = info.PlaybackRate().ok()
+        let playback_rate = info.as_ref()
+            .and_then(|i| i.PlaybackRate().ok())
             .and_then(|r| r.Value().ok())
             .unwrap_or(1.0);
 
@@ -53,7 +73,34 @@ impl MediaSessionBackend for WindowsSmtcBackend {
             (0, 0)
         };
 
-        Some(TrackMetadata {
+        // Fetch track properties from SMTC session
+        let (title, artist, album) = if let Ok(async_op) = session.TryGetMediaPropertiesAsync() {
+            if let Ok(props) = async_op.get() {
+                let t = props.Title().ok().map(|s| s.to_string()).unwrap_or_default();
+                let a = props.Artist().ok().map(|s| s.to_string()).unwrap_or_default();
+                let alb = props.AlbumTitle().ok().map(|s| s.to_string()).unwrap_or_default();
+                (t, a, alb)
+            } else {
+                (String::new(), String::new(), String::new())
+            }
+        } else {
+            (String::new(), String::new(), String::new())
+        };
+
+        if title.is_empty() {
+            // If title is empty or transiently unavailable, return cached track
+            let mut lock = CACHED_TRACK.lock().unwrap();
+            if let Some(ref mut track) = *lock {
+                track.is_playing = is_playing;
+                if position_ms > 0 {
+                    track.position_ms = position_ms;
+                }
+                return Some(track.clone());
+            }
+            return None;
+        }
+
+        let metadata = TrackMetadata {
             title,
             artist,
             album,
@@ -64,7 +111,12 @@ impl MediaSessionBackend for WindowsSmtcBackend {
             art_url: None,
             source: "windows-smtc".to_string(),
             taskbar_hidden: false,
-        })
+        };
+
+        let mut lock = CACHED_TRACK.lock().unwrap();
+        *lock = Some(metadata.clone());
+
+        Some(metadata)
     }
 
     fn trigger_control(&self, action: &str, position_ms: u64) {
