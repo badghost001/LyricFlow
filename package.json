@@ -7,7 +7,10 @@
   "scripts": {
     "start": "electron . --no-sandbox",
     "build:win": "electron-builder --win",
-    "publish": "electron-builder --win -p always"
+    "publish": "electron-builder --win -p always",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
   },
   "keywords": [],
   "author": "badghost",
