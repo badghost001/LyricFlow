@@ -5,7 +5,6 @@ use windows::Media::Control::{
     GlobalSystemMediaTransportControlsSessionManager,
     GlobalSystemMediaTransportControlsSessionPlaybackStatus,
 };
-use windows::Foundation::TimeSpan;
 
 pub struct WindowsSmtcBackend;
 
@@ -77,8 +76,8 @@ impl MediaSessionBackend for WindowsSmtcBackend {
                 "next" => { let _ = session.TrySkipNextAsync().map(|a| a.get()); },
                 "previous" => { let _ = session.TrySkipPreviousAsync().map(|a| a.get()); },
                 "seek" => {
-                    let ts = TimeSpan { Duration: (position_ms as i64) * 10_000 };
-                    let _ = session.TryChangePlaybackPositionAsync(ts).map(|a| a.get());
+                    let requested_pos = (position_ms as i64) * 10_000;
+                    let _ = session.TryChangePlaybackPositionAsync(requested_pos).map(|a| a.get());
                 },
                 _ => {}
             }
