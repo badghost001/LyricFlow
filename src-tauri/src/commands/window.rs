@@ -32,6 +32,20 @@ pub fn copy_to_clipboard(text: String) -> Result<(), String> {
         let _ = child.wait();
         return Ok(());
     }
+    #[cfg(target_os = "macos")]
+    {
+        use std::process::Command;
+        let mut child = Command::new("pbcopy")
+            .stdin(std::process::Stdio::piped())
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        if let Some(mut stdin) = child.stdin.take() {
+            use std::io::Write;
+            let _ = stdin.write_all(text.as_bytes());
+        }
+        let _ = child.wait();
+        return Ok(());
+    }
     #[allow(unreachable_code)]
     Ok(())
 }
@@ -72,6 +86,17 @@ pub fn set_taskbar_mode(app: AppHandle, enabled: bool, _from_tray: Option<bool>)
                     let h = (44.0 * scale) as u32;
                     let _ = tb_win.set_size(tauri::PhysicalSize::new(size.width, h));
                     let _ = tb_win.set_position(tauri::PhysicalPosition::new(0, size.height as i32 - h as i32));
+                }
+            }
+            #[cfg(target_os = "macos")]
+            {
+                if let Ok(Some(monitor)) = tb_win.primary_monitor() {
+                    let size = monitor.size();
+                    let scale = monitor.scale_factor();
+                    let h = (38.0 * scale) as u32;
+                    // On macOS: Dock directly beneath the Menu Bar (y = 30px) or above the dock
+                    let _ = tb_win.set_size(tauri::PhysicalSize::new(size.width, h));
+                    let _ = tb_win.set_position(tauri::PhysicalPosition::new(0, (28.0 * scale) as i32));
                 }
             }
             let _ = tb_win.show();

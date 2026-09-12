@@ -90,6 +90,19 @@ pub fn get_desktop_wallpaper() -> Result<Option<String>, String> {
             }
         }
     }
+    #[cfg(target_os = "macos")]
+    {
+        use std::process::Command;
+        let out = Command::new("osascript")
+            .args(["-e", "tell application \"System Events\" to get picture of current desktop"])
+            .output();
+        if let Ok(o) = out {
+            let path = String::from_utf8_lossy(&o.stdout).trim().to_string();
+            if !path.is_empty() && std::path::Path::new(&path).exists() {
+                return Ok(Some(path));
+            }
+        }
+    }
 
     Ok(None)
 }
@@ -101,6 +114,17 @@ pub fn get_auto_launch() -> Result<bool, String> {
         use std::process::Command;
         let out = Command::new("powershell")
             .args(["-NoProfile", "-Command", "if (Get-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run' -Name 'LyricFlow' -ErrorAction SilentlyContinue) { 'true' } else { 'false' }"])
+            .output();
+        if let Ok(o) = out {
+            let s = String::from_utf8_lossy(&o.stdout).trim().to_string();
+            return Ok(s == "true");
+        }
+    }
+    #[cfg(target_os = "macos")]
+    {
+        use std::process::Command;
+        let out = Command::new("osascript")
+            .args(["-e", "tell application \"System Events\" to get name of every login item contains \"LyricFlow\""])
             .output();
         if let Ok(o) = out {
             let s = String::from_utf8_lossy(&o.stdout).trim().to_string();
@@ -123,6 +147,20 @@ pub fn set_auto_launch(enabled: bool) -> Result<bool, String> {
             }
         } else {
             let _ = Command::new("powershell").args(["-NoProfile", "-Command", "Remove-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run' -Name 'LyricFlow' -ErrorAction SilentlyContinue"]).output();
+        }
+    }
+    #[cfg(target_os = "macos")]
+    {
+        use std::process::Command;
+        if enabled {
+            if let Ok(exe) = std::env::current_exe() {
+                let path = exe.to_string_lossy().to_string();
+                let script = format!("tell application \"System Events\" to make login item at end with properties {{name:\"LyricFlow\", path:\"{}\", hidden:false}}", path);
+                let _ = Command::new("osascript").args(["-e", &script]).output();
+            }
+        } else {
+            let script = "tell application \"System Events\" to delete (every login item whose name is \"LyricFlow\")";
+            let _ = Command::new("osascript").args(["-e", script]).output();
         }
     }
     Ok(enabled)

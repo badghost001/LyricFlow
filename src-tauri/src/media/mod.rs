@@ -1,6 +1,9 @@
 #[cfg(target_os = "windows")]
 pub mod windows_smtc;
 
+#[cfg(target_os = "macos")]
+pub mod macos;
+
 use crate::models::TrackMetadata;
 
 pub trait MediaSessionBackend: Send + Sync {
@@ -14,7 +17,12 @@ pub fn get_platform_backend() -> Box<dyn MediaSessionBackend> {
         Box::new(windows_smtc::WindowsSmtcBackend::new())
     }
 
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
+    {
+        Box::new(macos::MacOSMediaBackend::new())
+    }
+
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     {
         Box::new(FallbackBackend)
     }
