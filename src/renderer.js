@@ -2441,7 +2441,7 @@ function setupUIHandlers() {
     if (data.isPlaying) {
       // Song resumed: restart the internal clock from current frozen position
       if (!isPlaying) {
-        if (typeof data.position === 'number') {
+        if (typeof data.position === 'number' && Math.abs(data.position - currentProgress) > 2500) {
           lastPollProgress = data.position;
           currentProgress = data.position;
         } else {
@@ -2458,12 +2458,7 @@ function setupUIHandlers() {
     } else {
       // Song paused: freeze internal clock exactly here, right now
       if (isPlaying) {
-        if (typeof data.position === 'number') {
-          lastPollProgress = data.position;
-          currentProgress = data.position;
-        } else {
-          lastPollProgress = currentProgress;
-        }
+        lastPollProgress = currentProgress;
         lastPollTimestamp = Date.now();
         isPlaying = false;
         if (btnPlaySvg) btnPlaySvg.style.display = 'block';
@@ -3181,9 +3176,26 @@ async function pollLocalPlayback() {
            if (data.playback_rate) {
               lastSpotifyPlaybackData.playback_rate = data.playback_rate;
            }
+           if (!data.is_playing && lastSpotifyPlaybackData.item.id === currentTrackId) {
+             isPlaying = false;
+             if (btnPlaySvg) btnPlaySvg.style.display = 'block';
+             if (btnPauseSvg) btnPauseSvg.style.display = 'none';
+             handleTaskbarPauseAutoHide(true);
+             updateAutoHideState();
+             return;
+           }
            handlePlaybackData(lastSpotifyPlaybackData);
            return;
         }
+      }
+
+      if (!data.is_playing && data.item.id === currentTrackId) {
+        isPlaying = false;
+        if (btnPlaySvg) btnPlaySvg.style.display = 'block';
+        if (btnPauseSvg) btnPauseSvg.style.display = 'none';
+        handleTaskbarPauseAutoHide(true);
+        updateAutoHideState();
+        return;
       }
       handlePlaybackData(data);
     } else {
@@ -3384,22 +3396,19 @@ async function handlePlaybackData(data) {
     const drift = currentProgress - progressMs;
     const absDrift = Math.abs(drift);
 
-    if (absDrift > 1500) {
+    if (absDrift > 2500) {
       // Hard seek / scrub detected — snap immediately
       lastPollProgress = progressMs;
       lastPollTimestamp = now;
       currentProgress = progressMs;
-    } else if (absDrift > 80) {
-      // Re-anchor lastPollProgress to ground truth progressMs!
-      // This prevents ANY runaway drift.
-      lastPollProgress = progressMs;
-      lastPollTimestamp = now;
-      // Slew currentProgress towards progressMs smoothly
-      currentProgress = currentProgress + (progressMs - currentProgress) * 0.4;
+    } else if (absDrift > 300) {
+      // Smooth clock slewing: gently adjust the clock reference by 15% of the drift
+      // Shifting lastPollTimestamp by (drift * 0.15) pulls the clock into alignment
+      // over several polls without ANY visible sudden jerk, stutter, or backward snap!
+      lastPollTimestamp += (drift * 0.15);
     } else {
-      // Within 80ms tolerance: re-anchor to prevent clock skew accumulation
-      lastPollProgress = progressMs;
-      lastPollTimestamp = now;
+      // Within normal polling jitter (0-300ms):
+      // Keep internal high-precision 60/144 FPS RAF clock running 100% undisturbed!
     }
   } else if (!isZeroReset && !isCurrentlyPlaying) {
     // Song is PAUSED: freeze currentProgress exactly where it is right now.

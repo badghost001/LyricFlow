@@ -281,3 +281,113 @@ pub async fn start_oauth_server(client_id: String, code_verifier: String, _code_
     Ok(config)
 }
 
+#[tauri::command]
+pub async fn login_via_web(app: AppHandle) -> Result<serde_json::Value, String> {
+    use tauri::Manager;
+
+    if let Some(existing) = app.get_webview_window("spotify-login") {
+        let _ = existing.close();
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    }
+
+    let login_url = "https://accounts.spotify.com/en/login?continue=https%3A%2F%2Fopen.spotify.com%2F";
+    let chrome_ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36";
+
+    let login_win = tauri::WebviewWindowBuilder::new(
+        &app,
+        "spotify-login",
+        tauri::WebviewUrl::External(login_url.parse().map_err(|e| format!("{e}"))?),
+    )
+    .title("Login to Spotify")
+    .inner_size(500.0, 720.0)
+    .center()
+    .user_agent(chrome_ua)
+    .build()
+    .map_err(|e| e.to_string())?;
+
+    let _ = login_win.show();
+    let _ = login_win.set_focus();
+
+    let found_sp_dc = std::sync::Arc::new(std::sync::Mutex::new(None::<String>));
+
+    #[cfg(target_os = "windows")]
+    {
+        use windows::core::Interface;
+        use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2_2;
+        use webview2_com::GetCookiesCompletedHandler;
+
+        for _ in 0..750 {
+            tokio::time::sleep(std::time::Duration::from_millis(400)).await;
+
+            let Some(win) = app.get_webview_window("spotify-login") else {
+                break;
+            };
+
+            if found_sp_dc.lock().unwrap().is_some() {
+                break;
+            }
+
+            let sp_dc_clone = found_sp_dc.clone();
+            let _ = win.with_webview(move |webview| {
+                unsafe {
+                    if let Ok(core) = webview.controller().CoreWebView2() {
+                        if let Ok(core2) = core.cast::<ICoreWebView2_2>() {
+                            if let Ok(cookie_mgr) = core2.CookieManager() {
+                                let handler = GetCookiesCompletedHandler::create(Box::new(move |_hr, list| {
+                                    if let Some(cookie_list) = list {
+                                        let mut count = 0u32;
+                                        if cookie_list.Count(&mut count).is_ok() {
+                                            for i in 0..count {
+                                                if let Ok(cookie) = cookie_list.GetValueAtIndex(i) {
+                                                    let mut name_ptr = windows::core::PWSTR::null();
+                                                    let mut val_ptr = windows::core::PWSTR::null();
+                                                    if cookie.Name(&mut name_ptr).is_ok() && cookie.Value(&mut val_ptr).is_ok() {
+                                                        let name = name_ptr.to_string().unwrap_or_default();
+                                                        let val = val_ptr.to_string().unwrap_or_default();
+
+                                                        windows::Win32::System::Com::CoTaskMemFree(Some(name_ptr.0 as *const _));
+                                                        windows::Win32::System::Com::CoTaskMemFree(Some(val_ptr.0 as *const _));
+
+                                                        if name == "sp_dc" && !val.is_empty() {
+                                                            let mut lock = sp_dc_clone.lock().unwrap();
+                                                            if lock.is_none() {
+                                                                *lock = Some(val);
+                                                            }
+                                                            break;
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    Ok(())
+                                }));
+                                let spotify_uri = windows::core::w!("https://open.spotify.com");
+                                let _ = cookie_mgr.GetCookies(spotify_uri, &handler);
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    }
+
+    let captured = found_sp_dc.lock().unwrap().clone();
+    if let Some(sp_dc_val) = captured {
+        if let Some(win) = app.get_webview_window("spotify-login") {
+            let _ = win.close();
+        }
+
+        let config = serde_json::json!({
+            "sp_dc": sp_dc_val,
+            "localMode": false
+        });
+
+        let _ = crate::commands::config::save_config(config.clone());
+        return Ok(config);
+    }
+
+    Ok(serde_json::Value::Null)
+}
+
+

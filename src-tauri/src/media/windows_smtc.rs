@@ -133,8 +133,28 @@ impl MediaSessionBackend for WindowsSmtcBackend {
             .unwrap_or(1.0);
 
         let (position_ms, duration_ms) = if let Some(t) = timeline {
-            let pos = t.Position().map(|p| (p.Duration / 10_000).max(0) as u64).unwrap_or(0);
+            let base_pos = t.Position().map(|p| (p.Duration / 10_000).max(0) as u64).unwrap_or(0);
             let dur = t.EndTime().map(|e| (e.Duration / 10_000).max(0) as u64).unwrap_or(0);
+
+            let pos = if is_playing && playback_rate > 0.0 {
+                if let Ok(last_updated) = t.LastUpdatedTime() {
+                    let now = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default();
+                    // Windows epoch (1601-01-01) is 11,644,473,600 seconds before Unix epoch (1970-01-01)
+                    let now_100ns = (now.as_secs() as i64 + 11_644_473_600) * 10_000_000
+                        + (now.subsec_nanos() as i64 / 100);
+                    let elapsed_100ns = (now_100ns - last_updated.UniversalTime).max(0);
+                    let elapsed_ms = (elapsed_100ns / 10_000) as u64;
+                    let interpolated = base_pos + (elapsed_ms as f64 * playback_rate) as u64;
+                    if dur > 0 { interpolated.min(dur) } else { interpolated }
+                } else {
+                    base_pos
+                }
+            } else {
+                base_pos
+            };
+
             (pos, dur)
         } else {
             (0, 0)

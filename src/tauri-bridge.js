@@ -144,7 +144,7 @@
     getAutoLaunch: () => safeInvoke('get_auto_launch', {}, false),
     setAutoLaunch: (enabled) => safeInvoke('set_auto_launch', { enabled }, false),
     getDesktopWallpaper: () => safeInvoke('get_desktop_wallpaper', {}, null),
-    loginViaWeb: () => Promise.resolve(null),
+    loginViaWeb: () => safeInvoke('login_via_web', {}, null),
     getAccessToken: (spDc) => safeInvoke('get_access_token', { spDc }, null),
     logout: () => safeInvoke('reset_config', {}, null),
     lastfmApi: (method, params, apiKey, apiSecret, sessionKey) =>

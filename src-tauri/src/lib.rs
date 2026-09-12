@@ -293,7 +293,8 @@ pub fn run() {
             integrations::fetch_music_news,
             integrations::get_access_token,
             integrations::refresh_token,
-            integrations::start_oauth_server
+            integrations::start_oauth_server,
+            integrations::login_via_web
         ])
         .run(tauri::generate_context!())
         .expect("error while running LyricFlow application");
