@@ -74,6 +74,8 @@ impl MediaSessionBackend for MacOSMediaBackend {
             position_ms,
             is_playing,
             playback_rate: 1.0,
+            source: "macos".to_string(),
+            ..Default::default()
         })
     }
 

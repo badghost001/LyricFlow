@@ -65,7 +65,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis", "dmg", "app"],
+    "targets": "all",
     "windows": {
       "nsis": {
         "installMode": "currentUser"
