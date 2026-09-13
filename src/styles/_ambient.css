@@ -31,13 +31,16 @@
 body:not(.is-playing) .glow-orb,
 body.app-paused .glow-orb,
 body:not(.is-playing) .ambient-glow,
-body.app-paused .ambient-glow {
+body.app-paused .ambient-glow,
+body.taskbar-mode .glow-orb,
+body.taskbar-mode .ambient-glow {
   animation-play-state: paused !important;
   display: none !important;
 }
 
 body.window-blurred .glow-orb {
   animation-play-state: paused !important;
+  display: none !important;
 }
 
 

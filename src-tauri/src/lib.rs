@@ -14,6 +14,15 @@ use std::time::Duration;
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
 
 pub fn run() {
+    #[cfg(target_os = "windows")]
+    {
+        // Force GPU hardware rasterization and smooth zero-copy rendering in WebView2
+        std::env::set_var(
+            "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
+            "--enable-gpu-rasterization --enable-zero-copy --ignore-gpu-blocklist --disable-background-timer-throttling",
+        );
+    }
+
     tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -276,6 +285,7 @@ pub fn run() {
             window::set_taskbar_mode,
             window::set_edge_glow,
             window::set_wallpaper_mode,
+            window::get_available_monitors,
             window::set_fullscreen_lyrics,
             lyrics::fetch_spotify_lyrics,
             lyrics::fetch_netease_lyrics,

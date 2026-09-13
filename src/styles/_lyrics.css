@@ -17,6 +17,8 @@
   padding: 50vh 0;
   width: 100%;
   will-change: transform;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
 }
 
 .lyric-line {
@@ -28,11 +30,15 @@
   color: var(--text-primary, #ffffff);
   opacity: 0.45;
   text-shadow: 0 1px 8px rgba(0, 0, 0, 0.75);
-  transform: scale(0.96);
+  transform: scale(0.96) translateZ(0);
   transition: opacity var(--lyric-line-duration, 0.35s) cubic-bezier(0.16, 1, 0.3, 1), transform var(--lyric-line-duration, 0.35s) cubic-bezier(0.16, 1, 0.3, 1), color 0.3s ease;
   transform-origin: var(--text-align) center;
   cursor: pointer;
   -webkit-font-smoothing: antialiased;
+  contain: layout style;
+  content-visibility: auto;
+  contain-intrinsic-size: 0 45px;
+  will-change: transform, opacity;
 }
 
 [data-theme="light"] .lyric-line {
@@ -43,13 +49,14 @@
 
 .lyric-line:hover {
   opacity: 0.78;
-  transform: scale(0.985);
+  transform: scale(0.985) translateZ(0);
 }
 
 .lyric-line.active {
+  content-visibility: visible !important;
   opacity: 1 !important;
   font-weight: 750 !important;
-  transform: scale(1.04) !important;
+  transform: scale(1.04) translateZ(0) !important;
   color: var(--highlight-color, #ffffff) !important;
   text-shadow: 0 0 16px var(--highlight-glow, rgba(var(--accent-primary-rgb), 0.5)), 0 2px 12px rgba(0, 0, 0, 0.95) !important;
   filter: none !important;

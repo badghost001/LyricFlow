@@ -149,7 +149,7 @@
 
       <!-- 1B. ONBOARDING WIZARD SCREEN -->
       <section class="app-screen" id="screen-onboarding" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 99999; background: linear-gradient(145deg, #0a0a0f 0%, #12121a 100%);">
-        <div style="max-width: 620px; width: 100%; margin: 0 auto; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; padding: 24px; box-sizing: border-box; position: relative;">
+        <div style="max-width: 640px; width: 100%; margin: 0 auto; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; padding: 24px; box-sizing: border-box; position: relative;">
           
           <!-- Onboarding Progress Indicator -->
           <div class="onboarding-steps-indicator" id="ob-steps-indicator" style="margin-bottom: 24px;">
@@ -161,29 +161,57 @@
           <!-- PAGE 1: MODE SELECTION -->
           <div id="ob-page-1" style="width: 100%; display: flex; flex-direction: column; align-items: center; transition: opacity 0.3s;">
             <h1 style="font-size: 32px; margin-bottom: 8px; font-weight: 800; background: linear-gradient(to right, #1DB954, #1ed760); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Welcome to LyricFlow</h1>
-            <p style="color: rgba(255,255,255,0.7); font-size: 15px; margin-bottom: 30px;">How would you like to experience your lyrics?</p>
+            <p style="color: rgba(255,255,255,0.7); font-size: 15px; margin-bottom: 24px;">How would you like to experience your lyrics?</p>
             
-            <div style="display: flex; gap: 16px; width: 100%; justify-content: center;">
-              <div class="onboarding-card selected" id="ob-card-standard" style="flex: 1; background: rgba(255,255,255,0.05); border: 2px solid #1DB954; border-radius: 12px; padding: 20px; cursor: pointer; transition: all 0.3s; display: flex; flex-direction: column; align-items: center;">
-                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#1DB954" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 12px;"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><rect x="8" y="10" width="8" height="6" rx="1" ry="1"/></svg>
-                <h3 style="margin-bottom: 6px; font-size: 16px;">Standard Overlay</h3>
-                <p style="font-size: 12px; color: rgba(255,255,255,0.6); line-height: 1.4;">A sleek, floating glassmorphic window you can move and resize anywhere.</p>
+            <div style="display: flex; gap: 14px; width: 100%; justify-content: center;">
+              <!-- Card 1: Standard Overlay -->
+              <div class="onboarding-card selected" id="ob-card-standard" style="flex: 1 1 0; min-height: 220px; max-width: 195px; width: 100%; background: rgba(255,255,255,0.05); border: 2px solid #1DB954; border-radius: 14px; padding: 18px 14px; cursor: pointer; transition: all 0.25s ease; display: flex; flex-direction: column; align-items: center; justify-content: space-between; box-sizing: border-box;">
+                <div style="height: 42px; display: flex; align-items: center; justify-content: center;">
+                  <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#1DB954" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><rect x="8" y="10" width="8" height="6" rx="1" ry="1"/></svg>
+                </div>
+                <h3 style="margin: 8px 0 4px 0; font-size: 15px; font-weight: 700; height: 22px; display: flex; align-items: center; justify-content: center;">Standard Overlay</h3>
+                <p style="font-size: 11.5px; color: rgba(255,255,255,0.6); line-height: 1.35; margin: 0; flex-grow: 1; display: flex; align-items: center; justify-content: center; text-align: center; height: 50px;">Floating glassmorphic window you can move and resize anywhere.</p>
+                <div class="ob-card-badge" id="ob-badge-standard" style="margin-top: 10px; width: 100%; height: 30px; border-radius: 15px; background: #1DB954; color: #000; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">✓ Selected</div>
               </div>
               
-              <div class="onboarding-card" id="ob-card-taskbar" style="flex: 1; background: rgba(255,255,255,0.05); border: 2px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px; cursor: pointer; transition: all 0.3s; display: flex; flex-direction: column; align-items: center;">
-                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#1DB954" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 12px;"><rect x="2" y="3" width="20" height="18" rx="2" ry="2"/><line x1="2" y1="19" x2="22" y2="19"/></svg>
-                <h3 style="margin-bottom: 6px; font-size: 16px;">Taskbar Mode</h3>
-                <p style="font-size: 12px; color: rgba(255,255,255,0.6); line-height: 1.4;">Minimalist, single-line lyrics docked seamlessly into your Windows taskbar.</p>
+              <!-- Card 2: Taskbar Mode -->
+              <div class="onboarding-card" id="ob-card-taskbar" style="flex: 1 1 0; min-height: 220px; max-width: 195px; width: 100%; background: rgba(255,255,255,0.05); border: 2px solid rgba(255,255,255,0.1); border-radius: 14px; padding: 18px 14px; cursor: pointer; transition: all 0.25s ease; display: flex; flex-direction: column; align-items: center; justify-content: space-between; box-sizing: border-box;">
+                <div style="height: 42px; display: flex; align-items: center; justify-content: center;">
+                  <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#1DB954" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="18" rx="2" ry="2"/><line x1="2" y1="19" x2="22" y2="19"/></svg>
+                </div>
+                <h3 style="margin: 8px 0 4px 0; font-size: 15px; font-weight: 700; height: 22px; display: flex; align-items: center; justify-content: center;">Taskbar Mode</h3>
+                <p style="font-size: 11.5px; color: rgba(255,255,255,0.6); line-height: 1.35; margin: 0; flex-grow: 1; display: flex; align-items: center; justify-content: center; text-align: center; height: 50px;">Minimalist, single-line lyrics docked right in your taskbar.</p>
+                <div class="ob-card-badge" id="ob-badge-taskbar" style="margin-top: 10px; width: 100%; height: 30px; border-radius: 15px; background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.8); font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">Select</div>
               </div>
 
-              <div class="onboarding-card" id="ob-card-wallpaper" style="flex: 1; background: rgba(255,255,255,0.05); border: 2px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px; cursor: pointer; transition: all 0.3s; display: flex; flex-direction: column; align-items: center;">
-                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#1DB954" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 12px;"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-                <h3 style="margin-bottom: 6px; font-size: 16px;">Wallpaper Mode</h3>
-                <p style="font-size: 12px; color: rgba(255,255,255,0.6); line-height: 1.4;">Full-screen cinematic lyrics projected directly onto your desktop.</p>
+              <!-- Card 3: Wallpaper Mode -->
+              <div class="onboarding-card" id="ob-card-wallpaper" style="flex: 1 1 0; min-height: 220px; max-width: 195px; width: 100%; background: rgba(255,255,255,0.05); border: 2px solid rgba(255,255,255,0.1); border-radius: 14px; padding: 18px 14px; cursor: pointer; transition: all 0.25s ease; display: flex; flex-direction: column; align-items: center; justify-content: space-between; box-sizing: border-box;">
+                <div style="height: 42px; display: flex; align-items: center; justify-content: center;">
+                  <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#1DB954" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                </div>
+                <h3 style="margin: 8px 0 4px 0; font-size: 15px; font-weight: 700; height: 22px; display: flex; align-items: center; justify-content: center;">Wallpaper Mode</h3>
+                <p style="font-size: 11.5px; color: rgba(255,255,255,0.6); line-height: 1.35; margin: 0; flex-grow: 1; display: flex; align-items: center; justify-content: center; text-align: center; height: 50px;">Full-screen cinematic lyrics projected on your desktop background.</p>
+                <div class="ob-card-badge" id="ob-badge-wallpaper" style="margin-top: 10px; width: 100%; height: 30px; border-radius: 15px; background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.8); font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">Select</div>
+              </div>
+            </div>
+
+            <!-- Monitor Source Selector for Wallpaper Mode -->
+            <div id="ob-wallpaper-monitor-section" style="display: none; width: 100%; max-width: 580px; margin-top: 20px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; padding: 14px 18px; text-align: left; transition: all 0.3s; box-sizing: border-box;">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                <span style="font-size: 13px; font-weight: 600; color: #1DB954; display: flex; align-items: center; gap: 6px;">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                  Target Screen for Wallpaper Mode
+                </span>
+                <span id="ob-monitor-detected-badge" style="font-size: 11px; color: rgba(255,255,255,0.5);">Detecting displays...</span>
+              </div>
+              <div id="ob-monitor-btn-group" style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <!-- Populated dynamically: Screen 1, Screen 2, All Screens -->
               </div>
             </div>
             
-            <button id="btn-next-onboarding-1" class="btn-primary" style="margin-top: 32px; padding: 12px 36px; font-size: 15px; border-radius: 24px; cursor: pointer;">Next: Customize Look →</button>
+            <div style="display: flex; justify-content: center; width: 100%; margin-top: 26px;">
+              <button id="btn-next-onboarding-1" class="btn-primary" style="height: 44px; padding: 0 36px; min-width: 220px; font-size: 15px; border-radius: 22px; cursor: pointer; font-weight: 700; display: inline-flex; align-items: center; justify-content: center;">Next: Customize Look →</button>
+            </div>
           </div>
 
           <!-- PAGE 2: CUSTOMIZE LOOK (OPACITY & FONT SIZE) -->
@@ -231,9 +259,9 @@
 
             </div>
 
-            <div style="display: flex; gap: 14px;">
-              <button id="btn-back-onboarding-2" style="padding: 10px 24px; font-size: 14px; border-radius: 20px; background: rgba(255,255,255,0.1); color: white; border: none; cursor: pointer;">← Back</button>
-              <button id="btn-next-onboarding-2" class="btn-primary" style="padding: 10px 32px; font-size: 14px; border-radius: 20px; cursor: pointer;">Next: Audio Source →</button>
+            <div style="display: flex; gap: 14px; justify-content: center; align-items: center; margin-top: 24px;">
+              <button id="btn-back-onboarding-2" style="height: 44px; padding: 0 28px; min-width: 140px; font-size: 14px; border-radius: 22px; background: rgba(255,255,255,0.08); color: white; border: 1px solid rgba(255,255,255,0.15); cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; transition: all 0.2s;">← Back</button>
+              <button id="btn-next-onboarding-2" class="btn-primary" style="height: 44px; padding: 0 32px; min-width: 200px; font-size: 14px; border-radius: 22px; cursor: pointer; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; transition: all 0.2s;">Next: Audio Source →</button>
             </div>
           </div>
 
@@ -242,34 +270,38 @@
             <h1 style="font-size: 32px; margin-bottom: 8px; font-weight: 800; background: linear-gradient(to right, #1DB954, #1ed760); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Connect to Music</h1>
             <p style="color: rgba(255,255,255,0.7); font-size: 15px; margin-bottom: 24px;">Choose how LyricFlow detects what you're playing.</p>
 
-            <div style="display: flex; gap: 16px; width: 100%; max-width: 520px; margin-bottom: 24px;">
+            <div style="display: flex; gap: 16px; width: 100%; max-width: 540px; margin-bottom: 24px; justify-content: center;">
               
               <!-- Option A: Spotify Login -->
-              <div class="onboarding-card" id="ob-card-connect-spotify" style="flex: 1; background: rgba(255,255,255,0.05); border: 2px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px; cursor: pointer; transition: all 0.3s; display: flex; flex-direction: column; align-items: center;">
-                <svg width="36" height="36" viewBox="0 0 24 24" fill="#1DB954" style="margin-bottom: 10px;">
-                  <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.485 17.303a.75.75 0 0 1-1.03.248c-2.822-1.724-6.374-2.115-10.558-1.16a.75.75 0 1 1-.334-1.462c4.582-1.046 8.528-.598 11.674 1.344a.75.75 0 0 1 .248 1.03zm1.464-3.255a.938.938 0 0 1-1.29.31c-3.23-1.986-8.156-2.56-11.977-1.4a.938.938 0 1 1-.548-1.794c4.37-1.326 9.803-.68 13.505 1.594a.938.938 0 0 1 .31 1.29zm.125-3.393c-3.874-2.3-10.264-2.512-13.972-1.386a1.125 1.125 0 1 1-.655-2.153c4.258-1.293 11.31-1.047 15.772 1.602a1.125 1.125 0 0 1-1.145 1.937z"/>
-                </svg>
-                <h3 style="margin-bottom: 6px; font-size: 15px;">Connect Spotify</h3>
-                <p style="font-size: 11.5px; color: rgba(255,255,255,0.6); line-height: 1.4; margin-bottom: 12px;">Full Web API integration, cloud sync & offline cache.</p>
-                <button id="ob-btn-login-spotify" class="btn-primary" style="padding: 6px 16px; font-size: 12px; border-radius: 16px; cursor: pointer;">Login via Web</button>
+              <div class="onboarding-card" id="ob-card-connect-spotify" style="flex: 1 1 0; min-height: 220px; max-width: 250px; width: 100%; background: rgba(255,255,255,0.05); border: 2px solid rgba(255,255,255,0.1); border-radius: 14px; padding: 20px; cursor: pointer; transition: all 0.25s ease; display: flex; flex-direction: column; align-items: center; justify-content: space-between; box-sizing: border-box;">
+                <div style="height: 40px; display: flex; align-items: center; justify-content: center;">
+                  <svg width="36" height="36" viewBox="0 0 24 24" fill="#1DB954">
+                    <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.485 17.303a.75.75 0 0 1-1.03.248c-2.822-1.724-6.374-2.115-10.558-1.16a.75.75 0 1 1-.334-1.462c4.582-1.046 8.528-.598 11.674 1.344a.75.75 0 0 1 .248 1.03zm1.464-3.255a.938.938 0 0 1-1.29.31c-3.23-1.986-8.156-2.56-11.977-1.4a.938.938 0 1 1-.548-1.794c4.37-1.326 9.803-.68 13.505 1.594a.938.938 0 0 1 .31 1.29zm.125-3.393c-3.874-2.3-10.264-2.512-13.972-1.386a1.125 1.125 0 1 1-.655-2.153c4.258-1.293 11.31-1.047 15.772 1.602a1.125 1.125 0 0 1-1.145 1.937z"/>
+                  </svg>
+                </div>
+                <h3 style="margin: 6px 0 4px 0; font-size: 15px; font-weight: 700; height: 22px; display: flex; align-items: center; justify-content: center;">Spotify Cloud API</h3>
+                <p style="font-size: 11.5px; color: rgba(255,255,255,0.6); line-height: 1.35; margin: 0; flex-grow: 1; display: flex; align-items: center; justify-content: center; text-align: center; height: 42px;">Full Web API sync, official timestamps & offline cache.</p>
+                <button id="ob-btn-login-spotify" class="btn-primary" style="height: 38px; width: 100%; max-width: 180px; font-size: 13px; font-weight: 600; border-radius: 19px; display: flex; align-items: center; justify-content: center; cursor: pointer;">Connect Spotify</button>
               </div>
 
               <!-- Option B: Local Mode (SMTC) -->
-              <div class="onboarding-card selected" id="ob-card-local-mode" style="flex: 1; background: rgba(255,255,255,0.05); border: 2px solid #1DB954; border-radius: 12px; padding: 20px; cursor: pointer; transition: all 0.3s; display: flex; flex-direction: column; align-items: center;">
-                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#1DB954" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 10px;">
-                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
-                </svg>
-                <h3 style="margin-bottom: 6px; font-size: 15px;">Local Mode</h3>
-                <p style="font-size: 11.5px; color: rgba(255,255,255,0.6); line-height: 1.4; margin-bottom: 12px;">No login required! Works with Spotify Desktop, Apple Music & web.</p>
-                <span style="font-size: 11px; color: #1DB954; font-weight: 600;">✓ Ready to go</span>
+              <div class="onboarding-card selected" id="ob-card-local-mode" style="flex: 1 1 0; min-height: 220px; max-width: 250px; width: 100%; background: rgba(255,255,255,0.05); border: 2px solid #1DB954; border-radius: 14px; padding: 20px; cursor: pointer; transition: all 0.25s ease; display: flex; flex-direction: column; align-items: center; justify-content: space-between; box-sizing: border-box;">
+                <div style="height: 40px; display: flex; align-items: center; justify-content: center;">
+                  <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#1DB954" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                    <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                  </svg>
+                </div>
+                <h3 style="margin: 6px 0 4px 0; font-size: 15px; font-weight: 700; height: 22px; display: flex; align-items: center; justify-content: center;">Instant Local Mode</h3>
+                <p style="font-size: 11.5px; color: rgba(255,255,255,0.6); line-height: 1.35; margin: 0; flex-grow: 1; display: flex; align-items: center; justify-content: center; text-align: center; height: 42px;">No login required! Instant sync with Spotify Desktop, Apple Music & web.</p>
+                <button id="ob-btn-select-local" class="btn-primary" style="height: 38px; width: 100%; max-width: 180px; font-size: 13px; font-weight: 600; border-radius: 19px; display: flex; align-items: center; justify-content: center; cursor: pointer; background: #1DB954; color: #000;">Use Local (SMTC)</button>
               </div>
 
             </div>
 
-            <div style="display: flex; gap: 14px;">
-              <button id="btn-back-onboarding-3" style="padding: 10px 24px; font-size: 14px; border-radius: 20px; background: rgba(255,255,255,0.1); color: white; border: none; cursor: pointer;">← Back</button>
-              <button id="btn-finish-onboarding-final" class="btn-primary" style="padding: 12px 36px; font-size: 15px; border-radius: 24px; cursor: pointer; font-weight: 700;">🚀 Launch LyricFlow</button>
+            <div style="display: flex; gap: 14px; justify-content: center; align-items: center; margin-top: 24px;">
+              <button id="btn-back-onboarding-3" style="height: 44px; padding: 0 28px; min-width: 140px; font-size: 14px; border-radius: 22px; background: rgba(255,255,255,0.08); color: white; border: 1px solid rgba(255,255,255,0.15); cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; transition: all 0.2s;">← Back</button>
+              <button id="btn-finish-onboarding-final" class="btn-primary" style="height: 44px; padding: 0 36px; min-width: 210px; font-size: 15px; border-radius: 22px; cursor: pointer; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; transition: all 0.2s;">🚀 Launch LyricFlow</button>
             </div>
           </div>
           
@@ -798,6 +830,13 @@
                   <option value="style1">Style 1 - Immersive Lyrics</option>
                   <option value="style2">Style 2 - Apple Music</option>
                   <option value="style3">Style 3 - Lyric Overlay</option>
+                </select>
+              </div>
+              <div class="setting-row" id="setting-wallpaper-monitor-row" style="margin-top: 8px;">
+                <label for="select-wallpaper-monitor">Target Display</label>
+                <select id="select-wallpaper-monitor">
+                  <option value="0">Screen 1 (Primary)</option>
+                  <option value="all">All Screens (Span)</option>
                 </select>
               </div>
               

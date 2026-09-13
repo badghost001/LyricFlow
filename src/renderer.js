@@ -149,6 +149,7 @@ function clearLyricsCaches() {
 
 let lastSentTaskbarMode = null;
 let lastSentWallpaperMode = null;
+let lastSentWallpaperMonitor = null;
 let _lastSyncedTaskbarMode = null;
 let localArtCache = {};
 try {
@@ -897,6 +898,8 @@ function applyVisualSettings(fromTray = false, skipIPC = false) {
   if (checkAutoHideTaskbar) checkAutoHideTaskbar.checked = settings.autoHideTaskbarOnPause !== false;
   if (checkWallpaperMode) checkWallpaperMode.checked = settings.wallpaperMode || false;
   if (selectWallpaperStyle) selectWallpaperStyle.value = settings.wallpaperStyle || 'style1';
+  const selWpMon = document.getElementById("select-wallpaper-monitor");
+  if (selWpMon) selWpMon.value = settings.wallpaperMonitor || '0';
 
   // Window Toggles (sync UI states)
 
@@ -1022,9 +1025,11 @@ function applyVisualSettings(fromTray = false, skipIPC = false) {
       window.electronAPI.syncTaskbarModeState(settings.taskbarMode);
     }
 
-    if ((settings.wallpaperMode || false) !== lastSentWallpaperMode) {
+    const currentWpMonitor = settings.wallpaperMonitor || '0';
+    if ((settings.wallpaperMode || false) !== lastSentWallpaperMode || (settings.wallpaperMode && currentWpMonitor !== lastSentWallpaperMonitor)) {
       lastSentWallpaperMode = settings.wallpaperMode || false;
-      window.electronAPI.setWallpaperMode(lastSentWallpaperMode);
+      lastSentWallpaperMonitor = currentWpMonitor;
+      window.electronAPI.setWallpaperMode(lastSentWallpaperMode, currentWpMonitor);
     }
 
     if (settings.alwaysOnTop !== window._lastSyncedAlwaysOnTop) {
@@ -1163,6 +1168,12 @@ function setupUIHandlers() {
   const obCardConnectSpotify = document.getElementById('ob-card-connect-spotify');
   const obCardLocalMode = document.getElementById('ob-card-local-mode');
   const obBtnLoginSpotify = document.getElementById('ob-btn-login-spotify');
+  const obBtnSelectLocal = document.getElementById('ob-btn-select-local');
+
+  const obBadgeStandard = document.getElementById('ob-badge-standard');
+  const obBadgeTaskbar = document.getElementById('ob-badge-taskbar');
+  const obBadgeWallpaper = document.getElementById('ob-badge-wallpaper');
+  const obWallpaperMonitorSection = document.getElementById('ob-wallpaper-monitor-section');
 
   if (obPage1 && obPage2 && obPage3) {
     let pickedMode = settings.taskbarMode ? 'taskbar' : (settings.wallpaperMode ? 'wallpaper' : 'standard');
@@ -1174,9 +1185,43 @@ function setupUIHandlers() {
           el.style.borderColor = 'rgba(255,255,255,0.1)';
         }
       });
-      selectedElem.classList.add('selected');
-      selectedElem.style.borderColor = '#1DB954';
+      [obBadgeStandard, obBadgeTaskbar, obBadgeWallpaper].forEach(b => {
+        if (b) {
+          b.textContent = 'Select';
+          b.style.background = 'rgba(255,255,255,0.08)';
+          b.style.color = 'rgba(255,255,255,0.8)';
+          b.style.fontWeight = '600';
+        }
+      });
+
+      if (selectedElem) {
+        selectedElem.classList.add('selected');
+        selectedElem.style.borderColor = '#1DB954';
+      }
       pickedMode = mode;
+
+      let activeBadge = null;
+      if (mode === 'standard') activeBadge = obBadgeStandard;
+      else if (mode === 'taskbar') activeBadge = obBadgeTaskbar;
+      else if (mode === 'wallpaper') activeBadge = obBadgeWallpaper;
+
+      if (activeBadge) {
+        activeBadge.textContent = '✓ Selected';
+        activeBadge.style.background = '#1DB954';
+        activeBadge.style.color = '#000';
+        activeBadge.style.fontWeight = '700';
+      }
+
+      if (mode === 'wallpaper') {
+        if (obWallpaperMonitorSection) {
+          obWallpaperMonitorSection.style.display = 'block';
+          populateOnboardingMonitors();
+        }
+      } else {
+        if (obWallpaperMonitorSection) {
+          obWallpaperMonitorSection.style.display = 'none';
+        }
+      }
     };
 
     if (obCardStandard) obCardStandard.addEventListener('click', () => updateModeSelection('standard', obCardStandard));
@@ -1214,7 +1259,6 @@ function setupUIHandlers() {
       obSliderFontsize.addEventListener('input', (e) => {
         const val = parseInt(e.target.value, 10);
         settings.fontSize = val;
-        obValFontsize.textContent = `${val}%`;
         obValFontsize.textContent = `${val}px`;
         if (obPreviewLineActive) {
           obPreviewLineActive.style.fontSize = `${val}px`;
@@ -1252,19 +1296,38 @@ function setupUIHandlers() {
     }
 
     // Page 3: Audio Source Selection
-    if (obCardConnectSpotify && obCardLocalMode) {
-      obCardConnectSpotify.addEventListener('click', () => {
+    const selectSpotifySource = () => {
+      if (obCardLocalMode) {
         obCardLocalMode.classList.remove('selected');
         obCardLocalMode.style.borderColor = 'rgba(255,255,255,0.1)';
+      }
+      if (obCardConnectSpotify) {
         obCardConnectSpotify.classList.add('selected');
         obCardConnectSpotify.style.borderColor = '#1DB954';
-      });
+      }
+      if (config) config.localMode = false;
+      settings.localMode = false;
+    };
 
-      obCardLocalMode.addEventListener('click', () => {
+    const selectLocalSource = () => {
+      if (obCardConnectSpotify) {
         obCardConnectSpotify.classList.remove('selected');
         obCardConnectSpotify.style.borderColor = 'rgba(255,255,255,0.1)';
+      }
+      if (obCardLocalMode) {
         obCardLocalMode.classList.add('selected');
         obCardLocalMode.style.borderColor = '#1DB954';
+      }
+      if (config) config.localMode = true;
+      settings.localMode = true;
+    };
+
+    if (obCardConnectSpotify) obCardConnectSpotify.addEventListener('click', selectSpotifySource);
+    if (obCardLocalMode) obCardLocalMode.addEventListener('click', selectLocalSource);
+    if (obBtnSelectLocal) {
+      obBtnSelectLocal.addEventListener('click', (e) => {
+        e.stopPropagation();
+        selectLocalSource();
       });
     }
 
@@ -1278,14 +1341,7 @@ function setupUIHandlers() {
             if (res && res.success) {
               obBtnLoginSpotify.textContent = "✓ Connected!";
               obBtnLoginSpotify.style.background = "#1DB954";
-              if (obCardConnectSpotify) {
-                obCardConnectSpotify.classList.add('selected');
-                obCardConnectSpotify.style.borderColor = '#1DB954';
-              }
-              if (obCardLocalMode) {
-                obCardLocalMode.classList.remove('selected');
-                obCardLocalMode.style.borderColor = 'rgba(255,255,255,0.1)';
-              }
+              selectSpotifySource();
             } else {
               obBtnLoginSpotify.textContent = "Try Again";
             }
@@ -1783,6 +1839,16 @@ function setupUIHandlers() {
     selectWallpaperStyle.value = settings.wallpaperStyle || 'style1';
     selectWallpaperStyle.addEventListener("change", (e) => {
       settings.wallpaperStyle = ['style1', 'style2', 'style3'].includes(e.target.value) ? e.target.value : 'style1';
+      applyVisualSettings();
+      saveLocalSettings();
+    });
+  }
+
+  const selectWallpaperMonitor = document.getElementById("select-wallpaper-monitor");
+  if (selectWallpaperMonitor) {
+    selectWallpaperMonitor.value = settings.wallpaperMonitor || '0';
+    selectWallpaperMonitor.addEventListener("change", (e) => {
+      settings.wallpaperMonitor = e.target.value;
       applyVisualSettings();
       saveLocalSettings();
     });
@@ -3140,6 +3206,128 @@ function showLoginScreen() {
   }
 }
 
+async function populateOnboardingMonitors() {
+  const container = document.getElementById('ob-wallpaper-monitor-section');
+  const btnGroup = document.getElementById('ob-monitor-btn-group');
+  const badge = document.getElementById('ob-monitor-detected-badge');
+  const selectSettingsMon = document.getElementById('select-wallpaper-monitor');
+  if (!btnGroup) return;
+
+  try {
+    let monitors = [];
+    if (window.electronAPI && typeof window.electronAPI.getAvailableMonitors === 'function') {
+      monitors = await window.electronAPI.getAvailableMonitors();
+    }
+    if (!monitors || monitors.length === 0) {
+      monitors = [{ id: 0, name: 'Screen 1 (Primary)', is_primary: true, width: window.screen.width, height: window.screen.height }];
+    }
+
+    if (badge) {
+      if (monitors.length > 1) {
+        badge.textContent = `${monitors.length} Displays Detected`;
+        badge.style.color = '#1DB954';
+      } else {
+        badge.textContent = `1 Display Detected`;
+        badge.style.color = 'rgba(255,255,255,0.5)';
+      }
+    }
+
+    btnGroup.innerHTML = '';
+    const currentPick = settings.wallpaperMonitor || '0';
+
+    monitors.forEach((m, idx) => {
+      const btn = document.createElement('button');
+      btn.className = 'ob-monitor-btn';
+      btn.dataset.monitorId = String(idx);
+      const isSelected = String(idx) === currentPick;
+      btn.style.cssText = `
+        flex: 1 1 auto;
+        min-width: 140px;
+        height: 38px;
+        padding: 0 14px;
+        border-radius: 8px;
+        border: 1px solid ${isSelected ? '#1DB954' : 'rgba(255,255,255,0.15)'};
+        background: ${isSelected ? '#1DB954' : 'rgba(255,255,255,0.06)'};
+        color: ${isSelected ? '#000' : '#fff'};
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        transition: all 0.2s;
+      `;
+      btn.innerHTML = `🖥️ Screen ${idx + 1} <span style="font-size: 10.5px; opacity: 0.75;">(${m.width}×${m.height}${m.is_primary ? ' - Primary' : ''})</span>`;
+      btn.addEventListener('click', () => {
+        settings.wallpaperMonitor = String(idx);
+        updateMonitorBtnGroup(btnGroup, String(idx));
+      });
+      btnGroup.appendChild(btn);
+    });
+
+    // All screens / span button
+    const spanBtn = document.createElement('button');
+    spanBtn.className = 'ob-monitor-btn';
+    spanBtn.dataset.monitorId = 'all';
+    const isSpanSelected = currentPick === 'all';
+    spanBtn.style.cssText = `
+      flex: 1 1 auto;
+      min-width: 140px;
+      height: 38px;
+      padding: 0 14px;
+      border-radius: 8px;
+      border: 1px solid ${isSpanSelected ? '#1DB954' : 'rgba(255,255,255,0.15)'};
+      background: ${isSpanSelected ? '#1DB954' : 'rgba(255,255,255,0.06)'};
+      color: ${isSpanSelected ? '#000' : '#fff'};
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: all 0.2s;
+    `;
+    spanBtn.innerHTML = `🌐 All Screens <span style="font-size: 10.5px; opacity: 0.75;">(Span / Every Screen)</span>`;
+    spanBtn.addEventListener('click', () => {
+      settings.wallpaperMonitor = 'all';
+      updateMonitorBtnGroup(btnGroup, 'all');
+    });
+    btnGroup.appendChild(spanBtn);
+
+    if (selectSettingsMon) {
+      selectSettingsMon.innerHTML = '';
+      monitors.forEach((m, idx) => {
+        const opt = document.createElement('option');
+        opt.value = String(idx);
+        opt.textContent = `Screen ${idx + 1} (${m.width}×${m.height}${m.is_primary ? ' - Primary' : ''})`;
+        if (String(idx) === currentPick) opt.selected = true;
+        selectSettingsMon.appendChild(opt);
+      });
+      const allOpt = document.createElement('option');
+      allOpt.value = 'all';
+      allOpt.textContent = 'All Screens (Span)';
+      if (currentPick === 'all') allOpt.selected = true;
+      selectSettingsMon.appendChild(allOpt);
+    }
+  } catch (err) {
+    console.error("populateOnboardingMonitors error:", err);
+  }
+}
+
+function updateMonitorBtnGroup(group, selectedId) {
+  const btns = group.querySelectorAll('.ob-monitor-btn');
+  btns.forEach(b => {
+    const isSel = b.dataset.monitorId === selectedId;
+    b.style.border = isSel ? '1px solid #1DB954' : '1px solid rgba(255,255,255,0.15)';
+    b.style.background = isSel ? '#1DB954' : 'rgba(255,255,255,0.06)';
+    b.style.color = isSel ? '#000' : '#fff';
+  });
+  const selectSettingsMon = document.getElementById('select-wallpaper-monitor');
+  if (selectSettingsMon) selectSettingsMon.value = selectedId;
+}
+
 function showOnboardingWizard() {
   if (screenLogin) {
     screenLogin.classList.remove("active");
@@ -3167,6 +3355,61 @@ function showOnboardingWizard() {
     if (d1) d1.classList.add('active');
     if (d2) d2.classList.remove('active');
     if (d3) d3.classList.remove('active');
+
+    // Sync Mode Cards styling
+    const obCardStandard = document.getElementById('ob-card-standard');
+    const obCardTaskbar = document.getElementById('ob-card-taskbar');
+    const obCardWallpaper = document.getElementById('ob-card-wallpaper');
+    const obBadgeStandard = document.getElementById('ob-badge-standard');
+    const obBadgeTaskbar = document.getElementById('ob-badge-taskbar');
+    const obBadgeWallpaper = document.getElementById('ob-badge-wallpaper');
+    const obWallpaperMonitorSection = document.getElementById('ob-wallpaper-monitor-section');
+
+    const initialMode = settings.wallpaperMode ? 'wallpaper' : (settings.taskbarMode ? 'taskbar' : 'standard');
+
+    [obCardStandard, obCardTaskbar, obCardWallpaper].forEach(c => {
+      if (c) {
+        c.classList.remove('selected');
+        c.style.borderColor = 'rgba(255,255,255,0.1)';
+      }
+    });
+    [obBadgeStandard, obBadgeTaskbar, obBadgeWallpaper].forEach(b => {
+      if (b) {
+        b.textContent = 'Select';
+        b.style.background = 'rgba(255,255,255,0.08)';
+        b.style.color = 'rgba(255,255,255,0.8)';
+        b.style.fontWeight = '600';
+      }
+    });
+
+    if (initialMode === 'wallpaper' && obCardWallpaper && obBadgeWallpaper) {
+      obCardWallpaper.classList.add('selected');
+      obCardWallpaper.style.borderColor = '#1DB954';
+      obBadgeWallpaper.textContent = '✓ Selected';
+      obBadgeWallpaper.style.background = '#1DB954';
+      obBadgeWallpaper.style.color = '#000';
+      obBadgeWallpaper.style.fontWeight = '700';
+      if (obWallpaperMonitorSection) {
+        obWallpaperMonitorSection.style.display = 'block';
+        populateOnboardingMonitors();
+      }
+    } else if (initialMode === 'taskbar' && obCardTaskbar && obBadgeTaskbar) {
+      obCardTaskbar.classList.add('selected');
+      obCardTaskbar.style.borderColor = '#1DB954';
+      obBadgeTaskbar.textContent = '✓ Selected';
+      obBadgeTaskbar.style.background = '#1DB954';
+      obBadgeTaskbar.style.color = '#000';
+      obBadgeTaskbar.style.fontWeight = '700';
+      if (obWallpaperMonitorSection) obWallpaperMonitorSection.style.display = 'none';
+    } else if (obCardStandard && obBadgeStandard) {
+      obCardStandard.classList.add('selected');
+      obCardStandard.style.borderColor = '#1DB954';
+      obBadgeStandard.textContent = '✓ Selected';
+      obBadgeStandard.style.background = '#1DB954';
+      obBadgeStandard.style.color = '#000';
+      obBadgeStandard.style.fontWeight = '700';
+      if (obWallpaperMonitorSection) obWallpaperMonitorSection.style.display = 'none';
+    }
 
     const sliderOp = document.getElementById('ob-slider-opacity');
     const valOp = document.getElementById('ob-val-opacity');
@@ -4688,6 +4931,8 @@ function renderLyrics() {
   document.body.classList.toggle("wbw-active", settings.wordByWord && hasAnyWordTiming);
 
   lyricsContainer.innerHTML = "";
+  const frag = document.createDocumentFragment();
+  cachedLineEls = [];
   lyrics.forEach((line, index) => {
     const el = document.createElement("div");
     el.className = "lyric-line";
@@ -4790,10 +5035,11 @@ function renderLyrics() {
       }
     });
 
-    lyricsContainer.appendChild(el);
+    frag.appendChild(el);
+    cachedLineEls.push(el);
   });
 
-  cachedLineEls = Array.from(lyricsContainer.querySelectorAll(".lyric-line"));
+  lyricsContainer.appendChild(frag);
   attachAnnotationsToRenderedLyrics();
   measureLyricMetrics();
   activeLineIndex = -1;

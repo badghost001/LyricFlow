@@ -132,14 +132,100 @@ pub fn set_edge_glow(app: AppHandle, enabled: bool, color: Option<String>) -> Re
     Ok(())
 }
 
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct MonitorInfo {
+    pub id: usize,
+    pub name: String,
+    pub is_primary: bool,
+    pub width: u32,
+    pub height: u32,
+    pub scale_factor: f64,
+    pub x: i32,
+    pub y: i32,
+}
+
 #[tauri::command]
-pub fn set_wallpaper_mode(app: AppHandle, enabled: bool) -> Result<(), String> {
+pub fn get_available_monitors(app: AppHandle) -> Result<Vec<MonitorInfo>, String> {
+    let main_win = app.get_webview_window("main");
+    let primary = main_win.as_ref().and_then(|w| w.primary_monitor().ok().flatten());
+    let monitors = if let Some(w) = main_win.as_ref() {
+        w.available_monitors().map_err(|e| e.to_string())?
+    } else {
+        vec![]
+    };
+
+    let mut result = Vec::new();
+    for (idx, mon) in monitors.into_iter().enumerate() {
+        let is_primary = if let Some(ref p) = primary {
+            p.name() == mon.name() && p.position() == mon.position()
+        } else {
+            idx == 0
+        };
+        let size = mon.size();
+        let pos = mon.position();
+        let name = mon.name().cloned().unwrap_or_else(|| {
+            if is_primary {
+                format!("Display {} (Primary)", idx + 1)
+            } else {
+                format!("Display {} (External)", idx + 1)
+            }
+        });
+        result.push(MonitorInfo {
+            id: idx,
+            name,
+            is_primary,
+            width: size.width,
+            height: size.height,
+            scale_factor: mon.scale_factor(),
+            x: pos.x,
+            y: pos.y,
+        });
+    }
+    Ok(result)
+}
+
+#[tauri::command]
+pub fn set_wallpaper_mode(app: AppHandle, enabled: bool, monitor_target: Option<String>) -> Result<(), String> {
     use tauri::Emitter;
     if let Some(main_win) = app.get_webview_window("main") {
         if enabled {
-            // Position as background or maximize without borders
             let _ = main_win.set_always_on_top(false);
-            let _ = main_win.maximize();
+
+            let monitors = main_win.available_monitors().unwrap_or_default();
+            let target = monitor_target.unwrap_or_else(|| "0".to_string());
+
+            if (target == "all" || target == "all_screens") && !monitors.is_empty() {
+                // Span window across all available monitors
+                let mut min_x = i32::MAX;
+                let mut min_y = i32::MAX;
+                let mut max_x = i32::MIN;
+                let mut max_y = i32::MIN;
+
+                for m in &monitors {
+                    let pos = m.position();
+                    let size = m.size();
+                    min_x = min_x.min(pos.x);
+                    min_y = min_y.min(pos.y);
+                    max_x = max_x.max(pos.x + size.width as i32);
+                    max_y = max_y.max(pos.y + size.height as i32);
+                }
+
+                let _ = main_win.unmaximize();
+                let _ = main_win.set_position(tauri::PhysicalPosition::new(min_x, min_y));
+                let _ = main_win.set_size(tauri::PhysicalSize::new((max_x - min_x) as u32, (max_y - min_y) as u32));
+            } else if let Ok(idx) = target.parse::<usize>() {
+                if let Some(m) = monitors.get(idx) {
+                    let pos = m.position();
+                    let size = m.size();
+                    let _ = main_win.unmaximize();
+                    let _ = main_win.set_position(pos.clone());
+                    let _ = main_win.set_size(size.clone());
+                } else {
+                    let _ = main_win.maximize();
+                }
+            } else {
+                let _ = main_win.maximize();
+            }
         } else {
             let _ = main_win.unmaximize();
             let _ = main_win.set_always_on_top(false);
@@ -153,4 +239,5 @@ pub fn set_wallpaper_mode(app: AppHandle, enabled: bool) -> Result<(), String> {
 pub fn set_fullscreen_lyrics(_app: AppHandle, _enabled: bool) -> Result<(), String> {
     Ok(())
 }
+
 
