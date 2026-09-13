@@ -51,13 +51,14 @@ let config = null;
 let settings = {
   theme: 'dark',
   accentColor: 'green',
-  fontSize: 32,
+  fontSize: 22,
   textAlign: 'center',
-  bgOpacity: 0,
+  bgOpacity: 85,
   glowIntensity: 60,
   fontFamily: 'Outfit',
   lineSpacing: 11,
   showWidget: true,
+  hasCompletedSetup: false,
   highlightColor: 'dynamic',
   dblclickAction: 'copy',
   clickThrough: false,
@@ -525,7 +526,10 @@ window.addEventListener("DOMContentLoaded", async () => {
     }
 
     // Stage 4: Instant Launch Transition
-    if (config) {
+    const isFirstTime = !localStorage.getItem("lyricflow_setup_done") && settings.hasCompletedSetup !== true;
+    if (isFirstTime) {
+      showOnboardingWizard();
+    } else if (config) {
       showLyricsScreen();
     } else {
       showLoginScreen();
@@ -550,39 +554,48 @@ window.addEventListener("DOMContentLoaded", async () => {
   ensurePlayheadLoop();
 });
 
-// Load settings from localStorage
+// Load settings from localStorage and config.json
 function loadLocalSettings(skipIPC = false) {
+  let parsed = null;
   const saved = localStorage.getItem("lyrics_overlay_settings");
   if (saved) {
     try {
-      const parsed = JSON.parse(saved);
-      settings = { ...settings, ...parsed };
-      
-      // Ensure alias consistency between canonical and legacy names
-      if (parsed.taskbarAlign) settings.tbAlign = parsed.taskbarAlign;
-      else if (parsed.tbAlign) settings.taskbarAlign = parsed.tbAlign;
-
-      if (parsed.taskbarOffset !== undefined) settings.tbOffset = parsed.taskbarOffset;
-      else if (parsed.tbOffset !== undefined) settings.taskbarOffset = parsed.tbOffset;
-
-      if (parsed.taskbarFontSize !== undefined) settings.tbFontsize = parsed.taskbarFontSize;
-      else if (parsed.tbFontsize !== undefined) settings.taskbarFontSize = parsed.tbFontsize;
-
-      if (parsed.showGenius !== undefined) settings.showGeniusFact = parsed.showGenius;
-      else if (parsed.showGeniusFact !== undefined) settings.showGenius = parsed.showGeniusFact;
-
-      // Migrate legacy default values
-      if (settings.lineSpacing === 1.1 || settings.lineSpacing === 12 || !settings.lineSpacing) {
-        settings.lineSpacing = 11;
-      }
-      if (settings.highlightColor === '#1DB954' || settings.highlightColor === '#1db954') {
-        settings.highlightColor = 'dynamic';
-      }
-      if (settings.geniusPosition === 'top') {
-        settings.geniusPosition = 'top-left';
-      }
+      parsed = JSON.parse(saved);
     } catch (e) {
-      console.error("Error parsing settings:", e);
+      console.error("Error parsing localStorage settings:", e);
+    }
+  }
+
+  // Dual-storage persistence: also merge settings from config.json
+  if (config && config.settings) {
+    parsed = { ...config.settings, ...(parsed || {}) };
+  }
+
+  if (parsed) {
+    settings = { ...settings, ...parsed };
+    
+    // Ensure alias consistency between canonical and legacy names
+    if (parsed.taskbarAlign) settings.tbAlign = parsed.taskbarAlign;
+    else if (parsed.tbAlign) settings.taskbarAlign = parsed.tbAlign;
+
+    if (parsed.taskbarOffset !== undefined) settings.tbOffset = parsed.taskbarOffset;
+    else if (parsed.tbOffset !== undefined) settings.taskbarOffset = parsed.tbOffset;
+
+    if (parsed.taskbarFontSize !== undefined) settings.tbFontsize = parsed.taskbarFontSize;
+    else if (parsed.tbFontsize !== undefined) settings.taskbarFontSize = parsed.tbFontsize;
+
+    if (parsed.showGenius !== undefined) settings.showGeniusFact = parsed.showGenius;
+    else if (parsed.showGeniusFact !== undefined) settings.showGenius = parsed.showGeniusFact;
+
+    // Migrate legacy default values
+    if (settings.lineSpacing === 1.1 || settings.lineSpacing === 12 || !settings.lineSpacing) {
+      settings.lineSpacing = 11;
+    }
+    if (settings.highlightColor === '#1DB954' || settings.highlightColor === '#1db954') {
+      settings.highlightColor = 'dynamic';
+    }
+    if (settings.geniusPosition === 'top') {
+      settings.geniusPosition = 'top-left';
     }
   }
 
@@ -593,8 +606,18 @@ function loadLocalSettings(skipIPC = false) {
 let _saveDebounceTimer = null;
 function saveLocalSettings() {
   if (_saveDebounceTimer) clearTimeout(_saveDebounceTimer);
-  _saveDebounceTimer = setTimeout(() => {
-    localStorage.setItem("lyrics_overlay_settings", JSON.stringify(settings));
+  _saveDebounceTimer = setTimeout(async () => {
+    try {
+      localStorage.setItem("lyrics_overlay_settings", JSON.stringify(settings));
+      // Persist directly to config.json for bulletproof persistence across sessions
+      if (window.electronAPI && typeof window.electronAPI.saveConfig === 'function') {
+        const curCfg = (await window.electronAPI.loadConfig()) || {};
+        curCfg.settings = settings;
+        await window.electronAPI.saveConfig(curCfg);
+      }
+    } catch (e) {
+      console.warn("Failed to persist settings:", e);
+    }
   }, 150);
 }
 
@@ -1115,108 +1138,195 @@ function applyTaskbarOffset() {
 function setupUIHandlers() {
   const obPage1 = document.getElementById('ob-page-1');
   const obPage2 = document.getElementById('ob-page-2');
+  const obPage3 = document.getElementById('ob-page-3');
   const obCardWallpaper = document.getElementById('ob-card-wallpaper');
   const obCardTaskbar = document.getElementById('ob-card-taskbar');
   const obCardStandard = document.getElementById('ob-card-standard');
-  const obCardStyle1 = document.getElementById('ob-card-style1');
-  const obCardStyle2 = document.getElementById('ob-card-style2');
-  const obCardStyle3 = document.getElementById('ob-card-style3');
   
-  const btnNextPage = document.getElementById('btn-next-onboarding');
-  const btnFinish1 = document.getElementById('btn-finish-onboarding-1');
-  const btnFinish2 = document.getElementById('btn-finish-onboarding-2');
-  const btnBack = document.getElementById('btn-back-onboarding');
+  const btnNext1 = document.getElementById('btn-next-onboarding-1');
+  const btnNext2 = document.getElementById('btn-next-onboarding-2');
+  const btnBack2 = document.getElementById('btn-back-onboarding-2');
+  const btnBack3 = document.getElementById('btn-back-onboarding-3');
+  const btnFinishFinal = document.getElementById('btn-finish-onboarding-final');
 
-  if (obPage1 && obPage2 && obCardWallpaper && obCardTaskbar && obCardStandard) {
-    let pickedMode = null;
-    let pickedStyle = null;
-    
+  const dot1 = document.getElementById('ob-step-dot-1');
+  const dot2 = document.getElementById('ob-step-dot-2');
+  const dot3 = document.getElementById('ob-step-dot-3');
+
+  const obSliderOpacity = document.getElementById('ob-slider-opacity');
+  const obValOpacity = document.getElementById('ob-val-opacity');
+  const obSliderFontsize = document.getElementById('ob-slider-fontsize');
+  const obValFontsize = document.getElementById('ob-val-fontsize');
+  const obPreviewCard = document.getElementById('ob-preview-card');
+  const obPreviewLineActive = document.getElementById('ob-preview-line-active');
+
+  const obCardConnectSpotify = document.getElementById('ob-card-connect-spotify');
+  const obCardLocalMode = document.getElementById('ob-card-local-mode');
+  const obBtnLoginSpotify = document.getElementById('ob-btn-login-spotify');
+
+  if (obPage1 && obPage2 && obPage3) {
+    let pickedMode = settings.taskbarMode ? 'taskbar' : (settings.wallpaperMode ? 'wallpaper' : 'standard');
+
     const updateModeSelection = (mode, selectedElem) => {
-      [obCardWallpaper, obCardTaskbar, obCardStandard].forEach(el => el.classList.remove('selected'));
+      [obCardWallpaper, obCardTaskbar, obCardStandard].forEach(el => {
+        if (el) {
+          el.classList.remove('selected');
+          el.style.borderColor = 'rgba(255,255,255,0.1)';
+        }
+      });
       selectedElem.classList.add('selected');
+      selectedElem.style.borderColor = '#1DB954';
       pickedMode = mode;
-      
-      if (mode === 'wallpaper') {
-        btnNextPage.style.display = 'block';
-        btnFinish1.style.display = 'none';
-        
-        // Use timeout to allow display:block to render before fading in
-        setTimeout(() => {
-          btnNextPage.style.opacity = '1';
-          btnNextPage.style.pointerEvents = 'auto';
-        }, 10);
-      } else {
-        btnNextPage.style.display = 'none';
-        btnFinish1.style.display = 'block';
-        
-        setTimeout(() => {
-          btnFinish1.style.opacity = '1';
-          btnFinish1.style.pointerEvents = 'auto';
-        }, 10);
-      }
     };
 
-    const updateStyleSelection = (style, selectedElem) => {
-      [obCardStyle1, obCardStyle2, obCardStyle3].forEach(el => el.classList.remove('selected'));
-      selectedElem.classList.add('selected');
-      pickedStyle = style;
-      btnFinish2.style.opacity = '1';
-      btnFinish2.style.pointerEvents = 'auto';
-    };
+    if (obCardStandard) obCardStandard.addEventListener('click', () => updateModeSelection('standard', obCardStandard));
+    if (obCardTaskbar) obCardTaskbar.addEventListener('click', () => updateModeSelection('taskbar', obCardTaskbar));
+    if (obCardWallpaper) obCardWallpaper.addEventListener('click', () => updateModeSelection('wallpaper', obCardWallpaper));
 
-    obCardStandard.addEventListener('click', () => updateModeSelection('standard', obCardStandard));
-    obCardWallpaper.addEventListener('click', () => updateModeSelection('wallpaper', obCardWallpaper));
-    obCardTaskbar.addEventListener('click', () => updateModeSelection('taskbar', obCardTaskbar));
-    
-    if (obCardStyle1) obCardStyle1.addEventListener('click', () => updateStyleSelection('style1', obCardStyle1));
-    if (obCardStyle2) obCardStyle2.addEventListener('click', () => updateStyleSelection('style2', obCardStyle2));
-    if (obCardStyle3) obCardStyle3.addEventListener('click', () => updateStyleSelection('style3', obCardStyle3));
-
-    const dot1 = document.getElementById('ob-step-dot-1');
-    const dot2 = document.getElementById('ob-step-dot-2');
-
-    // Next Button (Transition to Page 2)
-    btnNextPage.addEventListener('click', () => {
-      obPage1.style.opacity = '0';
-      if (dot1) dot1.classList.remove('active');
-      if (dot2) dot2.classList.add('active');
-      setTimeout(() => {
-        obPage1.style.display = 'none';
-        obPage2.style.display = 'flex';
+    // Page 1 -> Page 2
+    if (btnNext1) {
+      btnNext1.addEventListener('click', () => {
+        obPage1.style.opacity = '0';
+        if (dot1) dot1.classList.remove('active');
+        if (dot2) dot2.classList.add('active');
         setTimeout(() => {
-          obPage2.style.opacity = '1';
-        }, 50);
-      }, 300);
-    });
+          obPage1.style.display = 'none';
+          obPage2.style.display = 'flex';
+          setTimeout(() => { obPage2.style.opacity = '1'; }, 30);
+        }, 200);
+      });
+    }
 
-    // Back Button (Transition to Page 1)
-    btnBack.addEventListener('click', () => {
-      obPage2.style.opacity = '0';
-      if (dot2) dot2.classList.remove('active');
-      if (dot1) dot1.classList.add('active');
-      setTimeout(() => {
-        obPage2.style.display = 'none';
-        obPage1.style.display = 'flex';
+    // Page 2: Live Customization Listeners
+    if (obSliderOpacity && obValOpacity) {
+      obSliderOpacity.addEventListener('input', (e) => {
+        const val = parseInt(e.target.value, 10);
+        settings.bgOpacity = val;
+        obValOpacity.textContent = `${val}%`;
+        if (obPreviewCard) {
+          obPreviewCard.style.background = `rgba(10, 10, 15, ${val / 100})`;
+        }
+        document.documentElement.style.setProperty('--bg-opacity', val / 100);
+      });
+    }
+
+    if (obSliderFontsize && obValFontsize) {
+      obSliderFontsize.addEventListener('input', (e) => {
+        const val = parseInt(e.target.value, 10);
+        settings.fontSize = val;
+        obValFontsize.textContent = `${val}%`;
+        obValFontsize.textContent = `${val}px`;
+        if (obPreviewLineActive) {
+          obPreviewLineActive.style.fontSize = `${val}px`;
+        }
+        document.documentElement.style.setProperty('--font-size', `${val}px`);
+      });
+    }
+
+    // Page 2 -> Page 1
+    if (btnBack2) {
+      btnBack2.addEventListener('click', () => {
+        obPage2.style.opacity = '0';
+        if (dot2) dot2.classList.remove('active');
+        if (dot1) dot1.classList.add('active');
         setTimeout(() => {
-          obPage1.style.opacity = '1';
-        }, 50);
-      }, 300);
-    });
+          obPage2.style.display = 'none';
+          obPage1.style.display = 'flex';
+          setTimeout(() => { obPage1.style.opacity = '1'; }, 30);
+        }, 200);
+      });
+    }
 
-    const finalizeSetup = () => {
+    // Page 2 -> Page 3
+    if (btnNext2) {
+      btnNext2.addEventListener('click', () => {
+        obPage2.style.opacity = '0';
+        if (dot2) dot2.classList.remove('active');
+        if (dot3) dot3.classList.add('active');
+        setTimeout(() => {
+          obPage2.style.display = 'none';
+          obPage3.style.display = 'flex';
+          setTimeout(() => { obPage3.style.opacity = '1'; }, 30);
+        }, 200);
+      });
+    }
+
+    // Page 3: Audio Source Selection
+    if (obCardConnectSpotify && obCardLocalMode) {
+      obCardConnectSpotify.addEventListener('click', () => {
+        obCardLocalMode.classList.remove('selected');
+        obCardLocalMode.style.borderColor = 'rgba(255,255,255,0.1)';
+        obCardConnectSpotify.classList.add('selected');
+        obCardConnectSpotify.style.borderColor = '#1DB954';
+      });
+
+      obCardLocalMode.addEventListener('click', () => {
+        obCardConnectSpotify.classList.remove('selected');
+        obCardConnectSpotify.style.borderColor = 'rgba(255,255,255,0.1)';
+        obCardLocalMode.classList.add('selected');
+        obCardLocalMode.style.borderColor = '#1DB954';
+      });
+    }
+
+    if (obBtnLoginSpotify) {
+      obBtnLoginSpotify.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        obBtnLoginSpotify.textContent = "Connecting...";
+        try {
+          if (window.electronAPI && typeof window.electronAPI.loginViaWeb === 'function') {
+            const res = await window.electronAPI.loginViaWeb();
+            if (res && res.success) {
+              obBtnLoginSpotify.textContent = "✓ Connected!";
+              obBtnLoginSpotify.style.background = "#1DB954";
+              if (obCardConnectSpotify) {
+                obCardConnectSpotify.classList.add('selected');
+                obCardConnectSpotify.style.borderColor = '#1DB954';
+              }
+              if (obCardLocalMode) {
+                obCardLocalMode.classList.remove('selected');
+                obCardLocalMode.style.borderColor = 'rgba(255,255,255,0.1)';
+              }
+            } else {
+              obBtnLoginSpotify.textContent = "Try Again";
+            }
+          }
+        } catch (err) {
+          console.error("Login via onboarding error:", err);
+          obBtnLoginSpotify.textContent = "Try Again";
+        }
+      });
+    }
+
+    // Page 3 -> Page 2
+    if (btnBack3) {
+      btnBack3.addEventListener('click', () => {
+        obPage3.style.opacity = '0';
+        if (dot3) dot3.classList.remove('active');
+        if (dot2) dot2.classList.add('active');
+        setTimeout(() => {
+          obPage3.style.display = 'none';
+          obPage2.style.display = 'flex';
+          setTimeout(() => { obPage2.style.opacity = '1'; }, 30);
+        }, 200);
+      });
+    }
+
+    // Finalize Setup & Launch
+    const finalizeSetup = async () => {
       if (pickedMode === 'wallpaper') {
         settings.wallpaperMode = true;
         settings.taskbarMode = false;
-        settings.wallpaperStyle = pickedStyle || 'style3';
       } else if (pickedMode === 'taskbar') {
         settings.taskbarMode = true;
         settings.wallpaperMode = false;
-      } else if (pickedMode === 'standard') {
+      } else {
         settings.wallpaperMode = false;
         settings.taskbarMode = false;
       }
       
+      settings.hasCompletedSetup = true;
       settings.firstRun = false;
+      localStorage.setItem("lyricflow_setup_done", "true");
       saveLocalSettings();
       
       const screenOnboarding = document.getElementById('screen-onboarding');
@@ -1226,15 +1336,22 @@ function setupUIHandlers() {
       }
       
       applyVisualSettings();
-      
-      if (screenLyrics) {
-        screenLyrics.style.display = 'flex';
-        screenLyrics.classList.add('active');
-      }
+      showLyricsScreen();
     };
 
-    btnFinish1.addEventListener('click', finalizeSetup);
-    btnFinish2.addEventListener('click', finalizeSetup);
+    if (btnFinishFinal) {
+      btnFinishFinal.addEventListener('click', finalizeSetup);
+    }
+  }
+
+  // Re-run setup wizard button from Settings Panel
+  const btnRerunSetup = document.getElementById('btn-rerun-setup');
+  if (btnRerunSetup) {
+    btnRerunSetup.addEventListener('click', () => {
+      const panel = document.getElementById('settings-panel');
+      if (panel) panel.classList.remove('open');
+      showOnboardingWizard();
+    });
   }
   // Auth Form Submission (Seamless Web Flow)
   const btnLoginWeb = document.getElementById("btn-login-web");
@@ -3023,6 +3140,50 @@ function showLoginScreen() {
   }
 }
 
+function showOnboardingWizard() {
+  if (screenLogin) {
+    screenLogin.classList.remove("active");
+    screenLogin.style.display = "none";
+  }
+  if (screenLyrics) {
+    screenLyrics.classList.remove("active");
+    screenLyrics.style.display = "none";
+  }
+  const screenOnboarding = document.getElementById("screen-onboarding");
+  if (screenOnboarding) {
+    screenOnboarding.classList.add("active");
+    screenOnboarding.style.display = "flex";
+    
+    const p1 = document.getElementById('ob-page-1');
+    const p2 = document.getElementById('ob-page-2');
+    const p3 = document.getElementById('ob-page-3');
+    const d1 = document.getElementById('ob-step-dot-1');
+    const d2 = document.getElementById('ob-step-dot-2');
+    const d3 = document.getElementById('ob-step-dot-3');
+
+    if (p1) { p1.style.display = 'flex'; p1.style.opacity = '1'; }
+    if (p2) { p2.style.display = 'none'; p2.style.opacity = '0'; }
+    if (p3) { p3.style.display = 'none'; p3.style.opacity = '0'; }
+    if (d1) d1.classList.add('active');
+    if (d2) d2.classList.remove('active');
+    if (d3) d3.classList.remove('active');
+
+    const sliderOp = document.getElementById('ob-slider-opacity');
+    const valOp = document.getElementById('ob-val-opacity');
+    const sliderFs = document.getElementById('ob-slider-fontsize');
+    const valFs = document.getElementById('ob-val-fontsize');
+    const prevCard = document.getElementById('ob-preview-card');
+    const prevLine = document.getElementById('ob-preview-line-active');
+
+    if (sliderOp) sliderOp.value = settings.bgOpacity || 85;
+    if (valOp) valOp.textContent = `${settings.bgOpacity || 85}%`;
+    if (sliderFs) sliderFs.value = settings.fontSize || 22;
+    if (valFs) valFs.textContent = `${settings.fontSize || 22}px`;
+    if (prevCard) prevCard.style.background = `rgba(10, 10, 15, ${(settings.bgOpacity || 85) / 100})`;
+    if (prevLine) prevLine.style.fontSize = `${settings.fontSize || 22}px`;
+  }
+}
+
 function showLyricsScreen() {
   if (screenLogin) {
     screenLogin.classList.remove("active");
@@ -3089,8 +3250,7 @@ async function pollSpotifyPlayback(_retried = false) {
           if (localData && localData.item) {
             const localTitle = localData.item.name.toLowerCase().trim();
             const spotTitle = data.item.name.toLowerCase().trim();
-            const durationDiff = Math.abs((localData.item.duration_ms || 0) - (data.item.duration_ms || 0));
-            const isSameSong = durationDiff < 3000 || localTitle === spotTitle || localTitle.includes(spotTitle) || spotTitle.includes(localTitle);
+            const isSameSong = (localTitle === spotTitle || localTitle.includes(spotTitle) || spotTitle.includes(localTitle));
 
             if (isSameSong) {
               // Override Spotify Web API's lagging state with SMTC's instant state
@@ -3102,8 +3262,10 @@ async function pollSpotifyPlayback(_retried = false) {
               if (localData.playback_rate) {
                  data.playback_rate = localData.playback_rate;
               }
-            } else if (localData.is_playing && !data.is_playing) {
-              // SMTC is playing something else, and Spotify is paused.
+            } else if (localData.is_playing) {
+              // Local playback has already advanced to the next song, but Spotify Web API is still lagging behind!
+              // Switch immediately to localData so lyrics never lag one song behind!
+              lastSpotifyPlaybackData = null;
               handlePlaybackData(localData);
               return;
             }
@@ -3144,16 +3306,21 @@ async function pollSpotifyPlayback(_retried = false) {
       
       if (config.access_token) {
         window.electronAPI.saveConfig(config);
-        pollSpotifyPlayback(true);
+        await pollSpotifyPlayback(true);
+        return;
       } else {
         await pollLocalPlayback();
+        return;
       }
+    } else if (res.status !== 200) {
+      await pollLocalPlayback();
       return;
     }
 
     await pollLocalPlayback();
   } catch (err) {
     await pollLocalPlayback();
+    return;
   }
 }
 
@@ -3167,8 +3334,7 @@ async function pollLocalPlayback() {
       if (typeof lastSpotifyPlaybackData !== 'undefined' && lastSpotifyPlaybackData && lastSpotifyPlaybackData.item) {
         const localTitle = data.item.name.toLowerCase().trim();
         const spotTitle = lastSpotifyPlaybackData.item.name.toLowerCase().trim();
-        const durationDiff = Math.abs((data.item.duration_ms || 0) - (lastSpotifyPlaybackData.item.duration_ms || 0));
-        const isSameSong = durationDiff < 3000 || localTitle === spotTitle || localTitle.includes(spotTitle) || spotTitle.includes(localTitle);
+        const isSameSong = (localTitle === spotTitle || localTitle.includes(spotTitle) || spotTitle.includes(localTitle));
 
         if (isSameSong) {
            lastSpotifyPlaybackData.is_playing = data.is_playing;
@@ -3186,6 +3352,9 @@ async function pollLocalPlayback() {
            }
            handlePlaybackData(lastSpotifyPlaybackData);
            return;
+        } else {
+           // Song changed! Clear stale lastSpotifyPlaybackData
+           lastSpotifyPlaybackData = null;
         }
       }
 

@@ -160,46 +160,22 @@ impl MediaSessionBackend for WindowsSmtcBackend {
             (0, 0)
         };
 
-        // Fetch track properties from SMTC session with smart caching
-        let (title, artist, album) = {
-            let lock = CACHED_TRACK.lock().unwrap();
-            if let Some(ref cached) = *lock {
-                if duration_ms > 0 && (cached.duration_ms as i64 - duration_ms as i64).abs() < 1500 && !cached.title.is_empty() {
-                    (cached.title.clone(), cached.artist.clone(), cached.album.clone())
-                } else {
-                    drop(lock);
-                    if let Ok(async_op) = session.TryGetMediaPropertiesAsync() {
-                        if let Ok(props) = async_op.get() {
-                            let t = props.Title().ok().map(|s| s.to_string()).unwrap_or_default();
-                            let a = props.Artist().ok().map(|s| s.to_string()).unwrap_or_default();
-                            let alb = props.AlbumTitle().ok().map(|s| s.to_string()).unwrap_or_default();
-                            (t, a, alb)
-                        } else {
-                            (String::new(), String::new(), String::new())
-                        }
-                    } else {
-                        (String::new(), String::new(), String::new())
-                    }
-                }
+        // Fetch fresh track properties directly from SMTC session on every poll
+        let (title, artist, album) = if let Ok(async_op) = session.TryGetMediaPropertiesAsync() {
+            if let Ok(props) = async_op.get() {
+                let t = props.Title().ok().map(|s| s.to_string()).unwrap_or_default();
+                let a = props.Artist().ok().map(|s| s.to_string()).unwrap_or_default();
+                let alb = props.AlbumTitle().ok().map(|s| s.to_string()).unwrap_or_default();
+                (t, a, alb)
             } else {
-                drop(lock);
-                if let Ok(async_op) = session.TryGetMediaPropertiesAsync() {
-                    if let Ok(props) = async_op.get() {
-                        let t = props.Title().ok().map(|s| s.to_string()).unwrap_or_default();
-                        let a = props.Artist().ok().map(|s| s.to_string()).unwrap_or_default();
-                        let alb = props.AlbumTitle().ok().map(|s| s.to_string()).unwrap_or_default();
-                        (t, a, alb)
-                    } else {
-                        (String::new(), String::new(), String::new())
-                    }
-                } else {
-                    (String::new(), String::new(), String::new())
-                }
+                (String::new(), String::new(), String::new())
             }
+        } else {
+            (String::new(), String::new(), String::new())
         };
 
         if title.is_empty() {
-            // If title is empty or transiently unavailable, return cached track
+            // If title is empty or transiently unavailable (e.g. during track transition), return cached track
             let mut lock = CACHED_TRACK.lock().unwrap();
             if let Some(ref mut track) = *lock {
                 track.is_playing = is_playing;
