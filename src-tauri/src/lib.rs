@@ -123,12 +123,17 @@ pub fn run() {
                 ],
             )?;
 
+            let icon_bytes = include_bytes!("../icons/icon.png");
+            let icon = tauri::image::Image::from_bytes(icon_bytes).ok();
+
             let mut tray_builder = TrayIconBuilder::with_id("main_tray")
                 .tooltip("LyricFlow")
                 .menu(&menu);
 
-            if let Some(icon) = app.default_window_icon().cloned() {
-                tray_builder = tray_builder.icon(icon);
+            if let Some(i) = icon {
+                tray_builder = tray_builder.icon(i);
+            } else if let Some(i) = app.default_window_icon().cloned() {
+                tray_builder = tray_builder.icon(i);
             }
 
             let _tray = tray_builder
@@ -214,21 +219,23 @@ pub fn run() {
                 })
                 .build(app)?;
 
-            // Windows: Configure styles for standard modern Windows context menu (without compact Win32 WS_SYSMENU)
+            // Windows: Enable WS_MINIMIZEBOX & WS_SYSMENU so borderless window minimizes and restores cleanly via taskbar,
             // and hide secondary tool windows (taskbar, edge-glow) from taskbar & Alt-Tab via WS_EX_TOOLWINDOW
             #[cfg(target_os = "windows")]
             {
                 if let Some(main_win) = app.get_webview_window("main") {
+                    let _ = main_win.show();
+                    let _ = main_win.unminimize();
+                    let _ = main_win.set_focus();
+
                     if let Ok(hwnd) = main_win.hwnd() {
                         use windows::Win32::UI::WindowsAndMessaging::{GetWindowLongW, SetWindowLongW, GWL_STYLE, WS_MINIMIZEBOX, WS_SYSMENU};
                         unsafe {
                             let style = GetWindowLongW(windows::Win32::Foundation::HWND(hwnd.0 as _), GWL_STYLE);
-                            // Setting WS_MINIMIZEBOX enables taskbar minimize/restore, but clearing WS_SYSMENU
-                            // ensures Windows displays the normal modern taskbar context menu instead of the compact Win32 system menu!
                             SetWindowLongW(
                                 windows::Win32::Foundation::HWND(hwnd.0 as _),
                                 GWL_STYLE,
-                                (style | (WS_MINIMIZEBOX.0 as i32)) & !(WS_SYSMENU.0 as i32),
+                                style | (WS_MINIMIZEBOX.0 as i32) | (WS_SYSMENU.0 as i32),
                             );
                         }
                     }
