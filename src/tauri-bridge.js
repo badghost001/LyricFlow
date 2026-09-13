@@ -203,6 +203,7 @@
   // Taskbar window bridge polyfill
   window.taskbarAPI = {
     setClickThrough: (ignore) => safeInvoke('set_click_through', { ignore }),
+    moveWindow: (deltaX) => safeInvoke('move_taskbar_window', { deltaX }),
     saveOffset: (x) => {
       safeEmit('tb-save-offset', x);
       safeEmit('tb-offset-saved', x);

@@ -502,19 +502,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   }, 2000);
 
   try {
-    // Stage 1: DOM Elements Binding & Visual Preferences (Immediate, synchronous)
-    initDOMElements();
-    loadLocalSettings(true); // skipIPC = true prevents duplicate IPC calls during boot
-
-    // Stage 2: UI Handlers & History Render
-    try {
-      setupUIHandlers();
-    } catch (err) {
-      console.error("Error initializing UI handlers:", err);
-    }
-    try { renderHistory(); } catch (e) { console.warn("History render warning:", e); }
-
-    // Stage 3: Config & Auth Verification
+    // Stage 1: Config & Auth Verification (Async from Rust)
     try {
       if (window.electronAPI && typeof window.electronAPI.loadConfig === 'function') {
         config = await window.electronAPI.loadConfig();
@@ -525,6 +513,18 @@ window.addEventListener("DOMContentLoaded", async () => {
       console.error("Failed to load config:", err);
       config = null;
     }
+
+    // Stage 2: DOM Elements Binding & Visual Preferences (Immediate, synchronous)
+    initDOMElements();
+    loadLocalSettings(true); // skipIPC = true prevents duplicate IPC calls during boot
+
+    // Stage 3: UI Handlers & History Render
+    try {
+      setupUIHandlers();
+    } catch (err) {
+      console.error("Error initializing UI handlers:", err);
+    }
+    try { renderHistory(); } catch (e) { console.warn("History render warning:", e); }
 
     // Stage 4: Instant Launch Transition
     const isFirstTime = !localStorage.getItem("lyricflow_setup_done") && settings.hasCompletedSetup !== true;
@@ -598,6 +598,21 @@ function loadLocalSettings(skipIPC = false) {
     if (settings.geniusPosition === 'top') {
       settings.geniusPosition = 'top-left';
     }
+  }
+
+  // Enforce optimal defaults requested by user:
+  if (settings.bgOpacity === undefined || settings.bgOpacity === null) {
+    settings.bgOpacity = 85;
+  }
+  if (!settings.fontSize || settings.fontSize < 16) {
+    settings.fontSize = 22;
+  }
+
+  // Safety guard: If setup has never been completed, force standard mode so onboarding is always visible!
+  const hasCompleted = settings.hasCompletedSetup === true || localStorage.getItem("lyricflow_setup_done") === "true";
+  if (!hasCompleted) {
+    settings.taskbarMode = false;
+    settings.wallpaperMode = false;
   }
 
   // Apply visual settings (skip IPC during bootstrapping to avoid redundant calls)
@@ -2607,6 +2622,10 @@ function setupUIHandlers() {
   window.electronAPI.onLocalPlaybackChange((data) => {
     if (config && config.localMode) {
       handlePlaybackData(data);
+    } else {
+      // Even in Spotify Web API mode, an instant SMTC song change event tells us a new track started!
+      // Immediately poll Spotify to synchronize without waiting for the slow polling interval
+      pollSpotifyPlayback(true);
     }
   });
 
@@ -3329,6 +3348,15 @@ function updateMonitorBtnGroup(group, selectedId) {
 }
 
 function showOnboardingWizard() {
+  settings.taskbarMode = false;
+  settings.wallpaperMode = false;
+  if (window.electronAPI && window.electronAPI.setTaskbarMode) {
+    window.electronAPI.setTaskbarMode(false);
+  }
+  if (window.electronAPI && window.electronAPI.setWallpaperMode) {
+    window.electronAPI.setWallpaperMode(false);
+  }
+
   if (screenLogin) {
     screenLogin.classList.remove("active");
     screenLogin.style.display = "none";

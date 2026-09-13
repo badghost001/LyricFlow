@@ -83,9 +83,12 @@ pub fn set_taskbar_mode(app: AppHandle, enabled: bool, _from_tray: Option<bool>)
                 if let Ok(Some(monitor)) = tb_win.primary_monitor() {
                     let size = monitor.size();
                     let scale = monitor.scale_factor();
+                    let w = (540.0 * scale) as u32;
                     let h = (44.0 * scale) as u32;
-                    let _ = tb_win.set_size(tauri::PhysicalSize::new(size.width, h));
-                    let _ = tb_win.set_position(tauri::PhysicalPosition::new(0, size.height as i32 - h as i32));
+                    let x = ((size.width.saturating_sub(w)) / 2) as i32;
+                    let y = size.height as i32 - h as i32;
+                    let _ = tb_win.set_size(tauri::PhysicalSize::new(w, h));
+                    let _ = tb_win.set_position(tauri::PhysicalPosition::new(x, y));
                 }
             }
             #[cfg(target_os = "macos")]
@@ -93,10 +96,12 @@ pub fn set_taskbar_mode(app: AppHandle, enabled: bool, _from_tray: Option<bool>)
                 if let Ok(Some(monitor)) = tb_win.primary_monitor() {
                     let size = monitor.size();
                     let scale = monitor.scale_factor();
+                    let w = (500.0 * scale) as u32;
                     let h = (38.0 * scale) as u32;
-                    // On macOS: Dock directly beneath the Menu Bar (y = 30px) or above the dock
-                    let _ = tb_win.set_size(tauri::PhysicalSize::new(size.width, h));
-                    let _ = tb_win.set_position(tauri::PhysicalPosition::new(0, (28.0 * scale) as i32));
+                    let x = ((size.width.saturating_sub(w)) / 2) as i32;
+                    let y = (28.0 * scale) as i32;
+                    let _ = tb_win.set_size(tauri::PhysicalSize::new(w, h));
+                    let _ = tb_win.set_position(tauri::PhysicalPosition::new(x, y));
                 }
             }
             let _ = tb_win.show();
@@ -109,7 +114,19 @@ pub fn set_taskbar_mode(app: AppHandle, enabled: bool, _from_tray: Option<bool>)
         }
         if let Some(main_win) = app.get_webview_window("main") {
             let _ = main_win.show();
+            let _ = main_win.unminimize();
             let _ = main_win.set_focus();
+        }
+        let _ = app.emit("force-normal-mode", ());
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn move_taskbar_window(app: AppHandle, delta_x: i32) -> Result<(), String> {
+    if let Some(tb_win) = app.get_webview_window("taskbar") {
+        if let Ok(pos) = tb_win.outer_position() {
+            let _ = tb_win.set_position(tauri::PhysicalPosition::new(pos.x + delta_x, pos.y));
         }
     }
     Ok(())

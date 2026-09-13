@@ -35,9 +35,7 @@
   transform-origin: var(--text-align) center;
   cursor: pointer;
   -webkit-font-smoothing: antialiased;
-  contain: layout style;
-  content-visibility: auto;
-  contain-intrinsic-size: 0 45px;
+  contain: style;
   will-change: transform, opacity;
 }
 
@@ -53,7 +51,6 @@
 }
 
 .lyric-line.active {
-  content-visibility: visible !important;
   opacity: 1 !important;
   font-weight: 750 !important;
   transform: scale(1.04) translateZ(0) !important;
