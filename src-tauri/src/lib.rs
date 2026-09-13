@@ -4,7 +4,7 @@ pub mod commands;
 
 use commands::*;
 use tauri::{
-    menu::{Menu, MenuItem},
+    menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     Emitter, Manager,
 };
@@ -93,32 +93,45 @@ pub fn run() {
                 }
             });
 
-            // Build System Tray
-            let show_item = MenuItem::with_id(app, "show_main", "Show LyricFlow", true, None::<&str>)?;
-            let toggle_item = MenuItem::with_id(app, "toggle", "Show / Hide", true, None::<&str>)?;
-            let taskbar_item = MenuItem::with_id(app, "taskbar", "Taskbar Mode", true, None::<&str>)?;
+            // Build System Tray (Matches Electron menu-builder.js layout exactly)
+            let title_item = MenuItem::with_id(app, "title", "LyricFlow", false, None::<&str>)?;
+            let sep1 = PredefinedMenuItem::separator(app)?;
+            let show_item = MenuItem::with_id(app, "show_main", "Open App", true, None::<&str>)?;
+            let taskbar_item = MenuItem::with_id(app, "taskbar", "Toggle Taskbar Mode", true, None::<&str>)?;
+            let sep2 = PredefinedMenuItem::separator(app)?;
             let play_item = MenuItem::with_id(app, "play", "Play / Pause", true, None::<&str>)?;
-            let next_item = MenuItem::with_id(app, "next", "Next Track", true, None::<&str>)?;
-            let prev_item = MenuItem::with_id(app, "prev", "Previous Track", true, None::<&str>)?;
+            let next_item = MenuItem::with_id(app, "next", "Next Song", true, None::<&str>)?;
+            let prev_item = MenuItem::with_id(app, "prev", "Previous Song", true, None::<&str>)?;
+            let sep3 = PredefinedMenuItem::separator(app)?;
             let settings_item = MenuItem::with_id(app, "settings", "Show Settings", true, None::<&str>)?;
-            let quit_item = MenuItem::with_id(app, "quit", "Quit LyricFlow", true, None::<&str>)?;
+            let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
 
             let menu = Menu::with_items(
                 app,
                 &[
+                    &title_item,
+                    &sep1,
                     &show_item,
-                    &toggle_item,
                     &taskbar_item,
+                    &sep2,
                     &play_item,
                     &next_item,
                     &prev_item,
+                    &sep3,
                     &settings_item,
                     &quit_item,
                 ],
             )?;
 
-            let _tray = TrayIconBuilder::new()
-                .menu(&menu)
+            let mut tray_builder = TrayIconBuilder::with_id("main_tray")
+                .tooltip("LyricFlow")
+                .menu(&menu);
+
+            if let Some(icon) = app.default_window_icon().cloned() {
+                tray_builder = tray_builder.icon(icon);
+            }
+
+            let _tray = tray_builder
                 .on_menu_event(|app, event| {
                     match event.id.as_ref() {
                         "show_main" => {
@@ -201,7 +214,8 @@ pub fn run() {
                 })
                 .build(app)?;
 
-            // Windows: Enable WS_MINIMIZEBOX & WS_SYSMENU so borderless window minimizes and restores cleanly via taskbar
+            // Windows: Configure styles for standard modern Windows context menu (without compact Win32 WS_SYSMENU)
+            // and hide secondary tool windows (taskbar, edge-glow) from taskbar & Alt-Tab via WS_EX_TOOLWINDOW
             #[cfg(target_os = "windows")]
             {
                 if let Some(main_win) = app.get_webview_window("main") {
@@ -209,7 +223,30 @@ pub fn run() {
                         use windows::Win32::UI::WindowsAndMessaging::{GetWindowLongW, SetWindowLongW, GWL_STYLE, WS_MINIMIZEBOX, WS_SYSMENU};
                         unsafe {
                             let style = GetWindowLongW(windows::Win32::Foundation::HWND(hwnd.0 as _), GWL_STYLE);
-                            SetWindowLongW(windows::Win32::Foundation::HWND(hwnd.0 as _), GWL_STYLE, style | (WS_MINIMIZEBOX.0 as i32) | (WS_SYSMENU.0 as i32));
+                            // Setting WS_MINIMIZEBOX enables taskbar minimize/restore, but clearing WS_SYSMENU
+                            // ensures Windows displays the normal modern taskbar context menu instead of the compact Win32 system menu!
+                            SetWindowLongW(
+                                windows::Win32::Foundation::HWND(hwnd.0 as _),
+                                GWL_STYLE,
+                                (style | (WS_MINIMIZEBOX.0 as i32)) & !(WS_SYSMENU.0 as i32),
+                            );
+                        }
+                    }
+                }
+
+                // Clean secondary windows from taskbar, Alt-Tab switcher, and shortcut menus
+                for label in &["taskbar", "edge-glow"] {
+                    if let Some(win) = app.get_webview_window(label) {
+                        if let Ok(hwnd) = win.hwnd() {
+                            use windows::Win32::UI::WindowsAndMessaging::{GetWindowLongW, SetWindowLongW, GWL_EXSTYLE, WS_EX_TOOLWINDOW, WS_EX_APPWINDOW};
+                            unsafe {
+                                let ex_style = GetWindowLongW(windows::Win32::Foundation::HWND(hwnd.0 as _), GWL_EXSTYLE);
+                                SetWindowLongW(
+                                    windows::Win32::Foundation::HWND(hwnd.0 as _),
+                                    GWL_EXSTYLE,
+                                    (ex_style | (WS_EX_TOOLWINDOW.0 as i32)) & !(WS_EX_APPWINDOW.0 as i32),
+                                );
+                            }
                         }
                     }
                 }

@@ -47,10 +47,6 @@
         "skipTaskbar": true
       }
     ],
-    "trayIcon": {
-      "iconPath": "icons/icon.png",
-      "tooltip": "LyricFlow"
-    },
     "security": {
       "csp": null
     }

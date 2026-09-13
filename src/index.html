@@ -55,7 +55,7 @@
       
       <!-- Drag & HUD Header (Fades out when mouse leaves) -->
       <header class="hud-header" id="hud-header" data-tauri-drag-region>
-        <div class="drag-handle" data-tauri-drag-region>
+        <div class="drag-handle" data-tauri-drag-region title="Drag from here to move the window (or use Shift+Arrow keys)">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="pointer-events: none;"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/><circle cx="19" cy="5" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="19" cy="19" r="1"/><circle cx="5" cy="5" r="1"/><circle cx="5" cy="12" r="1"/><circle cx="5" cy="19" r="1"/></svg>
           <span class="app-title" style="pointer-events: none;">LyricFlow</span>
         </div>
@@ -156,6 +156,7 @@
             <span class="ob-step-dot active" id="ob-step-dot-1"></span>
             <span class="ob-step-dot" id="ob-step-dot-2"></span>
             <span class="ob-step-dot" id="ob-step-dot-3"></span>
+            <span class="ob-step-dot" id="ob-step-dot-4"></span>
           </div>
 
           <!-- PAGE 1: MODE SELECTION -->
@@ -301,7 +302,56 @@
 
             <div style="display: flex; gap: 14px; justify-content: center; align-items: center; margin-top: 24px;">
               <button id="btn-back-onboarding-3" style="height: 44px; padding: 0 28px; min-width: 140px; font-size: 14px; border-radius: 22px; background: rgba(255,255,255,0.08); color: white; border: 1px solid rgba(255,255,255,0.15); cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; transition: all 0.2s;">← Back</button>
-              <button id="btn-finish-onboarding-final" class="btn-primary" style="height: 44px; padding: 0 36px; min-width: 210px; font-size: 15px; border-radius: 22px; cursor: pointer; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; transition: all 0.2s;">🚀 Launch LyricFlow</button>
+              <button id="btn-next-onboarding-3" class="btn-primary" style="height: 44px; padding: 0 32px; min-width: 220px; font-size: 14px; border-radius: 22px; cursor: pointer; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; transition: all 0.2s;">Next: Pro Tips & Controls →</button>
+            </div>
+          </div>
+
+          <!-- PAGE 4: PRO TIPS & SUPERPOWERS -->
+          <div id="ob-page-4" style="display: none; width: 100%; flex-direction: column; align-items: center; transition: opacity 0.3s;">
+            <h1 style="font-size: 30px; margin-bottom: 8px; font-weight: 800; background: linear-gradient(to right, #1DB954, #1ed760); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Pro Tips & Controls</h1>
+            <p style="color: rgba(255,255,255,0.7); font-size: 14.5px; margin-bottom: 20px;">Essential tricks to get the most out of your lyrics.</p>
+
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; width: 100%; max-width: 560px; margin-bottom: 22px;">
+              <!-- Tip 1: Moving Window -->
+              <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 14px; text-align: left; display: flex; gap: 12px; align-items: flex-start;">
+                <div style="font-size: 24px; line-height: 1;">🖐️</div>
+                <div>
+                  <h4 style="margin: 0 0 4px 0; font-size: 13.5px; font-weight: 700; color: #fff;">Moving the Window</h4>
+                  <p style="margin: 0; font-size: 11.5px; color: rgba(255,255,255,0.65); line-height: 1.4;">Drag from the <b>top-left grip handle</b> (the <i>LyricFlow</i> logo). You can also use <kbd style="background:rgba(255,255,255,0.12);padding:1px 5px;border-radius:4px;font-size:10px;color:#1DB954;">Shift+Arrows</kbd> for micro-nudges.</p>
+                </div>
+              </div>
+
+              <!-- Tip 2: Ghost / Click-Through -->
+              <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 14px; text-align: left; display: flex; gap: 12px; align-items: flex-start;">
+                <div style="font-size: 24px; line-height: 1;">👻</div>
+                <div>
+                  <h4 style="margin: 0 0 4px 0; font-size: 13.5px; font-weight: 700; color: #fff;">Click-Through Mode</h4>
+                  <p style="margin: 0; font-size: 11.5px; color: rgba(255,255,255,0.65); line-height: 1.4;">Press <kbd style="background:rgba(255,255,255,0.12);padding:1px 5px;border-radius:4px;font-size:10px;color:#1DB954;">Ctrl+Shift+L</kbd> to make the window transparent to mouse clicks—perfect for gaming or work.</p>
+                </div>
+              </div>
+
+              <!-- Tip 3: Copy & Share -->
+              <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 14px; text-align: left; display: flex; gap: 12px; align-items: flex-start;">
+                <div style="font-size: 24px; line-height: 1;">📋</div>
+                <div>
+                  <h4 style="margin: 0 0 4px 0; font-size: 13.5px; font-weight: 700; color: #fff;">Copy & Share</h4>
+                  <p style="margin: 0; font-size: 11.5px; color: rgba(255,255,255,0.65); line-height: 1.4;">Double-click or press <kbd style="background:rgba(255,255,255,0.12);padding:1px 5px;border-radius:4px;font-size:10px;color:#1DB954;">Ctrl+Shift+C</kbd> to copy lyrics. Press <kbd style="background:rgba(255,255,255,0.12);padding:1px 5px;border-radius:4px;font-size:10px;color:#1DB954;">Ctrl+Shift+S</kbd> to share a card.</p>
+                </div>
+              </div>
+
+              <!-- Tip 4: Taskbar & Desktop Docking -->
+              <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 14px; text-align: left; display: flex; gap: 12px; align-items: flex-start;">
+                <div style="font-size: 24px; line-height: 1;">📌</div>
+                <div>
+                  <h4 style="margin: 0 0 4px 0; font-size: 13.5px; font-weight: 700; color: #fff;">Modes & Tray Control</h4>
+                  <p style="margin: 0; font-size: 11.5px; color: rgba(255,255,255,0.65); line-height: 1.4;">Switch between Floating Overlay, Taskbar Dock, and Desktop Wallpaper from Settings or the system tray icon.</p>
+                </div>
+              </div>
+            </div>
+
+            <div style="display: flex; gap: 14px; justify-content: center; align-items: center; margin-top: 6px;">
+              <button id="btn-back-onboarding-4" style="height: 44px; padding: 0 28px; min-width: 140px; font-size: 14px; border-radius: 22px; background: rgba(255,255,255,0.08); color: white; border: 1px solid rgba(255,255,255,0.15); cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; transition: all 0.2s;">← Back</button>
+              <button id="btn-finish-onboarding-final" class="btn-primary" style="height: 44px; padding: 0 36px; min-width: 220px; font-size: 15px; border-radius: 22px; cursor: pointer; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; transition: all 0.2s;">🚀 Start Listening</button>
             </div>
           </div>
           
@@ -426,6 +476,15 @@
             </button>
           </div>
         </footer>
+
+        <!-- First-Run Floating Tip Banner -->
+        <div id="floating-tip-banner" class="floating-tip-banner" style="display: none;">
+          <div class="tip-content">
+            <span class="tip-icon">💡</span>
+            <span class="tip-text"><b>Tip:</b> Drag from the top-left grip to move • Press <b>Ctrl+Shift+L</b> for Click-Through</span>
+          </div>
+          <button id="btn-dismiss-tip" class="tip-dismiss-btn" title="Dismiss tip">Got it</button>
+        </div>
       </section>
 
       <!-- 2.5. TASKBAR LAYOUT CONTAINER -->
@@ -992,13 +1051,40 @@
             </div>
 
             <div class="settings-group">
-              <h4>Keyboard Shortcuts</h4>
-              <div class="shortcut-tip">
-                <span><strong>Ctrl+Shift+L:</strong> Toggle Click-Through</span><br/>
-                <span style="margin-top: 4px; display: inline-block;"><strong>Ctrl+Shift+C:</strong> Copy Lyric</span><br/>
-                <span style="margin-top: 4px; display: inline-block;"><strong>Ctrl+Shift+S:</strong> Share Lyric Card</span><br/>
-                <span style="margin-top: 4px; display: inline-block;"><strong>Ctrl+F:</strong> Search Lyrics</span><br/>
-                <span style="margin-top: 4px; display: inline-block;"><strong>Alt + [ / ] :</strong> Adjust Sync Offset</span>
+              <h4>Keyboard Shortcuts & Gestures</h4>
+              <div class="shortcut-tip" style="padding: 12px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; font-size: 12px; line-height: 1.8;">
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 6px; margin-bottom: 6px;">
+                  <span style="color: rgba(255,255,255,0.85);">Move Overlay</span>
+                  <span style="color: rgba(255,255,255,0.6); font-size: 11px;">Drag top-left grip or <kbd class="kbd-badge">Shift + Arrows</kbd></span>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 6px; margin-bottom: 6px;">
+                  <span style="color: rgba(255,255,255,0.85);">Click-Through Mode</span>
+                  <kbd class="kbd-badge">Ctrl + Shift + L</kbd>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 6px; margin-bottom: 6px;">
+                  <span style="color: rgba(255,255,255,0.85);">Copy Active Lyric</span>
+                  <span style="color: rgba(255,255,255,0.6); font-size: 11px;">Double-Click or <kbd class="kbd-badge">Ctrl + Shift + C</kbd></span>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 6px; margin-bottom: 6px;">
+                  <span style="color: rgba(255,255,255,0.85);">Share Lyric Card</span>
+                  <kbd class="kbd-badge">Ctrl + Shift + S</kbd>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 6px; margin-bottom: 6px;">
+                  <span style="color: rgba(255,255,255,0.85);">Search Lyrics</span>
+                  <kbd class="kbd-badge">Ctrl + F</kbd>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 6px; margin-bottom: 6px;">
+                  <span style="color: rgba(255,255,255,0.85);">Play / Pause</span>
+                  <span style="color: rgba(255,255,255,0.6); font-size: 11px;"><kbd class="kbd-badge">Ctrl + Alt + Space</kbd> / Media Key</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 6px; margin-bottom: 6px;">
+                  <span style="color: rgba(255,255,255,0.85);">Next / Previous Song</span>
+                  <kbd class="kbd-badge">Ctrl + Alt + Right / Left</kbd>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <span style="color: rgba(255,255,255,0.85);">Adjust Sync Offset</span>
+                  <kbd class="kbd-badge">Alt + [ / ]</kbd>
+                </div>
               </div>
             </div>
 

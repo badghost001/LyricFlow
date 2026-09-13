@@ -1159,19 +1159,23 @@ function setupUIHandlers() {
   const obPage1 = document.getElementById('ob-page-1');
   const obPage2 = document.getElementById('ob-page-2');
   const obPage3 = document.getElementById('ob-page-3');
+  const obPage4 = document.getElementById('ob-page-4');
   const obCardWallpaper = document.getElementById('ob-card-wallpaper');
   const obCardTaskbar = document.getElementById('ob-card-taskbar');
   const obCardStandard = document.getElementById('ob-card-standard');
   
   const btnNext1 = document.getElementById('btn-next-onboarding-1');
   const btnNext2 = document.getElementById('btn-next-onboarding-2');
+  const btnNext3 = document.getElementById('btn-next-onboarding-3');
   const btnBack2 = document.getElementById('btn-back-onboarding-2');
   const btnBack3 = document.getElementById('btn-back-onboarding-3');
+  const btnBack4 = document.getElementById('btn-back-onboarding-4');
   const btnFinishFinal = document.getElementById('btn-finish-onboarding-final');
 
   const dot1 = document.getElementById('ob-step-dot-1');
   const dot2 = document.getElementById('ob-step-dot-2');
   const dot3 = document.getElementById('ob-step-dot-3');
+  const dot4 = document.getElementById('ob-step-dot-4');
 
   const obSliderOpacity = document.getElementById('ob-slider-opacity');
   const obValOpacity = document.getElementById('ob-val-opacity');
@@ -1190,7 +1194,7 @@ function setupUIHandlers() {
   const obBadgeWallpaper = document.getElementById('ob-badge-wallpaper');
   const obWallpaperMonitorSection = document.getElementById('ob-wallpaper-monitor-section');
 
-  if (obPage1 && obPage2 && obPage3) {
+  if (obPage1 && obPage2 && obPage3 && obPage4) {
     let pickedMode = settings.taskbarMode ? 'taskbar' : (settings.wallpaperMode ? 'wallpaper' : 'standard');
 
     const updateModeSelection = (mode, selectedElem) => {
@@ -1382,6 +1386,34 @@ function setupUIHandlers() {
       });
     }
 
+    // Page 3 -> Page 4
+    if (btnNext3) {
+      btnNext3.addEventListener('click', () => {
+        obPage3.style.opacity = '0';
+        if (dot3) dot3.classList.remove('active');
+        if (dot4) dot4.classList.add('active');
+        setTimeout(() => {
+          obPage3.style.display = 'none';
+          obPage4.style.display = 'flex';
+          setTimeout(() => { obPage4.style.opacity = '1'; }, 30);
+        }, 200);
+      });
+    }
+
+    // Page 4 -> Page 3
+    if (btnBack4) {
+      btnBack4.addEventListener('click', () => {
+        obPage4.style.opacity = '0';
+        if (dot4) dot4.classList.remove('active');
+        if (dot3) dot3.classList.add('active');
+        setTimeout(() => {
+          obPage4.style.display = 'none';
+          obPage3.style.display = 'flex';
+          setTimeout(() => { obPage3.style.opacity = '1'; }, 30);
+        }, 200);
+      });
+    }
+
     // Finalize Setup & Launch
     const finalizeSetup = async () => {
       if (pickedMode === 'wallpaper') {
@@ -1413,6 +1445,21 @@ function setupUIHandlers() {
     if (btnFinishFinal) {
       btnFinishFinal.addEventListener('click', finalizeSetup);
     }
+  }
+
+  // Floating Tip Banner Dismiss Handler
+  const tipBanner = document.getElementById('floating-tip-banner');
+  const btnDismissTip = document.getElementById('btn-dismiss-tip');
+  if (btnDismissTip && tipBanner) {
+    btnDismissTip.addEventListener('click', () => {
+      localStorage.setItem('lyricflow_tip_dismissed', 'true');
+      tipBanner.style.opacity = '0';
+      tipBanner.style.transform = 'translate(-50%, 14px)';
+      tipBanner.style.transition = 'all 0.25s ease';
+      setTimeout(() => {
+        tipBanner.style.display = 'none';
+      }, 250);
+    });
   }
 
   // Re-run setup wizard button from Settings Panel
@@ -3373,16 +3420,20 @@ function showOnboardingWizard() {
     const p1 = document.getElementById('ob-page-1');
     const p2 = document.getElementById('ob-page-2');
     const p3 = document.getElementById('ob-page-3');
+    const p4 = document.getElementById('ob-page-4');
     const d1 = document.getElementById('ob-step-dot-1');
     const d2 = document.getElementById('ob-step-dot-2');
     const d3 = document.getElementById('ob-step-dot-3');
+    const d4 = document.getElementById('ob-step-dot-4');
 
     if (p1) { p1.style.display = 'flex'; p1.style.opacity = '1'; }
     if (p2) { p2.style.display = 'none'; p2.style.opacity = '0'; }
     if (p3) { p3.style.display = 'none'; p3.style.opacity = '0'; }
+    if (p4) { p4.style.display = 'none'; p4.style.opacity = '0'; }
     if (d1) d1.classList.add('active');
     if (d2) d2.classList.remove('active');
     if (d3) d3.classList.remove('active');
+    if (d4) d4.classList.remove('active');
 
     // Sync Mode Cards styling
     const obCardStandard = document.getElementById('ob-card-standard');
@@ -3479,6 +3530,19 @@ function showLyricsScreen() {
 
   // Apply visual settings (including taskbarMode toggles) after config is set
   applyVisualSettings();
+
+  // First-Run Floating Tip Banner Check
+  const tipBanner = document.getElementById('floating-tip-banner');
+  if (tipBanner) {
+    const isDismissed = localStorage.getItem('lyricflow_tip_dismissed') === 'true';
+    if (!isDismissed && !settings.taskbarMode && !settings.wallpaperMode) {
+      tipBanner.style.display = 'flex';
+      tipBanner.style.opacity = '1';
+      tipBanner.style.transform = 'translate(-50%, 0)';
+    } else {
+      tipBanner.style.display = 'none';
+    }
+  }
 }
 
 // Spotify Poller Management
