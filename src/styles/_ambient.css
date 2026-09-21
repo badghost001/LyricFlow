@@ -28,19 +28,35 @@
   backface-visibility: hidden;
 }
 
-body:not(.is-playing) .glow-orb,
-body.app-paused .glow-orb,
-body:not(.is-playing) .ambient-glow,
-body.app-paused .ambient-glow,
 body.taskbar-mode .glow-orb,
 body.taskbar-mode .ambient-glow {
   animation-play-state: paused !important;
   display: none !important;
 }
 
+body:not(.is-playing) .glow-orb,
+body.app-paused .glow-orb {
+  opacity: 0.16;
+  animation-duration: 26s;
+}
+
+body:not(.is-playing) .ambient-glow,
+body.app-paused .ambient-glow {
+  background:
+    radial-gradient(ellipse at 25% 45%, rgba(var(--accent-primary-rgb, 29, 185, 84), 0.08) 0%, transparent 65%),
+    radial-gradient(ellipse at 75% 55%, rgba(var(--accent-bright-rgb, 30, 215, 96), 0.05) 0%, transparent 65%),
+    rgba(10, 10, 18, 0.65);
+  animation: ambientBreathe 14s infinite ease-in-out;
+}
+
+@keyframes ambientBreathe {
+  0%, 100% { opacity: 0.85; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.02); }
+}
+
 body.window-blurred .glow-orb {
   animation-play-state: paused !important;
-  display: none !important;
+  opacity: 0.12 !important;
 }
 
 

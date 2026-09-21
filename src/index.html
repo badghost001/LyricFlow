@@ -18,8 +18,9 @@
     <link rel="stylesheet" href="styles/_components.css" />
     <link rel="stylesheet" href="styles.css" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' http://tauri.localhost tauri:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: file: lyricflow-media: https://*.scdn.co https://*.spotifycdn.com https://i.scdn.co https://*.mzstatic.com https://lastfm.freetls.fastly.net https://lastfm-img.freetls.fastly.net https://coverartarchive.org https://*.dzcdn.net https://*.deezer.com; media-src 'self' blob: file: data: lyricflow-media:; connect-src 'self' http://tauri.localhost tauri: https://api.spotify.com https://accounts.spotify.com https://lrclib.net https://ws.audioscrobbler.com https://www.last.fm https://itunes.apple.com https://musicbrainz.org https://*.workers.dev https://api.lyrics.ovh https://genius.com https://api.deezer.com https://*.deezer.com http://127.0.0.1:4882" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' ipc: http://ipc.localhost https://ipc.localhost https://tauri.localhost http://tauri.localhost tauri:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https:; font-src 'self' https: data:; img-src 'self' data: blob: file: lyricflow-media: http: https:; media-src 'self' blob: file: data: lyricflow-media: http: https:; connect-src 'self' ipc: http://ipc.localhost https://ipc.localhost https://tauri.localhost http://tauri.localhost tauri: http: https:;" />
     <title>LyricFlow</title>
+    <link rel="icon" type="image/png" href="assets/icon.png" />
     <!-- Google Fonts (Loaded Asynchronously to eliminate render-blocking delay, strict CSP compliant) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -38,11 +39,12 @@
   </head>
   <body>
     <!-- Custom Video/Image Background -->
-    <video id="custom-bg-video" loop muted autoplay style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; z-index: -2; opacity: 0.6; pointer-events: none;"></video>
-    <img id="custom-bg-img" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; z-index: -2; opacity: 0.6; pointer-events: none;" />
+    <video id="custom-bg-video" loop muted autoplay playsinline style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; z-index: 0; opacity: 1; pointer-events: none;"></video>
+    <img id="custom-bg-img" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; z-index: 0; opacity: 1; pointer-events: none;" />
 
     <!-- Wallpaper Album Background -->
     <img id="wallpaper-album-bg" class="wallpaper-album-bg" src="" />
+    <video id="wallpaper-album-bg-video" class="wallpaper-album-bg" loop muted autoplay playsinline style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; z-index: 0; opacity: 0; pointer-events: none; transition: opacity 0.5s ease;"></video>
 
     <!-- Dynamic Ambient Glow Background -->
     <div class="ambient-glow" id="ambient-glow">
@@ -67,9 +69,6 @@
 
           <button id="btn-news" title="Music News" class="hud-btn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"></path><path d="M18 14h-8"></path><path d="M15 18h-5"></path><path d="M10 6h8v4h-8V6Z"></path></svg>
-          </button>
-          <button id="btn-reload-hud" title="Find Alternative Lyrics / Reload (Ctrl+R)" class="hud-btn">
-            <svg class="reload-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
           </button>
           <button id="btn-settings" title="Settings" class="hud-btn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -371,6 +370,7 @@
         <div class="wallpaper-now-playing">
           <div class="wallpaper-art-shell">
             <img src="" id="wallpaper-style-art" class="wallpaper-style-art" />
+            <video id="wallpaper-style-art-video" class="wallpaper-style-art" loop muted autoplay playsinline style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; pointer-events: none;"></video>
             <div class="wallpaper-art-fallback" id="wallpaper-art-fallback">
               <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
             </div>
@@ -420,6 +420,7 @@
           <div class="widget-art-container">
 
             <img src="" alt="Album Art" id="widget-album-art" class="widget-album-art" style="display: none;" />
+            <video id="widget-album-art-video" class="widget-album-art" loop muted autoplay playsinline style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; pointer-events: none;"></video>
             <div class="art-fallback" id="widget-art-fallback">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
             </div>
@@ -625,6 +626,24 @@
                 </div>
                 <div id="label-bg-filename" style="font-size: 10px; color: rgba(255,255,255,0.4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%;">None selected</div>
               </div>
+              <div class="setting-row" style="margin-top: 6px;">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Enable animated looping album art (Spotify Canvas video loops, dynamic aesthetic GIFs, or custom local GIFs)">
+                  <span>Animated & GIF Album Art</span>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-animated-album-art" checked />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+              </div>
+              <div class="setting-row" style="margin-top: 6px; flex-direction: column; align-items: flex-start; gap: 4px;">
+                <label style="font-size: 12.5px; color: rgba(255,255,255,0.85);">Custom Album Art GIF (Optional)</label>
+                <div style="display: flex; gap: 8px; width: 100%;">
+                  <input type="file" id="input-custom-art-gif-file" accept="image/gif,video/mp4,video/webm" style="display: none;" />
+                  <button id="btn-pick-custom-art-gif" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 12px; transition: background 0.2s; flex-grow: 1;">Select GIF / Loop...</button>
+                  <button id="btn-clear-custom-art-gif" style="background: rgba(255,255,255,0.1); border: 1px solid #f43f5e; color: #f43f5e; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 12px; transition: background 0.2s; display: none;">Clear</button>
+                </div>
+                <div id="label-custom-art-gif-filename" style="font-size: 10px; color: rgba(255,255,255,0.4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%;">Auto (Spotify Canvas & Aesthetic GIFs)</div>
+              </div>
               <div class="setting-row">
                 <label for="select-highlight-color">Highlight Color</label>
                 <select id="select-highlight-color">
@@ -658,6 +677,8 @@
 
           <!-- TAB 2: LYRICS -->
           <div class="settings-tab-content" data-tab="lyrics">
+
+
             <div class="settings-group">
               <h4>Lyrics & Translation</h4>
               <div class="setting-row">
@@ -784,15 +805,6 @@
           <div class="settings-tab-content" data-tab="connections">
             <div class="settings-group">
               <h4>Integrations & Accounts</h4>
-              <div class="setting-row" style="margin-top: 6px;">
-                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Show the current playing song as your Discord Status">
-                  <span>Discord Rich Presence</span>
-                  <div class="toggle-switch">
-                    <input type="checkbox" id="check-discord-rpc" />
-                    <span class="toggle-slider"></span>
-                  </div>
-                </label>
-              </div>
               <div class="setting-row">
                 <label for="select-art-source">Fallback Art Source (Local Mode)</label>
                 <select id="select-art-source">
@@ -806,6 +818,9 @@
             <div class="settings-group">
               <h4>Last.fm Integration</h4>
               <div id="lastfm-setup" style="display: flex; flex-direction: column; gap: 8px;">
+                <div style="font-size: 12px; color: rgba(255,255,255,0.7); line-height: 1.4;">
+                  Connect your Last.fm account to scrobble played songs, view real-time play counts, and love tracks directly from LyricFlow.
+                </div>
                 <button id="btn-lastfm-connect" class="btn-primary" style="padding: 8px; font-size: 13px;">
                   <span style="display: flex; align-items: center; justify-content: center; gap: 6px;">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
@@ -813,10 +828,26 @@
                   </span>
                 </button>
               </div>
+
+              <!-- Waiting for authorization in browser card -->
+              <div id="lastfm-waiting" style="display: none; flex-direction: column; gap: 8px; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 10px;">
+                <div style="font-size: 12px; color: rgba(255,255,255,0.9); line-height: 1.4; display: flex; align-items: center; gap: 8px;">
+                  <span class="loading-spinner" style="width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.2); border-top-color: var(--accent-primary, #1DB954); border-radius: 50%; animation: spin 1s linear infinite;"></span>
+                  <span>Authorizing in browser...</span>
+                </div>
+                <div style="font-size: 11px; color: rgba(255,255,255,0.55); line-height: 1.35;">Click <b>"Yes, allow access"</b> on the Last.fm authorization page in your browser. LyricFlow will connect automatically once approved.</div>
+                <div style="display: flex; gap: 6px; margin-top: 2px;">
+                  <button id="btn-lastfm-reopen" class="btn-secondary" style="flex: 1; padding: 6px; font-size: 11.5px;">Reopen Browser</button>
+                  <button id="btn-lastfm-cancel" class="btn-secondary" style="flex: 1; padding: 6px; font-size: 11.5px; opacity: 0.75;">Cancel</button>
+                </div>
+              </div>
+
               <div id="lastfm-connected" style="display: none; flex-direction: column; gap: 8px; padding-top: 8px; color: #b3b3b3; font-size: 12.5px;">
-                <div style="display: flex; align-items: center; gap: 8px; color: #1DB954;">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-                  <span>Connected to Last.fm</span>
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                  <div style="display: flex; align-items: center; gap: 8px; color: #1DB954;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                    <span id="lastfm-account-status">Connected to Last.fm</span>
+                  </div>
                 </div>
                 <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; cursor: pointer;">
                   <span>Enable Scrobbling</span>
@@ -825,47 +856,7 @@
                     <span class="toggle-slider"></span>
                   </div>
                 </label>
-                <button id="btn-lastfm-disconnect" class="btn-secondary" style="padding: 6px; font-size: 12px; margin-top: 4px;">Disconnect</button>
-              </div>
-            </div>
-
-            <div class="settings-group" id="spotify-account-group">
-              <h4>Spotify Account</h4>
-
-              <!-- Shown when Spotify is NOT connected (Local Mode or no credentials) -->
-              <div id="spotify-setup" style="display: none; flex-direction: column; gap: 8px;">
-                <div style="font-size: 12px; color: rgba(255,255,255,0.7); line-height: 1.4;">
-                  No Spotify account connected (Local Mode active). Connect your Spotify account to enable Web API sync, remote player controls, and offline caching.
-                </div>
-                <button id="btn-spotify-connect" class="btn-primary" style="padding: 8px; font-size: 13px;">
-                  <span style="display: flex; align-items: center; justify-content: center; gap: 6px;">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.485 17.303a.75.75 0 0 1-1.03.248c-2.822-1.724-6.374-2.115-10.558-1.16a.75.75 0 1 1-.334-1.462c4.582-1.046 8.528-.598 11.674 1.344a.75.75 0 0 1 .248 1.03zm1.464-3.255a.938.938 0 0 1-1.29.31c-3.23-1.986-8.156-2.56-11.977-1.4a.938.938 0 1 1-.548-1.794c4.37-1.326 9.803-.68 13.505 1.594a.938.938 0 0 1 .31 1.29zm.125-3.393c-3.874-2.3-10.264-2.512-13.972-1.386a1.125 1.125 0 1 1-.655-2.153c4.258-1.293 11.31-1.047 15.772 1.602a1.125 1.125 0 0 1-1.145 1.937z"/>
-                    </svg>
-                    Connect Spotify Account
-                  </span>
-                </button>
-                <button id="btn-switch-login-screen-setup" class="btn-secondary" style="padding: 6px; font-size: 11.5px; margin-top: 2px;">
-                  Switch to Welcome / Login Screen
-                </button>
-              </div>
-
-              <!-- Shown when Spotify IS connected -->
-              <div id="spotify-connected" style="display: none; flex-direction: column; gap: 8px; padding-top: 4px; color: #b3b3b3; font-size: 12.5px;">
-                <div style="display: flex; align-items: center; justify-content: space-between;">
-                  <div style="display: flex; align-items: center; gap: 8px; color: #1DB954;">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-                    <span id="spotify-account-status">Connected to Spotify</span>
-                  </div>
-                </div>
-                <div style="display: flex; gap: 8px; margin-top: 4px;">
-                  <button id="btn-logout" class="btn-danger" style="flex: 1; padding: 8px; font-size: 12px;">
-                    <span>Disconnect Spotify</span>
-                  </button>
-                  <button id="btn-switch-login-screen" class="btn-secondary" style="flex: 1; padding: 8px; font-size: 12px;">
-                    <span>Welcome Screen</span>
-                  </button>
-                </div>
+                <button id="btn-lastfm-disconnect" class="btn-secondary" style="padding: 6px; font-size: 12px; margin-top: 4px;">Disconnect Last.fm</button>
               </div>
             </div>
           </div>
@@ -909,6 +900,10 @@
                   <button id="btn-pos-bl" class="pos-preset-btn" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 11px;">Bottom Left</button>
                   <button id="btn-pos-br" class="pos-preset-btn" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 11px;">Bottom Right</button>
                 </div>
+                <button id="btn-start-wallpaper-edit" type="button" style="margin-top: 8px; background: rgba(29, 185, 84, 0.15); border: 1px solid #1DB954; color: #1ed760; border-radius: 6px; padding: 5px 12px; font-size: 11.5px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all 0.2s;">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+                  Interactive Drag Mode
+                </button>
               </div>
               
               <div class="setting-row wallpaper-overlay-setting" id="setting-wallpaper-overlay-width" style="display: none; margin-top: 8px;">
@@ -999,8 +994,11 @@
             <div class="settings-group">
               <h4>General</h4>
               <div class="setting-row" style="margin-top: 6px;">
-                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Launch app automatically when Windows starts">
-                  <span>Launch on Windows Startup</span>
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Starts quietly docked on your taskbar without popping up in your face">
+                  <div>
+                    <span>Launch on Windows Startup</span>
+                    <div style="font-size: 10.5px; color: rgba(255,255,255,0.45); margin-top: 2px;">Starts quietly docked in Taskbar Mode</div>
+                  </div>
                   <div class="toggle-switch">
                     <input type="checkbox" id="check-auto-launch" />
                     <span class="toggle-slider"></span>

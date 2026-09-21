@@ -3,9 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <script src="tauri-bridge.js"></script>
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self' http://tauri.localhost tauri:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' ipc: http://ipc.localhost https://ipc.localhost https://tauri.localhost http://tauri.localhost tauri:; connect-src 'self' ipc: http://ipc.localhost https://ipc.localhost https://tauri.localhost http://tauri.localhost tauri:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline';">
   <title>LyricFlow Taskbar</title>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/png" href="assets/icon.png">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -13,84 +14,156 @@
       width: 100%;
       height: 100%;
       overflow: hidden;
-      background: transparent;
+      /* Minimum alpha so Windows hit-tests the full window area */
+      background: rgba(0, 0, 0, 0.06);
       font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       user-select: none;
-      display: flex;
-      align-items: center;
-      justify-content: center;
     }
 
-    #tb-container {
-      width: 100%;
-      height: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      position: relative;
-      background: rgba(12, 12, 16, 0.45);
-      border-radius: 8px;
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      cursor: grab;
-      transition: background 0.2s ease, border-color 0.2s ease;
-      overflow: hidden;
-      padding: 0 16px;
-    }
-
-    #tb-container:hover {
-      background: rgba(20, 20, 28, 0.72);
-      border-color: rgba(255, 255, 255, 0.18);
-    }
-
-    #tb-container.dragging {
-      cursor: grabbing;
-    }
-
+    /* Lyrics float at a draggable position, centered */
     #tb-lyric {
+      position: absolute;
+      top: 0;
+      bottom: 2px; /* leave room for progress bar */
+      left: 50%;
+      transform: translateX(-50%);
       display: flex;
       align-items: center;
       justify-content: center;
       white-space: nowrap;
-      font-size: 13.5px;
+      font-size: 13px;
       font-weight: 500;
       color: #ffffff;
-      text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
-      transition: opacity 0.25s ease;
-      max-width: 100%;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      pointer-events: none;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+      cursor: grab;
+      padding: 0 8px;
+      transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     #tb-lyric.tb-hidden {
       opacity: 0 !important;
+      pointer-events: none !important;
+    }
+
+    #tb-lyric:hover {
+      text-shadow: 0 0 10px rgba(255, 255, 255, 0.7), 0 1px 4px rgba(0, 0, 0, 0.9);
+    }
+
+    #tb-lyric.dragging {
+      cursor: grabbing;
+    }
+
+    /* Word-by-Word Styling in Taskbar */
+    .tb-lyric-word {
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      display: inline-block;
+      pointer-events: auto;
+    }
+
+    .tb-lyric-word.lyric-word-active {
+      color: #1DB954;
+      transform: scale(1.06);
+      text-shadow: 0 0 10px rgba(29, 185, 84, 0.6);
+    }
+
+    .tb-lyric-word.lyric-word-passed {
+      opacity: 0.55;
+    }
+
+    .tb-lyric-word.lyric-word-upcoming {
+      opacity: 0.85;
     }
 
     /* Progress bar */
     #tb-progress {
-      position: absolute;
+      position: fixed;
       bottom: 0;
       left: 0;
       width: 0%;
-      height: 2.5px;
+      height: 2px;
       background: #1DB954;
-      border-radius: 1px;
-      transition: width 0.3s linear;
+      transition: width 0.4s linear, height 0.4s linear, opacity 0.35s ease;
       pointer-events: none;
     }
 
     #tb-progress.tb-hidden {
       opacity: 0 !important;
     }
+
+    /* ── Position variants: Bottom (default) ─────────────────────── */
+    body.pos-bottom #tb-lyric {
+      top: 0;
+      bottom: 2px;
+      writing-mode: horizontal-tb;
+    }
+    body.pos-bottom #tb-progress {
+      bottom: 0;
+      top: auto;
+      left: 0;
+      right: auto;
+      height: 2px;
+      width: 0%;
+    }
+
+    /* ── Position variants: Top ("Up Aligned") — progress bar switches sides ── */
+    body.pos-top #tb-lyric {
+      top: 2px;
+      bottom: 0;
+      writing-mode: horizontal-tb;
+    }
+    body.pos-top #tb-progress {
+      top: 0;
+      bottom: auto;
+      left: 0;
+      right: auto;
+      height: 2px;
+      width: 0%;
+    }
+
+    /* ── Position variants: Left / Right — Vertical lyrics! ──────── */
+    body.pos-left #tb-lyric,
+    body.pos-right #tb-lyric {
+      writing-mode: vertical-rl;
+      text-orientation: mixed;
+      white-space: nowrap;
+      left: 0;
+      right: 0;
+      top: 50%;
+      bottom: auto;
+      transform: translateY(-50%);
+      padding: 8px 0;
+    }
+
+    body.pos-left #tb-lyric {
+      right: 2px; /* room for progress bar on right edge */
+      left: 0;
+    }
+    body.pos-left #tb-progress {
+      top: 0;
+      bottom: auto;
+      right: 0;
+      left: auto;
+      width: 2px;
+      height: 0%;
+    }
+
+    body.pos-right #tb-lyric {
+      left: 2px; /* room for progress bar on left edge */
+      right: 0;
+    }
+    body.pos-right #tb-progress {
+      top: 0;
+      bottom: auto;
+      left: 0;
+      right: auto;
+      width: 2px;
+      height: 0%;
+    }
   </style>
 </head>
-<body>
-  <div id="tb-container" title="Click to open LyricFlow | Drag to reposition">
-    <div id="tb-lyric">♫ Start playing Spotify...</div>
-    <div id="tb-progress"></div>
-  </div>
+<body class="pos-bottom" oncontextmenu="return false;">
+  <div id="tb-lyric" oncontextmenu="return false;">♫</div>
+  <div id="tb-progress"></div>
   <script src="./taskbar_renderer.js"></script>
 </body>
 </html>

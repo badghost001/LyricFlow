@@ -112,12 +112,13 @@ pub fn get_auto_launch() -> Result<bool, String> {
     #[cfg(target_os = "windows")]
     {
         use std::process::Command;
-        let out = Command::new("powershell")
-            .args(["-NoProfile", "-Command", "if (Get-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run' -Name 'LyricFlow' -ErrorAction SilentlyContinue) { 'true' } else { 'false' }"])
+        use std::os::windows::process::CommandExt;
+        let out = Command::new("cmd")
+            .args(["/C", "reg query \"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\" /v \"LyricFlow\""])
+            .creation_flags(0x08000000)
             .output();
         if let Ok(o) = out {
-            let s = String::from_utf8_lossy(&o.stdout).trim().to_string();
-            return Ok(s == "true");
+            return Ok(o.status.success());
         }
     }
     #[cfg(target_os = "macos")]
@@ -139,14 +140,37 @@ pub fn set_auto_launch(enabled: bool) -> Result<bool, String> {
     #[cfg(target_os = "windows")]
     {
         use std::process::Command;
+        use std::os::windows::process::CommandExt;
         if enabled {
             if let Ok(exe) = std::env::current_exe() {
                 let exe_str = exe.to_string_lossy().to_string();
-                let cmd = format!("Set-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run' -Name 'LyricFlow' -Value '\"{}\"'", exe_str);
-                let _ = Command::new("powershell").args(["-NoProfile", "-Command", &cmd]).output();
+                let reg_val = format!("\"{}\" --startup", exe_str);
+                let _ = Command::new("reg")
+                    .args([
+                        "add",
+                        "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+                        "/v",
+                        "LyricFlow",
+                        "/t",
+                        "REG_SZ",
+                        "/d",
+                        &reg_val,
+                        "/f",
+                    ])
+                    .creation_flags(0x08000000)
+                    .output();
             }
         } else {
-            let _ = Command::new("powershell").args(["-NoProfile", "-Command", "Remove-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run' -Name 'LyricFlow' -ErrorAction SilentlyContinue"]).output();
+            let _ = Command::new("reg")
+                .args([
+                    "delete",
+                    "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+                    "/v",
+                    "LyricFlow",
+                    "/f",
+                ])
+                .creation_flags(0x08000000)
+                .output();
         }
     }
     #[cfg(target_os = "macos")]
@@ -171,8 +195,10 @@ pub fn get_taskbar_color() -> Result<serde_json::Value, String> {
     #[cfg(target_os = "windows")]
     {
         use std::process::Command;
+        use std::os::windows::process::CommandExt;
         let out = Command::new("cmd")
             .args(["/C", "reg query \"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize\" /v SystemUsesLightTheme && reg query \"HKCU\\Software\\Microsoft\\Windows\\DWM\" /v ColorizationColor && reg query \"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize\" /v ColorPrevalence"])
+            .creation_flags(0x08000000)
             .output();
         if let Ok(o) = out {
             let stdout = String::from_utf8_lossy(&o.stdout);
@@ -241,21 +267,76 @@ pub fn get_taskbar_color() -> Result<serde_json::Value, String> {
 }
 
 #[tauri::command]
-pub fn select_background_file() -> Result<Option<String>, String> {
-    #[cfg(target_os = "windows")]
-    {
-        use std::process::Command;
-        let script = r#"[System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms') | Out-Null; $f = New-Object System.Windows.Forms.OpenFileDialog; $f.Filter = 'Media files (*.mp4;*.webm;*.jpg;*.jpeg;*.png;*.gif)|*.mp4;*.webm;*.jpg;*.jpeg;*.png;*.gif|All files (*.*)|*.*'; $f.Title = 'Select Background Media'; if ($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $f.FileName }"#;
-        let out = Command::new("powershell")
-            .args(["-NoProfile", "-Command", script])
-            .output();
-        if let Ok(o) = out {
-            let path = String::from_utf8_lossy(&o.stdout).trim().to_string();
-            if !path.is_empty() {
-                return Ok(Some(path));
+pub async fn select_background_file() -> Result<Option<String>, String> {
+    tokio::task::spawn_blocking(|| {
+        #[cfg(target_os = "windows")]
+        {
+            use std::process::Command;
+            use std::os::windows::process::CommandExt;
+            let script = r#"Add-Type -AssemblyName System.Windows.Forms; $f = New-Object System.Windows.Forms.OpenFileDialog; $f.Filter = 'Media files (*.mp4;*.webm;*.jpg;*.jpeg;*.png;*.gif)|*.mp4;*.webm;*.jpg;*.jpeg;*.png;*.gif|All files (*.*)|*.*'; $f.Title = 'Select Background Media'; $top = New-Object System.Windows.Forms.Form; $top.TopMost = $true; if ($f.ShowDialog($top) -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $f.FileName }; $top.Dispose()"#;
+            let out = Command::new("powershell")
+                .args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", script])
+                .creation_flags(0x08000000)
+                .output();
+            if let Ok(o) = out {
+                let path = String::from_utf8_lossy(&o.stdout).trim().to_string();
+                if !path.is_empty() {
+                    return Ok(Some(path));
+                }
             }
         }
-    }
-    Ok(None)
+        Ok(None)
+    }).await.map_err(|e| e.to_string())?
 }
+
+#[tauri::command]
+pub async fn select_animated_art_file() -> Result<Option<String>, String> {
+    tokio::task::spawn_blocking(|| {
+        #[cfg(target_os = "windows")]
+        {
+            use std::process::Command;
+            use std::os::windows::process::CommandExt;
+            let script = r#"Add-Type -AssemblyName System.Windows.Forms; $f = New-Object System.Windows.Forms.OpenFileDialog; $f.Filter = 'Animated Art & Media (*.gif;*.mp4;*.webm;*.webp)|*.gif;*.mp4;*.webm;*.webp|All files (*.*)|*.*'; $f.Title = 'Select Animated Album Art (GIF or Video)'; $top = New-Object System.Windows.Forms.Form; $top.TopMost = $true; if ($f.ShowDialog($top) -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $f.FileName }; $top.Dispose()"#;
+            let out = Command::new("powershell")
+                .args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", script])
+                .creation_flags(0x08000000)
+                .output();
+            if let Ok(o) = out {
+                let path = String::from_utf8_lossy(&o.stdout).trim().to_string();
+                if !path.is_empty() {
+                    return Ok(Some(path));
+                }
+            }
+        }
+        Ok(None)
+    }).await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn read_file_data_url(path: String) -> Result<String, String> {
+    if path.is_empty() {
+        return Err("Empty path".to_string());
+    }
+    tokio::task::spawn_blocking(move || {
+        let clean_path = path.trim().to_string();
+        let p = std::path::Path::new(&clean_path);
+        if !p.exists() {
+            return Err(format!("File does not exist: {}", clean_path));
+        }
+        let ext = p.extension().and_then(|s| s.to_str()).unwrap_or("").to_lowercase();
+        let mime = match ext.as_str() {
+            "gif" => "image/gif",
+            "png" => "image/png",
+            "jpg" | "jpeg" => "image/jpeg",
+            "webp" => "image/webp",
+            "mp4" => "video/mp4",
+            "webm" => "video/webm",
+            _ => "application/octet-stream",
+        };
+        let bytes = std::fs::read(&clean_path).map_err(|e| format!("Failed to read file: {}", e))?;
+        let b64 = crate::models::base64_encode(&bytes);
+        Ok(format!("data:{};base64,{}", mime, b64))
+    }).await.map_err(|e| e.to_string())?
+}
+
 

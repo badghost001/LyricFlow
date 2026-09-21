@@ -4,7 +4,26 @@ pub mod windows_smtc;
 #[cfg(target_os = "macos")]
 pub mod macos;
 
-use crate::models::TrackMetadata;
+use std::sync::{OnceLock, RwLock};
+use crate::models::{SpotifyPlaybackState, TrackMetadata};
+
+pub static CURRENT_PLAYBACK_STATE: OnceLock<RwLock<Option<SpotifyPlaybackState>>> = OnceLock::new();
+
+pub fn get_cached_playback_state() -> Option<SpotifyPlaybackState> {
+    if let Some(lock) = CURRENT_PLAYBACK_STATE.get() {
+        if let Ok(guard) = lock.read() {
+            return guard.clone();
+        }
+    }
+    None
+}
+
+pub fn set_cached_playback_state(state: SpotifyPlaybackState) {
+    let lock = CURRENT_PLAYBACK_STATE.get_or_init(|| RwLock::new(None));
+    if let Ok(mut guard) = lock.write() {
+        *guard = Some(state);
+    }
+}
 
 pub trait MediaSessionBackend: Send + Sync {
     fn poll_playback(&self) -> Option<TrackMetadata>;

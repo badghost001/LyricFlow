@@ -9,15 +9,57 @@ use tauri::{
     Emitter, Manager,
 };
 use std::time::Duration;
+use std::fs::OpenOptions;
+use std::io::Write;
+
+pub fn log_to_file(msg: &str) {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    if let Some(config_dir) = dirs::config_dir() {
+        let app_dir = config_dir.join("LyricFlow");
+        let _ = std::fs::create_dir_all(&app_dir);
+        let log_file = app_dir.join("lyricflow.log");
+        if let Ok(mut file) = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&log_file)
+        {
+            if let Ok(meta) = file.metadata() {
+                if meta.len() > 5 * 1024 * 1024 {
+                    let _ = file.set_len(0);
+                }
+            }
+            let _ = writeln!(file, "[{}] {}", now, msg);
+            let _ = file.flush();
+        }
+    }
+    println!("{}", msg);
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
 
 pub fn run() {
-    tauri::Builder::default()
-        .plugin(tauri_plugin_notification::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(
+    log_to_file("[LyricFlow] run() started");
+    log_to_file("[LyricFlow] Initializing tauri::Builder::default()...");
+    let b = tauri::Builder::default();
+    log_to_file("[LyricFlow] Adding single_instance plugin...");
+    let b = b.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+        log_to_file("[LyricFlow] Second instance launched! Bringing existing main window to front...");
+        if let Some(w) = app.get_webview_window("main") {
+            let _ = w.unminimize();
+            let _ = w.show();
+            let _ = w.set_focus();
+        }
+    }));
+    log_to_file("[LyricFlow] Adding notification plugin...");
+    let b = b.plugin(tauri_plugin_notification::init());
+    log_to_file("[LyricFlow] Adding updater plugin...");
+    let b = b.plugin(tauri_plugin_updater::Builder::new().build());
+    log_to_file("[LyricFlow] Adding global_shortcut plugin...");
+    let b = b.plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {
                     if event.state() == tauri_plugin_global_shortcut::ShortcutState::Pressed {
@@ -50,9 +92,27 @@ pub fn run() {
                 })
                 .build(),
         )
+        .on_window_event(|window, event| {
+            log_to_file(&format!("[LyricFlow Window Event] {:?} on '{}'", event, window.label()));
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                // Prevent destroying the window — hide it instead so the tray stays alive.
+                // Actual exit only happens via the tray "Quit" menu item calling app.exit(0).
+                if window.label() == "main" {
+                    api.prevent_close();
+                    let _ = window.hide();
+                    log_to_file("[LyricFlow] CloseRequested intercepted on 'main' — hiding instead of closing");
+                }
+            }
+            if let tauri::WindowEvent::Destroyed = event {
+                log_to_file(&format!("[LyricFlow] Window '{}' DESTROYED", window.label()));
+            }
+        })
+
         .setup(|app| {
+            log_to_file("[LyricFlow] setup() entered");
             let app_handle = app.handle().clone();
 
+            log_to_file("[LyricFlow] Registering shortcuts...");
             // Register Global Shortcuts
             let shortcuts = [
                 "ctrl+shift+l",
@@ -74,6 +134,7 @@ pub fn run() {
                     let _ = app.global_shortcut().register(sc);
                 }
             }
+            log_to_file("[LyricFlow] Shortcuts registered successfully");
 
             // Background Auto-Updater (checks 15s after startup, identical to Electron behavior)
             let updater_handle = app.handle().clone();
@@ -93,6 +154,7 @@ pub fn run() {
                 }
             });
 
+            log_to_file("[LyricFlow] Building system tray...");
             // Build System Tray (Matches Electron menu-builder.js layout exactly)
             let title_item = MenuItem::with_id(app, "title", "LyricFlow", false, None::<&str>)?;
             let sep1 = PredefinedMenuItem::separator(app)?;
@@ -130,11 +192,18 @@ pub fn run() {
                 .tooltip("LyricFlow")
                 .menu(&menu);
 
-            if let Some(i) = icon {
-                tray_builder = tray_builder.icon(i);
+            if let Some(ref i) = icon {
+                tray_builder = tray_builder.icon(i.clone());
+                if let Some(w) = app.get_webview_window("main") {
+                    let _ = w.set_icon(i.clone());
+                }
             } else if let Some(i) = app.default_window_icon().cloned() {
-                tray_builder = tray_builder.icon(i);
+                tray_builder = tray_builder.icon(i.clone());
+                if let Some(w) = app.get_webview_window("main") {
+                    let _ = w.set_icon(i);
+                }
             }
+            log_to_file("[LyricFlow] Calling tray_builder.build(app)...");
 
             let _tray = tray_builder
                 .on_menu_event(|app, event| {
@@ -218,87 +287,105 @@ pub fn run() {
                     }
                 })
                 .build(app)?;
+            log_to_file("[LyricFlow] Tray icon created successfully");
 
-            // Windows: Enable WS_MINIMIZEBOX & WS_SYSMENU so borderless window minimizes and restores cleanly via taskbar,
-            // and hide secondary tool windows (taskbar, edge-glow) from taskbar & Alt-Tab via WS_EX_TOOLWINDOW
+            let is_startup = std::env::args().any(|a| a == "--startup" || a == "--taskbar" || a == "--minimized" || a == "-m");
+            commands::window::set_is_startup(is_startup);
+
+            let should_start_in_taskbar = is_startup || {
+                if let Ok(Some(cfg)) = commands::config::load_config() {
+                    let in_root = cfg["taskbar_mode"].as_bool() == Some(true) || cfg["taskbarMode"].as_bool() == Some(true);
+                    let in_settings = cfg["settings"]["taskbarMode"].as_bool() == Some(true) || cfg["settings"]["taskbar_mode"].as_bool() == Some(true);
+                    in_root || in_settings
+                } else {
+                    false
+                }
+            };
+
             #[cfg(target_os = "windows")]
             {
                 if let Some(main_win) = app.get_webview_window("main") {
-                    let _ = main_win.show();
-                    let _ = main_win.unminimize();
-                    let _ = main_win.set_focus();
-
-                    if let Ok(hwnd) = main_win.hwnd() {
-                        use windows::Win32::UI::WindowsAndMessaging::{GetWindowLongW, SetWindowLongW, GWL_STYLE, WS_MINIMIZEBOX, WS_SYSMENU};
-                        unsafe {
-                            let style = GetWindowLongW(windows::Win32::Foundation::HWND(hwnd.0 as _), GWL_STYLE);
-                            SetWindowLongW(
-                                windows::Win32::Foundation::HWND(hwnd.0 as _),
-                                GWL_STYLE,
-                                style | (WS_MINIMIZEBOX.0 as i32) | (WS_SYSMENU.0 as i32),
-                            );
-                        }
+                    if !should_start_in_taskbar {
+                        log_to_file("[LyricFlow] Normal launch. Centering and showing main_win...");
+                        let _ = main_win.center();
+                        let _ = main_win.show();
+                        let _ = main_win.unminimize();
+                        let _ = main_win.set_focus();
+                    } else {
+                        log_to_file(&format!("[LyricFlow] Silent startup in Taskbar Mode (is_startup={}). Parking main_win off-screen...", is_startup));
+                        let _ = main_win.set_skip_taskbar(true);
+                        let _ = main_win.set_position(tauri::PhysicalPosition::new(-32000, -32000));
+                        let handle_clone = app.handle().clone();
+                        tauri::async_runtime::spawn(async move {
+                            let _ = commands::window::set_taskbar_mode(handle_clone, true, Some(false)).await;
+                        });
                     }
+
+                    if let Ok(pos) = main_win.outer_position() {
+                        log_to_file(&format!("[LyricFlow] main_win position: {:?}", pos));
+                    }
+                    if let Ok(size) = main_win.outer_size() {
+                        log_to_file(&format!("[LyricFlow] main_win size: {:?}", size));
+                    }
+                    if let Ok(is_vis) = main_win.is_visible() {
+                        log_to_file(&format!("[LyricFlow] main_win is_visible: {}", is_vis));
+                    }
+                } else {
+                    log_to_file("[LyricFlow HWND Error] 'main' window not found!");
                 }
 
-                // Clean secondary windows from taskbar, Alt-Tab switcher, and shortcut menus
-                for label in &["taskbar", "edge-glow"] {
-                    if let Some(win) = app.get_webview_window(label) {
-                        if let Ok(hwnd) = win.hwnd() {
-                            use windows::Win32::UI::WindowsAndMessaging::{GetWindowLongW, SetWindowLongW, GWL_EXSTYLE, WS_EX_TOOLWINDOW, WS_EX_APPWINDOW};
-                            unsafe {
-                                let ex_style = GetWindowLongW(windows::Win32::Foundation::HWND(hwnd.0 as _), GWL_EXSTYLE);
-                                SetWindowLongW(
-                                    windows::Win32::Foundation::HWND(hwnd.0 as _),
-                                    GWL_EXSTYLE,
-                                    (ex_style | (WS_EX_TOOLWINDOW.0 as i32)) & !(WS_EX_APPWINDOW.0 as i32),
+            }
+            log_to_file("[LyricFlow] setup() completed successfully");
+
+            // Dedicated Background Media Polling Thread (runs on OS thread with COM MTA apartment, zero Tokio contention)
+            let bg_handle = app_handle.clone();
+            std::thread::Builder::new()
+                .name("smtc-polling-worker".to_string())
+                .spawn(move || {
+                    #[cfg(target_os = "windows")]
+                    unsafe {
+                        let _ = windows::Win32::System::Com::CoInitializeEx(None, windows::Win32::System::Com::COINIT_MULTITHREADED);
+                    }
+
+                    let backend = media::get_platform_backend();
+                    let mut last_track_id = String::new();
+                    let mut last_is_playing = false;
+                    let mut last_rate = 1.0;
+
+                    loop {
+                        std::thread::sleep(Duration::from_millis(250));
+
+                        if let Some(track) = backend.poll_playback() {
+                            let current_id = format!("{}_{}", track.artist, track.title);
+                            let is_song_changed = current_id != last_track_id && !track.title.is_empty();
+                            let status_changed = track.is_playing != last_is_playing || (track.playback_rate - last_rate).abs() > 0.05;
+
+                            if let Some(playback_state) = track.to_spotify_playback_state() {
+                                // Keep in-memory cache fresh for instant get_local_playback IPC
+                                media::set_cached_playback_state(playback_state.clone());
+
+                                if is_song_changed {
+                                    last_track_id = current_id;
+                                    let _ = bg_handle.emit("local-playback-change", &playback_state);
+                                }
+                            }
+
+                            if status_changed {
+                                last_is_playing = track.is_playing;
+                                last_rate = track.playback_rate;
+                                let _ = bg_handle.emit(
+                                    "smtc-playback-status",
+                                    models::SmtcPlaybackStatus {
+                                        is_playing: track.is_playing,
+                                        position: track.position_ms,
+                                        playback_rate: track.playback_rate,
+                                    },
                                 );
                             }
                         }
                     }
-                }
-            }
-
-            // Background Media Polling Loop (Throttled to 1000ms to eliminate CPU spikes)
-            let bg_handle = app_handle.clone();
-            tauri::async_runtime::spawn(async move {
-                let mut last_track_id = String::new();
-                let mut last_is_playing = false;
-                let mut last_rate = 1.0;
-
-                loop {
-                    tokio::time::sleep(Duration::from_millis(1000)).await;
-
-                    let backend = media::get_platform_backend();
-                    if let Some(track) = backend.poll_playback() {
-                        let current_id = format!("{}_{}", track.artist, track.title);
-
-                        // Song changed
-                        if current_id != last_track_id && !track.title.is_empty() {
-                            last_track_id = current_id;
-                            if let Some(playback_state) = track.to_spotify_playback_state() {
-                                let _ = bg_handle.emit("local-playback-change", playback_state);
-                            }
-                        }
-
-                        // Play/pause or playback speed changed (for 1.5x / 2x speed catchup)
-                        let rate_changed = (track.playback_rate - last_rate).abs() > 0.05;
-                        if track.is_playing != last_is_playing || rate_changed {
-                            last_is_playing = track.is_playing;
-                            last_rate = track.playback_rate;
-
-                            let _ = bg_handle.emit(
-                                "smtc-playback-status",
-                                models::SmtcPlaybackStatus {
-                                    is_playing: track.is_playing,
-                                    position: track.position_ms,
-                                    playback_rate: track.playback_rate,
-                                },
-                            );
-                        }
-                    }
-                }
-            });
+                })
+                .expect("Failed to spawn SMTC background thread");
 
             Ok(())
         })
@@ -311,18 +398,30 @@ pub fn run() {
             config::set_auto_launch,
             config::get_taskbar_color,
             config::select_background_file,
+            config::select_animated_art_file,
+            config::read_file_data_url,
             window::set_click_through,
             window::set_always_on_top,
             window::minimize_app,
             window::copy_to_clipboard,
             window::close_app,
+            window::get_is_startup,
             window::check_for_updates,
             window::set_taskbar_mode,
             window::move_taskbar_window,
+            window::update_taskbar_lyric_bounds,
+            window::set_taskbar_dragging,
             window::set_edge_glow,
             window::set_wallpaper_mode,
+            window::start_wallpaper_edit,
+            window::end_wallpaper_edit,
             window::get_available_monitors,
             window::set_fullscreen_lyrics,
+            window::update_taskbar_lyric,
+            window::sync_taskbar_config,
+            window::log_debug,
+            lyrics::search_synced_lyrics,
+            lyrics::get_lyrics_candidates,
             lyrics::fetch_spotify_lyrics,
             lyrics::fetch_netease_lyrics,
             lyrics::get_genius_fact,
@@ -332,17 +431,22 @@ pub fn run() {
             integrations::get_local_playback,
             integrations::trigger_playback_control,
             integrations::show_now_playing_notification,
-            integrations::init_discord_rpc,
-            integrations::update_discord_rpc,
             integrations::lastfm_api,
             integrations::translate_text,
             integrations::fetch_music_news,
             integrations::get_access_token,
             integrations::refresh_token,
             integrations::start_oauth_server,
-            integrations::login_via_web
-        ])
-        .run(tauri::generate_context!())
+            integrations::login_via_web,
+            integrations::fetch_image_data_url,
+            integrations::fetch_track_artwork,
+            window::show_main_window,
+            integrations::open_external,
+            integrations::fetch_spotify_canvas,
+            integrations::search_music_gif
+        ]);
+    log_to_file("[LyricFlow] Builder configured, now calling builder.run(tauri::generate_context!())...");
+    b.run(tauri::generate_context!())
         .expect("error while running LyricFlow application");
 }
 

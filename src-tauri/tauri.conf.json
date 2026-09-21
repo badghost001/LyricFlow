@@ -16,39 +16,21 @@
         "url": "index.html",
         "width": 780,
         "height": 560,
+        "center": true,
+        "visible": true,
         "decorations": false,
         "transparent": true,
         "alwaysOnTop": false,
         "shadow": false,
         "skipTaskbar": false
-      },
-      {
-        "label": "taskbar",
-        "title": "LyricFlow Taskbar",
-        "url": "taskbar.html",
-        "width": 450,
-        "height": 42,
-        "decorations": false,
-        "transparent": true,
-        "alwaysOnTop": true,
-        "visible": false,
-        "shadow": false,
-        "skipTaskbar": true
-      },
-      {
-        "label": "edge-glow",
-        "title": "LyricFlow Edge Glow",
-        "url": "edge_glow.html",
-        "decorations": false,
-        "transparent": true,
-        "alwaysOnTop": true,
-        "visible": false,
-        "shadow": false,
-        "skipTaskbar": true
       }
     ],
     "security": {
-      "csp": null
+      "csp": null,
+      "assetProtocol": {
+        "enable": true,
+        "scope": ["**"]
+      }
     }
   },
   "plugins": {

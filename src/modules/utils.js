@@ -63,10 +63,42 @@ function formatTime(ms) {
 }
 
 // Image Dominant Color Extractor - Extracts vibrant album art color for lyrics
-function extractDominantColor(imgUrl) {
+const _dominantColorCache = new Map();
+async function extractDominantColor(imgUrl) {
+  if (!imgUrl) return { r: 29, g: 185, b: 84 };
+  if (_dominantColorCache.has(imgUrl)) {
+    return _dominantColorCache.get(imgUrl);
+  }
+
+  let targetUrl = imgUrl;
+
+  // If this is a remote HTTP/HTTPS image (e.g. from Spotify i.scdn.co which lacks CORS),
+  // fetch it as a base64 Data URL via Rust bridge to completely avoid canvas tainting & CORS errors!
+  if (imgUrl.startsWith('http://') || imgUrl.startsWith('https://')) {
+    if (window.electronAPI && typeof window.electronAPI.fetchImageDataUrl === 'function') {
+      try {
+        const dataUrl = await window.electronAPI.fetchImageDataUrl(imgUrl);
+        if (dataUrl) targetUrl = dataUrl;
+      } catch (err) {
+        console.warn('fetchImageDataUrl fallback to direct load:', err);
+      }
+    }
+  }
+
   return new Promise((resolve) => {
+    let resolved = false;
+    const done = (color) => {
+      if (!resolved) {
+        resolved = true;
+        _dominantColorCache.set(imgUrl, color);
+        resolve(color);
+      }
+    };
+
     const img = new Image();
-    img.crossOrigin = "Anonymous";
+    if (!targetUrl.startsWith('data:')) {
+      img.crossOrigin = "Anonymous";
+    }
     img.onload = () => {
       try {
         const canvas = document.createElement("canvas");
@@ -126,15 +158,18 @@ function extractDominantColor(imgUrl) {
           finalB = Math.min(255, Math.round(finalB * factor));
         }
 
-        resolve({ r: finalR, g: finalG, b: finalB });
+        done({ r: finalR, g: finalG, b: finalB });
       } catch (e) {
-        resolve({ r: 29, g: 185, b: 84 }); // fallback Spotify Green
+        done({ r: 29, g: 185, b: 84 }); // fallback Spotify Green
       }
     };
     img.onerror = () => {
-      resolve({ r: 29, g: 185, b: 84 });
+      done({ r: 29, g: 185, b: 84 });
     };
-    img.src = imgUrl;
+    img.src = targetUrl;
+    if (img.complete && img.naturalWidth > 0) {
+      img.onload();
+    }
   });
 }
 

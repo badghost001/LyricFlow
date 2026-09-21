@@ -11,17 +11,17 @@ let clientIDInput;
 let lyricsViewport, lyricsContainer;
 let widgetAlbumArt, widgetArtFallback, widgetTrackName, widgetArtistName, widgetPlaycount, widgetProgressFill, widgetTimeCurrent, widgetTimeDuration;
 let btnClickThrough, checkAlwaysOnTop, btnMinimize, btnSettings, btnClose, btnSettingsClose, settingsPanel, btnLogout;
-let btnSpotifyConnect, btnSwitchLoginScreen, btnSwitchLoginScreenSetup, spotifySetupDiv, spotifyConnectedDiv, spotifyAccountStatus;
+let btnSpotifyConnect, spotifySetupDiv, spotifyConnectedDiv, spotifyAccountStatus;
 let btnNews, btnNewsClose, newsPanel, newsBody, inputNewsFilter;
 let selectFontSize, valFontSize, selectAlign, sliderBgOpacity, valBgOpacity, sliderGlow, valGlow, selectTheme;
 let selectFont, sliderLineSpacing, valLineSpacing, checkShowWidget, selectHighlightColor, selectDblclickAction;
 let appContainer, ambientGlow, hudHeader, playbackWidget;
 let toastNotification, historyContainer;
 let searchOverlay, inputSearchLyrics, searchResultsInfo, inputSyncOffset, btnResetOffset;
-let btnLoveTrack, svgLoveUnfilled, svgLoveFilled, btnLastfmConnect, lastfmConnectedDiv, checkLastfmScrobble, btnLastfmDisconnect, lastfmSetupDiv;
+let btnLoveTrack, svgLoveUnfilled, svgLoveFilled, btnLastfmConnect, lastfmConnectedDiv, checkLastfmScrobble, btnLastfmDisconnect, lastfmSetupDiv, lastfmWaitingDiv, btnLastfmReopen, btnLastfmCancel, lastfmAccountStatus;
 
 // Playback & Taskbar Mode controls DOM
-let btnPrev, btnPlayPause, btnNext, btnPlaySvg, btnPauseSvg, btnShareLyric, btnReloadLyrics, btnReloadHud, timingStatusBadge, btnSleepTimer, sleepTimerBadge;
+let btnPrev, btnPlayPause, btnNext, btnPlaySvg, btnPauseSvg, btnShareLyric, btnReloadLyrics, timingStatusBadge, btnSleepTimer, sleepTimerBadge;
 let checkTaskbarMode, taskbarContainer, tbLyricLine, checkFullscreenLyrics, checkEdgeGlow, checkWallpaperMode, checkAutoHideTaskbar;
 let selectWallpaperStyle;
 let sliderOverlayX, valOverlayX, sliderOverlayY, valOverlayY, sliderOverlayWidth, valOverlayWidth, selectWallpaperFontSize;
@@ -32,6 +32,10 @@ let checkShowNextUp, checkShowGenius, selectGeniusPosition;
 let checkAutoHideLyrics, selectAutoHideTrigger, selectAutoHideAction, sliderAutoHideDelay, valAutoHideDelay;
 let settingAutoHideTriggerRow, settingAutoHideActionRow, settingAutoHideDelayRow;
 let customBgVideo, customBgImg, wallpaperAlbumBg, inputBgFile, btnPickBg, btnClearBg, labelBgFilename;
+let widgetAlbumArtVideo, wallpaperStyleArtVideo, wallpaperAlbumBgVideo;
+let checkAnimatedAlbumArt, inputCustomArtGif, btnPickCustomArtGif, btnClearCustomArtGif, labelCustomArtGifFilename;
+let currentPlayingTrackObj = null;
+let currentStaticAlbumArtUrl = null;
 let wallpaperStyleArt, wallpaperArtFallback, wallpaperTrackTitle, wallpaperTrackArtist;
 let geniusFactCard, geniusFactContent;
 let geniusFactInterval;
@@ -70,7 +74,7 @@ let settings = {
   wallpaperOverlayWidth: 60,
   wallpaperFontSize: 32,
   taskbarMode: false,
-  autoHideTaskbarOnPause: true,
+  autoHideTaskbarOnPause: false,
   taskbarAlign: 'center',
   tbAlign: 'center',
   tbTranslation: 'none',
@@ -88,7 +92,6 @@ let settings = {
   showAnnotations: true,
   showAnnotationPreview: false,
   geniusPosition: 'top-left',
-  discordRpc: false,
   syncOffsetMs: 0,
   trackOffsets: {},
   lastfmScrobble: false,
@@ -96,7 +99,9 @@ let settings = {
   autoHideLyrics: false,
   autoHideTrigger: 'paused',
   autoHideAction: 'collapse',
-  autoHideDelay: 3
+  autoHideDelay: 3,
+  preferredLyricProvider: 'auto',
+  preferredLyricProviders: []
 };
 
 // Playback State
@@ -157,15 +162,25 @@ try {
   if (savedArt) localArtCache = JSON.parse(savedArt);
 } catch (e) {}
 
-function saveArtToCache(trackId, url) {
-  if (!trackId || !url) return;
-  localArtCache[trackId] = url;
+function saveArtToCache(trackId, url, trackName, artistName) {
+  if (!url) return;
+  if (trackId) localArtCache[trackId] = url;
+  if (trackName && artistName) {
+    const dualKey = `${artistName}:::${trackName}`.toLowerCase().trim();
+    localArtCache[dualKey] = url;
+  }
+  // Only persist http/https URLs to localStorage, never massive base64 data URLs
+  if (url.startsWith('data:')) return;
   try {
     const keys = Object.keys(localArtCache);
-    if (keys.length > 800) {
+    if (keys.length > 80) {
       delete localArtCache[keys[0]];
     }
-    localStorage.setItem('lyricflow_local_art_cache', JSON.stringify(localArtCache));
+    if (window.safeStorageSet) {
+      window.safeStorageSet('lyricflow_local_art_cache', JSON.stringify(localArtCache));
+    } else {
+      localStorage.setItem('lyricflow_local_art_cache', JSON.stringify(localArtCache));
+    }
   } catch (e) {}
 }
 
@@ -372,6 +387,15 @@ function initDOMElements() {
   btnClearBg = document.getElementById("btn-clear-bg");
   labelBgFilename = document.getElementById("label-bg-filename");
 
+  widgetAlbumArtVideo = document.getElementById("widget-album-art-video");
+  wallpaperStyleArtVideo = document.getElementById("wallpaper-style-art-video");
+  wallpaperAlbumBgVideo = document.getElementById("wallpaper-album-bg-video");
+  checkAnimatedAlbumArt = document.getElementById("check-animated-album-art");
+  inputCustomArtGif = document.getElementById("input-custom-art-gif-file");
+  btnPickCustomArtGif = document.getElementById("btn-pick-custom-art-gif");
+  btnClearCustomArtGif = document.getElementById("btn-clear-custom-art-gif");
+  labelCustomArtGifFilename = document.getElementById("label-custom-art-gif-filename");
+
   btnPrev = document.getElementById("btn-prev");
   btnPlayPause = document.getElementById("btn-play-pause");
   btnNext = document.getElementById("btn-next");
@@ -379,7 +403,6 @@ function initDOMElements() {
   btnPauseSvg = document.getElementById("svg-pause");
   btnShareLyric = document.getElementById("btn-share-lyric");
   btnReloadLyrics = document.getElementById("btn-reload-lyrics");
-  btnReloadHud = document.getElementById("btn-reload-hud");
   timingStatusBadge = document.getElementById("timing-status-badge");
   btnSleepTimer = document.getElementById("btn-sleep-timer");
   sleepTimerBadge = document.getElementById("sleep-timer-badge");
@@ -391,8 +414,6 @@ function initDOMElements() {
   settingsPanel = document.getElementById("settings-panel");
   btnLogout = document.getElementById("btn-logout");
   btnSpotifyConnect = document.getElementById("btn-spotify-connect");
-  btnSwitchLoginScreen = document.getElementById("btn-switch-login-screen");
-  btnSwitchLoginScreenSetup = document.getElementById("btn-switch-login-screen-setup");
   spotifySetupDiv = document.getElementById("spotify-setup");
   spotifyConnectedDiv = document.getElementById("spotify-connected");
   spotifyAccountStatus = document.getElementById("spotify-account-status");
@@ -428,6 +449,15 @@ function initDOMElements() {
     }
   });
 
+  const btnStartWallpaperEdit = document.getElementById("btn-start-wallpaper-edit");
+  if (btnStartWallpaperEdit) {
+    btnStartWallpaperEdit.addEventListener('click', () => {
+      if (window.electronAPI && window.electronAPI.startWallpaperEdit) {
+        window.electronAPI.startWallpaperEdit();
+      }
+    });
+  }
+
   selectTheme = document.getElementById("select-theme");
   selectFontSize = document.getElementById("select-font-size");
   selectAlign = document.getElementById("select-align");
@@ -461,6 +491,10 @@ function initDOMElements() {
   btnLastfmConnect = document.getElementById("btn-lastfm-connect");
   lastfmConnectedDiv = document.getElementById("lastfm-connected");
   lastfmSetupDiv = document.getElementById("lastfm-setup");
+  lastfmWaitingDiv = document.getElementById("lastfm-waiting");
+  btnLastfmReopen = document.getElementById("btn-lastfm-reopen");
+  btnLastfmCancel = document.getElementById("btn-lastfm-cancel");
+  lastfmAccountStatus = document.getElementById("lastfm-account-status");
   geniusFactCard = document.getElementById("genius-fact-card");
   geniusFactContent = document.getElementById("genius-fact-content");
   checkLastfmScrobble = document.getElementById("check-lastfm-scrobble");
@@ -485,24 +519,52 @@ function initDOMElements() {
   geniusAnnotationText = document.getElementById("genius-annotation-text");
 }
 
-window.addEventListener("DOMContentLoaded", async () => {
-  const dismissLoadingScreen = () => {
+async function bootstrapApp() {
+  console.log('[LF-STARTUP] Bootstrap starting, readyState=' + document.readyState);
+  const progressBar = document.getElementById("loading-progress-bar");
+  const statusText = document.getElementById("loading-status-text");
+
+  const setLoadingProgress = (pct, text) => {
+    if (progressBar) progressBar.style.width = `${pct}%`;
+    if (statusText && text) statusText.textContent = text;
+  };
+
+  const dismissLoadingScreen = (immediate = false) => {
     const screenLoading = document.getElementById("screen-loading");
-    if (screenLoading && screenLoading.style.display !== "none") {
-      screenLoading.classList.add("fade-out");
+    if (!screenLoading || screenLoading.style.display === "none") return;
+    if (immediate) {
       screenLoading.style.display = "none";
+      screenLoading.classList.add("fade-out");
+    } else {
+      setLoadingProgress(100, "Ready!");
+      screenLoading.classList.add("fade-out");
+      setTimeout(() => {
+        screenLoading.style.display = "none";
+      }, 450);
+    }
+    if (!immediate && !settings.taskbarMode && window.electronAPI && typeof window.electronAPI.showMainWindow === 'function') {
+      window.electronAPI.showMainWindow();
     }
   };
 
-  // Fail-safe timeout: never let loading screen hang for more than 2 seconds
+  // Fail-safe timeout: never let loading screen hang for more than 4 seconds
   const safetyTimeout = setTimeout(() => {
     console.warn("Safety timeout triggered: dismissing loading screen");
     if (!config) showLoginScreen();
-    dismissLoadingScreen();
-  }, 2000);
+    dismissLoadingScreen(false);
+  }, 4000);
 
   try {
+    // Check if launched silently via Windows startup (--startup)
+    let isStartupMode = false;
+    try {
+      if (window.electronAPI && typeof window.electronAPI.invoke === 'function') {
+        isStartupMode = await window.electronAPI.invoke('get_is_startup');
+      }
+    } catch (e) {}
+
     // Stage 1: Config & Auth Verification (Async from Rust)
+    setLoadingProgress(20, "Starting LyricFlow...");
     try {
       if (window.electronAPI && typeof window.electronAPI.loadConfig === 'function') {
         config = await window.electronAPI.loadConfig();
@@ -512,6 +574,11 @@ window.addEventListener("DOMContentLoaded", async () => {
     } catch (err) {
       console.error("Failed to load config:", err);
       config = null;
+    }
+
+    // If silent startup or taskbar mode, immediately bypass loading visuals
+    if (isStartupMode || (config && (config.taskbar_mode || config.taskbarMode))) {
+      dismissLoadingScreen(true);
     }
 
     // Stage 2: DOM Elements Binding & Visual Preferences (Immediate, synchronous)
@@ -526,16 +593,47 @@ window.addEventListener("DOMContentLoaded", async () => {
     }
     try { renderHistory(); } catch (e) { console.warn("History render warning:", e); }
 
-    // Stage 4: Instant Launch Transition
+    // Stage 4: Launch Transition
+    setLoadingProgress(45, "Connecting media services...");
     const isFirstTime = !localStorage.getItem("lyricflow_setup_done") && settings.hasCompletedSetup !== true;
     if (isFirstTime) {
       showOnboardingWizard();
+      dismissLoadingScreen(false);
     } else if (config) {
       showLyricsScreen();
+      updateSpotifyUI();
+
+      if (!isStartupMode && !settings.taskbarMode) {
+        setLoadingProgress(60, "Detecting playing track...");
+        try {
+          // Pre-populate track & lyrics before dissolving loading screen
+          await Promise.race([
+            pollSpotifyPlayback(),
+            new Promise((r) => setTimeout(r, 1600))
+          ]);
+
+          if (currentTrackId) {
+            const trackName = widgetTrackName.textContent || "track";
+            setLoadingProgress(85, `Loading lyrics for ${trackName}...`);
+            // Give up to 1200ms for in-flight lyrics fetching to finish
+            const waitStart = Date.now();
+            while (isFetchingLyrics && Date.now() - waitStart < 1200) {
+              await new Promise(r => setTimeout(r, 80));
+            }
+          } else {
+            handleEmptyPlayback();
+          }
+        } catch (e) {
+          console.warn("[Startup] Playback pre-population notice:", e);
+          handleEmptyPlayback();
+        }
+      }
+      dismissLoadingScreen(false);
     } else {
       showLoginScreen();
+      dismissLoadingScreen(false);
     }
-    updateSpotifyUI();
+
     if (isSpotifyConnected()) {
       checkAndVerifySpotifyConnection().then(() => updateSpotifyUI());
     }
@@ -546,14 +644,21 @@ window.addEventListener("DOMContentLoaded", async () => {
     } catch (e) {
       console.error("Error showing login screen in bootstrap fallback:", e);
     }
+    dismissLoadingScreen(false);
   } finally {
     clearTimeout(safetyTimeout);
-    dismissLoadingScreen();
   }
 
   // Start the frame-perfect loop after startup is complete
   ensurePlayheadLoop();
-});
+  console.log('[LF-STARTUP] Bootstrap completed.');
+}
+
+if (document.readyState === "loading") {
+  window.addEventListener("DOMContentLoaded", bootstrapApp);
+} else {
+  bootstrapApp();
+}
 
 // Load settings from localStorage and config.json
 function loadLocalSettings(skipIPC = false) {
@@ -598,6 +703,18 @@ function loadLocalSettings(skipIPC = false) {
     if (settings.geniusPosition === 'top') {
       settings.geniusPosition = 'top-left';
     }
+
+    if (settings.preferredLyricProvider && (!settings.preferredLyricProviders || settings.preferredLyricProviders.length === 0)) {
+      if (settings.preferredLyricProvider === 'musixmatch') {
+        settings.preferredLyricProviders = ['musixmatch', 'lrclib', 'netease'];
+      } else if (settings.preferredLyricProvider === 'lrclib') {
+        settings.preferredLyricProviders = ['lrclib', 'musixmatch', 'netease'];
+      } else if (settings.preferredLyricProvider === 'netease') {
+        settings.preferredLyricProviders = ['netease', 'lrclib', 'musixmatch'];
+      } else {
+        settings.preferredLyricProviders = [];
+      }
+    }
   }
 
   // Enforce optimal defaults requested by user:
@@ -607,12 +724,28 @@ function loadLocalSettings(skipIPC = false) {
   if (!settings.fontSize || settings.fontSize < 16) {
     settings.fontSize = 22;
   }
+  if (settings.autoHideTaskbarOnPause === undefined || settings.autoHideTaskbarOnPause === null) {
+    settings.autoHideTaskbarOnPause = false;
+  }
 
-  // Safety guard: If setup has never been completed, force standard mode so onboarding is always visible!
-  const hasCompleted = settings.hasCompletedSetup === true || localStorage.getItem("lyricflow_setup_done") === "true";
-  if (!hasCompleted) {
-    settings.taskbarMode = false;
-    settings.wallpaperMode = false;
+  // Force taskbarMode to false on startup so app always opens as a normal window (matches Electron line 240)
+  settings.taskbarMode = false;
+  settings.wallpaperMode = false;
+
+  // Load custom GIF into memory if path is saved
+  if (settings.customArtGifPath && !settings.customArtGifSrc) {
+    if (window.electronAPI && typeof window.electronAPI.readFileDataUrl === 'function') {
+      window.electronAPI.readFileDataUrl(settings.customArtGifPath).then(dataUrl => {
+        if (dataUrl) {
+          settings.customArtGifSrc = dataUrl;
+          if (currentPlayingTrackObj) {
+            updateAnimatedAlbumArt(currentPlayingTrackObj, currentStaticAlbumArtUrl);
+          }
+        }
+      }).catch(err => {
+        console.warn("[Renderer] Failed to load custom GIF from path:", err);
+      });
+    }
   }
 
   // Apply visual settings (skip IPC during bootstrapping to avoid redundant calls)
@@ -624,11 +757,16 @@ function saveLocalSettings() {
   if (_saveDebounceTimer) clearTimeout(_saveDebounceTimer);
   _saveDebounceTimer = setTimeout(async () => {
     try {
-      localStorage.setItem("lyrics_overlay_settings", JSON.stringify(settings));
+      // Create a lightweight copy for localStorage without giant data URLs
+      const storageSettings = { ...settings };
+      if (storageSettings.customArtGifSrc && storageSettings.customArtGifSrc.startsWith('data:')) {
+        delete storageSettings.customArtGifSrc;
+      }
+      localStorage.setItem("lyrics_overlay_settings", JSON.stringify(storageSettings));
       // Persist directly to config.json for bulletproof persistence across sessions
       if (window.electronAPI && typeof window.electronAPI.saveConfig === 'function') {
         const curCfg = (await window.electronAPI.loadConfig()) || {};
-        curCfg.settings = settings;
+        curCfg.settings = storageSettings;
         await window.electronAPI.saveConfig(curCfg);
       }
     } catch (e) {
@@ -663,6 +801,269 @@ function setWallpaperAlbumArt(src) {
   if (wallpaperArtFallback) wallpaperArtFallback.style.display = "none";
 }
 
+let animatedArtCache = {};
+try {
+  const cached = localStorage.getItem('lf_animated_art_cache');
+  if (cached) {
+    const parsed = JSON.parse(cached);
+    // Strip out any stale Giphy GIF entries — they are inaccurate/unrelated to the track
+    for (const [k, v] of Object.entries(parsed)) {
+      const url = typeof v === 'object' ? v?.url : null;
+      if (url && url.includes('giphy.com')) continue; // drop Giphy entries
+      animatedArtCache[k] = v;
+    }
+  }
+} catch (e) {}
+
+function saveAnimatedArtCache(key, data) {
+  try {
+    animatedArtCache[key] = data;
+    const keys = Object.keys(animatedArtCache);
+    if (keys.length > 250) {
+      delete animatedArtCache[keys[0]];
+    }
+    localStorage.setItem('lf_animated_art_cache', JSON.stringify(animatedArtCache));
+  } catch (e) {}
+}
+
+function setAnimatedAlbumArt(animatedInfo, fallbackStaticUrl = null) {
+  if (!animatedInfo || !animatedInfo.url) {
+    document.body.classList.remove('has-animated-art-video');
+    if (widgetAlbumArtVideo) {
+      widgetAlbumArtVideo.pause();
+      widgetAlbumArtVideo.removeAttribute('src');
+      widgetAlbumArtVideo.style.display = 'none';
+    }
+    if (wallpaperStyleArtVideo) {
+      wallpaperStyleArtVideo.pause();
+      wallpaperStyleArtVideo.removeAttribute('src');
+      wallpaperStyleArtVideo.style.display = 'none';
+    }
+    if (wallpaperAlbumBgVideo) {
+      wallpaperAlbumBgVideo.pause();
+      wallpaperAlbumBgVideo.removeAttribute('src');
+      wallpaperAlbumBgVideo.style.display = 'none';
+    }
+    const staticUrl = fallbackStaticUrl || currentStaticAlbumArtUrl;
+    if (staticUrl) {
+      if (widgetAlbumArt) {
+        if (widgetAlbumArt.src !== staticUrl) widgetAlbumArt.src = staticUrl;
+        widgetAlbumArt.style.display = 'block';
+      }
+      if (widgetArtFallback) widgetArtFallback.style.display = 'none';
+      setWallpaperAlbumArt(staticUrl);
+    } else {
+      if (widgetAlbumArt) widgetAlbumArt.style.display = 'none';
+      if (widgetArtFallback) widgetArtFallback.style.display = 'flex';
+      setWallpaperAlbumArt(null);
+    }
+    return;
+  }
+
+  const { type, url } = animatedInfo;
+
+  if (type === 'video') {
+    document.body.classList.add('has-animated-art-video');
+
+    if (widgetAlbumArtVideo) {
+      if (widgetAlbumArtVideo.src !== url) widgetAlbumArtVideo.src = url;
+      widgetAlbumArtVideo.style.display = 'block';
+      if (isPlaying) widgetAlbumArtVideo.play().catch(() => {});
+      widgetAlbumArtVideo.onerror = () => {
+        console.warn("[Renderer] Album art video playback failed, reverting to static:", url);
+        widgetAlbumArtVideo.style.display = 'none';
+        const fallback = fallbackStaticUrl || currentStaticAlbumArtUrl;
+        if (fallback && widgetAlbumArt) {
+          widgetAlbumArt.src = fallback;
+          widgetAlbumArt.style.display = 'block';
+          if (widgetArtFallback) widgetArtFallback.style.display = 'none';
+        }
+      };
+    }
+    if (widgetAlbumArt) widgetAlbumArt.style.display = 'none';
+    if (widgetArtFallback) widgetArtFallback.style.display = 'none';
+
+    if (wallpaperStyleArtVideo) {
+      if (wallpaperStyleArtVideo.src !== url) wallpaperStyleArtVideo.src = url;
+      wallpaperStyleArtVideo.style.display = 'block';
+      if (isPlaying) wallpaperStyleArtVideo.play().catch(() => {});
+    }
+    if (wallpaperStyleArt) wallpaperStyleArt.style.display = 'none';
+    if (wallpaperArtFallback) wallpaperArtFallback.style.display = 'none';
+
+    if (wallpaperAlbumBgVideo && (!settings.customBgSrc || !hasCustomBackground)) {
+      if (wallpaperAlbumBgVideo.src !== url) wallpaperAlbumBgVideo.src = url;
+      wallpaperAlbumBgVideo.style.display = 'block';
+      wallpaperAlbumBgVideo.style.opacity = '0.78';
+      if (isPlaying) wallpaperAlbumBgVideo.play().catch(() => {});
+    }
+    if (wallpaperAlbumBg) wallpaperAlbumBg.style.display = 'none';
+  } else {
+    // GIF / Image
+    document.body.classList.remove('has-animated-art-video');
+
+    if (widgetAlbumArtVideo) {
+      widgetAlbumArtVideo.pause();
+      widgetAlbumArtVideo.removeAttribute('src');
+      widgetAlbumArtVideo.style.display = 'none';
+    }
+    if (widgetAlbumArt) {
+      if (widgetAlbumArt.src !== url) widgetAlbumArt.src = url;
+      widgetAlbumArt.style.display = 'block';
+      widgetAlbumArt.onerror = () => {
+        console.warn("[Renderer] Album art GIF/image failed to load, reverting to static:", url);
+        const fallback = fallbackStaticUrl || currentStaticAlbumArtUrl;
+        if (fallback && widgetAlbumArt.src !== fallback) {
+          widgetAlbumArt.src = fallback;
+          widgetAlbumArt.style.display = 'block';
+          if (widgetArtFallback) widgetArtFallback.style.display = 'none';
+        } else if (!fallback) {
+          widgetAlbumArt.style.display = 'none';
+          if (widgetArtFallback) widgetArtFallback.style.display = 'flex';
+        }
+      };
+    }
+    if (widgetArtFallback) widgetArtFallback.style.display = 'none';
+
+    if (wallpaperStyleArtVideo) {
+      wallpaperStyleArtVideo.pause();
+      wallpaperStyleArtVideo.removeAttribute('src');
+      wallpaperStyleArtVideo.style.display = 'none';
+    }
+    if (wallpaperStyleArt) {
+      if (wallpaperStyleArt.src !== url) wallpaperStyleArt.src = url;
+      wallpaperStyleArt.style.display = 'block';
+      wallpaperStyleArt.onerror = () => {
+        const fallback = fallbackStaticUrl || currentStaticAlbumArtUrl;
+        if (fallback && wallpaperStyleArt.src !== fallback) {
+          wallpaperStyleArt.src = fallback;
+          wallpaperStyleArt.style.display = 'block';
+        }
+      };
+    }
+    if (wallpaperArtFallback) wallpaperArtFallback.style.display = 'none';
+
+    if (wallpaperAlbumBgVideo) {
+      wallpaperAlbumBgVideo.pause();
+      wallpaperAlbumBgVideo.removeAttribute('src');
+      wallpaperAlbumBgVideo.style.display = 'none';
+    }
+    if (wallpaperAlbumBg) {
+      if (wallpaperAlbumBg.src !== url) wallpaperAlbumBg.src = url;
+      wallpaperAlbumBg.style.display = 'block';
+      wallpaperAlbumBg.classList.add('has-art');
+    }
+  }
+}
+
+function pauseAnimatedArtVideos() {
+  if (widgetAlbumArtVideo) widgetAlbumArtVideo.pause();
+  if (wallpaperStyleArtVideo) wallpaperStyleArtVideo.pause();
+  if (wallpaperAlbumBgVideo) wallpaperAlbumBgVideo.pause();
+}
+
+function resumeAnimatedArtVideos() {
+  if (widgetAlbumArtVideo && widgetAlbumArtVideo.style.display === 'block') widgetAlbumArtVideo.play().catch(() => {});
+  if (wallpaperStyleArtVideo && wallpaperStyleArtVideo.style.display === 'block') wallpaperStyleArtVideo.play().catch(() => {});
+  if (wallpaperAlbumBgVideo && wallpaperAlbumBgVideo.style.display === 'block') wallpaperAlbumBgVideo.play().catch(() => {});
+}
+
+let currentAnimatedFetchToken = 0;
+
+async function updateAnimatedAlbumArt(track, staticArtUrl) {
+  if (!track || !track.name) {
+    setAnimatedAlbumArt(null, staticArtUrl);
+    return;
+  }
+
+  // Check if disabled in settings
+  if (settings.animatedAlbumArt === false) {
+    setAnimatedAlbumArt(null, staticArtUrl);
+    return;
+  }
+
+  // Custom user GIF override (highest priority)
+  if (settings.customArtGifSrc || settings.customArtGifPath) {
+    let gifSrc = settings.customArtGifSrc;
+    if (!gifSrc && settings.customArtGifPath && window.electronAPI && window.electronAPI.readFileDataUrl) {
+      try {
+        const dUrl = await window.electronAPI.readFileDataUrl(settings.customArtGifPath);
+        if (dUrl) {
+          settings.customArtGifSrc = dUrl;
+          gifSrc = dUrl;
+          saveLocalSettings();
+        }
+      } catch (e) {}
+    }
+    // Auto-heal old or raw paths to reliable data URLs
+    if (gifSrc && (gifSrc.startsWith('http://asset.localhost/') || (!gifSrc.startsWith('data:') && !gifSrc.startsWith('http')))) {
+      let rawPath = settings.customArtGifPath;
+      if (!rawPath && gifSrc.startsWith('http://asset.localhost/')) {
+        rawPath = decodeURIComponent(gifSrc.replace('http://asset.localhost/', ''));
+      }
+      if (rawPath && window.electronAPI && window.electronAPI.readFileDataUrl) {
+        try {
+          const dUrl = await window.electronAPI.readFileDataUrl(rawPath);
+          if (dUrl) {
+            settings.customArtGifPath = rawPath;
+            settings.customArtGifSrc = dUrl;
+            gifSrc = dUrl;
+            saveLocalSettings();
+          }
+        } catch (e) {}
+      }
+    }
+    if (gifSrc) {
+      const isVideo = gifSrc.endsWith('.mp4') || gifSrc.endsWith('.webm') || gifSrc.startsWith('data:video');
+      setAnimatedAlbumArt({ type: isVideo ? 'video' : 'gif', url: gifSrc }, staticArtUrl);
+      return;
+    }
+  }
+
+  const trackName = track.name;
+  const artistName = track.artists?.[0]?.name || track.artist || '';
+  const trackId = track.id || track.uri || '';
+  const cacheKey = `${artistName} - ${trackName}`.toLowerCase().trim();
+
+  // Cache check
+  if (animatedArtCache[cacheKey]) {
+    const cached = animatedArtCache[cacheKey];
+    if (cached === 'notfound') {
+      setAnimatedAlbumArt(null, staticArtUrl);
+      return;
+    }
+    setAnimatedAlbumArt(cached, staticArtUrl);
+    return;
+  }
+
+  const fetchToken = ++currentAnimatedFetchToken;
+
+  // Tier 1: Spotify Canvas (MP4 loop)
+  if (window.electronAPI && typeof window.electronAPI.fetchSpotifyCanvas === 'function') {
+    let cleanId = trackId;
+    if (cleanId.startsWith('spotify:track:')) cleanId = cleanId.replace('spotify:track:', '');
+    if (cleanId && cleanId.length >= 10 && !cleanId.startsWith('local')) {
+      const accessToken = (config && config.access_token) ? config.access_token : null;
+      try {
+        const canvasUrl = await window.electronAPI.fetchSpotifyCanvas(cleanId, accessToken);
+        if (fetchToken !== currentAnimatedFetchToken) return;
+        if (canvasUrl) {
+          const item = { type: 'video', url: canvasUrl };
+          saveAnimatedArtCache(cacheKey, item);
+          setAnimatedAlbumArt(item, staticArtUrl);
+          return;
+        }
+      } catch (e) {
+        console.warn("[Canvas] Fetch error:", e);
+      }
+    }
+  }
+
+  // Fallback to static cover (Giphy GIF search removed — returns inaccurate/unrelated results)
+  saveAnimatedArtCache(cacheKey, 'notfound');
+  setAnimatedAlbumArt(null, staticArtUrl);
+}
+
 function applyVisualSettings(fromTray = false, skipIPC = false) {
   if (config && config.sp_dc) {
     const inputSpDc = document.getElementById("input-sp-dc");
@@ -685,7 +1086,8 @@ function applyVisualSettings(fromTray = false, skipIPC = false) {
   // Handle legacy settings.customBg by migrating it to customBgSrc/Type
   if (settings.customBg && !settings.customBgSrc) {
     const isVideo = settings.customBg.endsWith('.mp4') || settings.customBg.endsWith('.webm');
-    settings.customBgSrc = `file:///${settings.customBg.replace(/\\/g, "/")}`;
+    const raw = settings.customBg.replace(/\\/g, "/");
+    settings.customBgSrc = (window.electronAPI?.convertFileSrc) ? window.electronAPI.convertFileSrc(settings.customBg) : `http://asset.localhost/${encodeURI(raw)}`;
     settings.customBgType = isVideo ? "video" : "image";
     settings.customBgName = settings.customBg.split(/[\\/]/).pop();
     delete settings.customBg; // Migrate away from old key
@@ -693,11 +1095,9 @@ function applyVisualSettings(fromTray = false, skipIPC = false) {
   }
   
   if (settings.customBgSrc) {
-    if (settings.customBgSrc.startsWith('lyricflow-media://local/')) {
-      settings.customBgSrc = settings.customBgSrc.replace('lyricflow-media://local/', 'file:///');
-      saveLocalSettings();
-    } else if (settings.customBgSrc.startsWith('lyricflow-media:///')) {
-      settings.customBgSrc = settings.customBgSrc.replace('lyricflow-media:///', 'file:///');
+    if (settings.customBgSrc.startsWith('file:///') || settings.customBgSrc.startsWith('lyricflow-media://local/')) {
+      const raw = settings.customBgSrc.replace('file:///', '').replace('lyricflow-media://local/', '');
+      settings.customBgSrc = (window.electronAPI?.convertFileSrc) ? window.electronAPI.convertFileSrc(raw) : `http://asset.localhost/${encodeURI(raw.replace(/\\/g, "/"))}`;
       saveLocalSettings();
     }
   }
@@ -706,12 +1106,12 @@ function applyVisualSettings(fromTray = false, skipIPC = false) {
     if (labelBgFilename) labelBgFilename.textContent = settings.customBgName || "Selected File";
     if (btnClearBg) btnClearBg.style.display = "block";
     
-    // Make body opaque so custom bg doesn't merge with desktop/other apps
-    document.body.style.backgroundColor = '#000';
-    
-    // Hide ambient glow when custom bg is active
+    // Hide ambient glow when custom bg is active to prevent color clash
     const glowDiv = document.querySelector('.ambient-glow');
     if (glowDiv) glowDiv.style.opacity = '0';
+
+    // Ensure transparent body so custom background is completely visible
+    document.body.style.backgroundColor = 'transparent';
 
     if (settings.customBgType === "video") {
       if (customBgImg) customBgImg.style.display = "none";
@@ -755,8 +1155,41 @@ function applyVisualSettings(fromTray = false, skipIPC = false) {
     if (glowDiv) glowDiv.style.opacity = '1';
   }
 
+  // Animated & GIF Album Art Settings Sync
+  if (checkAnimatedAlbumArt) {
+    checkAnimatedAlbumArt.checked = settings.animatedAlbumArt !== false;
+  }
+  if (settings.customArtGifSrc) {
+    if (labelCustomArtGifFilename) labelCustomArtGifFilename.textContent = settings.customArtGifName || "Custom GIF Selected";
+    if (btnClearCustomArtGif) btnClearCustomArtGif.style.display = "block";
+  } else {
+    if (labelCustomArtGifFilename) labelCustomArtGifFilename.textContent = "Auto (Spotify Canvas & Aesthetic GIFs)";
+    if (btnClearCustomArtGif) btnClearCustomArtGif.style.display = "none";
+  }
+
+  if (settings.customArtGifSrc && (settings.customArtGifSrc.startsWith('http://asset.localhost/') || (!settings.customArtGifSrc.startsWith('data:') && !settings.customArtGifSrc.startsWith('http')))) {
+    try {
+      let rawPath = settings.customArtGifPath;
+      if (!rawPath && settings.customArtGifSrc.startsWith('http://asset.localhost/')) {
+        rawPath = decodeURIComponent(settings.customArtGifSrc.replace('http://asset.localhost/', ''));
+      }
+      if (rawPath && window.electronAPI && window.electronAPI.readFileDataUrl) {
+        window.electronAPI.readFileDataUrl(rawPath).then(dataUrl => {
+          if (dataUrl) {
+            settings.customArtGifPath = rawPath;
+            settings.customArtGifSrc = dataUrl;
+            saveLocalSettings();
+            if (currentPlayingTrackObj) {
+              updateAnimatedAlbumArt(currentPlayingTrackObj, currentStaticAlbumArtUrl);
+            }
+          }
+        }).catch(() => {});
+      }
+    } catch (e) {}
+  }
+
   const wStyle = settings.wallpaperStyle || 'style1';
-  const hasCustomBackground = Boolean(settings.customBgSrc && settings.customBgType && wStyle !== 'style2');
+  const hasCustomBackground = Boolean(settings.customBgSrc && settings.customBgType && (!settings.wallpaperMode || wStyle !== 'style2'));
 
   if (settings.wallpaperMode && config) {
     if (screenLyrics) screenLyrics.style.display = "flex";
@@ -767,8 +1200,11 @@ function applyVisualSettings(fromTray = false, skipIPC = false) {
   document.body.classList.toggle("wallpaper-style-1", settings.wallpaperMode && wStyle === 'style1');
   document.body.classList.toggle("wallpaper-style-2", settings.wallpaperMode && wStyle === 'style2');
   document.body.classList.toggle("wallpaper-style-3", settings.wallpaperMode && wStyle === 'style3');
-  document.body.classList.toggle("custom-bg-active", settings.wallpaperMode && hasCustomBackground);
-  if (appContainer) appContainer.classList.toggle("wallpaper-mode", settings.wallpaperMode === true);
+  document.body.classList.toggle("custom-bg-active", hasCustomBackground);
+  if (appContainer) {
+    appContainer.classList.toggle("wallpaper-mode", settings.wallpaperMode === true);
+    appContainer.classList.toggle("custom-bg-active", hasCustomBackground);
+  }
 
   // Overlay Sliders UI (Style 3)
   const showOverlaySettings = wStyle === 'style3';
@@ -963,22 +1399,12 @@ function applyVisualSettings(fromTray = false, skipIPC = false) {
 
   // Taskbar Mode UI
   if (settings.taskbarMode) {
-    document.body.classList.add("taskbar-mode");
-    if (appContainer) appContainer.classList.add("taskbar-mode");
-    if (taskbarContainer) taskbarContainer.style.display = "flex";
-
-    // Hide standard screen containers
-    if (screenLyrics) screenLyrics.style.display = "none";
-    if (screenLogin && config) screenLogin.style.display = "none";
-
     // Show settings row details
-    if (settings.taskbarMode) {
-      if (settingTbAlignRow) settingTbAlignRow.style.display = 'flex';
-      if (settingTbTranslationRow) settingTbTranslationRow.style.display = 'flex';
-      if (settingTbOffsetRow) settingTbOffsetRow.style.display = 'flex';
-      if (settingTbFontsizeRow) settingTbFontsizeRow.style.display = 'flex';
-      if (settingFsLyricsRow) settingFsLyricsRow.style.display = 'flex';
-    }
+    if (settingTbAlignRow) settingTbAlignRow.style.display = 'flex';
+    if (settingTbTranslationRow) settingTbTranslationRow.style.display = 'flex';
+    if (settingTbOffsetRow) settingTbOffsetRow.style.display = 'flex';
+    if (settingTbFontsizeRow) settingTbFontsizeRow.style.display = 'flex';
+    if (settingFsLyricsRow) settingFsLyricsRow.style.display = 'flex';
 
     // Only send IPC if the mode actually changed to avoid hide/show cycles
     if (!skipIPC && lastSentTaskbarMode !== true) {
@@ -1653,24 +2079,7 @@ function setupUIHandlers() {
     });
   }
 
-  // Discord RPC
-  const checkDiscordRpc = document.getElementById("check-discord-rpc");
-  if (checkDiscordRpc) {
-    checkDiscordRpc.checked = settings.discordRpc || false;
-    checkDiscordRpc.addEventListener("change", (e) => {
-      settings.discordRpc = e.target.checked;
-      saveLocalSettings();
-      if (settings.discordRpc) {
-        window.electronAPI.initDiscordRpc('383226320970055681');
-      } else {
-        window.electronAPI.updateDiscordRpc({ clear: true });
-      }
-    });
-    // Auto init on startup if enabled
-    if (settings.discordRpc) {
-      window.electronAPI.initDiscordRpc('383226320970055681');
-    }
-  }
+
 
 
 
@@ -1713,6 +2122,8 @@ function setupUIHandlers() {
       saveLocalSettings();
     });
   }
+
+
 
   // Settings Tab Navigation
   const settingsTabs = document.querySelectorAll(".settings-tab");
@@ -1766,8 +2177,11 @@ function setupUIHandlers() {
       if (window.electronAPI && window.electronAPI.selectBackgroundFile) {
         const filePath = await window.electronAPI.selectBackgroundFile();
         if (filePath) {
-          const isVideo = filePath.endsWith(".mp4") || filePath.endsWith(".webm");
-          const fileSrc = `file:///${filePath.replace(/\\/g, "/")}`;
+          const lower = filePath.toLowerCase();
+          const isVideo = lower.endsWith(".mp4") || lower.endsWith(".webm");
+          const fileSrc = (window.electronAPI && window.electronAPI.convertFileSrc)
+            ? window.electronAPI.convertFileSrc(filePath)
+            : `http://asset.localhost/${encodeURI(filePath.replace(/\\/g, "/"))}`;
           settings.customBgSrc = fileSrc;
           settings.customBgType = isVideo ? "video" : "image";
           settings.customBgName = filePath.split(/[\\/]/).pop();
@@ -1789,6 +2203,85 @@ function setupUIHandlers() {
       if (inputBgFile) inputBgFile.value = "";
       applyVisualSettings();
       saveLocalSettings();
+    });
+  }
+
+  // Animated Album Art & Custom GIF listeners
+  if (checkAnimatedAlbumArt) {
+    checkAnimatedAlbumArt.addEventListener("change", (e) => {
+      settings.animatedAlbumArt = e.target.checked;
+      applyVisualSettings();
+      saveLocalSettings();
+      if (currentPlayingTrackObj) {
+        updateAnimatedAlbumArt(currentPlayingTrackObj, currentStaticAlbumArtUrl);
+      }
+    });
+  }
+
+  if (btnPickCustomArtGif) {
+    btnPickCustomArtGif.addEventListener("click", async () => {
+      let filePath = null;
+      if (window.electronAPI && window.electronAPI.selectAnimatedArtFile) {
+        filePath = await window.electronAPI.selectAnimatedArtFile();
+      } else if (window.electronAPI && window.electronAPI.selectBackgroundFile) {
+        filePath = await window.electronAPI.selectBackgroundFile();
+      }
+      if (filePath) {
+        let fileSrc = null;
+        if (window.electronAPI && window.electronAPI.readFileDataUrl) {
+          try {
+            fileSrc = await window.electronAPI.readFileDataUrl(filePath);
+          } catch (err) {
+            console.warn("Failed to load data URL for art file:", err);
+          }
+        }
+        if (!fileSrc && window.electronAPI && window.electronAPI.convertFileSrc) {
+          fileSrc = window.electronAPI.convertFileSrc(filePath);
+        }
+        if (!fileSrc) fileSrc = filePath;
+
+        settings.customArtGifPath = filePath;
+        settings.customArtGifSrc = fileSrc;
+        settings.customArtGifName = filePath.split(/[\\/]/).pop();
+
+        applyVisualSettings();
+        saveLocalSettings();
+        if (currentPlayingTrackObj) {
+          updateAnimatedAlbumArt(currentPlayingTrackObj, currentStaticAlbumArtUrl);
+        }
+      }
+    });
+  }
+
+  if (btnClearCustomArtGif) {
+    btnClearCustomArtGif.addEventListener("click", () => {
+      delete settings.customArtGifSrc;
+      delete settings.customArtGifName;
+      delete settings.customArtGifPath;
+      if (inputCustomArtGif) inputCustomArtGif.value = "";
+      applyVisualSettings();
+      saveLocalSettings();
+      if (currentPlayingTrackObj) {
+        updateAnimatedAlbumArt(currentPlayingTrackObj, currentStaticAlbumArtUrl);
+      }
+    });
+  }
+
+  if (inputCustomArtGif) {
+    inputCustomArtGif.addEventListener("change", (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (file) {
+        const fileSrc = (window.electronAPI && window.electronAPI.convertFileSrc && file.path)
+          ? window.electronAPI.convertFileSrc(file.path)
+          : URL.createObjectURL(file);
+        settings.customArtGifSrc = fileSrc;
+        settings.customArtGifName = file.name;
+        applyVisualSettings();
+        saveLocalSettings();
+        if (currentPlayingTrackObj) {
+          updateAnimatedAlbumArt(currentPlayingTrackObj, currentStaticAlbumArtUrl);
+        }
+      }
     });
   }
 
@@ -2360,16 +2853,7 @@ function setupUIHandlers() {
     });
   }
 
-  const handleReturnToLogin = () => {
-    if (settingsPanel) settingsPanel.classList.remove("open");
-    showLoginScreen();
-  };
-  if (btnSwitchLoginScreen) {
-    btnSwitchLoginScreen.addEventListener("click", handleReturnToLogin);
-  }
-  if (btnSwitchLoginScreenSetup) {
-    btnSwitchLoginScreenSetup.addEventListener("click", handleReturnToLogin);
-  }
+
 
   if (btnLogout) {
     btnLogout.addEventListener("click", async () => {
@@ -2393,15 +2877,39 @@ function setupUIHandlers() {
   if (btnLastfmConnect) {
     btnLastfmConnect.addEventListener("click", async () => {
       btnLastfmConnect.disabled = true;
-      btnLastfmConnect.textContent = "Connecting...";
+      if (lastfmSetupDiv) lastfmSetupDiv.style.display = "none";
+      if (lastfmWaitingDiv) lastfmWaitingDiv.style.display = "flex";
+
       try {
-        await window.lastFM.authenticate();
+        await window.lastFM.authenticate((status) => {
+          if (status && status.state === 'connected') {
+            showToast("Connected to Last.fm as " + (status.username || "user"), 3000, 'success');
+            updateLastfmUI();
+          }
+        });
+        showToast("Connected to Last.fm as " + (window.lastFM.username || "user"), 3000, 'success');
         updateLastfmUI();
       } catch (err) {
-        alert("Last.fm Connection Failed: " + err.message);
+        if (!err.message || !err.message.includes("cancelled")) {
+          alert("Last.fm Connection Failed: " + err.message);
+        }
+        updateLastfmUI();
+      } finally {
+        btnLastfmConnect.disabled = false;
       }
-      btnLastfmConnect.disabled = false;
-      btnLastfmConnect.textContent = "Connect Last.fm";
+    });
+  }
+
+  if (btnLastfmReopen) {
+    btnLastfmReopen.addEventListener("click", () => {
+      window.lastFM.reopenAuthUrl();
+    });
+  }
+
+  if (btnLastfmCancel) {
+    btnLastfmCancel.addEventListener("click", () => {
+      window.lastFM.cancelAuth();
+      updateLastfmUI();
     });
   }
 
@@ -2409,6 +2917,7 @@ function setupUIHandlers() {
     btnLastfmDisconnect.addEventListener("click", () => {
       if (confirm("Disconnect from Last.fm?")) {
         window.lastFM.disconnect();
+        showToast("Disconnected from Last.fm", 2500);
         updateLastfmUI();
       }
     });
@@ -2582,6 +3091,39 @@ function setupUIHandlers() {
     });
   }
 
+  if (window.electronAPI.onTaskbarModeReady) {
+    window.electronAPI.onTaskbarModeReady(() => {
+      console.log("[Renderer] Taskbar window ready, immediately pushing current state...");
+      let curText = null;
+      let curHtml = null;
+      if (tbLyricLine && tbLyricLine.textContent && tbLyricLine.textContent !== "♫" && tbLyricLine.textContent.trim() !== "") {
+        curText = tbLyricLine.textContent;
+        curHtml = tbLyricLine.innerHTML || null;
+      } else if (lyrics && lyrics.length > 0 && activeLineIndex >= 0 && lyrics[activeLineIndex]) {
+        curText = lyrics[activeLineIndex].text;
+      } else if (currentPlayingTrackObj && currentPlayingTrackObj.name) {
+        const artName = (currentPlayingTrackObj.artists && currentPlayingTrackObj.artists[0]) ? currentPlayingTrackObj.artists[0].name : '';
+        curText = artName ? `${currentPlayingTrackObj.name} • ${artName}` : currentPlayingTrackObj.name;
+      }
+      if (curText) {
+        sendTaskbarLyric(curText, false, curHtml);
+      }
+      const currentAccent = settings.accentColor || 'green';
+      const ACCENT_MAP = { green: '#1DB954', purple: '#8b5cf6', blue: '#3b82f6', rose: '#f43f5e', orange: '#f97316', teal: '#14b8a6' };
+      const curTbOffset = settings.taskbarOffset !== undefined ? settings.taskbarOffset : (settings.tbOffset || 0);
+      if (window.electronAPI.syncTaskbarConfig) {
+        window.electronAPI.syncTaskbarConfig({
+          accentColor: ACCENT_MAP[currentAccent] || '#1DB954',
+          lyricOffsetX: curTbOffset,
+          taskbarOffset: curTbOffset
+        });
+      }
+      if (isPlaying) {
+        ensurePlayheadLoop();
+      }
+    });
+  }
+
   if (window.electronAPI.onWallpaperModeState) {
     window.electronAPI.onWallpaperModeState((enabled) => {
       settings.wallpaperMode = Boolean(enabled);
@@ -2670,16 +3212,21 @@ function setupUIHandlers() {
     if (config && config.localMode) {
       handlePlaybackData(data);
     } else {
-      // Even in Spotify Web API mode, an instant SMTC song change event tells us a new track started!
-      // Immediately poll Spotify to synchronize without waiting for the slow polling interval
-      pollSpotifyPlayback(true);
+      // In Spotify Web API mode, only trigger an immediate sync poll if the song actually changed
+      if (data && data.item) {
+        const localTitle = data.item.name.toLowerCase().trim();
+        const curTitle = (widgetTrackName?.textContent || "").toLowerCase().trim();
+        if (localTitle && curTitle && localTitle !== curTitle && !localTitle.includes(curTitle) && !curTitle.includes(localTitle)) {
+          pollSpotifyPlayback(true);
+        }
+      }
     }
   });
 
   // Instantly freeze/unfreeze the internal clock the moment Windows detects pause/play
-  // This fires BEFORE the Spotify API poll and eliminates the jump-ahead-then-back jitter
+  // Fires instantly (<250ms) across both Local Mode and Spotify Web API mode
   window.electronAPI.onSmtcPlaybackStatus((data) => {
-    if (!config || config.localMode) return; // Only matters in Spotify API mode
+    if (!config) return;
     if (typeof data.playbackRate === 'number' && data.playbackRate > 0) {
       const prevRate = window._currentPlaybackRate;
       window._currentPlaybackRate = data.playbackRate;
@@ -2688,9 +3235,9 @@ function setupUIHandlers() {
       }
     }
     if (data.isPlaying) {
-      // Song resumed: restart the internal clock from current frozen position
+      // Song resumed: restart the internal clock cleanly from current position
       if (!isPlaying) {
-        if (typeof data.position === 'number' && Math.abs(data.position - currentProgress) > 2500) {
+        if (typeof data.position === 'number' && data.position > 0 && Math.abs(data.position - currentProgress) > 2500) {
           lastPollProgress = data.position;
           currentProgress = data.position;
         } else {
@@ -2705,8 +3252,11 @@ function setupUIHandlers() {
         updateAutoHideState();
       }
     } else {
-      // Song paused: freeze internal clock exactly here, right now
+      // Song paused: freeze internal clock exactly here, right now, without backwards jump
       if (isPlaying) {
+        if (typeof data.position === 'number' && data.position > 0 && Math.abs(data.position - currentProgress) < 2500) {
+          currentProgress = data.position;
+        }
         lastPollProgress = currentProgress;
         lastPollTimestamp = Date.now();
         isPlaying = false;
@@ -2800,11 +3350,6 @@ function setupUIHandlers() {
   // Reload / Find Alternative Lyrics listeners
   if (btnReloadLyrics) {
     btnReloadLyrics.addEventListener("click", () => {
-      cycleAlternativeLyrics();
-    });
-  }
-  if (btnReloadHud) {
-    btnReloadHud.addEventListener("click", () => {
       cycleAlternativeLyrics();
     });
   }
@@ -3040,14 +3585,14 @@ function setupUIHandlers() {
 let tbPauseHideTimer = null;
 let isTbPlaybackHidden = false;
 
-function sendTaskbarLyric(text, hidden = false) {
+function sendTaskbarLyric(text, hidden = false, html = null) {
   if (!settings.taskbarMode || !window.electronAPI.updateTaskbarLyric) return;
   if (!hidden && tbPauseHideTimer) {
     clearTimeout(tbPauseHideTimer);
     tbPauseHideTimer = null;
   }
   isTbPlaybackHidden = !!hidden;
-  window.electronAPI.updateTaskbarLyric({ text, hidden });
+  window.electronAPI.updateTaskbarLyric({ text, hidden, html });
 }
 
 function handleTaskbarPauseAutoHide(isPaused) {
@@ -3597,12 +4142,6 @@ async function pollSpotifyPlayback(_retried = false) {
               if (localData.playback_rate) {
                  data.playback_rate = localData.playback_rate;
               }
-            } else if (localData.is_playing) {
-              // Local playback has already advanced to the next song, but Spotify Web API is still lagging behind!
-              // Switch immediately to localData so lyrics never lag one song behind!
-              lastSpotifyPlaybackData = null;
-              handlePlaybackData(localData);
-              return;
             }
           }
         } catch (e) {}
@@ -3610,14 +4149,16 @@ async function pollSpotifyPlayback(_retried = false) {
         const latency = (Date.now() - fetchStart) / 2;
         data.progress_ms += latency;
 
-        // KEY FIX: If paused and same track already loaded, skip full UI update.
-        // Calling handlePlaybackData with a lagging progress_ms while paused is what
-        // causes the lyrics to jitter/snap backward every 1.5s poll.
+        // If paused and same track already loaded, freeze clock cleanly and avoid full re-render jitter.
         if (!data.is_playing && data.item.id === currentTrackId) {
-          isPlaying = false;
-          // Update play/pause button only
+          if (isPlaying) {
+            isPlaying = false;
+            lastPollProgress = currentProgress;
+            lastPollTimestamp = Date.now();
+          }
           if (btnPlaySvg) btnPlaySvg.style.display = 'block';
           if (btnPauseSvg) btnPauseSvg.style.display = 'none';
+          pauseAnimatedArtVideos();
           handleTaskbarPauseAutoHide(true);
           updateAutoHideState();
           return;
@@ -3678,9 +4219,14 @@ async function pollLocalPlayback() {
               lastSpotifyPlaybackData.playback_rate = data.playback_rate;
            }
            if (!data.is_playing && lastSpotifyPlaybackData.item.id === currentTrackId) {
-             isPlaying = false;
+             if (isPlaying) {
+               lastPollProgress = currentProgress;
+               lastPollTimestamp = Date.now();
+               isPlaying = false;
+             }
              if (btnPlaySvg) btnPlaySvg.style.display = 'block';
              if (btnPauseSvg) btnPauseSvg.style.display = 'none';
+             pauseAnimatedArtVideos();
              handleTaskbarPauseAutoHide(true);
              updateAutoHideState();
              return;
@@ -3694,9 +4240,14 @@ async function pollLocalPlayback() {
       }
 
       if (!data.is_playing && data.item.id === currentTrackId) {
-        isPlaying = false;
+        if (isPlaying) {
+          lastPollProgress = currentProgress;
+          lastPollTimestamp = Date.now();
+          isPlaying = false;
+        }
         if (btnPlaySvg) btnPlaySvg.style.display = 'block';
         if (btnPauseSvg) btnPauseSvg.style.display = 'none';
+        pauseAnimatedArtVideos();
         handleTaskbarPauseAutoHide(true);
         updateAutoHideState();
         return;
@@ -3705,9 +4256,14 @@ async function pollLocalPlayback() {
     } else {
       localEmptyPollCount++;
       // Pause playback state but NEVER clear lyrics while song is paused
-      isPlaying = false;
+      if (isPlaying) {
+        lastPollProgress = currentProgress;
+        lastPollTimestamp = Date.now();
+        isPlaying = false;
+      }
       if (btnPlaySvg) btnPlaySvg.style.display = 'block';
       if (btnPauseSvg) btnPauseSvg.style.display = 'none';
+      pauseAnimatedArtVideos();
       handleTaskbarPauseAutoHide(true);
       updateAutoHideState();
       if (localEmptyPollCount >= 60) {
@@ -3717,9 +4273,14 @@ async function pollLocalPlayback() {
     }
   } catch (err) {
     console.error("Failed to poll local playback:", err);
-    isPlaying = false;
+    if (isPlaying) {
+      lastPollProgress = currentProgress;
+      lastPollTimestamp = Date.now();
+      isPlaying = false;
+    }
     if (btnPlaySvg) btnPlaySvg.style.display = 'block';
     if (btnPauseSvg) btnPauseSvg.style.display = 'none';
+    pauseAnimatedArtVideos();
   }
 }
 
@@ -3730,6 +4291,10 @@ function handleEmptyPlayback() {
   lastPollProgress = 0;
   lastPollTimestamp = Date.now();
   currentTrackId = null;
+  currentPlayingTrackObj = null;
+  currentStaticAlbumArtUrl = null;
+  setAnimatedAlbumArt(null, null);
+  currentExtractedArtUrl = null;
   trackDuration = 0;
   lyrics = [];
   activeLineIndex = -1;
@@ -3737,20 +4302,144 @@ function handleEmptyPlayback() {
   hideLiveMeaningPill();
   hideGeniusModal();
 
-  widgetTrackName.textContent = "Not Playing";
-  widgetArtistName.textContent = "Spotify";
-  if (wallpaperTrackTitle) wallpaperTrackTitle.textContent = "Not Playing";
-  if (wallpaperTrackArtist) wallpaperTrackArtist.textContent = "Spotify";
+  document.body.classList.remove('is-playing', 'app-paused');
+  document.body.classList.add('is-idle');
+
+  // Standby Playback Widget
+  widgetTrackName.textContent = "Ready to Flow";
+  widgetArtistName.textContent = "Waiting for music...";
+  if (wallpaperTrackTitle) wallpaperTrackTitle.textContent = "Ready to Flow";
+  if (wallpaperTrackArtist) wallpaperTrackArtist.textContent = "Waiting for music...";
   setWallpaperAlbumArt(null);
   if (widgetPlaycount) widgetPlaycount.style.display = "none";
   widgetAlbumArt.style.display = "none";
   widgetArtFallback.style.display = "flex";
-  widgetProgressFill.style.width = "0%";
+  widgetArtFallback.classList.add("idle-active");
+  if (!widgetArtFallback.querySelector(".idle-eq-bars")) {
+    widgetArtFallback.innerHTML = `
+      <div class="idle-eq-bars">
+        <div class="idle-eq-bar"></div>
+        <div class="idle-eq-bar"></div>
+        <div class="idle-eq-bar"></div>
+        <div class="idle-eq-bar"></div>
+      </div>
+    `;
+  }
+  widgetProgressFill.classList.add("idle-shimmer");
   widgetTimeCurrent.textContent = "0:00";
   widgetTimeDuration.textContent = "0:00";
 
-  lyricsContainer.innerHTML = '<div class="lyric-line placeholder">Start playing Spotify...</div>';
-  lyricsContainer.style.transform = 'translateY(-50px)';
+  // Mode-aware subtext
+  let modeSubtext = "Start playing music on Spotify or your desktop player to flow synced lyrics.";
+  if (config && config.localMode) {
+    modeSubtext = "Listening for desktop music via Windows Media (Spotify, Apple Music, Tidal, VLC).";
+  } else if (isSpotifyConnected()) {
+    modeSubtext = "Connected to Spotify. Play any song in Spotify desktop or web to begin.";
+  }
+
+  // Recent tracks from listening_history
+  let recentHtml = '';
+  try {
+    const rawHist = localStorage.getItem("listening_history");
+    if (rawHist) {
+      const parsedHist = JSON.parse(rawHist);
+      if (Array.isArray(parsedHist) && parsedHist.length > 0) {
+        const top3 = parsedHist.slice(0, 3);
+        const chipsHtml = top3.map(item => `
+          <button class="idle-recent-chip" data-title="${escapeHTML(item.title)}" data-artist="${escapeHTML(item.artist)}" title="${escapeHTML(item.title)} - ${escapeHTML(item.artist)}">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" style="opacity:0.7;"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            <span>${escapeHTML(item.title)}</span>
+          </button>
+        `).join('');
+        recentHtml = `
+          <div class="idle-recent-row">
+            <div class="idle-recent-label">Recent Tracks</div>
+            ${chipsHtml}
+          </div>
+        `;
+      }
+    }
+  } catch (e) {}
+
+  lyricsContainer.style.transform = 'translateY(0px)';
+  lyricsContainer.innerHTML = `
+    <div class="lyrics-idle-hero">
+      <div class="idle-visual-wrapper">
+        <div class="idle-vinyl-disc"></div>
+        <div class="idle-soundwaves">
+          <div class="idle-wave-bar"></div>
+          <div class="idle-wave-bar"></div>
+          <div class="idle-wave-bar"></div>
+          <div class="idle-wave-bar"></div>
+          <div class="idle-wave-bar"></div>
+        </div>
+      </div>
+
+      <div class="idle-hero-title">Ready to Flow</div>
+      <div class="idle-hero-sub">${modeSubtext}</div>
+
+      <div class="idle-actions-row">
+        <button class="idle-action-chip btn-idle-spotify" id="btn-idle-open-spotify">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="#1DB954"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.494 17.308c-.216.354-.664.464-1.018.248-2.825-1.727-6.38-2.118-10.567-1.163-.404.093-.811-.161-.904-.565s.161-.811.565-.904c4.582-1.045 8.528-.593 11.676 1.332.354.216.464.664.248 1.018zm1.464-3.26c-.272.443-.84.584-1.283.312-3.235-1.988-8.167-2.566-12.015-1.401-.497.151-1.02-.128-1.171-.625s.128-1.02.625-1.171c4.394-1.333 9.83-.67 13.532 1.602.443.272.584.84.312 1.283zm.127-3.4c-3.88-2.304-10.283-2.516-13.993-1.417-.597.181-1.23-.153-1.41-1.229.181-.597.153-1.23 1.229-1.41 4.262-1.293 11.332-1.056 15.8 1.6.536.318.712 1.013.393 1.549s-1.013.712-1.549.393z"/></svg>
+          <span>Open Spotify</span>
+        </button>
+        <button class="idle-action-chip btn-idle-search" id="btn-idle-search-lyrics">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <span>Search Lyrics</span>
+        </button>
+      </div>
+
+      ${recentHtml}
+
+      <div class="idle-shortcuts-row">
+        <span class="idle-shortcut-pill"><kbd>Ctrl</kbd>+<kbd>F</kbd> Search</span>
+        <span class="idle-shortcut-pill"><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>L</kbd> Toggle Overlay</span>
+        <span class="idle-shortcut-pill"><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd> Taskbar Mode</span>
+      </div>
+    </div>
+  `;
+
+  // Attach event listeners to chips
+  const openSpotBtn = lyricsContainer.querySelector('#btn-idle-open-spotify');
+  if (openSpotBtn) {
+    openSpotBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const a = document.createElement('a');
+      a.href = 'spotify:';
+      a.click();
+    });
+  }
+
+  const searchBtn = lyricsContainer.querySelector('#btn-idle-search-lyrics');
+  if (searchBtn) {
+    searchBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (searchOverlay) {
+        searchOverlay.style.display = "block";
+        if (inputSearchLyrics) {
+          inputSearchLyrics.value = "";
+          inputSearchLyrics.focus();
+        }
+      }
+    });
+  }
+
+  lyricsContainer.querySelectorAll('.idle-recent-chip').forEach(chip => {
+    chip.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const title = chip.getAttribute('data-title') || '';
+      const artist = chip.getAttribute('data-artist') || '';
+      if (searchOverlay) {
+        searchOverlay.style.display = "block";
+        if (inputSearchLyrics) {
+          inputSearchLyrics.value = `${title} ${artist}`.trim();
+          inputSearchLyrics.focus();
+          inputSearchLyrics.dispatchEvent(new Event('input'));
+        }
+      }
+    });
+  });
+
   if (tbLyricLine) {
     tbLyricLine.textContent = "";
     sendTaskbarLyric("");
@@ -3834,6 +4523,35 @@ function adaptBpmSync(lyricsList) {
   }
 }
 
+let currentExtractedArtUrl = null;
+
+async function updateDynamicArtColor(artUrl) {
+  if (!artUrl || artUrl === currentExtractedArtUrl) return;
+  currentExtractedArtUrl = artUrl;
+  try {
+    const colors = await extractDominantColor(artUrl);
+    if (!colors) return;
+    const c1 = `rgb(${colors.r}, ${colors.g}, ${colors.b})`;
+    const c2 = `rgb(${Math.max(0, colors.r - 80)}, ${Math.max(0, colors.g - 80)}, ${Math.max(0, colors.b - 80)})`;
+    document.documentElement.style.setProperty('--art-color-1', c1);
+    document.documentElement.style.setProperty('--art-color-1-rgb', `${colors.r}, ${colors.g}, ${colors.b}`);
+    document.documentElement.style.setProperty('--art-color-2', c2);
+
+    if (settings.highlightColor === 'dynamic') {
+      const glowRaw = typeof settings.glowIntensity === 'number' ? settings.glowIntensity : (typeof settings.glow === 'number' ? settings.glow : 65);
+      const glowInt = glowRaw / 100;
+      document.documentElement.style.setProperty('--highlight-color', 'var(--art-color-1, #1DB954)');
+      document.documentElement.style.setProperty('--highlight-glow', `rgba(${colors.r}, ${colors.g}, ${colors.b}, ${glowInt})`);
+    }
+  } catch (err) {
+    console.warn("[Renderer] Failed to update dynamic art color:", err);
+  }
+}
+
+let lastProcessedTrackId = null;
+let lastAppliedAlbumArtUrl = null;
+let trackSwitchDebounceTimer = null;
+
 async function handlePlaybackData(data) {
   if (!data || !data.item) {
     handleEmptyPlayback();
@@ -3897,34 +4615,47 @@ async function handlePlaybackData(data) {
     window._candidateRate = null;
     window._candidateRateHits = 0;
   } else if (!isZeroReset && isCurrentlyPlaying) {
-    const drift = currentProgress - progressMs;
-    const absDrift = Math.abs(drift);
-
-    if (absDrift > 2500) {
-      // Hard seek / scrub detected — snap immediately
-      lastPollProgress = progressMs;
+    if (!isPlaying) {
+      // Transition from paused -> playing: cleanly reset clock reference to prevent forward elapsed time jump
+      const resumePos = (typeof progressMs === 'number' && progressMs > 0 && Math.abs(progressMs - currentProgress) > 2500)
+        ? progressMs
+        : currentProgress;
+      lastPollProgress = resumePos;
+      currentProgress = resumePos;
       lastPollTimestamp = now;
-      currentProgress = progressMs;
-    } else if (absDrift > 300) {
-      // Smooth clock slewing: gently adjust the clock reference by 15% of the drift
-      // Shifting lastPollTimestamp by (drift * 0.15) pulls the clock into alignment
-      // over several polls without ANY visible sudden jerk, stutter, or backward snap!
-      lastPollTimestamp += (drift * 0.15);
     } else {
-      // Within normal polling jitter (0-300ms):
-      // Keep internal high-precision 60/144 FPS RAF clock running 100% undisturbed!
+      const drift = currentProgress - progressMs;
+      const absDrift = Math.abs(drift);
+
+      if (absDrift > 2500) {
+        // Hard seek / scrub detected — snap immediately
+        lastPollProgress = progressMs;
+        lastPollTimestamp = now;
+        currentProgress = progressMs;
+      } else if (absDrift > 300) {
+        // Smooth clock slewing: gently adjust the clock reference by 15% of the drift
+        // Shifting lastPollTimestamp by (drift * 0.15) pulls the clock into alignment
+        // over several polls without ANY visible sudden jerk, stutter, or backward snap!
+        lastPollTimestamp += (drift * 0.15);
+      } else {
+        // Within normal polling jitter (0-300ms):
+        // Keep internal high-precision 60/144 FPS RAF clock running 100% undisturbed!
+      }
     }
   } else if (!isZeroReset && !isCurrentlyPlaying) {
     // Song is PAUSED: freeze currentProgress exactly where it is right now.
-    // NEVER snap to the API progress_ms when paused — it is always lagging behind
-    // and causes the visible backwards jitter.
-    lastPollProgress = currentProgress;
-    lastPollTimestamp = now;
+    if (isPlaying) {
+      lastPollProgress = currentProgress;
+      lastPollTimestamp = now;
+    }
   }
 
   isPlaying = isCurrentlyPlaying;
   document.body.classList.toggle('is-playing', isCurrentlyPlaying);
   document.body.classList.toggle('app-paused', !isCurrentlyPlaying);
+  document.body.classList.remove('is-idle');
+  if (widgetArtFallback) widgetArtFallback.classList.remove('idle-active');
+  if (widgetProgressFill) widgetProgressFill.classList.remove('idle-shimmer');
   if (isPlaying) ensurePlayheadLoop();
   handleTaskbarPauseAutoHide(!isPlaying);
   updateAutoHideState();
@@ -3932,7 +4663,9 @@ async function handlePlaybackData(data) {
   trackDuration = track.duration_ms;
 
   if (track && (!track.album || !track.album.images || !track.album.images.length)) {
-    const cachedArt = localArtCache[track.id];
+    const primaryArtist = track.artists?.[0]?.name || '';
+    const dualKey = `${primaryArtist}:::${track.name}`.toLowerCase().trim();
+    const cachedArt = localArtCache[track.id] || localArtCache[dualKey];
     if (cachedArt && cachedArt !== 'fetching' && cachedArt !== 'notfound') {
       track.album = track.album || {};
       track.album.images = [{ url: cachedArt }, { url: cachedArt }, { url: cachedArt }];
@@ -3943,45 +4676,50 @@ async function handlePlaybackData(data) {
   if (isPlaying) {
     if (btnPlaySvg) btnPlaySvg.style.display = 'none';
     if (btnPauseSvg) btnPauseSvg.style.display = 'block';
+    resumeAnimatedArtVideos();
   } else {
     if (btnPlaySvg) btnPlaySvg.style.display = 'block';
     if (btnPauseSvg) btnPauseSvg.style.display = 'none';
+    pauseAnimatedArtVideos();
   }
 
-  // Track Info UI update
-  widgetTrackName.textContent = track.name;
-  const artistText = track.artists.map(a => a.name).join(", ");
-  widgetArtistName.textContent = artistText;
-  if (wallpaperTrackTitle) wallpaperTrackTitle.textContent = track.name;
-  if (wallpaperTrackArtist) wallpaperTrackArtist.textContent = artistText;
-
   const albumArtUrl = track.album?.images?.[0]?.url || track.album?.images?.[1]?.url || track.album?.images?.[2]?.url;
-  if (albumArtUrl) {
-    widgetAlbumArt.src = albumArtUrl;
-    widgetAlbumArt.style.display = "block";
-    widgetArtFallback.style.display = "none";
-    setWallpaperAlbumArt(albumArtUrl);
-  } else {
-    widgetAlbumArt.style.display = "none";
-    widgetArtFallback.style.display = "flex";
-    setWallpaperAlbumArt(null);
+  currentPlayingTrackObj = track;
+  currentStaticAlbumArtUrl = albumArtUrl;
+
+  const isSongChanged = track.id !== currentTrackId;
+
+  // 1. Only touch Track Info DOM when track changes
+  if (track.id !== lastProcessedTrackId) {
+    lastProcessedTrackId = track.id;
+    widgetTrackName.textContent = track.name;
+    const artistText = track.artists.map(a => a.name).join(", ");
+    widgetArtistName.textContent = artistText;
+    if (wallpaperTrackTitle) wallpaperTrackTitle.textContent = track.name;
+    if (wallpaperTrackArtist) wallpaperTrackArtist.textContent = artistText;
+  }
+
+  // 2. Only update Album Art & Animated Art when song or art URL changes
+  if (isSongChanged || albumArtUrl !== lastAppliedAlbumArtUrl) {
+    lastAppliedAlbumArtUrl = albumArtUrl;
+    if (albumArtUrl) {
+      widgetAlbumArt.src = albumArtUrl;
+      widgetAlbumArt.style.display = "block";
+      widgetArtFallback.style.display = "none";
+      setWallpaperAlbumArt(albumArtUrl);
+      updateDynamicArtColor(albumArtUrl);
+    } else {
+      widgetAlbumArt.style.display = "none";
+      widgetArtFallback.style.display = "flex";
+      setWallpaperAlbumArt(null);
+    }
+    updateAnimatedAlbumArt(track, albumArtUrl);
   }
 
   widgetTimeDuration.textContent = formatTime(trackDuration);
 
-  // Update Discord RPC
-  if (settings.discordRpc) {
-    window.electronAPI.updateDiscordRpc({
-      trackName: track.name,
-      artistName: widgetArtistName.textContent,
-      albumName: track.album?.name,
-      albumArtUrl: albumArtUrl,
-      isPlaying: isPlaying
-    });
-  }
-
-    // Check if song changed
-  if (track.id !== currentTrackId) {
+  // 3. Check if song changed
+  if (isSongChanged) {
     currentTrackId = track.id;
 
     // Load per-song offset
@@ -3989,7 +4727,11 @@ async function handlePlaybackData(data) {
     settings.syncOffsetMs = settings.trackOffsets[currentTrackId] || 0;
     if (inputSyncOffset) inputSyncOffset.value = settings.syncOffsetMs;
 
-    logTrackHistory(track);
+    try {
+      logTrackHistory(track);
+    } catch (e) {
+      console.warn("[History] Failed to log track history:", e);
+    }
     lyrics = [];
     activeLineIndex = -1;
     userScrolling = false;
@@ -4015,13 +4757,9 @@ async function handlePlaybackData(data) {
     geniusFactChunks = [];
     geniusFactIndex = 0;
 
-    const isrc = track.external_ids?.isrc || null;
     currentAnnotations = [];
     hideLiveMeaningPill();
     hideGeniusModal();
-    const artistNameForGenius = (track.artists && track.artists[0] && track.artists[0].name) ? track.artists[0].name : '';
-    fetchGeniusFact(track.name, artistNameForGenius);
-    fetchGeniusAnnotations(track.name, artistNameForGenius, track.id);
 
     if (window.lastFM) {
       window.lastFM.onTrackChange({
@@ -4037,13 +4775,13 @@ async function handlePlaybackData(data) {
       localArtCache[track.id] = 'fetching';
       fetchFallbackAlbumArt(track.name, track.artists?.[0]?.name || '').then(artUrl => {
         if (artUrl) {
-          saveArtToCache(track.id, artUrl);
+          saveArtToCache(track.id, artUrl, track.name, track.artists?.[0]?.name || '');
         } else {
           localArtCache[track.id] = 'notfound';
-          // Clear notfound after 10s so it can retry later
           setTimeout(() => { if (localArtCache[track.id] === 'notfound') delete localArtCache[track.id]; }, 10000);
         }
         if (artUrl && currentTrackId === track.id) {
+          track.album = track.album || { images: [] };
           track.album.images = [{ url: artUrl }, { url: artUrl }, { url: artUrl }];
           widgetAlbumArt.src = artUrl;
           widgetAlbumArt.style.display = "block";
@@ -4058,16 +4796,9 @@ async function handlePlaybackData(data) {
             });
           }
 
-          extractDominantColor(artUrl).then(colors => {
-            const c1 = `rgb(${colors.r}, ${colors.g}, ${colors.b})`;
-            const c2 = `rgb(${Math.max(0, colors.r - 80)}, ${Math.max(0, colors.g - 80)}, ${Math.max(0, colors.b - 80)})`;
-            document.documentElement.style.setProperty('--art-color-1', c1);
-            document.documentElement.style.setProperty('--art-color-1-rgb', `${colors.r}, ${colors.g}, ${colors.b}`);
-            document.documentElement.style.setProperty('--art-color-2', c2);
-            if (settings.highlightColor === 'dynamic') {
-              applyVisualSettings();
-            }
-          });
+          updateDynamicArtColor(artUrl);
+          currentStaticAlbumArtUrl = artUrl;
+          updateAnimatedAlbumArt(track, artUrl);
         }
       });
     } else {
@@ -4080,53 +4811,74 @@ async function handlePlaybackData(data) {
       }
     }
 
-    // Extract dynamic ambient color from album art
-    if (albumArtUrl) {
-      extractDominantColor(albumArtUrl).then(colors => {
-        // Darken color 2 for depth
-        const c1 = `rgb(${colors.r}, ${colors.g}, ${colors.b})`;
-        const c2 = `rgb(${Math.max(0, colors.r - 80)}, ${Math.max(0, colors.g - 80)}, ${Math.max(0, colors.b - 80)})`;
-        document.documentElement.style.setProperty('--art-color-1', c1);
-        document.documentElement.style.setProperty('--art-color-1-rgb', `${colors.r}, ${colors.g}, ${colors.b}`);
-        document.documentElement.style.setProperty('--art-color-2', c2);
-
-        // Re-apply settings if highlight color is dynamic to refresh the glow
-        if (settings.highlightColor === 'dynamic') {
-          applyVisualSettings();
-        }
-      });
+    // Cancel previous pending fetches if songs are rapidly skipped
+    if (trackSwitchDebounceTimer) {
+      clearTimeout(trackSwitchDebounceTimer);
+      trackSwitchDebounceTimer = null;
     }
 
-    // Fetch Lyrics with track ID for caching
+    const targetTrackId = track.id;
+    const targetTrackName = track.name;
+    const targetArtistName = (track.artists && track.artists[0] && track.artists[0].name) ? track.artists[0].name : '';
+    const targetTrackDuration = trackDuration;
     const finalIsrc = track.external_ids?.isrc || null;
-    fetchLyrics(track.id, track.name, track.artists?.[0]?.name || 'Unknown', trackDuration, finalIsrc);
+
+    // Check if lyrics are already cached locally — if so, load instantly (0ms)!
+    const cacheKey = `lyrics_cache_v21_${targetTrackId}`;
+    const hasCachedLyrics = !!localStorage.getItem(cacheKey);
+
+    const executeTrackFetches = () => {
+      if (currentTrackId !== targetTrackId) return;
+      fetchGeniusFact(targetTrackName, targetArtistName);
+      fetchGeniusAnnotations(targetTrackName, targetArtistName, targetTrackId);
+      fetchLyrics(targetTrackId, targetTrackName, targetArtistName || 'Unknown', targetTrackDuration, finalIsrc);
+    };
+
+    if (hasCachedLyrics) {
+      executeTrackFetches();
+    } else {
+      // Debounce network requests by 120ms to keep up with rapid song skips!
+      trackSwitchDebounceTimer = setTimeout(executeTrackFetches, 120);
+    }
   }
 }
 
 // History logging
 function logTrackHistory(track) {
-  let albumArtUrl = track.album?.images?.[2]?.url || track.album?.images?.[0]?.url || "";
-  if (!albumArtUrl && localArtCache[track.id]) {
-    albumArtUrl = localArtCache[track.id];
-  }
-
-  const entry = {
-    title: track.name,
-    artist: track.artists.map(a => a.name).join(", "),
-    timestamp: Date.now(),
-    albumArtUrl
-  };
-
-  let history = [];
   try {
-    history = JSON.parse(localStorage.getItem("listening_history") || "[]");
-  } catch (e) { console.error(e); }
+    let albumArtUrl = track.album?.images?.[2]?.url || track.album?.images?.[0]?.url || "";
+    if (!albumArtUrl && localArtCache[track.id]) {
+      albumArtUrl = localArtCache[track.id];
+    }
+    // Never persist massive base64 data URLs in localStorage history
+    if (albumArtUrl && albumArtUrl.startsWith("data:")) {
+      albumArtUrl = "";
+    }
 
-  history.unshift(entry);
-  if (history.length > 200) history = history.slice(0, 200);
+    const entry = {
+      title: track.name,
+      artist: track.artists.map(a => a.name).join(", "),
+      timestamp: Date.now(),
+      albumArtUrl
+    };
 
-  localStorage.setItem("listening_history", JSON.stringify(history));
-  renderHistory();
+    let history = [];
+    try {
+      history = JSON.parse(localStorage.getItem("listening_history") || "[]");
+    } catch (e) { history = []; }
+
+    history.unshift(entry);
+    if (history.length > 40) history = history.slice(0, 40);
+
+    if (window.safeStorageSet) {
+      window.safeStorageSet("listening_history", JSON.stringify(history));
+    } else {
+      localStorage.setItem("listening_history", JSON.stringify(history));
+    }
+    renderHistory();
+  } catch (err) {
+    console.warn("[History] Failed to log track history:", err);
+  }
 }
 
 async function renderHistory() {
@@ -4251,6 +5003,10 @@ let isReloadingLyrics = false;
 
 // Synced lyrics fetching via V2 Unified Proxy (Spotify Internal) + Direct LRCLIB
 async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = null, options = {}) {
+  if (typeof isrc === 'object' && isrc !== null && Object.keys(options).length === 0) {
+    options = isrc;
+    isrc = null;
+  }
   isFetchingLyrics = true;
   if (fetchAbortController) {
     fetchAbortController.abort();
@@ -4318,7 +5074,7 @@ async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = nu
     };
 
     const applyLyricsData = async (parsedLines, sourceLevel, sourceName = "", candidateInfo = "") => {
-      console.debug(`[LF-DEBUG] applyLyricsData: sourceLevel=${sourceLevel}, sourceName=${sourceName}, parsedLines.length=${parsedLines.length}, trackId=${trackId}, currentTrackId=${currentTrackId}`);
+      console.log(`[LF-LYRICS] applyLyricsData called: sourceLevel=${sourceLevel}, sourceName=${sourceName}, parsedLines.length=${parsedLines.length}, trackId=${trackId}, currentTrackId=${currentTrackId}`);
       // Strip structural tags that often have bad timestamps (e.g., "[Outro]", "Intro", "Chorus")
       parsedLines = parsedLines.filter(line => {
         if (!line.text) return false;
@@ -4329,7 +5085,7 @@ async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = nu
       });
 
       if (trackId !== currentTrackId || parsedLines.length === 0) {
-        console.debug(`[LF-DEBUG] applyLyricsData REJECTED: trackId match=${trackId === currentTrackId}, filteredLines=${parsedLines.length}`);
+        console.warn(`[LF-LYRICS] applyLyricsData REJECTED: trackId match=${trackId === currentTrackId}, filteredLines=${parsedLines.length}`);
         return false;
       }
 
@@ -4349,7 +5105,7 @@ async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = nu
       }
 
       if (sourceLevel < currentSourceLevel) {
-        console.debug(`[LF-DEBUG] applyLyricsData REJECTED: sourceLevel ${sourceLevel} < currentSourceLevel ${currentSourceLevel}`);
+        console.log(`[LF-LYRICS] applyLyricsData REJECTED: sourceLevel ${sourceLevel} < currentSourceLevel ${currentSourceLevel}`);
         return false;
       }
       if (sourceLevel === currentSourceLevel && lyrics.length > 0 && !options.forceRefresh) {
@@ -4361,55 +5117,90 @@ async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = nu
         delete line.subText;
       });
 
-      const combinedText = parsedLines.map(l => l.text).join('\n');
-
-      // Auto-Translation Promise (with skipLang support)
-      let transPromise = Promise.resolve(null);
-      if (settings.translateLang && settings.translateLang !== 'none') {
-        const skipLang = settings.skipLang || 'none';
-        transPromise = window.electronAPI.translateText(combinedText, settings.translateLang, skipLang)
-          .catch(err => { console.error("Translation Error:", err); return null; });
-      }
-
-      try {
-        const transRes = await transPromise;
-        if (trackId !== currentTrackId) return false;
-
-        const transLines = (transRes && transRes.text) ? transRes.text.split('\n') : [];
-        parsedLines.forEach((line, i) => {
-          const transText = transLines[i] ? transLines[i].trim() : '';
-          if (transText && transText.toLowerCase() !== line.text.trim().toLowerCase()) {
-            line.subText = transText;
-          }
-        });
-      } catch (err) {
-        console.error("Translation processing error:", err);
-      }
-
-      if (trackId !== currentTrackId) return false;
-
-      console.error(`[LF-DEBUG] applyLyricsData SUCCESS: setting ${parsedLines.length} lines, level=${sourceLevel}, source=${sourceName}`);
+      console.log(`[LF-LYRICS] applyLyricsData SUCCESS: setting ${parsedLines.length} lines, level=${sourceLevel}, source=${sourceName}`);
       lyrics = parsedLines;
       isFetchingLyrics = false;
       currentSourceLevel = sourceLevel;
       updateTimingStatus(sourceLevel, sourceName, candidateInfo);
-      localStorage.setItem(cacheKey, JSON.stringify({ level: sourceLevel, lyrics, source: sourceName, candidateInfo, candidateIndex: trackLyricsCandidateIndex[trackId] || 0 }));
+      if (window.safeStorageSet) {
+        window.safeStorageSet(cacheKey, JSON.stringify({ level: sourceLevel, lyrics, source: sourceName, candidateInfo, candidateIndex: trackLyricsCandidateIndex[trackId] || 0 }));
+      } else {
+        try {
+          localStorage.setItem(cacheKey, JSON.stringify({ level: sourceLevel, lyrics, source: sourceName, candidateInfo, candidateIndex: trackLyricsCandidateIndex[trackId] || 0 }));
+        } catch (_) {}
+      }
       renderLyrics();
       adaptBpmSync(lyrics);
 
       const btnHide = document.getElementById("btn-hide-lyrics");
       if (btnHide) btnHide.style.display = "inline-flex";
 
+      // Non-blocking Auto-Translation (runs in background without stalling lyrics rendering)
+      if (settings.translateLang && settings.translateLang !== 'none') {
+        const skipLang = settings.skipLang || 'none';
+        const combinedText = parsedLines.map(l => l.text).join('\n');
+        window.electronAPI.translateText(combinedText, settings.translateLang, skipLang)
+          .then(transRes => {
+            if (trackId !== currentTrackId) return;
+            const transLines = (transRes && transRes.text) ? transRes.text.split('\n') : [];
+            let hasNewTrans = false;
+            parsedLines.forEach((line, i) => {
+              const transText = transLines[i] ? transLines[i].trim() : '';
+              if (transText && transText.toLowerCase() !== line.text.trim().toLowerCase()) {
+                line.subText = transText;
+                hasNewTrans = true;
+              }
+            });
+            if (hasNewTrans && trackId === currentTrackId) {
+              renderLyrics();
+            }
+          })
+          .catch(err => { console.warn("[LF-LYRICS] Translation Notice:", err); });
+      }
+
       return true;
     };
 
     let rateLimited = false;
 
+    // 0. Rust Multi-Provider Engine (Fastest, zero CORS/CSP restrictions, queries Cloudflare Proxy + LRCLIB + Musixmatch)
+    const rustLyricsFetch = async () => {
+      try {
+        if (!window.electronAPI || typeof window.electronAPI.searchSyncedLyrics !== 'function') return false;
+        console.log(`[LF-LYRICS] rustLyricsFetch querying: track="${cleanTrack}", artist="${cleanArtist}", dur=${durationMs}`);
+        const candidate = await window.electronAPI.searchSyncedLyrics(cleanTrack, cleanArtist, durationMs, {
+          preferredProviders: settings.preferredLyricProviders || [],
+          musixmatchToken: settings.musixmatchUserToken || null,
+          spotifyToken: config?.access_token || null,
+          spotifyTrackId: trackId?.startsWith('spotify:track:') ? trackId.replace('spotify:track:', '') : null,
+          forceRefresh: !!options.forceRefresh,
+          candidateIndex: trackLyricsCandidateIndex[trackId] || 0
+        });
+        if (candidate && trackId === currentTrackId) {
+          console.log(`[LF-LYRICS] rustLyricsFetch received candidate from provider=${candidate.provider} (${candidate.syncType})`);
+          let parsed = [];
+          if (candidate.rawLRC) {
+            parsed = parseLRC(candidate.rawLRC);
+          } else if (candidate.parsedLines && candidate.parsedLines.length > 0) {
+            parsed = candidate.parsedLines;
+          }
+          if (parsed.length > 0) {
+            const hasWords = parsed.some(l => l.words && l.words.length > 0);
+            const level = hasWords ? 3 : (candidate.syncType === 'WORD_SYNCED' ? 3 : (candidate.syncType === 'LINE_SYNCED' ? 2 : 1));
+            return await applyLyricsData(parsed, level, candidate.provider, candidate.candidateInfo || "");
+          }
+        }
+      } catch (e) {
+        console.warn("[LF-LYRICS] rustLyricsFetch error:", e);
+      }
+      return false;
+    };
+
     // 1. Fetch via Cloudflare Worker Proxy (Spotify Internal + Worker cache)
     const proxyFetch = async () => {
       try {
         const baseUrl = settings.customProxyUrl ? settings.customProxyUrl.replace(/\/$/, '') : 'https://lyricsplus.mathurdeepit12.workers.dev';
-        let url = `${baseUrl}/lyrics?artist=${encodeURIComponent(cleanArtist)}&title=${encodeURIComponent(cleanTrack)}&trackId=${trackId}`;
+        let url = `${baseUrl}/lyrics?artist=${encodeURIComponent(cleanArtist)}&title=${encodeURIComponent(cleanTrack)}&trackId=${encodeURIComponent(trackId)}`;
         
         if (trackDuration > 0) {
           url += `&duration=${Math.round(trackDuration / 1000)}`;
@@ -4587,11 +5378,12 @@ async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = nu
       } catch (e) {}
     };
 
-    // Run Cloudflare proxy and direct LRCLIB simultaneously for maximum speed & redundancy
+    // Run Rust multi-provider engine, Cloudflare proxy, and direct LRCLIB simultaneously for maximum speed & redundancy
+    const rustTask = rustLyricsFetch();
     const proxyTask = proxyFetch();
     const lrclibTask = localLrclibFetch();
 
-    await Promise.allSettled([proxyTask, lrclibTask]);
+    await Promise.allSettled([rustTask, proxyTask, lrclibTask]);
 
     if (lyrics.length === 0 && trackId === currentTrackId) {
       await ovhFetch();
@@ -4711,6 +5503,7 @@ async function fetchGeniusFact(trackName, artistName) {
 
   try {
     const description = await window.electronAPI.fetchGeniusFact(trackName, artistName);
+    if (widgetTrackName && widgetTrackName.textContent !== trackName) return;
     if (description && description.trim() !== "?" && description.length > 20) {
       // Filter out generic "about" or placeholder descriptions that aren't actual facts
       const lowerDesc = description.toLowerCase();
@@ -5339,7 +6132,11 @@ function ensurePlayheadLoop() {
   }
   if (!isPlayheadLoopActive) {
     isPlayheadLoopActive = true;
-    requestAnimationFrame(updatePlayhead);
+    if (document.visibilityState !== 'hidden') {
+      requestAnimationFrame(updatePlayhead);
+    } else {
+      playheadTimerId = setTimeout(updatePlayhead, 25);
+    }
   }
 }
 
@@ -5402,6 +6199,16 @@ function updatePlayhead() {
         }
 
         const isUnsynced = lyrics.length > 0 && lyrics[0].timeMs === 9999999;
+
+        // Anti-Jitter / Hysteresis Protection:
+        // When paused or during micro-timing variances, NEVER allow the active line
+        // to jitter backwards to a previous line unless an intentional rewind (> 1200ms) occurred.
+        if (activeLineIndex >= 0 && activeIndex < activeLineIndex && lyrics[activeLineIndex] && !isUnsynced) {
+          const retreatThreshold = lyrics[activeLineIndex].timeMs - 1200;
+          if (syncProgress >= retreatThreshold) {
+            activeIndex = activeLineIndex;
+          }
+        }
 
         // Feature: Show first line immediately before its timestamp arrives
         if (activeIndex === -1 && lyrics.length > 0 && !isUnsynced) {
@@ -5502,6 +6309,7 @@ function updatePlayhead() {
                   span.classList.toggle('lyric-word-active', wi === activeWordIdx);
                   span.classList.toggle('lyric-word-upcoming', wi > activeWordIdx);
                 });
+                sendTaskbarLyric(tbLyricLine.textContent, false, tbLyricLine.innerHTML);
               }
             } else {
               // Standard full-line mode for taskbar
@@ -5537,13 +6345,25 @@ function updatePlayhead() {
   } catch (err) {
     console.error("Error in updatePlayhead loop:", err);
   } finally {
-    if (isPlaying && document.visibilityState !== 'hidden') {
-      requestAnimationFrame(updatePlayhead);
+    if (isPlaying) {
+      if (document.visibilityState !== 'hidden') {
+        requestAnimationFrame(updatePlayhead);
+      } else {
+        // Window is hidden (e.g. Taskbar Mode)! rAF is suspended by Chromium/WebView2 when hidden.
+        // Use high-frequency setTimeout so taskbar lyrics and playhead continue running smoothly!
+        playheadTimerId = setTimeout(updatePlayhead, 25);
+      }
     } else {
       isPlayheadLoopActive = false;
     }
   }
 }
+
+document.addEventListener("visibilitychange", () => {
+  if (isPlaying) {
+    ensurePlayheadLoop();
+  }
+});
 
 
 
@@ -5551,10 +6371,24 @@ function updatePlayhead() {
 async function controlPlayback(action, _retried = false) {
   // Optimistic UI toggle for instant user feedback
   if (action === 'play-pause') {
-    isPlaying = !isPlaying;
-    if (btnPlaySvg) btnPlaySvg.style.display = isPlaying ? 'none' : 'block';
-    if (btnPauseSvg) btnPauseSvg.style.display = isPlaying ? 'block' : 'none';
-    ensurePlayheadLoop();
+    if (isPlaying) {
+      isPlaying = false;
+      lastPollProgress = currentProgress;
+      lastPollTimestamp = Date.now();
+      if (btnPlaySvg) btnPlaySvg.style.display = 'block';
+      if (btnPauseSvg) btnPauseSvg.style.display = 'none';
+      handleTaskbarPauseAutoHide(true);
+      updateAutoHideState();
+    } else {
+      isPlaying = true;
+      lastPollProgress = currentProgress;
+      lastPollTimestamp = Date.now();
+      if (btnPlaySvg) btnPlaySvg.style.display = 'none';
+      if (btnPauseSvg) btnPauseSvg.style.display = 'block';
+      ensurePlayheadLoop();
+      handleTaskbarPauseAutoHide(false);
+      updateAutoHideState();
+    }
   }
 
   // If in local mode, missing config, or no access token available, use local OS/Spotify controls directly
@@ -5669,6 +6503,12 @@ async function fetchFallbackAlbumArt(trackName, artistName) {
   const rawArtist = (artistName || "").replace(/\s*-\s*Topic$/i, "").trim();
   const rawTrack = trackName.trim();
 
+  // Instant dual-key cache lookup (0ms)
+  const dualKey = `${rawArtist}:::${rawTrack}`.toLowerCase().trim();
+  if (localArtCache[dualKey] && localArtCache[dualKey] !== 'fetching' && localArtCache[dualKey] !== 'notfound') {
+    return localArtCache[dualKey];
+  }
+
   // Clean title: strip feature tags, parentheticals, and remaster tags
   const cleanTrack = rawTrack
     .replace(/\s*[\(\[](feat\.|ft\.|with|remix|version|deluxe|explicit|remastered|bonus).*?[\)\]]/ig, "")
@@ -5681,11 +6521,20 @@ async function fetchFallbackAlbumArt(trackName, artistName) {
     .replace(/\s*,\s*.*$/, "")
     .trim() || rawArtist;
 
-  // Fast helper with strict 2.5s timeout
+  // Native Rust query (runs iTunes + Deezer concurrently in Rust without browser CORS)
+  const queryNative = async (t, a) => {
+    if (window.electronAPI && typeof window.electronAPI.fetchTrackArtwork === 'function') {
+      const nativeArt = await window.electronAPI.fetchTrackArtwork(t, a);
+      if (nativeArt) return nativeArt;
+    }
+    throw new Error('Native not found');
+  };
+
+  // Fast helper with strict 1.8s timeout
   const queryItunes = async (queryStr) => {
     try {
       const url = `https://itunes.apple.com/search?term=${encodeURIComponent(queryStr)}&limit=1&entity=song`;
-      const res = await fetch(url, { signal: AbortSignal.timeout(2500) });
+      const res = await fetch(url, { signal: AbortSignal.timeout(1800) });
       if (res.ok) {
         const data = await res.json();
         if (data.results && data.results.length > 0) {
@@ -5699,11 +6548,11 @@ async function fetchFallbackAlbumArt(trackName, artistName) {
     throw new Error('iTunes not found');
   };
 
-  // Helper to query Deezer API with strict 2.5s timeout
+  // Helper to query Deezer API with strict 1.8s timeout
   const queryDeezer = async (queryStr) => {
     try {
       const url = `https://api.deezer.com/search?q=${encodeURIComponent(queryStr)}&limit=1`;
-      const res = await fetch(url, { signal: AbortSignal.timeout(2500) });
+      const res = await fetch(url, { signal: AbortSignal.timeout(1800) });
       if (res.ok) {
         const data = await res.json();
         if (data.data && data.data.length > 0) {
@@ -5719,7 +6568,7 @@ async function fetchFallbackAlbumArt(trackName, artistName) {
   const queryMusicBrainz = async (queryStr) => {
     try {
       const url = `https://musicbrainz.org/ws/2/recording/?query=${encodeURIComponent(queryStr)}&fmt=json`;
-      const res = await fetch(url, { headers: { 'User-Agent': 'LyricFlow/1.2.0 (contact@lyricflow.app)' }, signal: AbortSignal.timeout(2500) });
+      const res = await fetch(url, { headers: { 'User-Agent': 'LyricFlow/1.3.0 (contact@lyricflow.app)' }, signal: AbortSignal.timeout(1800) });
       if (res.ok) {
         const data = await res.json();
         if (data.recordings && data.recordings.length > 0) {
@@ -5735,13 +6584,13 @@ async function fetchFallbackAlbumArt(trackName, artistName) {
     throw new Error('MusicBrainz not found');
   };
 
-  // Helper to query Last.fm API with strict 2.5s timeout
+  // Helper to query Last.fm API with strict 1.8s timeout
   const queryLastFM = async (trackStr, artistStr) => {
     try {
       if (window.lastFM && typeof window.lastFM.getTrackAlbumArt === 'function') {
         const art = await Promise.race([
           window.lastFM.getTrackAlbumArt(trackStr, artistStr),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2500))
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1800))
         ]);
         if (art) return art;
       }
@@ -5754,26 +6603,33 @@ async function fetchFallbackAlbumArt(trackName, artistName) {
     if (settings.artSource === 'lastfm') {
       try {
         const lfmArt = await queryLastFM(cleanTrack, cleanArtist);
-        if (lfmArt) return lfmArt;
+        if (lfmArt) {
+          saveArtToCache(null, lfmArt, rawTrack, rawArtist);
+          return lfmArt;
+        }
       } catch (e) {}
     }
 
-    // Run all fast queries simultaneously in parallel — fastest response wins immediately!
+    // Run ALL providers simultaneously in parallel — fastest response wins immediately!
     const candidates = [
+      queryNative(cleanTrack, cleanArtist),
       queryItunes(`${cleanTrack} ${cleanArtist}`),
       queryDeezer(`${cleanTrack} ${cleanArtist}`),
       queryLastFM(cleanTrack, cleanArtist)
     ];
 
     if (cleanTrack !== rawTrack || cleanArtist !== rawArtist) {
+      candidates.push(queryNative(rawTrack, rawArtist));
       candidates.push(queryItunes(`${rawTrack} ${rawArtist}`));
       candidates.push(queryDeezer(`${rawTrack} ${rawArtist}`));
-      candidates.push(queryLastFM(rawTrack, rawArtist));
     }
 
     try {
       const fastest = await Promise.any(candidates);
-      if (fastest) return fastest;
+      if (fastest) {
+        saveArtToCache(null, fastest, rawTrack, rawArtist);
+        return fastest;
+      }
     } catch (e) {
       // Primary batch failed, try single track search + MusicBrainz
       try {
@@ -5782,7 +6638,10 @@ async function fetchFallbackAlbumArt(trackName, artistName) {
           queryLastFM(cleanTrack, cleanArtist),
           queryMusicBrainz(`${cleanTrack} ${cleanArtist}`)
         ]);
-        if (fallback) return fallback;
+        if (fallback) {
+          saveArtToCache(null, fallback, rawTrack, rawArtist);
+          return fallback;
+        }
       } catch (e2) {}
     }
   } catch (err) {
@@ -5795,11 +6654,18 @@ async function fetchFallbackAlbumArt(trackName, artistName) {
 function updateLastfmUI() {
   if (window.lastFM && window.lastFM.isConnected()) {
     if (lastfmSetupDiv) lastfmSetupDiv.style.display = "none";
+    if (lastfmWaitingDiv) lastfmWaitingDiv.style.display = "none";
     if (lastfmConnectedDiv) lastfmConnectedDiv.style.display = "flex";
+    if (lastfmAccountStatus) {
+      lastfmAccountStatus.textContent = window.lastFM.username
+        ? `Connected as ${window.lastFM.username}`
+        : "Connected to Last.fm";
+    }
     if (checkLastfmScrobble) checkLastfmScrobble.checked = window.lastFM.isScrobblingEnabled;
     if (btnLoveTrack) btnLoveTrack.style.display = "flex";
   } else {
     if (lastfmSetupDiv) lastfmSetupDiv.style.display = "flex";
+    if (lastfmWaitingDiv) lastfmWaitingDiv.style.display = "none";
     if (lastfmConnectedDiv) lastfmConnectedDiv.style.display = "none";
     if (btnLoveTrack) btnLoveTrack.style.display = "none";
   }
