@@ -2,6 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <script src="tauri-bridge.js"></script>
     <link rel="stylesheet" href="styles/_variables.css" />
     <link rel="stylesheet" href="styles/_reset.css" />
     <link rel="stylesheet" href="styles/_ambient.css" />
@@ -17,8 +18,9 @@
     <link rel="stylesheet" href="styles/_components.css" />
     <link rel="stylesheet" href="styles.css" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: file: lyricflow-media: https://*.scdn.co https://*.spotifycdn.com https://i.scdn.co https://*.mzstatic.com https://lastfm.freetls.fastly.net https://lastfm-img.freetls.fastly.net https://coverartarchive.org https://*.dzcdn.net https://*.deezer.com; media-src 'self' blob: file: data: lyricflow-media:; connect-src https://api.spotify.com https://accounts.spotify.com https://lrclib.net https://ws.audioscrobbler.com https://www.last.fm https://itunes.apple.com https://musicbrainz.org https://*.workers.dev https://api.lyrics.ovh https://genius.com https://api.deezer.com https://*.deezer.com http://127.0.0.1:4882" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' ipc: http://ipc.localhost https://ipc.localhost https://tauri.localhost http://tauri.localhost tauri:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https:; font-src 'self' https: data:; img-src 'self' data: blob: file: lyricflow-media: http: https:; media-src 'self' blob: file: data: lyricflow-media: http: https:; connect-src 'self' ipc: http://ipc.localhost https://ipc.localhost https://tauri.localhost http://tauri.localhost tauri: http: https:;" />
     <title>LyricFlow</title>
+    <link rel="icon" type="image/png" href="assets/icon.png" />
     <!-- Google Fonts (Loaded Asynchronously to eliminate render-blocking delay, strict CSP compliant) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -37,11 +39,12 @@
   </head>
   <body>
     <!-- Custom Video/Image Background -->
-    <video id="custom-bg-video" loop muted autoplay style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; z-index: -2; opacity: 0.6; pointer-events: none;"></video>
-    <img id="custom-bg-img" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; z-index: -2; opacity: 0.6; pointer-events: none;" />
+    <video id="custom-bg-video" loop muted autoplay playsinline style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; z-index: 0; opacity: 1; pointer-events: none;"></video>
+    <img id="custom-bg-img" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; z-index: 0; opacity: 1; pointer-events: none;" />
 
     <!-- Wallpaper Album Background -->
     <img id="wallpaper-album-bg" class="wallpaper-album-bg" src="" />
+    <video id="wallpaper-album-bg-video" class="wallpaper-album-bg" loop muted autoplay playsinline style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; z-index: 0; opacity: 0; pointer-events: none; transition: opacity 0.5s ease;"></video>
 
     <!-- Dynamic Ambient Glow Background -->
     <div class="ambient-glow" id="ambient-glow">
@@ -53,11 +56,12 @@
     <div class="app-container" id="app-container">
       
       <!-- Drag & HUD Header (Fades out when mouse leaves) -->
-      <header class="hud-header" id="hud-header">
-        <div class="drag-handle">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/><circle cx="19" cy="5" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="19" cy="19" r="1"/><circle cx="5" cy="5" r="1"/><circle cx="5" cy="12" r="1"/><circle cx="5" cy="19" r="1"/></svg>
-          <span class="app-title">LyricFlow</span>
+      <header class="hud-header" id="hud-header" data-tauri-drag-region>
+        <div class="drag-handle" data-tauri-drag-region title="Drag from here to move the window (or use Shift+Arrow keys)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="pointer-events: none;"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/><circle cx="19" cy="5" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="19" cy="19" r="1"/><circle cx="5" cy="5" r="1"/><circle cx="5" cy="12" r="1"/><circle cx="5" cy="19" r="1"/></svg>
+          <span class="app-title" style="pointer-events: none;">LyricFlow</span>
         </div>
+
         <div class="window-controls">
           <button id="btn-click-through" title="Toggle Click-Through (Ctrl+Shift+L)" class="hud-btn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
@@ -65,9 +69,6 @@
 
           <button id="btn-news" title="Music News" class="hud-btn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"></path><path d="M18 14h-8"></path><path d="M15 18h-5"></path><path d="M10 6h8v4h-8V6Z"></path></svg>
-          </button>
-          <button id="btn-reload-hud" title="Find Alternative Lyrics / Reload (Ctrl+R)" class="hud-btn">
-            <svg class="reload-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
           </button>
           <button id="btn-settings" title="Settings" class="hud-btn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -146,72 +147,210 @@
       </section>
 
       <!-- 1B. ONBOARDING WIZARD SCREEN -->
-      <section class="app-screen" id="screen-onboarding" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 99999; background: linear-gradient(145deg, #0a0a0a 0%, #121212 100%);">
-        <div style="max-width: 600px; width: 100%; margin: 0 auto; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; padding: 40px; box-sizing: border-box; position: relative;">
+      <section class="app-screen" id="screen-onboarding" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 99999; background: linear-gradient(145deg, #0a0a0f 0%, #12121a 100%);">
+        <div style="max-width: 640px; width: 100%; margin: 0 auto; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; padding: 24px; box-sizing: border-box; position: relative;">
           
           <!-- Onboarding Progress Indicator -->
-          <div class="onboarding-steps-indicator" id="ob-steps-indicator">
+          <div class="onboarding-steps-indicator" id="ob-steps-indicator" style="margin-bottom: 24px;">
             <span class="ob-step-dot active" id="ob-step-dot-1"></span>
             <span class="ob-step-dot" id="ob-step-dot-2"></span>
+            <span class="ob-step-dot" id="ob-step-dot-3"></span>
+            <span class="ob-step-dot" id="ob-step-dot-4"></span>
           </div>
 
           <!-- PAGE 1: MODE SELECTION -->
           <div id="ob-page-1" style="width: 100%; display: flex; flex-direction: column; align-items: center; transition: opacity 0.3s;">
-            <h1 style="font-size: 36px; margin-bottom: 12px; font-weight: 800; background: linear-gradient(to right, #1DB954, #1ed760); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Choose Your Experience</h1>
-            <p style="color: rgba(255,255,255,0.7); font-size: 16px; margin-bottom: 40px;">How do you want to view your lyrics?</p>
+            <h1 style="font-size: 32px; margin-bottom: 8px; font-weight: 800; background: linear-gradient(to right, #1DB954, #1ed760); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Welcome to LyricFlow</h1>
+            <p style="color: rgba(255,255,255,0.7); font-size: 15px; margin-bottom: 24px;">How would you like to experience your lyrics?</p>
             
-            <div style="display: flex; gap: 20px; width: 100%; justify-content: center;">
-              <div class="onboarding-card" id="ob-card-standard" style="flex: 1; background: rgba(255,255,255,0.05); border: 2px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 24px; cursor: pointer; transition: all 0.3s; display: flex; flex-direction: column; align-items: center;">
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#1DB954" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 16px;"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><rect x="8" y="10" width="8" height="6" rx="1" ry="1"/></svg>
-                <h3 style="margin-bottom: 8px; font-size: 18px;">Standard Overlay</h3>
-                <p style="font-size: 13px; color: rgba(255,255,255,0.6); line-height: 1.4;">A sleek, floating lyric window you can resize and snap anywhere on your screen.</p>
+            <div style="display: flex; gap: 14px; width: 100%; justify-content: center;">
+              <!-- Card 1: Standard Overlay -->
+              <div class="onboarding-card selected" id="ob-card-standard" style="flex: 1 1 0; min-height: 220px; max-width: 195px; width: 100%; background: rgba(255,255,255,0.05); border: 2px solid #1DB954; border-radius: 14px; padding: 18px 14px; cursor: pointer; transition: all 0.25s ease; display: flex; flex-direction: column; align-items: center; justify-content: space-between; box-sizing: border-box;">
+                <div style="height: 42px; display: flex; align-items: center; justify-content: center;">
+                  <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#1DB954" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><rect x="8" y="10" width="8" height="6" rx="1" ry="1"/></svg>
+                </div>
+                <h3 style="margin: 8px 0 4px 0; font-size: 15px; font-weight: 700; height: 22px; display: flex; align-items: center; justify-content: center;">Standard Overlay</h3>
+                <p style="font-size: 11.5px; color: rgba(255,255,255,0.6); line-height: 1.35; margin: 0; flex-grow: 1; display: flex; align-items: center; justify-content: center; text-align: center; height: 50px;">Floating glassmorphic window you can move and resize anywhere.</p>
+                <div class="ob-card-badge" id="ob-badge-standard" style="margin-top: 10px; width: 100%; height: 30px; border-radius: 15px; background: #1DB954; color: #000; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">✓ Selected</div>
               </div>
               
-              <div class="onboarding-card" id="ob-card-wallpaper" style="flex: 1; background: rgba(255,255,255,0.05); border: 2px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 24px; cursor: pointer; transition: all 0.3s; display: flex; flex-direction: column; align-items: center;">
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#1DB954" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 16px;"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-                <h3 style="margin-bottom: 8px; font-size: 18px;">Wallpaper Mode</h3>
-                <p style="font-size: 13px; color: rgba(255,255,255,0.6); line-height: 1.4;">Immersive, full-screen cinematic lyrics directly on your desktop background.</p>
+              <!-- Card 2: Taskbar Mode -->
+              <div class="onboarding-card" id="ob-card-taskbar" style="flex: 1 1 0; min-height: 220px; max-width: 195px; width: 100%; background: rgba(255,255,255,0.05); border: 2px solid rgba(255,255,255,0.1); border-radius: 14px; padding: 18px 14px; cursor: pointer; transition: all 0.25s ease; display: flex; flex-direction: column; align-items: center; justify-content: space-between; box-sizing: border-box;">
+                <div style="height: 42px; display: flex; align-items: center; justify-content: center;">
+                  <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#1DB954" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="18" rx="2" ry="2"/><line x1="2" y1="19" x2="22" y2="19"/></svg>
+                </div>
+                <h3 style="margin: 8px 0 4px 0; font-size: 15px; font-weight: 700; height: 22px; display: flex; align-items: center; justify-content: center;">Taskbar Mode</h3>
+                <p style="font-size: 11.5px; color: rgba(255,255,255,0.6); line-height: 1.35; margin: 0; flex-grow: 1; display: flex; align-items: center; justify-content: center; text-align: center; height: 50px;">Minimalist, single-line lyrics docked right in your taskbar.</p>
+                <div class="ob-card-badge" id="ob-badge-taskbar" style="margin-top: 10px; width: 100%; height: 30px; border-radius: 15px; background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.8); font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">Select</div>
               </div>
-              
-              <div class="onboarding-card" id="ob-card-taskbar" style="flex: 1; background: rgba(255,255,255,0.05); border: 2px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 24px; cursor: pointer; transition: all 0.3s; display: flex; flex-direction: column; align-items: center;">
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#1DB954" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 16px;"><rect x="2" y="3" width="20" height="18" rx="2" ry="2"/><line x1="2" y1="19" x2="22" y2="19"/></svg>
-                <h3 style="margin-bottom: 8px; font-size: 18px;">Taskbar Mode</h3>
-                <p style="font-size: 13px; color: rgba(255,255,255,0.6); line-height: 1.4;">Minimalist, single-line lyrics dynamically embedded into your Windows taskbar.</p>
+
+              <!-- Card 3: Wallpaper Mode -->
+              <div class="onboarding-card" id="ob-card-wallpaper" style="flex: 1 1 0; min-height: 220px; max-width: 195px; width: 100%; background: rgba(255,255,255,0.05); border: 2px solid rgba(255,255,255,0.1); border-radius: 14px; padding: 18px 14px; cursor: pointer; transition: all 0.25s ease; display: flex; flex-direction: column; align-items: center; justify-content: space-between; box-sizing: border-box;">
+                <div style="height: 42px; display: flex; align-items: center; justify-content: center;">
+                  <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#1DB954" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                </div>
+                <h3 style="margin: 8px 0 4px 0; font-size: 15px; font-weight: 700; height: 22px; display: flex; align-items: center; justify-content: center;">Wallpaper Mode</h3>
+                <p style="font-size: 11.5px; color: rgba(255,255,255,0.6); line-height: 1.35; margin: 0; flex-grow: 1; display: flex; align-items: center; justify-content: center; text-align: center; height: 50px;">Full-screen cinematic lyrics projected on your desktop background.</p>
+                <div class="ob-card-badge" id="ob-badge-wallpaper" style="margin-top: 10px; width: 100%; height: 30px; border-radius: 15px; background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.8); font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">Select</div>
+              </div>
+            </div>
+
+            <!-- Monitor Source Selector for Wallpaper Mode -->
+            <div id="ob-wallpaper-monitor-section" style="display: none; width: 100%; max-width: 580px; margin-top: 20px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; padding: 14px 18px; text-align: left; transition: all 0.3s; box-sizing: border-box;">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                <span style="font-size: 13px; font-weight: 600; color: #1DB954; display: flex; align-items: center; gap: 6px;">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                  Target Screen for Wallpaper Mode
+                </span>
+                <span id="ob-monitor-detected-badge" style="font-size: 11px; color: rgba(255,255,255,0.5);">Detecting displays...</span>
+              </div>
+              <div id="ob-monitor-btn-group" style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <!-- Populated dynamically: Screen 1, Screen 2, All Screens -->
               </div>
             </div>
             
-            <button id="btn-next-onboarding" class="btn-primary" style="margin-top: 40px; padding: 12px 32px; font-size: 16px; border-radius: 24px; opacity: 0; pointer-events: none; transition: opacity 0.3s;">Next Step</button>
-            <button id="btn-finish-onboarding-1" class="btn-primary" style="display: none; margin-top: 40px; padding: 12px 32px; font-size: 16px; border-radius: 24px; opacity: 0; pointer-events: none; transition: opacity 0.3s;">Finish Setup</button>
+            <div style="display: flex; justify-content: center; width: 100%; margin-top: 26px;">
+              <button id="btn-next-onboarding-1" class="btn-primary" style="height: 44px; padding: 0 36px; min-width: 220px; font-size: 15px; border-radius: 22px; cursor: pointer; font-weight: 700; display: inline-flex; align-items: center; justify-content: center;">Next: Customize Look →</button>
+            </div>
           </div>
 
-          <!-- PAGE 2: WALLPAPER STYLE SELECTION -->
-          <div id="ob-page-2" style="display: none; width: 100%; flex-direction: column; align-items: center; transition: opacity 0.3s; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);">
-            <h1 style="font-size: 36px; margin-bottom: 12px; font-weight: 800; background: linear-gradient(to right, #1DB954, #1ed760); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Select Wallpaper Style</h1>
-            <p style="color: rgba(255,255,255,0.7); font-size: 16px; margin-bottom: 40px;">How should your desktop look?</p>
-            
-            <div style="display: flex; gap: 15px; width: 100%; justify-content: center;">
-              <div class="onboarding-card ob-sub-card" id="ob-card-style1" style="flex: 1; background: rgba(255,255,255,0.05); border: 2px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 16px; cursor: pointer; transition: all 0.3s; display: flex; flex-direction: column; align-items: center;">
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#1DB954" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 12px;"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
-                <h3 style="margin-bottom: 8px; font-size: 15px;">Immersive</h3>
-                <p style="font-size: 11px; color: rgba(255,255,255,0.6); line-height: 1.4;">Full-screen blurred album artwork background.</p>
-              </div>
+          <!-- PAGE 2: CUSTOMIZE LOOK (OPACITY & FONT SIZE) -->
+          <div id="ob-page-2" style="display: none; width: 100%; flex-direction: column; align-items: center; transition: opacity 0.3s;">
+            <h1 style="font-size: 32px; margin-bottom: 8px; font-weight: 800; background: linear-gradient(to right, #1DB954, #1ed760); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Customize Your Style</h1>
+            <p style="color: rgba(255,255,255,0.7); font-size: 15px; margin-bottom: 24px;">Fine-tune your overlay opacity and lyrics sizing.</p>
+
+            <div style="width: 100%; max-width: 500px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px; box-sizing: border-box; display: flex; flex-direction: column; gap: 18px; margin-bottom: 20px;">
               
-              <div class="onboarding-card ob-sub-card" id="ob-card-style2" style="flex: 1; background: rgba(255,255,255,0.05); border: 2px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 16px; cursor: pointer; transition: all 0.3s; display: flex; flex-direction: column; align-items: center;">
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#1DB954" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 12px;"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-                <h3 style="margin-bottom: 8px; font-size: 15px;">Modern</h3>
-                <p style="font-size: 11px; color: rgba(255,255,255,0.6); line-height: 1.4;">Apple Music inspired clean layout.</p>
+              <!-- Opacity Slider -->
+              <div style="display: flex; flex-direction: column; gap: 8px; text-align: left;">
+                <div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: 600;">
+                  <span>Overlay Opacity (Glass Effect)</span>
+                  <span id="ob-val-opacity" style="color: #1DB954;">85%</span>
+                </div>
+                <input type="range" id="ob-slider-opacity" min="20" max="100" value="85" style="width: 100%; accent-color: #1DB954;" />
+                <div style="display: flex; justify-content: space-between; font-size: 11px; color: rgba(255,255,255,0.4);">
+                  <span>Transparent (20%)</span>
+                  <span>Recommended (85%)</span>
+                  <span>Solid (100%)</span>
+                </div>
               </div>
 
-              <div class="onboarding-card ob-sub-card" id="ob-card-style3" style="flex: 1; background: rgba(255,255,255,0.05); border: 2px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 16px; cursor: pointer; transition: all 0.3s; display: flex; flex-direction: column; align-items: center;">
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#1DB954" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 12px;"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><path d="M4 7h16M4 11h16M4 15h16"/></svg>
-                <h3 style="margin-bottom: 8px; font-size: 15px;">Overlay</h3>
-                <p style="font-size: 11px; color: rgba(255,255,255,0.6); line-height: 1.4;">Pure lyrics floating on your desktop.</p>
+              <!-- Font Size Slider -->
+              <div style="display: flex; flex-direction: column; gap: 8px; text-align: left;">
+                <div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: 600;">
+                  <span>Lyrics Font Size</span>
+                  <span id="ob-val-fontsize" style="color: #1DB954;">22px</span>
+                </div>
+                <input type="range" id="ob-slider-fontsize" min="16" max="32" value="22" style="width: 100%; accent-color: #1DB954;" />
+                <div style="display: flex; justify-content: space-between; font-size: 11px; color: rgba(255,255,255,0.4);">
+                  <span>Compact (16px)</span>
+                  <span>Recommended (22px)</span>
+                  <span>Large (32px)</span>
+                </div>
+              </div>
+
+              <!-- Live Preview Card -->
+              <div id="ob-preview-card" style="background: rgba(10, 10, 15, 0.85); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 14px 18px; text-align: center; transition: all 0.2s;">
+                <div style="font-size: 11px; color: rgba(255,255,255,0.4); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;">Live Preview</div>
+                <div id="ob-preview-line-prev" style="font-size: 16px; color: rgba(255,255,255,0.4); margin-bottom: 4px;">Is this the real life?</div>
+                <div id="ob-preview-line-active" style="font-size: 22px; font-weight: 700; color: #1DB954; text-shadow: 0 0 12px rgba(29, 185, 84, 0.5);">Is this just fantasy?</div>
+                <div id="ob-preview-line-next" style="font-size: 16px; color: rgba(255,255,255,0.4); margin-top: 4px;">Caught in a landslide, no escape from reality</div>
+              </div>
+
+            </div>
+
+            <div style="display: flex; gap: 14px; justify-content: center; align-items: center; margin-top: 24px;">
+              <button id="btn-back-onboarding-2" style="height: 44px; padding: 0 28px; min-width: 140px; font-size: 14px; border-radius: 22px; background: rgba(255,255,255,0.08); color: white; border: 1px solid rgba(255,255,255,0.15); cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; transition: all 0.2s;">← Back</button>
+              <button id="btn-next-onboarding-2" class="btn-primary" style="height: 44px; padding: 0 32px; min-width: 200px; font-size: 14px; border-radius: 22px; cursor: pointer; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; transition: all 0.2s;">Next: Audio Source →</button>
+            </div>
+          </div>
+
+          <!-- PAGE 3: MUSIC SOURCE & LAUNCH -->
+          <div id="ob-page-3" style="display: none; width: 100%; flex-direction: column; align-items: center; transition: opacity 0.3s;">
+            <h1 style="font-size: 32px; margin-bottom: 8px; font-weight: 800; background: linear-gradient(to right, #1DB954, #1ed760); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Connect to Music</h1>
+            <p style="color: rgba(255,255,255,0.7); font-size: 15px; margin-bottom: 24px;">Choose how LyricFlow detects what you're playing.</p>
+
+            <div style="display: flex; gap: 16px; width: 100%; max-width: 540px; margin-bottom: 24px; justify-content: center;">
+              
+              <!-- Option A: Spotify Login -->
+              <div class="onboarding-card" id="ob-card-connect-spotify" style="flex: 1 1 0; min-height: 220px; max-width: 250px; width: 100%; background: rgba(255,255,255,0.05); border: 2px solid rgba(255,255,255,0.1); border-radius: 14px; padding: 20px; cursor: pointer; transition: all 0.25s ease; display: flex; flex-direction: column; align-items: center; justify-content: space-between; box-sizing: border-box;">
+                <div style="height: 40px; display: flex; align-items: center; justify-content: center;">
+                  <svg width="36" height="36" viewBox="0 0 24 24" fill="#1DB954">
+                    <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.485 17.303a.75.75 0 0 1-1.03.248c-2.822-1.724-6.374-2.115-10.558-1.16a.75.75 0 1 1-.334-1.462c4.582-1.046 8.528-.598 11.674 1.344a.75.75 0 0 1 .248 1.03zm1.464-3.255a.938.938 0 0 1-1.29.31c-3.23-1.986-8.156-2.56-11.977-1.4a.938.938 0 1 1-.548-1.794c4.37-1.326 9.803-.68 13.505 1.594a.938.938 0 0 1 .31 1.29zm.125-3.393c-3.874-2.3-10.264-2.512-13.972-1.386a1.125 1.125 0 1 1-.655-2.153c4.258-1.293 11.31-1.047 15.772 1.602a1.125 1.125 0 0 1-1.145 1.937z"/>
+                  </svg>
+                </div>
+                <h3 style="margin: 6px 0 4px 0; font-size: 15px; font-weight: 700; height: 22px; display: flex; align-items: center; justify-content: center;">Spotify Cloud API</h3>
+                <p style="font-size: 11.5px; color: rgba(255,255,255,0.6); line-height: 1.35; margin: 0; flex-grow: 1; display: flex; align-items: center; justify-content: center; text-align: center; height: 42px;">Full Web API sync, official timestamps & offline cache.</p>
+                <button id="ob-btn-login-spotify" class="btn-primary" style="height: 38px; width: 100%; max-width: 180px; font-size: 13px; font-weight: 600; border-radius: 19px; display: flex; align-items: center; justify-content: center; cursor: pointer;">Connect Spotify</button>
+              </div>
+
+              <!-- Option B: Local Mode (SMTC) -->
+              <div class="onboarding-card selected" id="ob-card-local-mode" style="flex: 1 1 0; min-height: 220px; max-width: 250px; width: 100%; background: rgba(255,255,255,0.05); border: 2px solid #1DB954; border-radius: 14px; padding: 20px; cursor: pointer; transition: all 0.25s ease; display: flex; flex-direction: column; align-items: center; justify-content: space-between; box-sizing: border-box;">
+                <div style="height: 40px; display: flex; align-items: center; justify-content: center;">
+                  <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#1DB954" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                    <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                  </svg>
+                </div>
+                <h3 style="margin: 6px 0 4px 0; font-size: 15px; font-weight: 700; height: 22px; display: flex; align-items: center; justify-content: center;">Instant Local Mode</h3>
+                <p style="font-size: 11.5px; color: rgba(255,255,255,0.6); line-height: 1.35; margin: 0; flex-grow: 1; display: flex; align-items: center; justify-content: center; text-align: center; height: 42px;">No login required! Instant sync with Spotify Desktop, Apple Music & web.</p>
+                <button id="ob-btn-select-local" class="btn-primary" style="height: 38px; width: 100%; max-width: 180px; font-size: 13px; font-weight: 600; border-radius: 19px; display: flex; align-items: center; justify-content: center; cursor: pointer; background: #1DB954; color: #000;">Use Local (SMTC)</button>
+              </div>
+
+            </div>
+
+            <div style="display: flex; gap: 14px; justify-content: center; align-items: center; margin-top: 24px;">
+              <button id="btn-back-onboarding-3" style="height: 44px; padding: 0 28px; min-width: 140px; font-size: 14px; border-radius: 22px; background: rgba(255,255,255,0.08); color: white; border: 1px solid rgba(255,255,255,0.15); cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; transition: all 0.2s;">← Back</button>
+              <button id="btn-next-onboarding-3" class="btn-primary" style="height: 44px; padding: 0 32px; min-width: 220px; font-size: 14px; border-radius: 22px; cursor: pointer; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; transition: all 0.2s;">Next: Pro Tips & Controls →</button>
+            </div>
+          </div>
+
+          <!-- PAGE 4: PRO TIPS & SUPERPOWERS -->
+          <div id="ob-page-4" style="display: none; width: 100%; flex-direction: column; align-items: center; transition: opacity 0.3s;">
+            <h1 style="font-size: 30px; margin-bottom: 8px; font-weight: 800; background: linear-gradient(to right, #1DB954, #1ed760); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Pro Tips & Controls</h1>
+            <p style="color: rgba(255,255,255,0.7); font-size: 14.5px; margin-bottom: 20px;">Essential tricks to get the most out of your lyrics.</p>
+
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; width: 100%; max-width: 560px; margin-bottom: 22px;">
+              <!-- Tip 1: Moving Window -->
+              <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 14px; text-align: left; display: flex; gap: 12px; align-items: flex-start;">
+                <div style="font-size: 24px; line-height: 1;">🖐️</div>
+                <div>
+                  <h4 style="margin: 0 0 4px 0; font-size: 13.5px; font-weight: 700; color: #fff;">Moving the Window</h4>
+                  <p style="margin: 0; font-size: 11.5px; color: rgba(255,255,255,0.65); line-height: 1.4;">Drag from the <b>top-left grip handle</b> (the <i>LyricFlow</i> logo). You can also use <kbd style="background:rgba(255,255,255,0.12);padding:1px 5px;border-radius:4px;font-size:10px;color:#1DB954;">Shift+Arrows</kbd> for micro-nudges.</p>
+                </div>
+              </div>
+
+              <!-- Tip 2: Ghost / Click-Through -->
+              <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 14px; text-align: left; display: flex; gap: 12px; align-items: flex-start;">
+                <div style="font-size: 24px; line-height: 1;">👻</div>
+                <div>
+                  <h4 style="margin: 0 0 4px 0; font-size: 13.5px; font-weight: 700; color: #fff;">Click-Through Mode</h4>
+                  <p style="margin: 0; font-size: 11.5px; color: rgba(255,255,255,0.65); line-height: 1.4;">Press <kbd style="background:rgba(255,255,255,0.12);padding:1px 5px;border-radius:4px;font-size:10px;color:#1DB954;">Ctrl+Shift+L</kbd> to make the window transparent to mouse clicks—perfect for gaming or work.</p>
+                </div>
+              </div>
+
+              <!-- Tip 3: Copy & Share -->
+              <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 14px; text-align: left; display: flex; gap: 12px; align-items: flex-start;">
+                <div style="font-size: 24px; line-height: 1;">📋</div>
+                <div>
+                  <h4 style="margin: 0 0 4px 0; font-size: 13.5px; font-weight: 700; color: #fff;">Copy & Share</h4>
+                  <p style="margin: 0; font-size: 11.5px; color: rgba(255,255,255,0.65); line-height: 1.4;">Double-click or press <kbd style="background:rgba(255,255,255,0.12);padding:1px 5px;border-radius:4px;font-size:10px;color:#1DB954;">Ctrl+Shift+C</kbd> to copy lyrics. Press <kbd style="background:rgba(255,255,255,0.12);padding:1px 5px;border-radius:4px;font-size:10px;color:#1DB954;">Ctrl+Shift+S</kbd> to share a card.</p>
+                </div>
+              </div>
+
+              <!-- Tip 4: Taskbar & Desktop Docking -->
+              <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 14px; text-align: left; display: flex; gap: 12px; align-items: flex-start;">
+                <div style="font-size: 24px; line-height: 1;">📌</div>
+                <div>
+                  <h4 style="margin: 0 0 4px 0; font-size: 13.5px; font-weight: 700; color: #fff;">Modes & Tray Control</h4>
+                  <p style="margin: 0; font-size: 11.5px; color: rgba(255,255,255,0.65); line-height: 1.4;">Switch between Floating Overlay, Taskbar Dock, and Desktop Wallpaper from Settings or the system tray icon.</p>
+                </div>
               </div>
             </div>
-            
-            <div style="display: flex; gap: 16px; margin-top: 40px;">
-              <button id="btn-back-onboarding" style="padding: 12px 24px; font-size: 16px; border-radius: 24px; background: rgba(255,255,255,0.1); color: white; border: none; cursor: pointer;">Back</button>
-              <button id="btn-finish-onboarding-2" class="btn-primary" style="padding: 12px 32px; font-size: 16px; border-radius: 24px; opacity: 0; pointer-events: none; transition: opacity 0.3s;">Finish Setup</button>
+
+            <div style="display: flex; gap: 14px; justify-content: center; align-items: center; margin-top: 6px;">
+              <button id="btn-back-onboarding-4" style="height: 44px; padding: 0 28px; min-width: 140px; font-size: 14px; border-radius: 22px; background: rgba(255,255,255,0.08); color: white; border: 1px solid rgba(255,255,255,0.15); cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; transition: all 0.2s;">← Back</button>
+              <button id="btn-finish-onboarding-final" class="btn-primary" style="height: 44px; padding: 0 36px; min-width: 220px; font-size: 15px; border-radius: 22px; cursor: pointer; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; transition: all 0.2s;">🚀 Start Listening</button>
             </div>
           </div>
           
@@ -231,6 +370,7 @@
         <div class="wallpaper-now-playing">
           <div class="wallpaper-art-shell">
             <img src="" id="wallpaper-style-art" class="wallpaper-style-art" />
+            <video id="wallpaper-style-art-video" class="wallpaper-style-art" loop muted autoplay playsinline style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; pointer-events: none;"></video>
             <div class="wallpaper-art-fallback" id="wallpaper-art-fallback">
               <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
             </div>
@@ -280,6 +420,7 @@
           <div class="widget-art-container">
 
             <img src="" alt="Album Art" id="widget-album-art" class="widget-album-art" style="display: none;" />
+            <video id="widget-album-art-video" class="widget-album-art" loop muted autoplay playsinline style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; pointer-events: none;"></video>
             <div class="art-fallback" id="widget-art-fallback">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
             </div>
@@ -336,6 +477,15 @@
             </button>
           </div>
         </footer>
+
+        <!-- First-Run Floating Tip Banner -->
+        <div id="floating-tip-banner" class="floating-tip-banner" style="display: none;">
+          <div class="tip-content">
+            <span class="tip-icon">💡</span>
+            <span class="tip-text"><b>Tip:</b> Drag from the top-left grip to move • Press <b>Ctrl+Shift+L</b> for Click-Through</span>
+          </div>
+          <button id="btn-dismiss-tip" class="tip-dismiss-btn" title="Dismiss tip">Got it</button>
+        </div>
       </section>
 
       <!-- 2.5. TASKBAR LAYOUT CONTAINER -->
@@ -425,8 +575,8 @@
                   <option value="16">16px (Small)</option>
                   <option value="18">18px</option>
                   <option value="20">20px</option>
-                  <option value="22">22px</option>
-                  <option value="24" selected>24px (Medium)</option>
+                  <option value="22" selected>22px (Recommended)</option>
+                  <option value="24">24px (Medium)</option>
                   <option value="28">28px</option>
                   <option value="32">32px (Large)</option>
                   <option value="36">36px (Extra Large)</option>
@@ -463,8 +613,8 @@
               <div class="setting-row">
                 <label for="slider-bg-opacity">Overlay Opacity</label>
                 <div class="slider-container">
-                  <input type="range" id="slider-bg-opacity" min="0" max="100" value="20" />
-                  <span id="val-bg-opacity">20%</span>
+                  <input type="range" id="slider-bg-opacity" min="0" max="100" value="85" />
+                  <span id="val-bg-opacity">85%</span>
                 </div>
               </div>
               <div class="setting-row" style="margin-top: 6px; flex-direction: column; align-items: flex-start; gap: 4px;">
@@ -475,6 +625,24 @@
                   <button id="btn-clear-bg" style="background: rgba(255,255,255,0.1); border: 1px solid #f43f5e; color: #f43f5e; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 12px; transition: background 0.2s; display: none;">Clear</button>
                 </div>
                 <div id="label-bg-filename" style="font-size: 10px; color: rgba(255,255,255,0.4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%;">None selected</div>
+              </div>
+              <div class="setting-row" style="margin-top: 6px;">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Enable animated looping album art (Spotify Canvas video loops, dynamic aesthetic GIFs, or custom local GIFs)">
+                  <span>Animated & GIF Album Art</span>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-animated-album-art" checked />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+              </div>
+              <div class="setting-row" style="margin-top: 6px; flex-direction: column; align-items: flex-start; gap: 4px;">
+                <label style="font-size: 12.5px; color: rgba(255,255,255,0.85);">Custom Album Art GIF (Optional)</label>
+                <div style="display: flex; gap: 8px; width: 100%;">
+                  <input type="file" id="input-custom-art-gif-file" accept="image/gif,video/mp4,video/webm" style="display: none;" />
+                  <button id="btn-pick-custom-art-gif" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 12px; transition: background 0.2s; flex-grow: 1;">Select GIF / Loop...</button>
+                  <button id="btn-clear-custom-art-gif" style="background: rgba(255,255,255,0.1); border: 1px solid #f43f5e; color: #f43f5e; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 12px; transition: background 0.2s; display: none;">Clear</button>
+                </div>
+                <div id="label-custom-art-gif-filename" style="font-size: 10px; color: rgba(255,255,255,0.4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%;">Auto (Spotify Canvas & Aesthetic GIFs)</div>
               </div>
               <div class="setting-row">
                 <label for="select-highlight-color">Highlight Color</label>
@@ -509,6 +677,8 @@
 
           <!-- TAB 2: LYRICS -->
           <div class="settings-tab-content" data-tab="lyrics">
+
+
             <div class="settings-group">
               <h4>Lyrics & Translation</h4>
               <div class="setting-row">
@@ -635,15 +805,6 @@
           <div class="settings-tab-content" data-tab="connections">
             <div class="settings-group">
               <h4>Integrations & Accounts</h4>
-              <div class="setting-row" style="margin-top: 6px;">
-                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Show the current playing song as your Discord Status">
-                  <span>Discord Rich Presence</span>
-                  <div class="toggle-switch">
-                    <input type="checkbox" id="check-discord-rpc" />
-                    <span class="toggle-slider"></span>
-                  </div>
-                </label>
-              </div>
               <div class="setting-row">
                 <label for="select-art-source">Fallback Art Source (Local Mode)</label>
                 <select id="select-art-source">
@@ -657,6 +818,9 @@
             <div class="settings-group">
               <h4>Last.fm Integration</h4>
               <div id="lastfm-setup" style="display: flex; flex-direction: column; gap: 8px;">
+                <div style="font-size: 12px; color: rgba(255,255,255,0.7); line-height: 1.4;">
+                  Connect your Last.fm account to scrobble played songs, view real-time play counts, and love tracks directly from LyricFlow.
+                </div>
                 <button id="btn-lastfm-connect" class="btn-primary" style="padding: 8px; font-size: 13px;">
                   <span style="display: flex; align-items: center; justify-content: center; gap: 6px;">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
@@ -664,10 +828,26 @@
                   </span>
                 </button>
               </div>
+
+              <!-- Waiting for authorization in browser card -->
+              <div id="lastfm-waiting" style="display: none; flex-direction: column; gap: 8px; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 10px;">
+                <div style="font-size: 12px; color: rgba(255,255,255,0.9); line-height: 1.4; display: flex; align-items: center; gap: 8px;">
+                  <span class="loading-spinner" style="width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.2); border-top-color: var(--accent-primary, #1DB954); border-radius: 50%; animation: spin 1s linear infinite;"></span>
+                  <span>Authorizing in browser...</span>
+                </div>
+                <div style="font-size: 11px; color: rgba(255,255,255,0.55); line-height: 1.35;">Click <b>"Yes, allow access"</b> on the Last.fm authorization page in your browser. LyricFlow will connect automatically once approved.</div>
+                <div style="display: flex; gap: 6px; margin-top: 2px;">
+                  <button id="btn-lastfm-reopen" class="btn-secondary" style="flex: 1; padding: 6px; font-size: 11.5px;">Reopen Browser</button>
+                  <button id="btn-lastfm-cancel" class="btn-secondary" style="flex: 1; padding: 6px; font-size: 11.5px; opacity: 0.75;">Cancel</button>
+                </div>
+              </div>
+
               <div id="lastfm-connected" style="display: none; flex-direction: column; gap: 8px; padding-top: 8px; color: #b3b3b3; font-size: 12.5px;">
-                <div style="display: flex; align-items: center; gap: 8px; color: #1DB954;">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-                  <span>Connected to Last.fm</span>
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                  <div style="display: flex; align-items: center; gap: 8px; color: #1DB954;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                    <span id="lastfm-account-status">Connected to Last.fm</span>
+                  </div>
                 </div>
                 <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; cursor: pointer;">
                   <span>Enable Scrobbling</span>
@@ -676,47 +856,7 @@
                     <span class="toggle-slider"></span>
                   </div>
                 </label>
-                <button id="btn-lastfm-disconnect" class="btn-secondary" style="padding: 6px; font-size: 12px; margin-top: 4px;">Disconnect</button>
-              </div>
-            </div>
-
-            <div class="settings-group" id="spotify-account-group">
-              <h4>Spotify Account</h4>
-
-              <!-- Shown when Spotify is NOT connected (Local Mode or no credentials) -->
-              <div id="spotify-setup" style="display: none; flex-direction: column; gap: 8px;">
-                <div style="font-size: 12px; color: rgba(255,255,255,0.7); line-height: 1.4;">
-                  No Spotify account connected (Local Mode active). Connect your Spotify account to enable Web API sync, remote player controls, and offline caching.
-                </div>
-                <button id="btn-spotify-connect" class="btn-primary" style="padding: 8px; font-size: 13px;">
-                  <span style="display: flex; align-items: center; justify-content: center; gap: 6px;">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.485 17.303a.75.75 0 0 1-1.03.248c-2.822-1.724-6.374-2.115-10.558-1.16a.75.75 0 1 1-.334-1.462c4.582-1.046 8.528-.598 11.674 1.344a.75.75 0 0 1 .248 1.03zm1.464-3.255a.938.938 0 0 1-1.29.31c-3.23-1.986-8.156-2.56-11.977-1.4a.938.938 0 1 1-.548-1.794c4.37-1.326 9.803-.68 13.505 1.594a.938.938 0 0 1 .31 1.29zm.125-3.393c-3.874-2.3-10.264-2.512-13.972-1.386a1.125 1.125 0 1 1-.655-2.153c4.258-1.293 11.31-1.047 15.772 1.602a1.125 1.125 0 0 1-1.145 1.937z"/>
-                    </svg>
-                    Connect Spotify Account
-                  </span>
-                </button>
-                <button id="btn-switch-login-screen-setup" class="btn-secondary" style="padding: 6px; font-size: 11.5px; margin-top: 2px;">
-                  Switch to Welcome / Login Screen
-                </button>
-              </div>
-
-              <!-- Shown when Spotify IS connected -->
-              <div id="spotify-connected" style="display: none; flex-direction: column; gap: 8px; padding-top: 4px; color: #b3b3b3; font-size: 12.5px;">
-                <div style="display: flex; align-items: center; justify-content: space-between;">
-                  <div style="display: flex; align-items: center; gap: 8px; color: #1DB954;">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-                    <span id="spotify-account-status">Connected to Spotify</span>
-                  </div>
-                </div>
-                <div style="display: flex; gap: 8px; margin-top: 4px;">
-                  <button id="btn-logout" class="btn-danger" style="flex: 1; padding: 8px; font-size: 12px;">
-                    <span>Disconnect Spotify</span>
-                  </button>
-                  <button id="btn-switch-login-screen" class="btn-secondary" style="flex: 1; padding: 8px; font-size: 12px;">
-                    <span>Welcome Screen</span>
-                  </button>
-                </div>
+                <button id="btn-lastfm-disconnect" class="btn-secondary" style="padding: 6px; font-size: 12px; margin-top: 4px;">Disconnect Last.fm</button>
               </div>
             </div>
           </div>
@@ -742,6 +882,13 @@
                   <option value="style3">Style 3 - Lyric Overlay</option>
                 </select>
               </div>
+              <div class="setting-row" id="setting-wallpaper-monitor-row" style="margin-top: 8px;">
+                <label for="select-wallpaper-monitor">Target Display</label>
+                <select id="select-wallpaper-monitor">
+                  <option value="0">Screen 1 (Primary)</option>
+                  <option value="all">All Screens (Span)</option>
+                </select>
+              </div>
               
               <div class="setting-row wallpaper-overlay-setting" id="setting-wallpaper-overlay-pos" style="display: none; flex-direction: column; align-items: flex-start; gap: 10px; margin-top: 15px;">
                 <label>Position Lyrics (Shortcuts & Hotkeys)</label>
@@ -753,6 +900,10 @@
                   <button id="btn-pos-bl" class="pos-preset-btn" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 11px;">Bottom Left</button>
                   <button id="btn-pos-br" class="pos-preset-btn" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 11px;">Bottom Right</button>
                 </div>
+                <button id="btn-start-wallpaper-edit" type="button" style="margin-top: 8px; background: rgba(29, 185, 84, 0.15); border: 1px solid #1DB954; color: #1ed760; border-radius: 6px; padding: 5px 12px; font-size: 11.5px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all 0.2s;">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+                  Interactive Drag Mode
+                </button>
               </div>
               
               <div class="setting-row wallpaper-overlay-setting" id="setting-wallpaper-overlay-width" style="display: none; margin-top: 8px;">
@@ -843,8 +994,11 @@
             <div class="settings-group">
               <h4>General</h4>
               <div class="setting-row" style="margin-top: 6px;">
-                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Launch app automatically when Windows starts">
-                  <span>Launch on Windows Startup</span>
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Starts quietly docked on your taskbar without popping up in your face">
+                  <div>
+                    <span>Launch on Windows Startup</span>
+                    <div style="font-size: 10.5px; color: rgba(255,255,255,0.45); margin-top: 2px;">Starts quietly docked in Taskbar Mode</div>
+                  </div>
                   <div class="toggle-switch">
                     <input type="checkbox" id="check-auto-launch" />
                     <span class="toggle-slider"></span>
@@ -887,16 +1041,48 @@
                   </div>
                 </label>
               </div>
+              <div class="setting-row" style="margin-top: 10px;">
+                <button id="btn-rerun-setup" class="btn-secondary" style="width: 100%; padding: 8px 12px; font-size: 12px; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer;">
+                  <span>✨ Run Setup Wizard Again</span>
+                </button>
+              </div>
             </div>
 
             <div class="settings-group">
-              <h4>Keyboard Shortcuts</h4>
-              <div class="shortcut-tip">
-                <span><strong>Ctrl+Shift+L:</strong> Toggle Click-Through</span><br/>
-                <span style="margin-top: 4px; display: inline-block;"><strong>Ctrl+Shift+C:</strong> Copy Lyric</span><br/>
-                <span style="margin-top: 4px; display: inline-block;"><strong>Ctrl+Shift+S:</strong> Share Lyric Card</span><br/>
-                <span style="margin-top: 4px; display: inline-block;"><strong>Ctrl+F:</strong> Search Lyrics</span><br/>
-                <span style="margin-top: 4px; display: inline-block;"><strong>Alt + [ / ] :</strong> Adjust Sync Offset</span>
+              <h4>Keyboard Shortcuts & Gestures</h4>
+              <div class="shortcut-tip" style="padding: 12px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; font-size: 12px; line-height: 1.8;">
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 6px; margin-bottom: 6px;">
+                  <span style="color: rgba(255,255,255,0.85);">Move Overlay</span>
+                  <span style="color: rgba(255,255,255,0.6); font-size: 11px;">Drag top-left grip or <kbd class="kbd-badge">Shift + Arrows</kbd></span>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 6px; margin-bottom: 6px;">
+                  <span style="color: rgba(255,255,255,0.85);">Click-Through Mode</span>
+                  <kbd class="kbd-badge">Ctrl + Shift + L</kbd>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 6px; margin-bottom: 6px;">
+                  <span style="color: rgba(255,255,255,0.85);">Copy Active Lyric</span>
+                  <span style="color: rgba(255,255,255,0.6); font-size: 11px;">Double-Click or <kbd class="kbd-badge">Ctrl + Shift + C</kbd></span>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 6px; margin-bottom: 6px;">
+                  <span style="color: rgba(255,255,255,0.85);">Share Lyric Card</span>
+                  <kbd class="kbd-badge">Ctrl + Shift + S</kbd>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 6px; margin-bottom: 6px;">
+                  <span style="color: rgba(255,255,255,0.85);">Search Lyrics</span>
+                  <kbd class="kbd-badge">Ctrl + F</kbd>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 6px; margin-bottom: 6px;">
+                  <span style="color: rgba(255,255,255,0.85);">Play / Pause</span>
+                  <span style="color: rgba(255,255,255,0.6); font-size: 11px;"><kbd class="kbd-badge">Ctrl + Alt + Space</kbd> / Media Key</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 6px; margin-bottom: 6px;">
+                  <span style="color: rgba(255,255,255,0.85);">Next / Previous Song</span>
+                  <kbd class="kbd-badge">Ctrl + Alt + Right / Left</kbd>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <span style="color: rgba(255,255,255,0.85);">Adjust Sync Offset</span>
+                  <kbd class="kbd-badge">Alt + [ / ]</kbd>
+                </div>
               </div>
             </div>
 

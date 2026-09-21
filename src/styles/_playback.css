@@ -27,6 +27,7 @@
   overflow: hidden;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -50,6 +51,34 @@
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.art-fallback.idle-active svg {
+  display: none !important;
+}
+
+.art-fallback.idle-active .idle-eq-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 2.5px;
+  height: 16px;
+}
+
+.art-fallback.idle-active .idle-eq-bar {
+  width: 2.5px;
+  background: var(--accent-primary, #1DB954);
+  border-radius: 2px;
+  animation: eqBounce 1.2s ease-in-out infinite alternate;
+}
+
+.art-fallback.idle-active .idle-eq-bar:nth-child(1) { height: 6px; animation-delay: 0.1s; }
+.art-fallback.idle-active .idle-eq-bar:nth-child(2) { height: 14px; animation-delay: 0.35s; }
+.art-fallback.idle-active .idle-eq-bar:nth-child(3) { height: 9px; animation-delay: 0.2s; }
+.art-fallback.idle-active .idle-eq-bar:nth-child(4) { height: 16px; animation-delay: 0.5s; }
+
+@keyframes eqBounce {
+  0% { transform: scaleY(0.3); opacity: 0.6; }
+  100% { transform: scaleY(1); opacity: 1; }
 }
 
 .widget-info {
@@ -239,6 +268,19 @@
 @keyframes progressPulse {
   0%, 100% { box-shadow: 0 0 6px rgba(var(--accent-primary-rgb), 0.3); }
   50% { box-shadow: 0 0 14px rgba(var(--accent-primary-rgb), 0.55); }
+}
+
+.progress-bar-fill.idle-shimmer {
+  width: 100% !important;
+  background: linear-gradient(90deg, transparent 0%, rgba(var(--accent-primary-rgb, 29, 185, 84), 0.35) 50%, transparent 100%) !important;
+  background-size: 200% 100% !important;
+  animation: idleShimmer 2.5s ease-in-out infinite !important;
+  box-shadow: none !important;
+}
+
+@keyframes idleShimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
 .progress-time {

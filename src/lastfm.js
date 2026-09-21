@@ -39,47 +39,97 @@ class LastFMManager {
     return !!this.sessionKey;
   }
 
-  async authenticate() {
+  async authenticate(onStatusChange = null) {
+    this._authCancelled = false;
+    this._currentAuthUrl = null;
+    this._currentToken = null;
+
     try {
-      // 1. Get token
+      // 1. Request token from Last.fm
       const tokenRes = await window.electronAPI.lastfmApi('auth.getToken', {}, this.apiKey, this.apiSecret, null);
-      if (!tokenRes.token) throw new Error(tokenRes.message || 'Failed to get token');
+      if (!tokenRes || !tokenRes.token) {
+        throw new Error((tokenRes && tokenRes.message) || 'Failed to acquire authentication token from Last.fm');
+      }
       
       const token = tokenRes.token;
+      this._currentToken = token;
       
-      // 2. Instruct user to authorize
+      // 2. Open auth URL in user's default browser
       const authUrl = `https://www.last.fm/api/auth/?api_key=${this.apiKey}&token=${token}`;
+      this._currentAuthUrl = authUrl;
       
-      // Open auth url in browser via an IPC call or just an alert for now if IPC shell not available
-      // Actually we don't have shell.openExternal exposed. We can use a trick or expose it.
-      // Wait, there is no shell.openExternal exposed in preload.js.
-      // We can create a hidden link and click it.
-      const a = document.createElement('a');
-      a.href = authUrl;
-      a.target = '_blank';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-
-      // Wait for user confirmation
-      if (!confirm("Please click OK *AFTER* you have authorized the application in your browser.")) {
-        throw new Error("Authorization cancelled");
+      if (window.electronAPI && typeof window.electronAPI.openExternal === 'function') {
+        await window.electronAPI.openExternal(authUrl);
+      } else {
+        window.open(authUrl, '_blank');
       }
 
-      // 3. Get session
-      const sessionRes = await window.electronAPI.lastfmApi('auth.getSession', { token }, this.apiKey, this.apiSecret, null);
-      
-      if (sessionRes.error) {
-        throw new Error(sessionRes.message);
+      if (typeof onStatusChange === 'function') {
+        onStatusChange({ state: 'waiting', authUrl, token });
       }
-      
-      this.sessionKey = sessionRes.session.key;
-      this.username = sessionRes.session.name;
-      this.saveConfig();
-      return true;
+
+      // 3. Automated background polling (checks every 2.5s for up to 60 attempts / 150s)
+      for (let attempt = 0; attempt < 60; attempt++) {
+        if (this._authCancelled) {
+          throw new Error("Authorization cancelled by user");
+        }
+
+        await new Promise(r => setTimeout(r, 2500));
+
+        if (this._authCancelled) {
+          throw new Error("Authorization cancelled by user");
+        }
+
+        try {
+          const sessionRes = await window.electronAPI.lastfmApi('auth.getSession', { token }, this.apiKey, this.apiSecret, null);
+          
+          if (sessionRes && sessionRes.session && sessionRes.session.key) {
+            this.sessionKey = sessionRes.session.key;
+            this.username = sessionRes.session.name || '';
+            this.saveConfig();
+
+            if (typeof onStatusChange === 'function') {
+              onStatusChange({ state: 'connected', username: this.username });
+            }
+            return true;
+          }
+
+          // Error 14 = "Unauthorized Token - This token has not been authorized" (User hasn't clicked Allow yet)
+          // Error 4 = "Unauthorized Token - This token has not been issued"
+          if (sessionRes && sessionRes.error && sessionRes.error !== 14 && sessionRes.error !== 4) {
+            throw new Error(sessionRes.message || 'Session acquisition failed');
+          }
+        } catch (pollErr) {
+          const msg = pollErr && pollErr.message ? pollErr.message : '';
+          if (!msg.includes("Unauthorized Token") && !msg.includes("14") && !msg.includes("4")) {
+            throw pollErr;
+          }
+        }
+      }
+
+      throw new Error("Authorization timed out. Please try again.");
     } catch (err) {
-      console.error(err);
+      if (typeof onStatusChange === 'function') {
+        onStatusChange({ state: 'error', error: err.message });
+      }
       throw err;
+    } finally {
+      this._currentToken = null;
+      this._currentAuthUrl = null;
+    }
+  }
+
+  cancelAuth() {
+    this._authCancelled = true;
+  }
+
+  async reopenAuthUrl() {
+    if (this._currentAuthUrl) {
+      if (window.electronAPI && typeof window.electronAPI.openExternal === 'function') {
+        await window.electronAPI.openExternal(this._currentAuthUrl);
+      } else {
+        window.open(this._currentAuthUrl, '_blank');
+      }
     }
   }
 
