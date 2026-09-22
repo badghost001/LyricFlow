@@ -4771,7 +4771,15 @@ async function handlePlaybackData(data) {
 
     // Trigger slide-in Next Up popup window!
     const popupArtUrl = track.album?.images?.[1]?.url || track.album?.images?.[0]?.url;
-    if (!albumArtUrl && (!localArtCache[track.id] || localArtCache[track.id] === 'notfound')) {
+    // Treat data: URLs (low-res SMTC thumbnails ~234px) the same as missing art —
+    // show as placeholder immediately but kick off a proper 600x600 fetch in the background.
+    const artIsLowResDataUrl = albumArtUrl && albumArtUrl.startsWith('data:');
+    if (artIsLowResDataUrl && currentTrackId === track.id) {
+      widgetAlbumArt.src = albumArtUrl;
+      widgetAlbumArt.style.display = 'block';
+      widgetArtFallback.style.display = 'none';
+    }
+    if ((!albumArtUrl || artIsLowResDataUrl) && (!localArtCache[track.id] || localArtCache[track.id] === 'notfound')) {
       localArtCache[track.id] = 'fetching';
       fetchFallbackAlbumArt(track.name, track.artists?.[0]?.name || '').then(artUrl => {
         if (artUrl) {
@@ -4846,7 +4854,7 @@ async function handlePlaybackData(data) {
 // History logging
 function logTrackHistory(track) {
   try {
-    let albumArtUrl = track.album?.images?.[2]?.url || track.album?.images?.[0]?.url || "";
+    let albumArtUrl = track.album?.images?.[0]?.url || track.album?.images?.[1]?.url || "";
     if (!albumArtUrl && localArtCache[track.id]) {
       albumArtUrl = localArtCache[track.id];
     }
