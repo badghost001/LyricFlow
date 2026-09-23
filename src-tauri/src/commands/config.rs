@@ -7,27 +7,10 @@ fn get_config_path() -> PathBuf {
         let _ = fs::create_dir_all(&app_dir);
         let config_path = app_dir.join("config.json");
 
-        // Seamless migration & sync: if LyricFlow config doesn't exist, check old spotify-lyrics-overlay
+        // Seamless migration: if LyricFlow config doesn't exist, check old spotify-lyrics-overlay
         let old_path = config_dir.join("spotify-lyrics-overlay").join("config.json");
-        if !config_path.exists() {
-            if old_path.exists() {
-                let _ = fs::copy(&old_path, &config_path);
-            }
-        } else if old_path.exists() {
-            if let Ok(old_data) = fs::read_to_string(&old_path) {
-                if let Ok(old_json) = serde_json::from_str::<serde_json::Value>(&old_data) {
-                    if old_json["localMode"].as_bool() == Some(true) {
-                        if let Ok(cur_data) = fs::read_to_string(&config_path) {
-                            if let Ok(mut cur_json) = serde_json::from_str::<serde_json::Value>(&cur_data) {
-                                if cur_json["access_token"].as_str().is_none() && cur_json["localMode"].as_bool() != Some(true) {
-                                    cur_json["localMode"] = serde_json::json!(true);
-                                    let _ = fs::write(&config_path, serde_json::to_string_pretty(&cur_json).unwrap_or_default());
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+        if !config_path.exists() && old_path.exists() {
+            let _ = fs::copy(&old_path, &config_path);
         }
         config_path
 

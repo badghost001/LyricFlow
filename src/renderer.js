@@ -1783,9 +1783,20 @@ function setupUIHandlers() {
         try {
           if (window.electronAPI && typeof window.electronAPI.loginViaWeb === 'function') {
             const res = await window.electronAPI.loginViaWeb();
-            if (res && res.success) {
+            if (res && (res.sp_dc || res.access_token || res.success)) {
               obBtnLoginSpotify.textContent = "✓ Connected!";
               obBtnLoginSpotify.style.background = "#1DB954";
+              config = res;
+              config.localMode = false;
+              if (res.sp_dc && !res.access_token) {
+                try {
+                  const token = await window.electronAPI.getAccessToken(res.sp_dc);
+                  if (token) config.access_token = token;
+                } catch(e) {}
+              }
+              if (window.electronAPI.saveConfig) {
+                await window.electronAPI.saveConfig(config);
+              }
               selectSpotifySource();
             } else {
               obBtnLoginSpotify.textContent = "Try Again";
@@ -1912,16 +1923,19 @@ function setupUIHandlers() {
 
       try {
         const authConfig = await window.electronAPI.loginViaWeb();
-        if (authConfig) {
+        if (authConfig && (authConfig.sp_dc || authConfig.access_token || authConfig.success)) {
           config = authConfig;
+          config.localMode = false;
           
-          if (!config.localMode && config.sp_dc) {
+          if (!config.access_token && config.sp_dc) {
             if (authStatus) authStatus.textContent = "Getting access token...";
-            const token = await window.electronAPI.getAccessToken(config.sp_dc);
-            if (token) {
-              config.access_token = token;
-              window.electronAPI.saveConfig(config);
-            }
+            try {
+              const token = await window.electronAPI.getAccessToken(config.sp_dc);
+              if (token) config.access_token = token;
+            } catch (e) {}
+          }
+          if (window.electronAPI.saveConfig) {
+            await window.electronAPI.saveConfig(config);
           }
 
           if (authStatus) {
@@ -1936,7 +1950,7 @@ function setupUIHandlers() {
           }, 1000);
         } else {
           if (authStatus) {
-            authStatus.textContent = "Login window was closed or failed.";
+            authStatus.textContent = "Login window was closed or cancelled.";
             authStatus.className = "status-msg error";
           }
           btnLoginWeb.innerHTML = originalText;
@@ -2004,32 +2018,27 @@ function setupUIHandlers() {
       }
 
       try {
-        const token = await window.electronAPI.getAccessToken(spDcVal);
-        if (token) {
-          config = {
-            sp_dc: spDcVal,
-            access_token: token,
-            localMode: false
-          };
-          await window.electronAPI.saveConfig(config);
-          if (authStatus) {
-            authStatus.textContent = "Successfully connected!";
-            authStatus.className = "status-msg success";
-          }
-          window._spotifyUserDisplayName = null;
-          updateSpotifyUI();
-          checkAndVerifySpotifyConnection().then(() => updateSpotifyUI());
-          setTimeout(() => {
-            showLyricsScreen();
-          }, 800);
-        } else {
-          if (authStatus) {
-            authStatus.textContent = "Invalid or expired sp_dc cookie. Please check and try again.";
-            authStatus.className = "status-msg error";
-          }
-          btnSubmitManual.disabled = false;
-          btnSubmitManual.textContent = "Connect";
+        let token = null;
+        try {
+          token = await window.electronAPI.getAccessToken(spDcVal);
+        } catch (e) {}
+
+        config = {
+          sp_dc: spDcVal,
+          access_token: token || "",
+          localMode: false
+        };
+        await window.electronAPI.saveConfig(config);
+        if (authStatus) {
+          authStatus.textContent = "Successfully connected!";
+          authStatus.className = "status-msg success";
         }
+        window._spotifyUserDisplayName = null;
+        updateSpotifyUI();
+        checkAndVerifySpotifyConnection().then(() => updateSpotifyUI());
+        setTimeout(() => {
+          showLyricsScreen();
+        }, 800);
       } catch (err) {
         if (authStatus) {
           authStatus.textContent = "Connection error: " + err;
@@ -2825,14 +2834,17 @@ function setupUIHandlers() {
 
       try {
         const authConfig = await window.electronAPI.loginViaWeb();
-        if (authConfig) {
+        if (authConfig && (authConfig.sp_dc || authConfig.access_token || authConfig.success)) {
           config = authConfig;
-          if (!config.localMode && config.sp_dc) {
-            const token = await window.electronAPI.getAccessToken(config.sp_dc);
-            if (token) {
-              config.access_token = token;
-              window.electronAPI.saveConfig(config);
-            }
+          config.localMode = false;
+          if (!config.access_token && config.sp_dc) {
+            try {
+              const token = await window.electronAPI.getAccessToken(config.sp_dc);
+              if (token) config.access_token = token;
+            } catch (e) {}
+          }
+          if (window.electronAPI.saveConfig) {
+            await window.electronAPI.saveConfig(config);
           }
           window._spotifyUserDisplayName = null;
           await checkAndVerifySpotifyConnection();
@@ -3869,7 +3881,7 @@ async function populateOnboardingMonitors() {
         gap: 6px;
         transition: all 0.2s;
       `;
-      btn.innerHTML = `🖥️ Screen ${idx + 1} <span style="font-size: 10.5px; opacity: 0.75;">(${m.width}×${m.height}${m.is_primary ? ' - Primary' : ''})</span>`;
+      btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>Screen ${idx + 1} <span style="font-size: 10.5px; opacity: 0.75;">(${m.width}×${m.height}${m.is_primary ? ' - Primary' : ''})</span>`;
       btn.addEventListener('click', () => {
         settings.wallpaperMonitor = String(idx);
         updateMonitorBtnGroup(btnGroup, String(idx));
@@ -3900,7 +3912,7 @@ async function populateOnboardingMonitors() {
       gap: 6px;
       transition: all 0.2s;
     `;
-    spanBtn.innerHTML = `🌐 All Screens <span style="font-size: 10.5px; opacity: 0.75;">(Span / Every Screen)</span>`;
+    spanBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>All Screens <span style="font-size: 10.5px; opacity: 0.75;">(Span / Every Screen)</span>`;
     spanBtn.addEventListener('click', () => {
       settings.wallpaperMonitor = 'all';
       updateMonitorBtnGroup(btnGroup, 'all');
@@ -5692,7 +5704,7 @@ function attachAnnotationsToRenderedLyrics() {
           btn.className = 'lyric-annotation-btn';
           btn.title = 'View Genius Meaning (Crowdsourced Interpretation)';
           btn.setAttribute('aria-label', 'View Genius Meaning');
-          btn.innerHTML = '💡';
+          btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#facc15" stroke-width="2.5"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-7 7c0 2.5 1.5 4.5 3 6h8c1.5-1.5 3-3.5 3-6a7 7 0 0 0-7-7z"/></svg>';
           btn.addEventListener('click', (e) => {
             e.stopPropagation();
             showGeniusModal(matched.fragment, matched.text);

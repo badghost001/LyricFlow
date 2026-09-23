@@ -197,21 +197,35 @@ pub async fn fetch_music_news(query: String) -> Result<String, String> {
 
 #[tauri::command]
 pub async fn get_access_token(sp_dc: String) -> Result<Option<String>, String> {
+    crate::log_to_file(&format!("[Spotify Auth] Fetching access token with sp_dc length={}", sp_dc.len()));
     let client = get_shared_client();
     let res = client.get("https://open.spotify.com/get_access_token?reason=transport&productType=web_player")
         .header("Cookie", format!("sp_dc={sp_dc}"))
         .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36")
         .header("Accept", "application/json")
         .header("App-Platform", "WebPlayer")
+        .header("Referer", "https://open.spotify.com/")
         .send()
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            crate::log_to_file(&format!("[Spotify Auth] Request error: {e}"));
+            e.to_string()
+        })?;
 
-    if res.status().is_success() {
+    let status = res.status();
+    crate::log_to_file(&format!("[Spotify Auth] get_access_token HTTP status: {status}"));
+
+    if status.is_success() {
         let json: serde_json::Value = res.json().await.map_err(|e| e.to_string())?;
         if let Some(tok) = json["accessToken"].as_str() {
+            crate::log_to_file("[Spotify Auth] Successfully extracted accessToken!");
             return Ok(Some(tok.to_string()));
+        } else {
+            crate::log_to_file(&format!("[Spotify Auth] 'accessToken' not found in response: {json:?}"));
         }
+    } else {
+        let err_body = res.text().await.unwrap_or_default();
+        crate::log_to_file(&format!("[Spotify Auth] Error response body: {err_body}"));
     }
     Ok(None)
 }
@@ -344,7 +358,10 @@ pub async fn start_oauth_server(client_id: String, code_verifier: String, _code_
 pub async fn login_via_web(app: AppHandle) -> Result<serde_json::Value, String> {
     use tauri::Manager;
 
+    crate::log_to_file("[Spotify Login] login_via_web called");
+
     if let Some(existing) = app.get_webview_window("spotify-login") {
+        crate::log_to_file("[Spotify Login] Closing existing spotify-login window");
         let _ = existing.close();
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
     }
@@ -362,10 +379,14 @@ pub async fn login_via_web(app: AppHandle) -> Result<serde_json::Value, String> 
     .center()
     .user_agent(chrome_ua)
     .build()
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| {
+        crate::log_to_file(&format!("[Spotify Login] Failed to create window: {e}"));
+        e.to_string()
+    })?;
 
     let _ = login_win.show();
     let _ = login_win.set_focus();
+    crate::log_to_file("[Spotify Login] Login window created and shown successfully");
 
     let found_sp_dc = std::sync::Arc::new(std::sync::Mutex::new(None::<String>));
 
@@ -375,14 +396,16 @@ pub async fn login_via_web(app: AppHandle) -> Result<serde_json::Value, String> 
         use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2_2;
         use webview2_com::GetCookiesCompletedHandler;
 
-        for _ in 0..750 {
-            tokio::time::sleep(std::time::Duration::from_millis(400)).await;
+        for step in 0..500 {
+            tokio::time::sleep(std::time::Duration::from_millis(600)).await;
 
             let Some(win) = app.get_webview_window("spotify-login") else {
+                crate::log_to_file(&format!("[Spotify Login] Window closed at poll step {step}"));
                 break;
             };
 
             if found_sp_dc.lock().unwrap().is_some() {
+                crate::log_to_file("[Spotify Login] sp_dc already acquired, exiting poll loop");
                 break;
             }
 
@@ -392,10 +415,12 @@ pub async fn login_via_web(app: AppHandle) -> Result<serde_json::Value, String> 
                     if let Ok(core) = webview.controller().CoreWebView2() {
                         if let Ok(core2) = core.cast::<ICoreWebView2_2>() {
                             if let Ok(cookie_mgr) = core2.CookieManager() {
-                                let handler = GetCookiesCompletedHandler::create(Box::new(move |_hr, list| {
+                                // 1. Global: empty string matches ALL cookies across ALL sites/domains in WebView2
+                                let sp_dc_1 = sp_dc_clone.clone();
+                                let handler_all = GetCookiesCompletedHandler::create(Box::new(move |_hr, list| {
                                     if let Some(cookie_list) = list {
                                         let mut count = 0u32;
-                                        if cookie_list.Count(&mut count).is_ok() {
+                                        if cookie_list.Count(&mut count).is_ok() && count > 0 {
                                             for i in 0..count {
                                                 if let Ok(cookie) = cookie_list.GetValueAtIndex(i) {
                                                     let mut name_ptr = windows::core::PWSTR::null();
@@ -403,13 +428,13 @@ pub async fn login_via_web(app: AppHandle) -> Result<serde_json::Value, String> 
                                                     if cookie.Name(&mut name_ptr).is_ok() && cookie.Value(&mut val_ptr).is_ok() {
                                                         let name = name_ptr.to_string().unwrap_or_default();
                                                         let val = val_ptr.to_string().unwrap_or_default();
-
                                                         windows::Win32::System::Com::CoTaskMemFree(Some(name_ptr.0 as *const _));
                                                         windows::Win32::System::Com::CoTaskMemFree(Some(val_ptr.0 as *const _));
 
                                                         if name == "sp_dc" && !val.is_empty() {
-                                                            let mut lock = sp_dc_clone.lock().unwrap();
+                                                            let mut lock = sp_dc_1.lock().unwrap();
                                                             if lock.is_none() {
+                                                                crate::log_to_file("[Spotify Login] Captured sp_dc from global cookie manager!");
                                                                 *lock = Some(val);
                                                             }
                                                             break;
@@ -421,8 +446,73 @@ pub async fn login_via_web(app: AppHandle) -> Result<serde_json::Value, String> 
                                     }
                                     Ok(())
                                 }));
-                                let spotify_uri = windows::core::w!("https://open.spotify.com");
-                                let _ = cookie_mgr.GetCookies(spotify_uri, &handler);
+                                let _ = cookie_mgr.GetCookies(windows::core::w!(""), &handler_all);
+
+                                // 2. open.spotify.com specifically
+                                let sp_dc_2 = sp_dc_clone.clone();
+                                let handler_open = GetCookiesCompletedHandler::create(Box::new(move |_hr, list| {
+                                    if let Some(cookie_list) = list {
+                                        let mut count = 0u32;
+                                        if cookie_list.Count(&mut count).is_ok() && count > 0 {
+                                            for i in 0..count {
+                                                if let Ok(cookie) = cookie_list.GetValueAtIndex(i) {
+                                                    let mut name_ptr = windows::core::PWSTR::null();
+                                                    let mut val_ptr = windows::core::PWSTR::null();
+                                                    if cookie.Name(&mut name_ptr).is_ok() && cookie.Value(&mut val_ptr).is_ok() {
+                                                        let name = name_ptr.to_string().unwrap_or_default();
+                                                        let val = val_ptr.to_string().unwrap_or_default();
+                                                        windows::Win32::System::Com::CoTaskMemFree(Some(name_ptr.0 as *const _));
+                                                        windows::Win32::System::Com::CoTaskMemFree(Some(val_ptr.0 as *const _));
+
+                                                        if name == "sp_dc" && !val.is_empty() {
+                                                            let mut lock = sp_dc_2.lock().unwrap();
+                                                            if lock.is_none() {
+                                                                crate::log_to_file("[Spotify Login] Captured sp_dc from open.spotify.com!");
+                                                                *lock = Some(val);
+                                                            }
+                                                            break;
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    Ok(())
+                                }));
+                                let _ = cookie_mgr.GetCookies(windows::core::w!("https://open.spotify.com"), &handler_open);
+
+                                // 3. accounts.spotify.com specifically
+                                let sp_dc_3 = sp_dc_clone.clone();
+                                let handler_acc = GetCookiesCompletedHandler::create(Box::new(move |_hr, list| {
+                                    if let Some(cookie_list) = list {
+                                        let mut count = 0u32;
+                                        if cookie_list.Count(&mut count).is_ok() && count > 0 {
+                                            for i in 0..count {
+                                                if let Ok(cookie) = cookie_list.GetValueAtIndex(i) {
+                                                    let mut name_ptr = windows::core::PWSTR::null();
+                                                    let mut val_ptr = windows::core::PWSTR::null();
+                                                    if cookie.Name(&mut name_ptr).is_ok() && cookie.Value(&mut val_ptr).is_ok() {
+                                                        let name = name_ptr.to_string().unwrap_or_default();
+                                                        let val = val_ptr.to_string().unwrap_or_default();
+                                                        windows::Win32::System::Com::CoTaskMemFree(Some(name_ptr.0 as *const _));
+                                                        windows::Win32::System::Com::CoTaskMemFree(Some(val_ptr.0 as *const _));
+
+                                                        if name == "sp_dc" && !val.is_empty() {
+                                                            let mut lock = sp_dc_3.lock().unwrap();
+                                                            if lock.is_none() {
+                                                                crate::log_to_file("[Spotify Login] Captured sp_dc from accounts.spotify.com!");
+                                                                *lock = Some(val);
+                                                            }
+                                                            break;
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    Ok(())
+                                }));
+                                let _ = cookie_mgr.GetCookies(windows::core::w!("https://accounts.spotify.com"), &handler_acc);
                             }
                         }
                     }
@@ -433,19 +523,22 @@ pub async fn login_via_web(app: AppHandle) -> Result<serde_json::Value, String> 
 
     let captured = found_sp_dc.lock().unwrap().clone();
     if let Some(sp_dc_val) = captured {
+        crate::log_to_file(&format!("[Spotify Login] Successfully acquired sp_dc (len={}), closing login window", sp_dc_val.len()));
         if let Some(win) = app.get_webview_window("spotify-login") {
             let _ = win.close();
         }
 
         let config = serde_json::json!({
             "sp_dc": sp_dc_val,
-            "localMode": false
+            "localMode": false,
+            "success": true
         });
 
         let _ = crate::commands::config::save_config(config.clone());
         return Ok(config);
     }
 
+    crate::log_to_file("[Spotify Login] No sp_dc captured; returning null");
     Ok(serde_json::Value::Null)
 }
 

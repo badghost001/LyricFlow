@@ -410,7 +410,7 @@
 
         <!-- Floating Live Meaning Pill (Genius) -->
         <div class="genius-live-meaning" id="genius-live-meaning" title="Click to view full Genius interpretation">
-          <span class="live-meaning-badge">💡 Meaning</span>
+          <span class="live-meaning-badge"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#facc15" stroke-width="2.5" style="vertical-align:middle;margin-right:3px;"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-7 7c0 2.5 1.5 4.5 3 6h8c1.5-1.5 3-3.5 3-6a7 7 0 0 0-7-7z"/></svg>Meaning</span>
           <span class="live-meaning-snippet" id="live-meaning-snippet"></span>
           <span class="live-meaning-expand">View →</span>
         </div>
@@ -481,7 +481,7 @@
         <!-- First-Run Floating Tip Banner -->
         <div id="floating-tip-banner" class="floating-tip-banner" style="display: none;">
           <div class="tip-content">
-            <span class="tip-icon">💡</span>
+            <span class="tip-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#facc15" stroke-width="2"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-7 7c0 2.5 1.5 4.5 3 6h8c1.5-1.5 3-3.5 3-6a7 7 0 0 0-7-7z"/></svg></span>
             <span class="tip-text"><b>Tip:</b> Drag from the top-left grip to move • Press <b>Ctrl+Shift+L</b> for Click-Through</span>
           </div>
           <button id="btn-dismiss-tip" class="tip-dismiss-btn" title="Dismiss tip">Got it</button>
@@ -535,10 +535,10 @@
         </div>
 
         <div class="settings-tabs">
-          <button type="button" class="settings-tab active" data-tab="appearance">🎨 Appearance</button>
-          <button type="button" class="settings-tab" data-tab="lyrics">🎵 Lyrics</button>
-          <button type="button" class="settings-tab" data-tab="connections">🔌 Connections</button>
-          <button type="button" class="settings-tab" data-tab="system">⚙ System</button>
+          <button type="button" class="settings-tab active" data-tab="appearance">Appearance</button>
+          <button type="button" class="settings-tab" data-tab="lyrics">Lyrics</button>
+          <button type="button" class="settings-tab" data-tab="connections">Connections</button>
+          <button type="button" class="settings-tab" data-tab="system">System</button>
         </div>
         
         <div class="settings-body">
@@ -812,6 +812,40 @@
                   <option value="lastfm">Last.fm</option>
                   <option value="musicbrainz">MusicBrainz</option>
                 </select>
+              </div>
+            </div>
+
+            <div class="settings-group" id="spotify-account-group">
+              <h4>Spotify Account</h4>
+
+              <!-- Shown when Spotify is NOT connected (Local Mode or no credentials) -->
+              <div id="spotify-setup" style="display: none; flex-direction: column; gap: 8px;">
+                <div style="font-size: 12px; color: rgba(255,255,255,0.7); line-height: 1.4;">
+                  Connect your Spotify account to enable Web API sync, official timestamps, remote player controls, and offline caching.
+                </div>
+                <button id="btn-spotify-connect" class="btn-primary" style="padding: 8px; font-size: 13px;">
+                  <span style="display: flex; align-items: center; justify-content: center; gap: 6px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.485 17.303a.75.75 0 0 1-1.03.248c-2.822-1.724-6.374-2.115-10.558-1.16a.75.75 0 1 1-.334-1.462c4.582-1.046 8.528-.598 11.674 1.344a.75.75 0 0 1 .248 1.03zm1.464-3.255a.938.938 0 0 1-1.29.31c-3.23-1.986-8.156-2.56-11.977-1.4a.938.938 0 1 1-.548-1.794c4.37-1.326 9.803-.68 13.505 1.594a.938.938 0 0 1 .31 1.29zm.125-3.393c-3.874-2.3-10.264-2.512-13.972-1.386a1.125 1.125 0 1 1-.655-2.153c4.258-1.293 11.31-1.047 15.772 1.602a1.125 1.125 0 0 1-1.145 1.937z"/>
+                    </svg>
+                    Connect Spotify Account
+                  </span>
+                </button>
+              </div>
+
+              <!-- Shown when Spotify IS connected -->
+              <div id="spotify-connected" style="display: none; flex-direction: column; gap: 8px; padding-top: 4px; color: #b3b3b3; font-size: 12.5px;">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                  <div style="display: flex; align-items: center; gap: 8px; color: #1DB954;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                    <span id="spotify-account-status">Connected to Spotify</span>
+                  </div>
+                </div>
+                <div style="display: flex; margin-top: 4px;">
+                  <button id="btn-logout" class="btn-danger" style="width: 100%; padding: 8px; font-size: 12px;">
+                    <span>Disconnect Spotify</span>
+                  </button>
+                </div>
               </div>
             </div>
 
