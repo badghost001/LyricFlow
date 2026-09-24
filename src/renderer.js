@@ -4383,6 +4383,9 @@ function handleEmptyPlayback() {
   currentExtractedArtUrl = null;
   trackDuration = 0;
   lyrics = [];
+  if (window.LyricsService?.instance?.engine) {
+    window.LyricsService.instance.engine.clear();
+  }
   activeLineIndex = -1;
   currentAnnotations = [];
   hideLiveMeaningPill();
@@ -5196,7 +5199,7 @@ async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = nu
       return lines.slice(0, 4).map(l => (l.text || l.words || "").trim().toLowerCase()).join("|");
     };
 
-    const applyLyricsData = async (parsedLines, sourceLevel, sourceName = "", candidateInfo = "") => {
+    const applyLyricsData = async (parsedLines, sourceLevel, sourceName = "", candidateInfo = "", normalizedLyricsObj = null) => {
       console.log(`[LF-LYRICS] applyLyricsData called: sourceLevel=${sourceLevel}, sourceName=${sourceName}, parsedLines.length=${parsedLines.length}, trackId=${trackId}, currentTrackId=${currentTrackId}`);
       // Strip structural tags that often have bad timestamps (e.g., "[Outro]", "Intro", "Chorus")
       parsedLines = parsedLines.filter(line => {
@@ -5245,6 +5248,22 @@ async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = nu
       isFetchingLyrics = false;
       currentSourceLevel = sourceLevel;
       updateTimingStatus(sourceLevel, sourceName, candidateInfo);
+
+      // Keep lyric engine synchronized with standard internal NormalizedLyrics
+      if (window.LyricsService?.instance?.engine) {
+        if (normalizedLyricsObj && window.LyricModels && window.LyricModels.isValidLyrics(normalizedLyricsObj)) {
+          window.LyricsService.instance.engine.setLyrics(normalizedLyricsObj);
+        } else if (window.ExistingWaterfallProvider && typeof window.ExistingWaterfallProvider.toNormalized === 'function') {
+          const norm = window.ExistingWaterfallProvider.toNormalized(
+            parsedLines,
+            sourceName,
+            sourceLevel === 3 ? 'WORD_SYNCED' : 'LINE_SYNCED'
+          );
+          if (norm) {
+            window.LyricsService.instance.engine.setLyrics(norm);
+          }
+        }
+      }
       if (window.safeStorageSet) {
         window.safeStorageSet(cacheKey, JSON.stringify({ level: sourceLevel, lyrics, source: sourceName, candidateInfo, candidateIndex: trackLyricsCandidateIndex[trackId] || 0 }));
       } else {
@@ -5285,6 +5304,42 @@ async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = nu
     };
 
     let rateLimited = false;
+
+    // Primary Provider: LyricsPlus v2 endpoint (rich word-by-word synced + line synced)
+    const lyricsPlusFetch = async () => {
+      try {
+        if (!window.LyricsService || !window.LyricsService.instance) return false;
+        const trackMeta = {
+          title: cleanTrack,
+          artist: cleanArtist,
+          album: currentPlayingTrackObj?.album?.name || null,
+          duration: durationSec,
+          isrc: isrc || currentPlayingTrackObj?.external_ids?.isrc || null,
+          platformId: trackId?.startsWith('spotify:track:') ? trackId.replace('spotify:track:', '') : trackId,
+          source: (config && config.localMode) ? 'Local' : 'Spotify'
+        };
+
+        if (options.forceRefresh) {
+          window.LyricsService.instance.lyricsPlusProvider.service.invalidateCache(trackMeta);
+        }
+
+        const lpResult = await window.LyricsService.instance.lyricsPlusProvider.getLyrics(trackMeta, {
+          signal,
+          forceRefresh: !!options.forceRefresh
+        });
+
+        if (lpResult && Array.isArray(lpResult.lines) && lpResult.lines.length > 0 && trackId === currentTrackId) {
+          const hasWords = lpResult.type === 'WORD' && lpResult.lines.some(l => l.words && l.words.length > 0);
+          const level = hasWords ? 3 : 2;
+          return await applyLyricsData(lpResult.lines, level, lpResult.source || 'LyricsPlus', '', lpResult);
+        }
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          console.debug('[LF-LYRICS] LyricsPlus query notice:', err);
+        }
+      }
+      return false;
+    };
 
     // 0. Rust Multi-Provider Engine (Fastest, zero CORS/CSP restrictions, queries Cloudflare Proxy + LRCLIB + Musixmatch)
     const rustLyricsFetch = async () => {
@@ -5501,7 +5556,18 @@ async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = nu
       } catch (e) {}
     };
 
-    // Run Rust multi-provider engine, Cloudflare proxy, and direct LRCLIB simultaneously for maximum speed & redundancy
+    // 1. Run Primary Provider (LyricsPlus v2)
+    let lpSuccess = false;
+    if (!options.forceRefresh || trackLyricsCandidateIndex[trackId] === 1) {
+      lpSuccess = await lyricsPlusFetch();
+    }
+
+    if (lpSuccess) {
+      manageLyricsCache(cacheKey);
+      return;
+    }
+
+    // 2. Fallback: Run Rust multi-provider engine, Cloudflare proxy, and direct LRCLIB simultaneously for maximum speed & redundancy
     const rustTask = rustLyricsFetch();
     const proxyTask = proxyFetch();
     const lrclibTask = localLrclibFetch();
@@ -6313,15 +6379,20 @@ function updatePlayhead() {
         const syncProgress = currentProgress + (settings.syncOffsetMs || 0);
 
         let activeIndex = -1;
-        for (let i = 0; i < lyrics.length; i++) {
-          if (lyrics[i].timeMs <= syncProgress) {
-            activeIndex = i;
-          } else {
-            break;
+        const isUnsynced = lyrics.length > 0 && lyrics[0].timeMs === 9999999;
+
+        if (window.LyricsService?.instance?.engine?.hasLyrics()) {
+          const syncState = window.LyricsService.instance.engine.update(syncProgress / 1000);
+          activeIndex = syncState.lineIndex;
+        } else {
+          for (let i = 0; i < lyrics.length; i++) {
+            if (lyrics[i].timeMs <= syncProgress) {
+              activeIndex = i;
+            } else {
+              break;
+            }
           }
         }
-
-        const isUnsynced = lyrics.length > 0 && lyrics[0].timeMs === 9999999;
 
         // Anti-Jitter / Hysteresis Protection:
         // When paused or during micro-timing variances, NEVER allow the active line
@@ -6352,24 +6423,40 @@ function updatePlayhead() {
             const wordSpans = activeEl._cachedWordSpans;
             // Only process word highlights if spans actually exist (meaning we have real word data)
             if (wordSpans.length > 0 && lineData.words && lineData.words.length > 0) {
-              let activeWordIdx = -1;
-
-              for (let i = 0; i < lineData.words.length; i++) {
-                if (lineData.words[i].timeMs <= syncProgress) {
-                  activeWordIdx = i;
-                } else {
-                  break;
-                }
+              const engine = window.LyricsService?.instance?.engine;
+              let wordStates = null;
+              if (engine && engine.hasLyrics()) {
+                wordStates = engine.getLineWordStates(activeIndex, syncProgress / 1000);
               }
 
-              // Only update if index changed
-              if (activeEl.dataset.activeWord !== String(activeWordIdx)) {
-                activeEl.dataset.activeWord = activeWordIdx;
+              if (wordStates && wordStates.length === wordSpans.length) {
                 wordSpans.forEach((span, wi) => {
-                  span.classList.toggle('lyric-word-passed', wi < activeWordIdx);
-                  span.classList.toggle('lyric-word-active', wi === activeWordIdx);
-                  span.classList.toggle('lyric-word-upcoming', wi > activeWordIdx);
+                  const st = wordStates[wi] || 'upcoming';
+                  span.classList.toggle('lyric-word-completed', st === 'completed');
+                  span.classList.toggle('lyric-word-passed', st === 'completed');
+                  span.classList.toggle('lyric-word-active', st === 'active');
+                  span.classList.toggle('lyric-word-upcoming', st === 'upcoming');
                 });
+              } else {
+                let activeWordIdx = -1;
+                for (let i = 0; i < lineData.words.length; i++) {
+                  if (lineData.words[i].timeMs <= syncProgress) {
+                    activeWordIdx = i;
+                  } else {
+                    break;
+                  }
+                }
+
+                // Only update if index changed
+                if (activeEl.dataset.activeWord !== String(activeWordIdx)) {
+                  activeEl.dataset.activeWord = activeWordIdx;
+                  wordSpans.forEach((span, wi) => {
+                    span.classList.toggle('lyric-word-completed', wi < activeWordIdx);
+                    span.classList.toggle('lyric-word-passed', wi < activeWordIdx);
+                    span.classList.toggle('lyric-word-active', wi === activeWordIdx);
+                    span.classList.toggle('lyric-word-upcoming', wi > activeWordIdx);
+                  });
+                }
               }
             }
           }
@@ -6414,25 +6501,41 @@ function updatePlayhead() {
               }
 
               // Apply highlight classes to taskbar words
-              const wordSpans = tbLyricLine._cachedWordSpans;
-              let activeWordIdx = -1;
-
-              for (let i = 0; i < lineData.words.length; i++) {
-                if (lineData.words[i].timeMs <= syncProgress) {
-                  activeWordIdx = i;
-                } else {
-                  break;
-                }
+              const engine = window.LyricsService?.instance?.engine;
+              let tbWordStates = null;
+              if (engine && engine.hasLyrics()) {
+                tbWordStates = engine.getLineWordStates(activeIndex, syncProgress / 1000);
               }
 
-              if (tbLyricLine.dataset.activeTbWord !== String(activeWordIdx)) {
-                tbLyricLine.dataset.activeTbWord = activeWordIdx;
+              if (tbWordStates && tbWordStates.length === wordSpans.length) {
                 wordSpans.forEach((span, wi) => {
-                  span.classList.toggle('lyric-word-passed', wi < activeWordIdx);
-                  span.classList.toggle('lyric-word-active', wi === activeWordIdx);
-                  span.classList.toggle('lyric-word-upcoming', wi > activeWordIdx);
+                  const st = tbWordStates[wi] || 'upcoming';
+                  span.classList.toggle('lyric-word-completed', st === 'completed');
+                  span.classList.toggle('lyric-word-passed', st === 'completed');
+                  span.classList.toggle('lyric-word-active', st === 'active');
+                  span.classList.toggle('lyric-word-upcoming', st === 'upcoming');
                 });
                 sendTaskbarLyric(tbLyricLine.textContent, false, tbLyricLine.innerHTML);
+              } else {
+                let activeWordIdx = -1;
+                for (let i = 0; i < lineData.words.length; i++) {
+                  if (lineData.words[i].timeMs <= syncProgress) {
+                    activeWordIdx = i;
+                  } else {
+                    break;
+                  }
+                }
+
+                if (tbLyricLine.dataset.activeTbWord !== String(activeWordIdx)) {
+                  tbLyricLine.dataset.activeTbWord = activeWordIdx;
+                  wordSpans.forEach((span, wi) => {
+                    span.classList.toggle('lyric-word-completed', wi < activeWordIdx);
+                    span.classList.toggle('lyric-word-passed', wi < activeWordIdx);
+                    span.classList.toggle('lyric-word-active', wi === activeWordIdx);
+                    span.classList.toggle('lyric-word-upcoming', wi > activeWordIdx);
+                  });
+                  sendTaskbarLyric(tbLyricLine.textContent, false, tbLyricLine.innerHTML);
+                }
               }
             } else {
               // Standard full-line mode for taskbar

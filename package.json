@@ -6,6 +6,7 @@
   "type": "commonjs",
   "scripts": {
     "start": "electron . --no-sandbox",
+    "test": "node tests/lyrics-plus.test.js",
     "build:win": "electron-builder --win",
     "publish": "electron-builder --win -p always",
     "tauri": "tauri",

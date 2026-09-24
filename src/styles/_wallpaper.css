@@ -254,7 +254,8 @@ body.wallpaper-mode.wallpaper-style-2 .lyric-line.active {
 }
 
 /* Override WBW highlight colors for Style 2 to keep it Apple Music themed (white) */
-body.wallpaper-mode.wallpaper-style-2.wbw-active .lyric-line.active .lyric-word.lyric-word-passed {
+body.wallpaper-mode.wallpaper-style-2.wbw-active .lyric-line.active .lyric-word.lyric-word-passed,
+body.wallpaper-mode.wallpaper-style-2.wbw-active .lyric-line.active .lyric-word.lyric-word-completed {
   color: #ffffff !important;
   opacity: 0.6 !important;
 }
@@ -343,7 +344,8 @@ body.wallpaper-style-3 .lyric-line.active {
 }
 
 /* Word-by-word active word styling in Wallpaper Mode */
-body.wallpaper-mode.wbw-active .lyric-line.active .lyric-word.lyric-word-passed {
+body.wallpaper-mode.wbw-active .lyric-line.active .lyric-word.lyric-word-passed,
+body.wallpaper-mode.wbw-active .lyric-line.active .lyric-word.lyric-word-completed {
   color: var(--highlight-color, #ffffff) !important;
   opacity: 0.7 !important;
 }

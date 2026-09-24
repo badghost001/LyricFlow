@@ -151,7 +151,8 @@
   text-shadow: 0 0 10px rgba(var(--accent-primary-rgb, 29, 185, 84), 0.5);
 }
 
-.tb-lyric-word.lyric-word-passed {
+.tb-lyric-word.lyric-word-passed,
+.tb-lyric-word.lyric-word-completed {
   opacity: 0.5;
 }
 

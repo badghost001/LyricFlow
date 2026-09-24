@@ -75,7 +75,8 @@ body.wbw-active .lyric-line.active {
 }
 
 /* Specifically target the word states within an active line */
-body.wbw-active .lyric-line.active .lyric-word.lyric-word-passed {
+body.wbw-active .lyric-line.active .lyric-word.lyric-word-passed,
+body.wbw-active .lyric-line.active .lyric-word.lyric-word-completed {
   color: var(--highlight-color, #ffffff) !important;
   opacity: 0.6;
 }
