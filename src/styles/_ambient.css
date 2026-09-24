@@ -1,3 +1,46 @@
+/* Apple Music Fluid WebGL Mesh Gradient Canvas */
+.fluid-mesh-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: -2;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+  contain: strict;
+  will-change: opacity;
+}
+
+body.bg-style-fluid .fluid-mesh-canvas {
+  opacity: calc(var(--glow-intensity, 1) * 0.95);
+}
+
+body.bg-style-fluid .ambient-glow {
+  opacity: 0 !important;
+  display: none !important;
+}
+
+body.bg-style-minimal .fluid-mesh-canvas,
+body.bg-style-minimal .ambient-glow {
+  opacity: 0 !important;
+  display: none !important;
+}
+
+body.taskbar-mode .fluid-mesh-canvas {
+  display: none !important;
+}
+
+body:not(.is-playing) .fluid-mesh-canvas,
+body.app-paused .fluid-mesh-canvas {
+  opacity: calc(var(--glow-intensity, 1) * 0.65);
+}
+
+body.window-blurred .fluid-mesh-canvas {
+  opacity: 0.35 !important;
+}
+
 /* Dynamic Ambient Glow Background */
 .ambient-glow {
   position: fixed;

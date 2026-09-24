@@ -24,6 +24,8 @@ let btnLoveTrack, svgLoveUnfilled, svgLoveFilled, btnLastfmConnect, lastfmConnec
 let btnPrev, btnPlayPause, btnNext, btnPlaySvg, btnPauseSvg, btnShareLyric, btnReloadLyrics, timingStatusBadge, btnSleepTimer, sleepTimerBadge;
 let checkTaskbarMode, taskbarContainer, tbLyricLine, checkFullscreenLyrics, checkEdgeGlow, checkWallpaperMode, checkAutoHideTaskbar;
 let selectWallpaperStyle;
+let fluidMeshCanvas, selectBgStyle, sliderFluidSpeed, valFluidSpeed, settingFluidSpeedRow;
+let fluidMeshGradientInstance = null;
 let sliderOverlayX, valOverlayX, sliderOverlayY, valOverlayY, sliderOverlayWidth, valOverlayWidth, selectWallpaperFontSize;
 let settingOverlayXRow, settingOverlayYRow, settingOverlayWidthRow, settingOverlayPosRow, settingWallpaperFontSizeRow, previewCanvas, previewBox;
 let selectTbAlign, selectTbTranslation, sliderTbOffset, valTbOffset, settingTbAlignRow, settingTbTranslationRow, settingTbOffsetRow;
@@ -59,6 +61,8 @@ let settings = {
   textAlign: 'center',
   bgOpacity: 85,
   glowIntensity: 60,
+  bgStyle: 'fluid',
+  fluidSpeed: 1.0,
   fontFamily: 'Outfit',
   lineSpacing: 11,
   showWidget: true,
@@ -517,6 +521,20 @@ function initDOMElements() {
   geniusModalClose = document.getElementById("genius-modal-close");
   geniusFragment = document.getElementById("genius-fragment");
   geniusAnnotationText = document.getElementById("genius-annotation-text");
+
+  fluidMeshCanvas = document.getElementById("fluid-mesh-canvas");
+  selectBgStyle = document.getElementById("select-bg-style");
+  sliderFluidSpeed = document.getElementById("slider-fluid-speed");
+  valFluidSpeed = document.getElementById("val-fluid-speed");
+  settingFluidSpeedRow = document.getElementById("setting-fluid-speed-row");
+
+  if (fluidMeshCanvas && window.FluidMeshGradient && !fluidMeshGradientInstance) {
+    try {
+      fluidMeshGradientInstance = new window.FluidMeshGradient(fluidMeshCanvas);
+    } catch (e) {
+      console.warn("[Renderer] Failed to initialize FluidMeshGradient:", e);
+    }
+  }
 }
 
 async function bootstrapApp() {
@@ -718,6 +736,12 @@ function loadLocalSettings(skipIPC = false) {
   }
 
   // Enforce optimal defaults requested by user:
+  if (!settings.bgStyle) {
+    settings.bgStyle = 'fluid';
+  }
+  if (settings.fluidSpeed === undefined || settings.fluidSpeed === null) {
+    settings.fluidSpeed = 1.0;
+  }
   if (settings.bgOpacity === undefined || settings.bgOpacity === null) {
     settings.bgOpacity = 85;
   }
@@ -1287,6 +1311,37 @@ function applyVisualSettings(fromTray = false, skipIPC = false) {
   const ambientDiv = document.getElementById("ambient-glow");
   if (ambientDiv) {
     ambientDiv.style.display = (glowVal === 0) ? 'none' : '';
+  }
+
+  // Ambient background style (Apple Music Fluid WebGL vs Glowing Orbs vs Minimal)
+  const currentBgStyle = settings.bgStyle || 'fluid';
+  document.body.classList.toggle("bg-style-fluid", currentBgStyle === 'fluid');
+  document.body.classList.toggle("bg-style-ambient", currentBgStyle === 'ambient');
+  document.body.classList.toggle("bg-style-minimal", currentBgStyle === 'minimal');
+
+  if (selectBgStyle) selectBgStyle.value = currentBgStyle;
+  if (settingFluidSpeedRow) {
+    settingFluidSpeedRow.style.display = (currentBgStyle === 'fluid') ? 'flex' : 'none';
+  }
+
+  const fluidSpeedVal = settings.fluidSpeed !== undefined ? settings.fluidSpeed : 1.0;
+  if (sliderFluidSpeed) sliderFluidSpeed.value = Math.round(fluidSpeedVal * 100);
+  if (valFluidSpeed) valFluidSpeed.textContent = `${fluidSpeedVal.toFixed(1)}x`;
+
+  if (fluidMeshGradientInstance) {
+    const isWallpaperStyle2 = settings.wallpaperMode && (settings.wallpaperStyle === 'style2');
+    const shouldRunMesh = ((currentBgStyle === 'fluid') || isWallpaperStyle2) && !settings.taskbarMode && (!hasCustomBackground || isWallpaperStyle2);
+    if (shouldRunMesh) {
+      fluidMeshGradientInstance.start();
+      fluidMeshGradientInstance.setPlaybackState(
+        isPlaying,
+        window._currentBpmProfile || 'normal',
+        fluidSpeedVal
+      );
+      fluidMeshGradientInstance.setIntensity(glowVal / 100);
+    } else {
+      fluidMeshGradientInstance.stop();
+    }
   }
 
   // Font Family
@@ -2298,6 +2353,25 @@ function setupUIHandlers() {
     sliderGlow.addEventListener("input", (e) => {
       settings.glow = parseInt(e.target.value, 10);
       applyVisualSettings();
+      saveLocalSettings();
+    });
+  }
+
+  if (selectBgStyle) {
+    selectBgStyle.addEventListener("change", (e) => {
+      settings.bgStyle = e.target.value;
+      applyVisualSettings();
+      saveLocalSettings();
+    });
+  }
+
+  if (sliderFluidSpeed) {
+    sliderFluidSpeed.addEventListener("input", (e) => {
+      settings.fluidSpeed = parseFloat(e.target.value) / 100;
+      if (valFluidSpeed) valFluidSpeed.textContent = `${settings.fluidSpeed.toFixed(1)}x`;
+      if (fluidMeshGradientInstance) {
+        fluidMeshGradientInstance.setPlaybackState(isPlaying, window._currentBpmProfile || 'normal', settings.fluidSpeed);
+      }
       saveLocalSettings();
     });
   }
@@ -4314,6 +4388,11 @@ function handleEmptyPlayback() {
   hideLiveMeaningPill();
   hideGeniusModal();
 
+  if (fluidMeshGradientInstance) {
+    fluidMeshGradientInstance.resetToDefault();
+    fluidMeshGradientInstance.setPlaybackState(false, 'normal', settings.fluidSpeed || 1.0);
+  }
+
   document.body.classList.remove('is-playing', 'app-paused');
   document.body.classList.add('is-idle');
 
@@ -4533,6 +4612,14 @@ function adaptBpmSync(lyricsList) {
     document.documentElement.style.setProperty('--lyric-word-duration', `${wordDur}s`);
     window._currentBpmProfile = 'slow';
   }
+
+  if (fluidMeshGradientInstance) {
+    fluidMeshGradientInstance.setPlaybackState(
+      isPlaying,
+      window._currentBpmProfile || 'normal',
+      settings.fluidSpeed !== undefined ? settings.fluidSpeed : 1.0
+    );
+  }
 }
 
 let currentExtractedArtUrl = null;
@@ -4554,6 +4641,14 @@ async function updateDynamicArtColor(artUrl) {
       const glowInt = glowRaw / 100;
       document.documentElement.style.setProperty('--highlight-color', 'var(--art-color-1, #1DB954)');
       document.documentElement.style.setProperty('--highlight-glow', `rgba(${colors.r}, ${colors.g}, ${colors.b}, ${glowInt})`);
+    }
+
+    if (window.extractColorPalette && fluidMeshGradientInstance) {
+      window.extractColorPalette(artUrl).then(palette => {
+        if (palette && fluidMeshGradientInstance) {
+          fluidMeshGradientInstance.setPalette(palette);
+        }
+      }).catch(e => console.warn('[Renderer] Palette extraction failed:', e));
     }
   } catch (err) {
     console.warn("[Renderer] Failed to update dynamic art color:", err);
@@ -4671,6 +4766,14 @@ async function handlePlaybackData(data) {
   if (isPlaying) ensurePlayheadLoop();
   handleTaskbarPauseAutoHide(!isPlaying);
   updateAutoHideState();
+
+  if (fluidMeshGradientInstance) {
+    fluidMeshGradientInstance.setPlaybackState(
+      isPlaying,
+      window._currentBpmProfile || 'normal',
+      settings.fluidSpeed !== undefined ? settings.fluidSpeed : 1.0
+    );
+  }
 
   trackDuration = track.duration_ms;
 

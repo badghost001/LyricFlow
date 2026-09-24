@@ -34,6 +34,7 @@
     <script src="modules/cache-manager.js" defer></script>
     <script src="modules/share-card.js" defer></script>
     <script src="modules/news.js" defer></script>
+    <script src="modules/fluid-mesh.js" defer></script>
     <script src="lastfm.js" defer></script>
     <script src="renderer.js" defer></script>
   </head>
@@ -45,6 +46,9 @@
     <!-- Wallpaper Album Background -->
     <img id="wallpaper-album-bg" class="wallpaper-album-bg" src="" />
     <video id="wallpaper-album-bg-video" class="wallpaper-album-bg" loop muted autoplay playsinline style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; z-index: 0; opacity: 0; pointer-events: none; transition: opacity 0.5s ease;"></video>
+
+    <!-- Apple Music Fluid Mesh Gradient (Liquid WebGL Canvas) -->
+    <canvas id="fluid-mesh-canvas" class="fluid-mesh-canvas"></canvas>
 
     <!-- Dynamic Ambient Glow Background -->
     <div class="ambient-glow" id="ambient-glow">
@@ -608,6 +612,21 @@
                 <div class="slider-container">
                   <input type="range" id="slider-line-spacing" min="4" max="28" value="11" />
                   <span id="val-line-spacing">11px</span>
+                </div>
+              </div>
+              <div class="setting-row">
+                <label for="select-bg-style">Ambient Background</label>
+                <select id="select-bg-style">
+                  <option value="fluid" selected>Apple Music Fluid Mesh (Liquid WebGL)</option>
+                  <option value="ambient">Glowing Orbs (Classic)</option>
+                  <option value="minimal">Minimal / Transparent</option>
+                </select>
+              </div>
+              <div class="setting-row" id="setting-fluid-speed-row">
+                <label for="slider-fluid-speed">Mesh Swirl Speed</label>
+                <div class="slider-container">
+                  <input type="range" id="slider-fluid-speed" min="30" max="200" value="100" />
+                  <span id="val-fluid-speed">1.0x</span>
                 </div>
               </div>
               <div class="setting-row">

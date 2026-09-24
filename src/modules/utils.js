@@ -173,6 +173,137 @@ async function extractDominantColor(imgUrl) {
   });
 }
 
+// Multi-color palette extractor for Apple Music-style fluid mesh gradients
+const _colorPaletteCache = new Map();
+async function extractColorPalette(imgUrl) {
+  const fallback = [
+    { r: 8, g: 10, b: 18 },     // c0: Base dark
+    { r: 29, g: 185, b: 84 },   // c1: Primary emerald
+    { r: 14, g: 165, b: 233 },  // c2: Cyan highlight
+    { r: 139, g: 92, b: 246 },  // c3: Violet wave
+    { r: 244, g: 63, b: 94 }    // c4: Rose accent
+  ];
+
+  if (!imgUrl) return fallback;
+  if (_colorPaletteCache.has(imgUrl)) {
+    return _colorPaletteCache.get(imgUrl);
+  }
+
+  let targetUrl = imgUrl;
+  if (imgUrl.startsWith('http://') || imgUrl.startsWith('https://')) {
+    if (window.electronAPI && typeof window.electronAPI.fetchImageDataUrl === 'function') {
+      try {
+        const dataUrl = await window.electronAPI.fetchImageDataUrl(imgUrl);
+        if (dataUrl) targetUrl = dataUrl;
+      } catch (err) {}
+    }
+  }
+
+  return new Promise((resolve) => {
+    let resolved = false;
+    const done = (palette) => {
+      if (!resolved) {
+        resolved = true;
+        _colorPaletteCache.set(imgUrl, palette);
+        resolve(palette);
+      }
+    };
+
+    const img = new Image();
+    if (!targetUrl.startsWith('data:')) {
+      img.crossOrigin = "Anonymous";
+    }
+
+    img.onload = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        const size = 32;
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, size, size);
+        const data = ctx.getImageData(0, 0, size, size).data;
+
+        // Group pixels into 8 hue buckets
+        const buckets = Array.from({ length: 8 }, () => []);
+        let totalR = 0, totalG = 0, totalB = 0, validCount = 0;
+
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i], g = data[i+1], b = data[i+2], a = data[i+3];
+          if (a < 128) continue;
+
+          totalR += r; totalG += g; totalB += b;
+          validCount++;
+
+          const max = Math.max(r, g, b), min = Math.min(r, g, b);
+          const delta = max - min;
+          const lum = (max + min) / 510;
+          const sat = max === 0 ? 0 : delta / max;
+
+          // Skip extremely dark or blown-out white pixels for palette vibrancy
+          if (lum < 0.12 || lum > 0.92) continue;
+
+          let hue = 0;
+          if (delta > 0) {
+            if (max === r) hue = ((g - b) / delta) % 6;
+            else if (max === g) hue = (b - r) / delta + 2;
+            else hue = (r - g) / delta + 4;
+            hue = Math.round(hue * 60);
+            if (hue < 0) hue += 360;
+          }
+
+          const bucketIdx = Math.min(7, Math.floor(hue / 45));
+          buckets[bucketIdx].push({ r, g, b, sat, lum, weight: sat * 2 + (lum > 0.3 && lum < 0.7 ? 1.5 : 0.5) });
+        }
+
+        // Sort each bucket by vibrancy weight
+        buckets.forEach(b => b.sort((a, b) => b.weight - a.weight));
+
+        // Find top populated and most vibrant distinct buckets
+        const activeBuckets = buckets.filter(b => b.length > 0).sort((a, b) => b[0].weight - a[0].weight);
+
+        const pickedColors = [];
+        for (let b of activeBuckets) {
+          if (pickedColors.length >= 4) break;
+          pickedColors.push({ r: b[0].r, g: b[0].g, b: b[0].b });
+        }
+
+        // If album is monochromatic, generate harmonious complementary variations
+        const p1 = pickedColors[0] || { r: 29, g: 185, b: 84 };
+        while (pickedColors.length < 4) {
+          const idx = pickedColors.length;
+          pickedColors.push({
+            r: Math.min(255, Math.max(0, Math.round(p1.r * (0.6 + idx * 0.25)))),
+            g: Math.min(255, Math.max(0, Math.round(p1.g * (0.8 + idx * 0.15)))),
+            b: Math.min(255, Math.max(0, Math.round(p1.b * (1.1 - idx * 0.20))))
+          });
+        }
+
+        // Base ambient tone c0: deep dark tint of the album's average color
+        const avgR = validCount ? Math.round(totalR / validCount) : 10;
+        const avgG = validCount ? Math.round(totalG / validCount) : 12;
+        const avgB = validCount ? Math.round(totalB / validCount) : 20;
+        const c0 = {
+          r: Math.min(26, Math.max(5, Math.round(avgR * 0.15))),
+          g: Math.min(26, Math.max(5, Math.round(avgG * 0.15))),
+          b: Math.min(32, Math.max(8, Math.round(avgB * 0.18)))
+        };
+
+        const result = [c0, pickedColors[0], pickedColors[1], pickedColors[2], pickedColors[3]];
+        done(result);
+      } catch (e) {
+        done(fallback);
+      }
+    };
+
+    img.onerror = () => done(fallback);
+    img.src = targetUrl;
+    if (img.complete && img.naturalWidth > 0) {
+      img.onload();
+    }
+  });
+}
+
 function forceRecalculateDragRegions() {
   const dragHandles = document.querySelectorAll('.drag-handle');
   dragHandles.forEach(el => {
@@ -200,5 +331,6 @@ window.escapeHTML = escapeHTML;
 window.showToast = showToast;
 window.formatTime = formatTime;
 window.extractDominantColor = extractDominantColor;
+window.extractColorPalette = extractColorPalette;
 window.forceRecalculateDragRegions = forceRecalculateDragRegions;
 window.ACCENT_COLOR_MAP = ACCENT_COLOR_MAP;

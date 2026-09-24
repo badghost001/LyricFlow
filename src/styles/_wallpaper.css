@@ -113,6 +113,16 @@ body.wallpaper-mode.wallpaper-style-2 .wallpaper-album-bg {
   animation: appleMusicBgPan 30s infinite alternate ease-in-out;
 }
 
+body.wallpaper-mode.wallpaper-style-2.bg-style-fluid .fluid-mesh-canvas {
+  display: block !important;
+  opacity: 1 !important;
+  z-index: -2 !important;
+}
+
+body.wallpaper-mode.wallpaper-style-2.bg-style-fluid .wallpaper-album-bg {
+  display: none !important;
+}
+
 @keyframes appleMusicBgPan {
   0% { transform: scale(1.15) translate(0, 0); }
   50% { transform: scale(1.25) translate(-2%, 2%); }
