@@ -140,6 +140,7 @@ let userScrollTimeout = null;
 let clickThroughState = null;
 
 function setClickThroughCached(enable) {
+  if (isDynamicIslandMode && enable) return;
   if (clickThroughState === enable) return;
   clickThroughState = enable;
   if (window.electronAPI && window.electronAPI.setClickThrough) {
@@ -304,11 +305,15 @@ function syncDynamicIslandState() {
 
   const islandTitle = document.getElementById("island-track-title");
   const islandArtist = document.getElementById("island-track-artist");
+  const trackObj = (typeof currentPlayingTrackObj !== 'undefined' && currentPlayingTrackObj) ? currentPlayingTrackObj : null;
+  const trackTitle = (trackObj && trackObj.name) || (widgetTrackName && widgetTrackName.textContent ? widgetTrackName.textContent : 'LyricFlow');
+  const trackArtist = (trackObj && trackObj.artist) || (widgetArtistName && widgetArtistName.textContent ? widgetArtistName.textContent : (isPlaying ? 'Playing...' : 'Waiting for music...'));
+
   if (islandTitle) {
-    islandTitle.textContent = (currentTrack && currentTrack.name) ? currentTrack.name : 'LyricFlow';
+    islandTitle.textContent = trackTitle;
   }
   if (islandArtist) {
-    islandArtist.textContent = (currentTrack && currentTrack.artist) ? currentTrack.artist : (isPlaying ? 'Playing...' : 'Waiting for music...');
+    islandArtist.textContent = trackArtist;
   }
 
   const fill = document.getElementById("island-progress-fill");
@@ -331,11 +336,9 @@ function updateDynamicIslandLyric(activeIndex, lineData, syncProgress) {
   }
 
   if (!lineData) {
-    if (currentTrack && currentTrack.name) {
-      islandLine.innerHTML = `<span class="island-idle-text"><span class="island-idle-title">${escapeHTML(currentTrack.name)}</span></span>`;
-    } else {
-      islandLine.innerHTML = `<span class="island-idle-text"><span class="island-idle-title">LyricFlow</span></span>`;
-    }
+    const trackObj = (typeof currentPlayingTrackObj !== 'undefined' && currentPlayingTrackObj) ? currentPlayingTrackObj : null;
+    const trackTitle = (trackObj && trackObj.name) || (widgetTrackName && widgetTrackName.textContent ? widgetTrackName.textContent : 'LyricFlow');
+    islandLine.innerHTML = `<span class="island-idle-text"><span class="island-idle-title">${escapeHTML(trackTitle)}</span></span>`;
     islandLine.style.transform = 'translateX(0px)';
     islandLine.dataset.lineIndex = '-1';
     if (islandExpLyric) islandExpLyric.textContent = '';
@@ -438,13 +441,21 @@ async function toggleDynamicIslandMode(forceState) {
     await window.electronAPI.setDynamicIslandMode(isDynamicIslandMode, dockPos);
   }
 
-  syncDynamicIslandState();
+  try {
+    syncDynamicIslandState();
+  } catch (err) {
+    console.warn("[DynamicIsland] Error syncing state:", err);
+  }
 
   if (isDynamicIslandMode) {
-    if (lyrics && lyrics[activeLineIndex]) {
-      updateDynamicIslandLyric(activeLineIndex, lyrics[activeLineIndex], currentProgress);
-    } else {
-      updateDynamicIslandLyric(-1, null, 0);
+    try {
+      if (lyrics && lyrics[activeLineIndex]) {
+        updateDynamicIslandLyric(activeLineIndex, lyrics[activeLineIndex], currentProgress);
+      } else {
+        updateDynamicIslandLyric(-1, null, 0);
+      }
+    } catch (err) {
+      console.warn("[DynamicIsland] Error updating lyric on toggle:", err);
     }
   }
 }
@@ -5120,7 +5131,11 @@ async function handlePlaybackData(data) {
     updateAnimatedAlbumArt(track, albumArtUrl);
   }
 
-  syncDynamicIslandState();
+  try {
+    syncDynamicIslandState();
+  } catch (err) {
+    console.warn("[DynamicIsland] Error syncing state in handlePlaybackData:", err);
+  }
 
   widgetTimeDuration.textContent = formatTime(trackDuration);
 
@@ -6772,7 +6787,11 @@ function updatePlayhead() {
 
 
         // Update Dynamic Island lyric line
-        updateDynamicIslandLyric(activeIndex, lyrics[activeIndex], syncProgress);
+        try {
+          updateDynamicIslandLyric(activeIndex, lyrics[activeIndex], syncProgress);
+        } catch (err) {
+          console.warn("[DynamicIsland] Error updating lyric line:", err);
+        }
 
         // Update taskbar lyric line in Taskbar Mode
         if (settings.taskbarMode && tbLyricLine) {

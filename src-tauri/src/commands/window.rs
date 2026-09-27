@@ -886,19 +886,17 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
     let app = window.app_handle();
 
     if enabled {
-        if DYNAMIC_ISLAND_ACTIVE.load(Ordering::SeqCst) {
-            return Ok(());
-        }
-
-        // Save current window position & size
-        if let Ok(pos) = window.outer_position() {
-            if let Ok(mut lock) = SAVED_ISLAND_MAIN_POS.get_or_init(|| Mutex::new(None)).lock() {
-                *lock = Some((pos.x, pos.y));
+        // Save current window position & size only on first entry
+        if !DYNAMIC_ISLAND_ACTIVE.load(Ordering::SeqCst) {
+            if let Ok(pos) = window.outer_position() {
+                if let Ok(mut lock) = SAVED_ISLAND_MAIN_POS.get_or_init(|| Mutex::new(None)).lock() {
+                    *lock = Some((pos.x, pos.y));
+                }
             }
-        }
-        if let Ok(size) = window.inner_size() {
-            if let Ok(mut lock) = SAVED_ISLAND_MAIN_SIZE.get_or_init(|| Mutex::new(None)).lock() {
-                *lock = Some((size.width, size.height));
+            if let Ok(size) = window.inner_size() {
+                if let Ok(mut lock) = SAVED_ISLAND_MAIN_SIZE.get_or_init(|| Mutex::new(None)).lock() {
+                    *lock = Some((size.width, size.height));
+                }
             }
         }
 
@@ -908,62 +906,126 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
 
         let dock = dock_pos.as_deref().unwrap_or("top-center");
 
-        let (target_x, target_y) = if let Ok(Some(monitor)) = window.current_monitor() {
-            let m_pos = monitor.position();
-            let m_size = monitor.size();
+        let monitor = window
+            .current_monitor()
+            .ok()
+            .flatten()
+            .or_else(|| window.primary_monitor().ok().flatten())
+            .or_else(|| window.available_monitors().ok().and_then(|m| m.into_iter().next()));
+
+        let (target_x, target_y) = if let Some(m) = monitor {
+            let m_pos = m.position();
+            let m_size = m.size();
+            let center_x = m_pos.x + ((m_size.width as i32 - island_w as i32) / 2);
+            let top_y = m_pos.y;
             let pad_h = ((460.0 - 210.0) / 2.0 * scale) as i32;
+
             match dock {
                 "top-left" => {
                     let x = m_pos.x + (16.0 * scale) as i32 - pad_h;
-                    let y = m_pos.y;
-                    (x, y)
+                    (x, top_y)
                 }
                 "top-right" => {
                     let x = m_pos.x + m_size.width as i32 - island_w as i32 - (16.0 * scale) as i32 + pad_h;
-                    let y = m_pos.y;
-                    (x, y)
+                    (x, top_y)
                 }
                 "bottom-center" => {
-                    let x = m_pos.x + ((m_size.width as i32 - island_w as i32) / 2);
+                    let x = center_x;
                     let y = m_pos.y + m_size.height as i32 - island_h as i32 - (48.0 * scale) as i32;
                     (x, y)
                 }
                 _ => {
                     // Default: top-center (authentic iOS Dynamic Island)
-                    let x = m_pos.x + ((m_size.width as i32 - island_w as i32) / 2);
-                    let y = m_pos.y;
-                    (x, y)
+                    (center_x, top_y)
                 }
             }
         } else {
-            (200, 0)
+            let center_x = (1920 - island_w as i32) / 2;
+            (center_x, 0)
         };
 
+        let _ = window.set_resizable(false);
         let _ = window.set_size(tauri::PhysicalSize::new(island_w, island_h));
         let _ = window.set_position(tauri::PhysicalPosition::new(target_x, target_y));
         let _ = window.set_always_on_top(true);
-        let _ = window.set_ignore_cursor_events(false); // Non-clickthrough
-        let _ = window.set_resizable(false); // Unmovable & locked
+        let _ = window.set_ignore_cursor_events(false);
+
+        #[cfg(target_os = "windows")]
+        {
+            use windows::Win32::UI::WindowsAndMessaging::{
+                SetWindowPos, HWND_TOPMOST, SWP_SHOWWINDOW, SWP_NOACTIVATE, SWP_FRAMECHANGED,
+                GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE, WS_EX_TOPMOST,
+            };
+            if let Ok(hwnd) = window.hwnd() {
+                let hwnd_val = windows::Win32::Foundation::HWND(hwnd.0 as _);
+                unsafe {
+                    let cur_ex = GetWindowLongPtrW(hwnd_val, GWL_EXSTYLE);
+                    let _ = SetWindowLongPtrW(hwnd_val, GWL_EXSTYLE, cur_ex | (WS_EX_TOPMOST.0 as isize));
+                    let _ = SetWindowPos(
+                        hwnd_val,
+                        Some(HWND_TOPMOST),
+                        target_x,
+                        target_y,
+                        island_w as i32,
+                        island_h as i32,
+                        SWP_SHOWWINDOW | SWP_NOACTIVATE | SWP_FRAMECHANGED,
+                    );
+                }
+            }
+        }
+
+        crate::log_to_file(&format!(
+            "[DynamicIsland] Docked to {}: target=({}, {}), size=({}x{}), scale={}",
+            dock, target_x, target_y, island_w, island_h, scale
+        ));
         DYNAMIC_ISLAND_ACTIVE.store(true, Ordering::SeqCst);
     } else {
         if !DYNAMIC_ISLAND_ACTIVE.load(Ordering::SeqCst) {
             return Ok(());
         }
 
-        let saved_pos = SAVED_ISLAND_MAIN_POS.get_or_init(|| Mutex::new(None)).lock().ok().and_then(|g| *g);
-        let saved_size = SAVED_ISLAND_MAIN_SIZE.get_or_init(|| Mutex::new(None)).lock().ok().and_then(|g| *g);
+        let saved_pos = SAVED_ISLAND_MAIN_POS.get_or_init(|| Mutex::new(None)).lock().ok().and_then(|mut g| g.take());
+        let saved_size = SAVED_ISLAND_MAIN_SIZE.get_or_init(|| Mutex::new(None)).lock().ok().and_then(|mut g| g.take());
 
-        if let (Some((px, py)), Some((sw, sh))) = (saved_pos, saved_size) {
-            let _ = window.set_size(tauri::PhysicalSize::new(sw, sh));
-            let _ = window.set_position(tauri::PhysicalPosition::new(px, py));
+        let (rx, ry, rw, rh) = if let (Some((px, py)), Some((sw, sh))) = (saved_pos, saved_size) {
+            (px, py, sw, sh)
         } else {
             let scale = window.scale_factor().unwrap_or(1.0);
-            let _ = window.set_size(tauri::PhysicalSize::new((780.0 * scale) as u32, (560.0 * scale) as u32));
-            let _ = window.center();
+            let sw = (780.0 * scale) as u32;
+            let sh = (560.0 * scale) as u32;
+            (100, 100, sw, sh)
+        };
+
+        let _ = window.set_resizable(true);
+        let _ = window.set_size(tauri::PhysicalSize::new(rw, rh));
+        let _ = window.set_position(tauri::PhysicalPosition::new(rx, ry));
+        let _ = window.set_always_on_top(false);
+
+        #[cfg(target_os = "windows")]
+        {
+            use windows::Win32::UI::WindowsAndMessaging::{
+                SetWindowPos, HWND_NOTOPMOST, SWP_SHOWWINDOW, SWP_FRAMECHANGED,
+            };
+            if let Ok(hwnd) = window.hwnd() {
+                let hwnd_val = windows::Win32::Foundation::HWND(hwnd.0 as _);
+                unsafe {
+                    let _ = SetWindowPos(
+                        hwnd_val,
+                        Some(HWND_NOTOPMOST),
+                        rx,
+                        ry,
+                        rw as i32,
+                        rh as i32,
+                        SWP_SHOWWINDOW | SWP_FRAMECHANGED,
+                    );
+                }
+            }
         }
 
-        let _ = window.set_always_on_top(false);
-        let _ = window.set_resizable(true);
+        crate::log_to_file(&format!(
+            "[DynamicIsland] Restored main window: pos=({}, {}), size=({}x{})",
+            rx, ry, rw, rh
+        ));
         DYNAMIC_ISLAND_ACTIVE.store(false, Ordering::SeqCst);
     }
 
