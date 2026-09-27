@@ -28,9 +28,9 @@
   padding: var(--line-spacing) 10px;
   text-align: var(--text-align);
   color: var(--text-primary, #ffffff);
-  opacity: 0.32;
-  filter: blur(2.4px);
-  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.75);
+  opacity: 0.38;
+  filter: blur(1.8px);
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.85);
   transform: scale(0.96) translateZ(0);
   transition: opacity var(--lyric-line-duration, 0.35s) cubic-bezier(0.16, 1, 0.3, 1),
               filter var(--lyric-line-duration, 0.35s) cubic-bezier(0.16, 1, 0.3, 1),
@@ -45,19 +45,19 @@
 
 [data-theme="light"] .lyric-line {
   color: #1d1d1f;
-  opacity: 0.35;
-  filter: blur(2.0px);
+  opacity: 0.40;
+  filter: blur(1.5px);
   text-shadow: 0 1px 4px rgba(255, 255, 255, 0.8);
 }
 
 .lyric-line.nearby-1 {
-  opacity: 0.58;
-  filter: blur(1.2px);
+  opacity: 0.60;
+  filter: blur(1.0px);
   transform: scale(0.98) translateZ(0);
 }
 
 .lyric-line:hover {
-  opacity: 0.88 !important;
+  opacity: 0.90 !important;
   filter: blur(0px) !important;
   transform: scale(0.99) translateZ(0);
 }
@@ -65,7 +65,7 @@
 .lyric-line.active {
   opacity: 1 !important;
   font-weight: 750 !important;
-  transform: scale(1.05) translateZ(0) !important;
+  transform: scale(1.04) translateZ(0) !important;
   color: var(--highlight-color, #ffffff) !important;
   text-shadow: 0 0 18px var(--highlight-glow, rgba(var(--accent-primary-rgb), 0.5)), 0 2px 14px rgba(0, 0, 0, 0.95) !important;
   filter: blur(0px) !important;
@@ -76,7 +76,7 @@
 .lyric-word {
   display: inline-block;
   color: inherit; 
-  transition: all var(--lyric-word-duration, 0.2s) cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.22s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.2s ease, text-shadow 0.25s ease;
   transform-origin: center bottom;
 }
 
@@ -89,25 +89,26 @@ body.wbw-active .lyric-line.active {
 /* Specifically target the word states within an active line */
 body.wbw-active .lyric-line.active .lyric-word.lyric-word-passed,
 body.wbw-active .lyric-line.active .lyric-word.lyric-word-completed {
-  color: var(--highlight-color, #ffffff) !important;
-  opacity: 0.92;
+  color: #ffffff !important;
+  opacity: 0.95;
   transform: scale(1) translateY(0);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
 }
 
 body.wbw-active .lyric-line.active .lyric-word.lyric-word-active {
-  color: var(--highlight-color, #ffffff) !important;
+  color: #ffffff !important;
   opacity: 1;
   text-shadow: 
-    0 0 16px rgba(255, 255, 255, 0.85),
-    0 0 28px var(--highlight-glow, rgba(var(--accent-primary-rgb), 0.7)),
-    0 0 45px var(--highlight-glow, rgba(var(--accent-primary-rgb), 0.4));
-  transform: scale(1.12) translateY(-2px);
-  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.5));
+    0 0 12px rgba(255, 255, 255, 0.9),
+    0 0 24px var(--highlight-glow, rgba(var(--accent-primary-rgb), 0.75)),
+    0 0 40px var(--highlight-glow, rgba(var(--accent-primary-rgb), 0.4));
+  transform: scale(1.08) translateY(-1.5px);
+  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.6));
 }
 
 body.wbw-active .lyric-line.active .lyric-word.lyric-word-upcoming {
   color: var(--highlight-color, #ffffff) !important;
-  opacity: 0.35;
+  opacity: 0.38;
 }
 
 

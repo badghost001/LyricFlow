@@ -224,9 +224,10 @@ async function extractColorPalette(imgUrl) {
         ctx.drawImage(img, 0, 0, size, size);
         const data = ctx.getImageData(0, 0, size, size).data;
 
-        // Group pixels into 8 hue buckets
-        const buckets = Array.from({ length: 8 }, () => []);
+        // Group pixels into 12 hue buckets (30 deg each) for fine-grained color detection
+        const buckets = Array.from({ length: 12 }, () => []);
         let totalR = 0, totalG = 0, totalB = 0, validCount = 0;
+        let saturatedCount = 0;
 
         for (let i = 0; i < data.length; i += 4) {
           const r = data[i], g = data[i+1], b = data[i+2], a = data[i+3];
@@ -240,8 +241,10 @@ async function extractColorPalette(imgUrl) {
           const lum = (max + min) / 510;
           const sat = max === 0 ? 0 : delta / max;
 
-          // Skip extremely dark or blown-out white pixels for palette vibrancy
-          if (lum < 0.15 || lum > 0.90 || sat < 0.15) continue;
+          // Exclude extreme pure black or blown-out white
+          if (lum < 0.10 || lum > 0.94) continue;
+
+          if (sat >= 0.12) saturatedCount++;
 
           let hue = 0;
           if (delta > 0) {
@@ -252,8 +255,8 @@ async function extractColorPalette(imgUrl) {
             if (hue < 0) hue += 360;
           }
 
-          const bucketIdx = Math.min(7, Math.floor(hue / 45));
-          buckets[bucketIdx].push({ r, g, b, sat, lum, hue, weight: sat * 3.0 + (lum > 0.35 && lum < 0.65 ? 2.0 : 0.5) });
+          const bucketIdx = Math.min(11, Math.floor(hue / 30));
+          buckets[bucketIdx].push({ r, g, b, sat, lum, hue, weight: sat * 2.5 + (lum > 0.35 && lum < 0.65 ? 1.5 : 0.5) });
         }
 
         // Helper: Convert HSL to RGB
@@ -284,8 +287,8 @@ async function extractColorPalette(imgUrl) {
           };
         };
 
-        // Helper: Boost saturation and ensure optimal luminosity
-        const boostVibrancy = (rawR, rawG, rawB, minSat = 0.78) => {
+        // Helper: Boost saturation moderately while preserving authentic color tone
+        const boostVibrancy = (rawR, rawG, rawB) => {
           const rf = rawR / 255, gf = rawG / 255, bf = rawB / 255;
           const max = Math.max(rf, gf, bf), min = Math.min(rf, gf, bf);
           let h = 0, s = 0, l = (max + min) / 2;
@@ -297,42 +300,75 @@ async function extractColorPalette(imgUrl) {
             else h = (rf - gf) / d + 4;
             h = Math.round(h * 60);
           }
-          const boostedSat = Math.max(s, minSat);
-          const balancedLum = Math.max(0.42, Math.min(0.62, l));
+          // Tasteful boost: amplify low saturation without creating fluorescent neon
+          const boostedSat = Math.min(0.88, Math.max(0.68, s * 1.35));
+          const balancedLum = Math.max(0.40, Math.min(0.62, l));
           return hslToRgb(h, boostedSat, balancedLum);
         };
 
-        // Sort buckets by total weight
-        buckets.forEach(b => b.sort((x, y) => y.weight - x.weight));
-        const activeBuckets = buckets.filter(b => b.length > 0).sort((a, b) => b[0].weight - a[0].weight);
+        // Check if artwork is predominantly monochromatic
+        const isMonochrome = validCount > 0 && (saturatedCount / validCount) < 0.08;
 
-        const pickedColors = [];
-        for (let b of activeBuckets) {
-          if (pickedColors.length >= 4) break;
-          const best = b[0];
-          pickedColors.push(boostVibrancy(best.r, best.g, best.b));
+        let pickedColors = [];
+
+        if (isMonochrome) {
+          // Elegant monochromatic silver & slate atmosphere
+          pickedColors = [
+            { r: 185, g: 195, b: 210 }, // c1: Soft luminous silver
+            { r: 95, g: 112, b: 135 },  // c2: Muted slate
+            { r: 220, g: 228, b: 240 }, // c3: High platinum crest
+            { r: 52, g: 60, b: 74 }     // c4: Deep charcoal tone
+          ];
+        } else {
+          // Sort buckets by total weight
+          buckets.forEach(b => b.sort((x, y) => y.weight - x.weight));
+          const activeBuckets = buckets.filter(b => b.length > 0).sort((a, b) => b[0].weight - a[0].weight);
+
+          for (let b of activeBuckets) {
+            if (pickedColors.length >= 4) break;
+            const best = b[0];
+            pickedColors.push(boostVibrancy(best.r, best.g, best.b));
+          }
+
+          // If few distinct hues exist, generate natural tonal variations of the real primary color
+          if (pickedColors.length > 0) {
+            const p = pickedColors[0];
+            const max = Math.max(p.r, p.g, p.b), min = Math.min(p.r, p.g, p.b);
+            let pSat = 0.7, pLum = 0.5, pHue = 142;
+            if (max !== min) {
+              const d = max - min;
+              pLum = (max + min) / 510;
+              pSat = pLum > 0.5 ? d / (510 - max - min) : d / (max + min);
+              if (max === p.r) pHue = ((p.g - p.b) / d + (p.g < p.b ? 6 : 0)) * 60;
+              else if (max === p.g) pHue = ((p.b - p.r) / d + 2) * 60;
+              else pHue = ((p.r - p.g) / d + 4) * 60;
+            }
+
+            // Natural tonal variations instead of clashing rainbow colors
+            if (pickedColors.length < 2) pickedColors.push(hslToRgb(pHue + 18, Math.min(0.85, pSat * 1.1), 0.44));
+            if (pickedColors.length < 3) pickedColors.push(hslToRgb(pHue - 14, Math.min(0.90, pSat * 0.95), 0.62));
+            if (pickedColors.length < 4) pickedColors.push(hslToRgb(pHue + 30, Math.min(0.82, pSat * 1.05), 0.38));
+          }
         }
 
-        // If album is monochromatic or few colors found, synthesize harmonious complementaries
-        let primaryHue = 142; // default vibrant emerald hue
+        // Fallback safety if no pixels qualified
+        if (pickedColors.length < 4) {
+          pickedColors = fallback.slice(1);
+        }
+
+        // Base ambient tone c0: deep velvety dark tint matching the album hue
+        let baseHue = 142;
         if (pickedColors.length > 0) {
           const p = pickedColors[0];
           const max = Math.max(p.r, p.g, p.b), min = Math.min(p.r, p.g, p.b);
           if (max !== min) {
             const d = max - min;
-            if (max === p.r) primaryHue = ((p.g - p.b) / d + (p.g < p.b ? 6 : 0)) * 60;
-            else if (max === p.g) primaryHue = ((p.b - p.r) / d + 2) * 60;
-            else primaryHue = ((p.r - p.g) / d + 4) * 60;
+            if (max === p.r) baseHue = ((p.g - p.b) / d + (p.g < p.b ? 6 : 0)) * 60;
+            else if (max === p.g) baseHue = ((p.b - p.r) / d + 2) * 60;
+            else baseHue = ((p.r - p.g) / d + 4) * 60;
           }
         }
-
-        if (pickedColors.length < 1) pickedColors.push(hslToRgb(primaryHue, 0.85, 0.52));
-        if (pickedColors.length < 2) pickedColors.push(hslToRgb(primaryHue + 38, 0.80, 0.50));
-        if (pickedColors.length < 3) pickedColors.push(hslToRgb(primaryHue + 75, 0.86, 0.60));
-        if (pickedColors.length < 4) pickedColors.push(hslToRgb(primaryHue + 175, 0.88, 0.54));
-
-        // Base ambient tone c0: deep dark velvety tint matching the album hue
-        const c0 = hslToRgb(primaryHue, 0.35, 0.05);
+        const c0 = isMonochrome ? { r: 10, g: 12, b: 16 } : hslToRgb(baseHue, 0.30, 0.05);
 
         const result = [c0, pickedColors[0], pickedColors[1], pickedColors[2], pickedColors[3]];
         done(result);

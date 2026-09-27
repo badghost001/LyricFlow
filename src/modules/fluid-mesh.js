@@ -151,30 +151,36 @@ class FluidMeshGradient {
         vec2 mForce = normalize(uv - mPos + 0.0001) * exp(-mDist * 3.2) * 0.14;
         uv += mForce;
 
-        float t = u_time * 0.18;
+        float t = u_time * 0.12;
 
         // Dynamic wandering color nodes (Lissajous orbits across the viewport)
-        vec2 p1 = vec2(sin(t * 0.85 + 0.3) * 0.45 * aspect, cos(t * 0.72) * 0.38);
-        vec2 p2 = vec2(cos(t * 0.65 + 2.1) * 0.48 * aspect, sin(t * 0.88 + 1.2) * 0.36);
-        vec2 p3 = vec2(sin(t * 0.95 + 4.2) * 0.38 * aspect, cos(t * 0.58 + 3.0) * 0.42);
-        vec2 p4 = vec2(cos(t * 0.78 + 5.1) * 0.42 * aspect, sin(t * 0.68 + 4.5) * 0.40);
+        vec2 p1 = vec2(sin(t * 0.75 + 0.3) * 0.42 * aspect, cos(t * 0.62) * 0.36);
+        vec2 p2 = vec2(cos(t * 0.58 + 2.1) * 0.45 * aspect, sin(t * 0.72 + 1.2) * 0.34);
+        vec2 p3 = vec2(sin(t * 0.82 + 4.2) * 0.35 * aspect, cos(t * 0.52 + 3.0) * 0.38);
+        vec2 p4 = vec2(cos(t * 0.68 + 5.1) * 0.38 * aspect, sin(t * 0.58 + 4.5) * 0.36);
 
         // Multi-scale double domain warping for silky fluid turbulence
-        vec2 q = vec2(fbm(uv + vec2(0.0, t * 0.45)), fbm(uv + vec2(5.2, t * 0.4)));
-        vec2 r = vec2(fbm(uv + 2.4 * q + vec2(1.7, 9.2) + t * 0.3), fbm(uv + 2.4 * q + vec2(8.3, 2.8) + t * 0.25));
-        vec2 warpedUV = uv + 0.38 * r;
+        vec2 q = vec2(fbm(uv + vec2(0.0, t * 0.35)), fbm(uv + vec2(5.2, t * 0.32)));
+        vec2 r = vec2(fbm(uv + 2.2 * q + vec2(1.7, 9.2) + t * 0.22), fbm(uv + 2.2 * q + vec2(8.3, 2.8) + t * 0.18));
+        vec2 warpedUV = uv + 0.32 * r;
 
         // Inverted distance calculation with organic noise modulation
-        float d1 = length(warpedUV - p1) + 0.22 * fbm(warpedUV * 1.8 + t * 0.2);
-        float d2 = length(warpedUV - p2) + 0.22 * fbm(warpedUV * 1.8 + vec2(3.1, 1.4) - t * 0.2);
-        float d3 = length(warpedUV - p3) + 0.22 * fbm(warpedUV * 1.8 + vec2(6.7, 4.2) + t * 0.25);
-        float d4 = length(warpedUV - p4) + 0.22 * fbm(warpedUV * 1.8 + vec2(9.2, 7.8) - t * 0.22);
+        float d1 = length(warpedUV - p1) + 0.18 * fbm(warpedUV * 1.6 + t * 0.15);
+        float d2 = length(warpedUV - p2) + 0.18 * fbm(warpedUV * 1.6 + vec2(3.1, 1.4) - t * 0.15);
+        float d3 = length(warpedUV - p3) + 0.18 * fbm(warpedUV * 1.6 + vec2(6.7, 4.2) + t * 0.2);
+        float d4 = length(warpedUV - p4) + 0.18 * fbm(warpedUV * 1.6 + vec2(9.2, 7.8) - t * 0.18);
 
-        // Smooth cubic Hermite falloff
-        float w1 = smoothstep(1.25, 0.02, d1);
-        float w2 = smoothstep(1.30, 0.02, d2);
-        float w3 = smoothstep(1.15, 0.02, d3);
-        float w4 = smoothstep(1.20, 0.02, d4);
+        // Strictly edge0 < edge1 in GLSL smoothstep for full driver compliance
+        float w1 = 1.0 - smoothstep(0.05, 1.25, d1);
+        float w2 = 1.0 - smoothstep(0.05, 1.30, d2);
+        float w3 = 1.0 - smoothstep(0.05, 1.15, d3);
+        float w4 = 1.0 - smoothstep(0.05, 1.20, d4);
+
+        // Exponential weight curve for silky distinct color pools
+        w1 = pow(max(0.0, w1), 1.5);
+        w2 = pow(max(0.0, w2), 1.5);
+        w3 = pow(max(0.0, w3), 1.5);
+        w4 = pow(max(0.0, w4), 1.5);
 
         float totalW = w1 + w2 + w3 + w4 + 0.001;
 
@@ -182,24 +188,24 @@ class FluidMeshGradient {
         vec3 fluidCol = (u_c1 * w1 + u_c2 * w2 + u_c3 * w3 + u_c4 * w4) / totalW;
 
         // Blend liquid lights over the deep velvety base color
-        float coverage = clamp(totalW * 0.58, 0.0, 1.0);
-        vec3 col = mix(u_c0, fluidCol, smoothstep(0.05, 0.95, coverage));
+        float coverage = clamp(totalW * 0.62, 0.0, 1.0);
+        vec3 col = mix(u_c0, fluidCol, smoothstep(0.04, 0.96, coverage));
 
         // Luminous crest highlight (ethereal glow at high-energy intersections)
-        float crest = smoothstep(0.65, 1.0, w3 * w1) * 0.25;
+        float crest = smoothstep(0.70, 1.0, w3 * w1) * 0.20;
         col += u_c3 * crest;
 
         // Soft peripheral vignette for center lyric clarity & depth
         float dist = length(st - 0.5);
-        float vig = smoothstep(1.15, 0.3, dist);
-        col = mix(u_c0 * 0.72, col, vig);
+        float vig = smoothstep(1.2, 0.28, dist);
+        col = mix(u_c0 * 0.70, col, vig);
 
-        // High-frequency film grain / anti-banding dither (Apple tactile texture)
+        // Ultra-fine micro-dither (anti-banding only, zero visible grain)
         float dither = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);
-        col += (dither - 0.5) * (2.8 / 255.0);
+        col += (dither - 0.5) * (1.0 / 255.0);
 
         col *= u_intensity;
-        gl_FragColor = vec4(col, 0.96);
+        gl_FragColor = vec4(col, 0.98);
       }
     `;
 
