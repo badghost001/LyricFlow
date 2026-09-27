@@ -949,18 +949,21 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
         let _ = window.set_position(tauri::PhysicalPosition::new(target_x, target_y));
         let _ = window.set_always_on_top(true);
         let _ = window.set_ignore_cursor_events(false);
+        let _ = window.set_skip_taskbar(true);
 
         #[cfg(target_os = "windows")]
         {
             use windows::Win32::UI::WindowsAndMessaging::{
                 SetWindowPos, HWND_TOPMOST, SWP_SHOWWINDOW, SWP_NOACTIVATE, SWP_FRAMECHANGED,
                 GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE, WS_EX_TOPMOST,
+                WS_EX_TOOLWINDOW, WS_EX_APPWINDOW,
             };
             if let Ok(hwnd) = window.hwnd() {
                 let hwnd_val = windows::Win32::Foundation::HWND(hwnd.0 as _);
                 unsafe {
                     let cur_ex = GetWindowLongPtrW(hwnd_val, GWL_EXSTYLE);
-                    let _ = SetWindowLongPtrW(hwnd_val, GWL_EXSTYLE, cur_ex | (WS_EX_TOPMOST.0 as isize));
+                    let new_ex = (cur_ex & !(WS_EX_APPWINDOW.0 as isize)) | (WS_EX_TOOLWINDOW.0 as isize) | (WS_EX_TOPMOST.0 as isize);
+                    let _ = SetWindowLongPtrW(hwnd_val, GWL_EXSTYLE, new_ex);
                     let _ = SetWindowPos(
                         hwnd_val,
                         Some(HWND_TOPMOST),
@@ -1000,15 +1003,21 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
         let _ = window.set_size(tauri::PhysicalSize::new(rw, rh));
         let _ = window.set_position(tauri::PhysicalPosition::new(rx, ry));
         let _ = window.set_always_on_top(false);
+        let _ = window.set_skip_taskbar(false);
 
         #[cfg(target_os = "windows")]
         {
             use windows::Win32::UI::WindowsAndMessaging::{
                 SetWindowPos, HWND_NOTOPMOST, SWP_SHOWWINDOW, SWP_FRAMECHANGED,
+                GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE,
+                WS_EX_TOOLWINDOW, WS_EX_APPWINDOW,
             };
             if let Ok(hwnd) = window.hwnd() {
                 let hwnd_val = windows::Win32::Foundation::HWND(hwnd.0 as _);
                 unsafe {
+                    let cur_ex = GetWindowLongPtrW(hwnd_val, GWL_EXSTYLE);
+                    let new_ex = (cur_ex & !(WS_EX_TOOLWINDOW.0 as isize)) | (WS_EX_APPWINDOW.0 as isize);
+                    let _ = SetWindowLongPtrW(hwnd_val, GWL_EXSTYLE, new_ex);
                     let _ = SetWindowPos(
                         hwnd_val,
                         Some(HWND_NOTOPMOST),

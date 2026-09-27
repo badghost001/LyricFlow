@@ -300,7 +300,8 @@ function syncDynamicIslandState() {
 
   const halo = document.getElementById("island-art-halo");
   if (halo) {
-    halo.style.background = `radial-gradient(circle, rgba(var(--accent-primary-rgb, 29, 185, 84), 0.5) 0%, transparent 70%)`;
+    const artColor = document.documentElement.style.getPropertyValue('--art-color-1') || 'rgba(255, 255, 255, 0.35)';
+    halo.style.background = `radial-gradient(circle, ${artColor} 0%, transparent 70%)`;
   }
 
   const islandTitle = document.getElementById("island-track-title");
@@ -4851,18 +4852,10 @@ function showNowPlayingNotification(trackInfo, playcount) {
   const artistName = trackInfo.artist || (trackInfo.artists ? trackInfo.artists.map(a => a.name).join(', ') : 'Unknown Artist');
   const artUrl = trackInfo.albumArtUrl || trackInfo.album?.images?.[0]?.url || '';
 
-  // 1. Dynamic Island Mode: Trigger Apple auto-spring card expansion on song start!
+  // 1. Dynamic Island Mode: Keep island in compact pill mode.
+  // Expanded Now Playing card only reveals when user hovers over the island.
   if (isDynamicIslandMode) {
-    const island = document.getElementById("dynamic-island");
-    if (island) {
-      island.classList.add("island-auto-spring");
-      if (window._islandSpringTimeout) clearTimeout(window._islandSpringTimeout);
-      window._islandSpringTimeout = setTimeout(() => {
-        island.classList.remove("island-auto-spring");
-        window._islandSpringTimeout = null;
-      }, 4200);
-    }
-    return; // Suppress disruptive Windows native chime/toast while in Dynamic Island mode
+    return;
   }
 
   // 2. Standard / Wallpaper Mode: Show sleek in-app Apple liquid-glass toast HUD
@@ -4874,7 +4867,7 @@ function showNowPlayingNotification(trackInfo, playcount) {
     }
     const artImg = artUrl
       ? `<img src="${escapeHTML(artUrl)}" style="width:24px;height:24px;border-radius:6px;object-fit:cover;flex-shrink:0;box-shadow:0 2px 6px rgba(0,0,0,0.4);" />`
-      : `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;color:var(--accent-bright, #1ed760);"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>`;
+      : `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;color:#ffffff;"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>`;
 
     toastNotification.innerHTML = `
       ${artImg}

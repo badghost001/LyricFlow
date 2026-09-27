@@ -101,23 +101,22 @@ body.mode-dynamic-island #dynamic-island {
 }
 
 /* ==========================================================
-   HOVER EXPANSION & AUTO-SPRING: THE OPENED NOW PLAYING CARD
-   - Opens smoothly to 410px × 96px
-   - Shows Song Name + Artist Name + 48px Album Art + Controls
+   HOVER EXPANSION: THE OPENED NOW PLAYING CARD
+   - Opens smoothly to 410px × 114px strictly on hover
+   - Shows Song Name + Artist Name + 44px Album Art + Controls
 ========================================================== */
-body.mode-dynamic-island #dynamic-island:hover,
-body.mode-dynamic-island #dynamic-island.island-auto-spring {
+body.mode-dynamic-island #dynamic-island:hover {
   width: 410px;
-  height: 96px;
-  border-radius: 24px;
+  height: 114px;
+  border-radius: 26px;
   padding: 10px 14px 10px 14px;
   justify-content: space-between;
-  border-color: rgba(255, 255, 255, 0.22);
+  border-color: rgba(255, 255, 255, 0.20);
   box-shadow:
     inset 0 1.5px 0.5px rgba(255, 255, 255, 0.35),
-    inset 0 -0.5px 0.5px rgba(255, 255, 255, 0.12),
-    0 20px 48px -4px rgba(0, 0, 0, 0.92),
-    0 0 32px rgba(var(--accent-primary-rgb, 29, 185, 84), 0.22),
+    inset 0 -0.5px 0.5px rgba(255, 255, 255, 0.10),
+    0 20px 48px -4px rgba(0, 0, 0, 0.95),
+    0 0 24px rgba(255, 255, 255, 0.06),
     0 0 0 1px rgba(0, 0, 0, 0.95);
 }
 
@@ -134,13 +133,12 @@ body.mode-dynamic-island #dynamic-island.island-auto-spring {
   transition: height 0.35s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
-#dynamic-island:hover .island-main-row,
-#dynamic-island.island-auto-spring .island-main-row {
-  height: 48px;
+#dynamic-island:hover .island-main-row {
+  height: 44px;
 }
 
 /* ==========================================================
-   ALBUM ART (SQUIRCLE MORPHS FROM 22px TO 48px)
+   ALBUM ART (SQUIRCLE MORPHS FROM 22px TO 44px)
 ========================================================== */
 .island-art-wrapper {
   position: relative;
@@ -157,10 +155,9 @@ body.mode-dynamic-island #dynamic-island.island-auto-spring {
     height 0.38s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
-#dynamic-island:hover .island-art-wrapper,
-#dynamic-island.island-auto-spring .island-art-wrapper {
-  width: 48px;
-  height: 48px;
+#dynamic-island:hover .island-art-wrapper {
+  width: 44px;
+  height: 44px;
 }
 
 .island-art-tile {
@@ -183,8 +180,7 @@ body.mode-dynamic-island #dynamic-island.island-auto-spring {
     box-shadow 0.35s ease;
 }
 
-#dynamic-island:hover .island-art-tile,
-#dynamic-island.island-auto-spring .island-art-tile {
+#dynamic-island:hover .island-art-tile {
   border-radius: 10px;
   border-color: rgba(255, 255, 255, 0.32);
   box-shadow:
@@ -204,17 +200,17 @@ body.mode-dynamic-island #dynamic-island.island-auto-spring {
   position: absolute;
   inset: -3px;
   border-radius: 10px;
-  background: radial-gradient(circle, rgba(var(--accent-primary-rgb, 29, 185, 84), 0.45) 0%, transparent 70%);
+  background: radial-gradient(circle, var(--ambient-glow-color, rgba(255, 255, 255, 0.25)) 0%, transparent 70%);
   pointer-events: none;
-  filter: blur(5px);
-  opacity: 0.8;
+  filter: blur(6px);
+  opacity: 0.5;
   transition: background 0.4s ease, opacity 0.3s ease, inset 0.35s ease;
 }
 
-#dynamic-island:hover .island-art-halo,
-#dynamic-island.island-auto-spring .island-art-halo {
+#dynamic-island:hover .island-art-halo {
   inset: -6px;
-  filter: blur(8px);
+  filter: blur(9px);
+  opacity: 0.65;
 }
 
 body:not(.is-playing) .island-art-halo {
@@ -244,8 +240,7 @@ body:not(.is-playing) .island-art-halo {
   transition: opacity 0.2s ease;
 }
 
-#dynamic-island:hover .island-compact-label,
-#dynamic-island.island-auto-spring .island-compact-label {
+#dynamic-island:hover .island-compact-label {
   display: none !important;
   opacity: 0;
 }
@@ -257,8 +252,8 @@ body:not(.is-playing) .island-art-halo {
   justify-content: flex-start;
   overflow: hidden;
   position: relative;
-  mask-image: linear-gradient(90deg, transparent 0%, black 2.5%, black 97.5%, transparent 100%);
-  -webkit-mask-image: linear-gradient(90deg, transparent 0%, black 2.5%, black 97.5%, transparent 100%);
+  mask-image: linear-gradient(90deg, black 0%, black 92%, transparent 100%);
+  -webkit-mask-image: linear-gradient(90deg, black 0%, black 92%, transparent 100%);
   cursor: default !important;
 }
 
@@ -286,10 +281,10 @@ body:not(.is-playing) .island-art-halo {
 
 .island-lyric-line .lyric-word.lyric-word-active {
   color: #ffffff !important;
-  transform: scale(1.05) translateY(-0.5px);
+  transform: scale(1.04) translateY(-0.5px);
   text-shadow:
-    0 0 8px var(--highlight-glow, rgba(var(--accent-primary-rgb, 29, 185, 84), 0.85)),
-    0 0 16px rgba(255, 255, 255, 0.85);
+    0 0 8px rgba(255, 255, 255, 0.85),
+    0 0 16px rgba(255, 255, 255, 0.45);
 }
 
 .island-lyric-line .lyric-word.lyric-word-completed,
@@ -319,7 +314,7 @@ body:not(.is-playing) .island-art-halo {
   font-weight: 600;
 }
 
-/* EXPANDED INFO (Shown when hovered or auto-spring: Song Name + Artist Name + Live Lyrics) */
+/* EXPANDED INFO (Shown strictly on hover: Song Name + Artist Name + Live Lyrics) */
 .island-expanded-info {
   display: none;
   opacity: 0;
@@ -331,8 +326,7 @@ body:not(.is-playing) .island-art-halo {
   transition: opacity 0.25s ease 0.05s;
 }
 
-#dynamic-island:hover .island-expanded-info,
-#dynamic-island.island-auto-spring .island-expanded-info {
+#dynamic-island:hover .island-expanded-info {
   display: flex !important;
   opacity: 1;
 }
@@ -366,7 +360,7 @@ body:not(.is-playing) .island-art-halo {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Outfit", "Inter", sans-serif;
   font-size: 11px;
   font-weight: 500;
-  color: var(--accent-bright, #1ed760);
+  color: rgba(255, 255, 255, 0.85);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -375,7 +369,6 @@ body:not(.is-playing) .island-art-halo {
   white-space: normal;
   margin-top: 2px;
   line-height: 1.3;
-  opacity: 0.9;
 }
 
 .island-expanded-lyric:empty {
@@ -395,53 +388,87 @@ body:not(.is-playing) .island-art-halo {
   -webkit-app-region: none !important;
 }
 
-/* 4-bar iOS Equalizer */
+/* 4-bar Apple Music Equalizer */
 .island-wave-visualizer {
   display: flex;
-  align-items: center;
-  gap: 2px;
-  height: 16px;
+  align-items: flex-end; /* Bottom-anchored like real equalizer */
+  justify-content: center;
+  gap: 2.5px;
+  height: 15px;
   padding-right: 2px;
   pointer-events: none;
   transition: transform 0.3s ease, opacity 0.3s ease;
 }
 
-#dynamic-island:hover .island-wave-visualizer,
-#dynamic-island.island-auto-spring .island-wave-visualizer {
-  opacity: 0.85;
+#dynamic-island:hover .island-wave-visualizer {
+  opacity: 0.9;
 }
 
 .wave-bar {
-  width: 2px;
+  width: 2.5px;
   border-radius: 99px;
-  background: linear-gradient(180deg, var(--accent-bright, #1ed760) 0%, var(--accent-primary, #1DB954) 100%);
-  box-shadow: 0 0 5px rgba(var(--accent-primary-rgb, 29, 185, 84), 0.6);
-  animation: islandWaveBounce 1.1s ease-in-out infinite;
+  background: #ffffff;
+  box-shadow: 0 0 4px rgba(255, 255, 255, 0.4);
+  transform-origin: bottom center;
 }
 
-.wave-bar.bar-1 { height: 7px;  animation-delay: 0.0s; }
-.wave-bar.bar-2 { height: 14px; animation-delay: 0.22s; }
-.wave-bar.bar-3 { height: 10px; animation-delay: 0.44s; }
-.wave-bar.bar-4 { height: 5px;  animation-delay: 0.16s; }
+.wave-bar.bar-1 {
+  height: 12px;
+  animation: appleEqBar1 1.2s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+}
+.wave-bar.bar-2 {
+  height: 15px;
+  animation: appleEqBar2 1.2s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+}
+.wave-bar.bar-3 {
+  height: 14px;
+  animation: appleEqBar3 1.2s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+}
+.wave-bar.bar-4 {
+  height: 10px;
+  animation: appleEqBar4 1.2s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+}
 
 body:not(.is-playing) .wave-bar {
-  animation-play-state: paused;
-  height: 2px !important;
+  animation: none !important;
+  height: 2.5px !important;
   opacity: 0.35;
   box-shadow: none;
 }
 
-@keyframes islandWaveBounce {
-  0%, 100% { transform: scaleY(0.35); }
-  50% { transform: scaleY(1.0); }
+@keyframes appleEqBar1 {
+  0%, 100% { height: 4px; opacity: 0.65; }
+  25% { height: 12px; opacity: 1; }
+  50% { height: 6px; opacity: 0.75; }
+  75% { height: 13px; opacity: 1; }
+}
+
+@keyframes appleEqBar2 {
+  0%, 100% { height: 14px; opacity: 1; }
+  30% { height: 5px; opacity: 0.7; }
+  60% { height: 15px; opacity: 1; }
+  85% { height: 7px; opacity: 0.8; }
+}
+
+@keyframes appleEqBar3 {
+  0%, 100% { height: 6px; opacity: 0.75; }
+  20% { height: 14px; opacity: 1; }
+  55% { height: 4px; opacity: 0.65; }
+  80% { height: 12px; opacity: 1; }
+}
+
+@keyframes appleEqBar4 {
+  0%, 100% { height: 3px; opacity: 0.55; }
+  35% { height: 10px; opacity: 0.95; }
+  65% { height: 5px; opacity: 0.7; }
+  90% { height: 9px; opacity: 0.9; }
 }
 
 #dynamic-island .island-top-actions #island-btn-expand {
   display: none !important;
 }
 
-#dynamic-island:hover .island-top-actions #island-btn-expand,
-#dynamic-island.island-auto-spring .island-top-actions #island-btn-expand {
+#dynamic-island:hover .island-top-actions #island-btn-expand {
   display: flex !important;
 }
 
@@ -454,13 +481,12 @@ body:not(.is-playing) .wave-bar {
   flex-direction: column;
   width: 100%;
   gap: 6px;
-  margin-top: 4px;
+  margin-top: 5px;
   pointer-events: none;
   transition: opacity 0.25s ease 0.08s;
 }
 
-#dynamic-island:hover .island-expanded-controls,
-#dynamic-island.island-auto-spring .island-expanded-controls {
+#dynamic-island:hover .island-expanded-controls {
   display: flex !important;
   opacity: 1;
   pointer-events: auto;
@@ -469,8 +495,8 @@ body:not(.is-playing) .wave-bar {
 /* Micro Progress Bar */
 .island-progress-track {
   width: 100%;
-  height: 2.5px;
-  background: rgba(255, 255, 255, 0.15);
+  height: 3px;
+  background: rgba(255, 255, 255, 0.16);
   border-radius: 99px;
   overflow: hidden;
   cursor: pointer;
@@ -479,15 +505,15 @@ body:not(.is-playing) .wave-bar {
 }
 
 .island-progress-track:hover {
-  height: 4px;
+  height: 4.5px;
 }
 
 .island-progress-fill {
   height: 100%;
   width: 0%;
-  background: linear-gradient(90deg, var(--accent-primary, #1DB954), var(--accent-bright, #1ed760));
+  background: #ffffff;
   border-radius: 99px;
-  box-shadow: 0 0 6px rgba(var(--accent-primary-rgb, 29, 185, 84), 0.8);
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.65);
   transition: width 0.15s linear;
 }
 
@@ -498,6 +524,7 @@ body:not(.is-playing) .wave-bar {
   justify-content: center;
   gap: 14px;
   width: 100%;
+  padding-bottom: 2px;
 }
 
 .island-btn {
@@ -519,42 +546,46 @@ body:not(.is-playing) .wave-bar {
 }
 
 .island-btn:hover {
-  transform: scale(1.12);
+  transform: scale(1.10);
   background: rgba(255, 255, 255, 0.24);
-  border-color: rgba(255, 255, 255, 0.4);
+  border-color: rgba(255, 255, 255, 0.38);
   box-shadow:
     inset 0 1px 0.5px rgba(255, 255, 255, 0.5),
-    0 4px 12px rgba(0, 0, 0, 0.4),
-    0 0 12px rgba(var(--accent-primary-rgb, 29, 185, 84), 0.4);
+    0 4px 12px rgba(0, 0, 0, 0.45);
 }
 
 .island-btn:active {
   transform: scale(0.92);
 }
 
+/* Apple Hardware Tactile Play/Pause Disc */
 .island-btn.island-btn-play {
   width: 32px;
   height: 32px;
-  background: rgba(var(--accent-primary-rgb, 29, 185, 84), 0.35);
-  border-color: rgba(var(--accent-primary-rgb, 29, 185, 84), 0.65);
+  background: #ffffff;
+  border: none;
+  color: #000000;
   box-shadow:
-    inset 0 1px 0.5px rgba(255, 255, 255, 0.45),
-    0 3px 10px rgba(0, 0, 0, 0.45),
-    0 0 14px rgba(var(--accent-primary-rgb, 29, 185, 84), 0.35);
+    0 2px 8px rgba(0, 0, 0, 0.45),
+    0 0 12px rgba(255, 255, 255, 0.25);
+}
+
+.island-btn.island-btn-play svg {
+  color: #000000;
+  fill: currentColor;
 }
 
 .island-btn.island-btn-play:hover {
-  background: rgba(var(--accent-primary-rgb, 29, 185, 84), 0.55);
-  border-color: rgba(var(--accent-primary-rgb, 29, 185, 84), 0.85);
+  background: #ffffff;
+  transform: scale(1.08);
   box-shadow:
-    inset 0 1px 0.5px rgba(255, 255, 255, 0.55),
-    0 4px 14px rgba(0, 0, 0, 0.5),
-    0 0 18px rgba(var(--accent-primary-rgb, 29, 185, 84), 0.55);
+    0 4px 14px rgba(0, 0, 0, 0.55),
+    0 0 16px rgba(255, 255, 255, 0.45);
 }
 
 .island-btn.island-btn-expand {
   width: 22px;
   height: 22px;
-  color: var(--accent-bright, #1ed760);
+  color: rgba(255, 255, 255, 0.9);
   background: rgba(255, 255, 255, 0.08);
 }
