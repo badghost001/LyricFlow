@@ -33,6 +33,15 @@
   /* Dynamic Artwork Colors (Updated in JS) */
   --art-color-1: #1DB954;
   --art-color-2: #12121a;
+
+  /* Liquid Glass Design System Tokens */
+  --glass-liquid-bg: rgba(16, 16, 26, 0.62);
+  --glass-liquid-bg-subtle: rgba(16, 16, 26, 0.45);
+  --glass-specular-top: inset 0 1.5px 0.5px rgba(255, 255, 255, 0.22);
+  --glass-bevel-bottom: inset 0 -1px 0.5px rgba(0, 0, 0, 0.35);
+  --glass-border: 1px solid rgba(255, 255, 255, 0.11);
+  --glass-shadow-float: 0 16px 36px -6px rgba(0, 0, 0, 0.5), 0 0 1px 1px rgba(255, 255, 255, 0.08);
+  --glass-lens-filter: blur(30px) saturate(190%) contrast(105%);
 }
 
 /* Theme: OLED Black */
@@ -51,6 +60,13 @@
   --surface-mid: #0a0a0a;
   --surface-raised: #141414;
   --surface-glass: rgba(0, 0, 0, 0.85);
+
+  --glass-liquid-bg: rgba(10, 10, 10, 0.82);
+  --glass-liquid-bg-subtle: rgba(10, 10, 10, 0.60);
+  --glass-specular-top: inset 0 1px 0.5px rgba(255, 255, 255, 0.14);
+  --glass-bevel-bottom: inset 0 -1px 0.5px rgba(0, 0, 0, 0.6);
+  --glass-border: 1px solid rgba(255, 255, 255, 0.08);
+  --glass-shadow-float: 0 16px 36px -6px rgba(0, 0, 0, 0.8);
 }
 
 /* Theme: Light */
@@ -69,6 +85,13 @@
   --surface-mid: #ffffff;
   --surface-raised: #e8e8ed;
   --surface-glass: rgba(255, 255, 255, 0.75);
+
+  --glass-liquid-bg: rgba(255, 255, 255, 0.65);
+  --glass-liquid-bg-subtle: rgba(255, 255, 255, 0.45);
+  --glass-specular-top: inset 0 1.5px 0.5px rgba(255, 255, 255, 0.65);
+  --glass-bevel-bottom: inset 0 -1px 0.5px rgba(0, 0, 0, 0.08);
+  --glass-border: 1px solid rgba(255, 255, 255, 0.4);
+  --glass-shadow-float: 0 12px 28px -4px rgba(0, 0, 0, 0.12), 0 0 1px 1px rgba(255, 255, 255, 0.5);
 }
 
 /* Accent Presets */
