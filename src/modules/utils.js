@@ -62,327 +62,333 @@ function formatTime(ms) {
   return `${min}:${String(sec).padStart(2, '0')}`;
 }
 
-// Image Dominant Color Extractor - Extracts vibrant album art color for lyrics
-const _dominantColorCache = new Map();
-async function extractDominantColor(imgUrl) {
-  if (!imgUrl) return { r: 29, g: 185, b: 84 };
-  if (_dominantColorCache.has(imgUrl)) {
-    return _dominantColorCache.get(imgUrl);
+// --- High-Performance Authentic Artwork Color & Palette Extraction Engine ---
+// Solves saturation hijacking by single-pixel artifacts (e.g. logos, barcode specks)
+// using quantized 16-hue population-weighted clustering and Apple Music harmonic palette generation.
+
+const DEFAULT_DOMINANT_COLOR = { r: 29, g: 185, b: 84 };
+const DEFAULT_FLUID_PALETTE = [
+  { r: 8, g: 10, b: 18 },     // c0: Base dark
+  { r: 29, g: 185, b: 84 },   // c1: Primary emerald
+  { r: 14, g: 165, b: 233 },  // c2: Cyan highlight
+  { r: 139, g: 92, b: 246 },  // c3: Violet wave
+  { r: 244, g: 63, b: 94 }    // c4: Rose accent
+];
+
+const _colorDataCache = new Map();
+const _colorDataPromises = new Map();
+
+function hslToRgb(h, s, l) {
+  let r, g, b;
+  h = ((h % 360) + 360) % 360;
+  s = Math.max(0, Math.min(1, s));
+  l = Math.max(0, Math.min(1, l));
+  if (s === 0) {
+    r = g = b = l;
+  } else {
+    const hue2rgb = (p, q, t) => {
+      if (t < 0) t += 1;
+      if (t > 1) t -= 1;
+      if (t < 1/6) return p + (q - p) * 6 * t;
+      if (t < 1/2) return q;
+      if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+      return p;
+    };
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    r = hue2rgb(p, q, (h / 360) + 1/3);
+    g = hue2rgb(p, q, h / 360);
+    b = hue2rgb(p, q, (h / 360) - 1/3);
   }
-
-  let targetUrl = imgUrl;
-
-  // If this is a remote HTTP/HTTPS image (e.g. from Spotify i.scdn.co which lacks CORS),
-  // fetch it as a base64 Data URL via Rust bridge to completely avoid canvas tainting & CORS errors!
-  if (imgUrl.startsWith('http://') || imgUrl.startsWith('https://')) {
-    if (window.electronAPI && typeof window.electronAPI.fetchImageDataUrl === 'function') {
-      try {
-        const dataUrl = await window.electronAPI.fetchImageDataUrl(imgUrl);
-        if (dataUrl) targetUrl = dataUrl;
-      } catch (err) {
-        console.warn('fetchImageDataUrl fallback to direct load:', err);
-      }
-    }
-  }
-
-  return new Promise((resolve) => {
-    let resolved = false;
-    const done = (color) => {
-      if (!resolved) {
-        resolved = true;
-        _dominantColorCache.set(imgUrl, color);
-        resolve(color);
-      }
-    };
-
-    const img = new Image();
-    if (!targetUrl.startsWith('data:')) {
-      img.crossOrigin = "Anonymous";
-    }
-    img.onload = () => {
-      try {
-        const canvas = document.createElement("canvas");
-        const size = 24;
-        canvas.width = size;
-        canvas.height = size;
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(img, 0, 0, size, size);
-        const data = ctx.getImageData(0, 0, size, size).data;
-
-        let bestScore = -1;
-        let bestR = 29, bestG = 185, bestB = 84;
-        let avgR = 0, avgG = 0, avgB = 0, count = 0;
-
-        for (let i = 0; i < data.length; i += 4) {
-          const r = data[i];
-          const g = data[i + 1];
-          const b = data[i + 2];
-          const a = data[i + 3];
-          if (a < 128) continue;
-
-          avgR += r;
-          avgG += g;
-          avgB += b;
-          count++;
-
-          const max = Math.max(r, g, b);
-          const min = Math.min(r, g, b);
-          const delta = max - min;
-          const lum = 0.299 * r + 0.587 * g + 0.114 * b;
-          const sat = max === 0 ? 0 : delta / max;
-
-          // Skip near-black or near-white colors for the vibrant pick
-          if (lum < 28 || lum > 240) continue;
-
-          // Score highly for saturated, medium-bright colors
-          const score = sat * 3 + (lum > 70 && lum < 200 ? 2 : 0.5);
-          if (score > bestScore) {
-            bestScore = score;
-            bestR = r;
-            bestG = g;
-            bestB = b;
-          }
-        }
-
-        // If no saturated color was found, use adjusted average
-        let finalR = bestScore > 0.8 ? bestR : (count ? Math.round(avgR / count) : 29);
-        let finalG = bestScore > 0.8 ? bestG : (count ? Math.round(avgG / count) : 185);
-        let finalB = bestScore > 0.8 ? bestB : (count ? Math.round(avgB / count) : 84);
-
-        // Ensure text contrast: boost brightness if too dark for lyrics text
-        const maxVal = Math.max(finalR, finalG, finalB);
-        if (maxVal > 0 && maxVal < 140) {
-          const factor = 150 / maxVal;
-          finalR = Math.min(255, Math.round(finalR * factor));
-          finalG = Math.min(255, Math.round(finalG * factor));
-          finalB = Math.min(255, Math.round(finalB * factor));
-        }
-
-        done({ r: finalR, g: finalG, b: finalB });
-      } catch (e) {
-        done({ r: 29, g: 185, b: 84 }); // fallback Spotify Green
-      }
-    };
-    img.onerror = () => {
-      done({ r: 29, g: 185, b: 84 });
-    };
-    img.src = targetUrl;
-    if (img.complete && img.naturalWidth > 0) {
-      img.onload();
-    }
-  });
+  return {
+    r: Math.round(r * 255),
+    g: Math.round(g * 255),
+    b: Math.round(b * 255)
+  };
 }
 
-// Multi-color palette extractor for Apple Music-style fluid mesh gradients
-const _colorPaletteCache = new Map();
+function rgbToHsl(r, g, b) {
+  const rf = r / 255, gf = g / 255, bf = b / 255;
+  const max = Math.max(rf, gf, bf), min = Math.min(rf, gf, bf);
+  const d = max - min;
+  const lum = (max + min) / 2;
+  const sat = (max === 0 || min === 1) ? 0 : d / (1 - Math.abs(2 * lum - 1));
+  let hue = 0;
+  if (d > 0) {
+    if (max === rf) hue = ((gf - bf) / d + (gf < bf ? 6 : 0)) * 60;
+    else if (max === gf) hue = ((bf - rf) / d + 2) * 60;
+    else hue = ((rf - gf) / d + 4) * 60;
+  }
+  return { h: hue, s: sat, l: lum };
+}
+
+function analyzeArtworkPixels(data) {
+  const NUM_BUCKETS = 16;
+  const BUCKET_DEG = 360 / NUM_BUCKETS;
+
+  let totalR = 0, totalG = 0, totalB = 0, validPixelCount = 0;
+  let saturatedCount = 0;
+
+  const buckets = Array.from({ length: NUM_BUCKETS }, (_, i) => ({
+    idx: i,
+    hueCenter: i * BUCKET_DEG + BUCKET_DEG / 2,
+    count: 0,
+    sumR: 0, sumG: 0, sumB: 0,
+    sumSat: 0, sumLum: 0,
+    sumWeight: 0
+  }));
+
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i], g = data[i + 1], b = data[i + 2], a = data[i + 3];
+    if (a < 128) continue;
+
+    totalR += r; totalG += g; totalB += b;
+    validPixelCount++;
+
+    const { h, s, l } = rgbToHsl(r, g, b);
+
+    // Skip near-black or near-white extremes
+    if (l < 0.08 || l > 0.94) continue;
+
+    if (s >= 0.12) {
+      saturatedCount++;
+      const bucketIdx = Math.min(NUM_BUCKETS - 1, Math.floor(h / BUCKET_DEG));
+      const bkt = buckets[bucketIdx];
+      bkt.count++;
+      bkt.sumR += r;
+      bkt.sumG += g;
+      bkt.sumB += b;
+      bkt.sumSat += s;
+      bkt.sumLum += l;
+
+      // Weight: favor vibrant, medium-brightness pixels
+      const weight = (0.5 + s * 1.5) * (1.0 - Math.abs(l - 0.5) * 0.6);
+      bkt.sumWeight += weight;
+    }
+  }
+
+  const isMonochrome = validPixelCount > 0 && (saturatedCount / validPixelCount) < 0.08;
+
+  if (isMonochrome || saturatedCount === 0) {
+    let avgR = validPixelCount ? Math.round(totalR / validPixelCount) : 180;
+    let avgG = validPixelCount ? Math.round(totalG / validPixelCount) : 190;
+    let avgB = validPixelCount ? Math.round(totalB / validPixelCount) : 205;
+
+    const maxVal = Math.max(avgR, avgG, avgB);
+    if (maxVal > 0 && maxVal < 140) {
+      const factor = 150 / maxVal;
+      avgR = Math.min(255, Math.round(avgR * factor));
+      avgG = Math.min(255, Math.round(avgG * factor));
+      avgB = Math.min(255, Math.round(avgB * factor));
+    }
+
+    return {
+      dominant: { r: avgR, g: avgG, b: avgB },
+      palette: [
+        { r: 8, g: 10, b: 15 },      // c0: Deep charcoal
+        { r: 180, g: 190, b: 205 },  // c1: Luminous soft silver
+        { r: 95, g: 110, b: 130 },   // c2: Muted slate
+        { r: 220, g: 228, b: 240 },  // c3: High platinum crest
+        { r: 45, g: 52, b: 65 }      // c4: Deep graphite tone
+      ]
+    };
+  }
+
+  // Reject tiny single-pixel outliers (must represent at least 2.5% of colorful pixels)
+  const minPixelThreshold = Math.max(1, Math.floor(saturatedCount * 0.025));
+  let clusters = [];
+
+  for (const bkt of buckets) {
+    if (bkt.count >= minPixelThreshold) {
+      const avgR = bkt.sumR / bkt.count;
+      const avgG = bkt.sumG / bkt.count;
+      const avgB = bkt.sumB / bkt.count;
+      const avgSat = bkt.sumSat / bkt.count;
+      const avgLum = bkt.sumLum / bkt.count;
+      const avgWeight = bkt.sumWeight / bkt.count;
+      const score = Math.pow(bkt.count, 0.85) * avgWeight;
+
+      clusters.push({
+        idx: bkt.idx,
+        hueCenter: bkt.hueCenter,
+        count: bkt.count,
+        avgR, avgG, avgB,
+        avgSat, avgLum,
+        score
+      });
+    }
+  }
+
+  if (clusters.length === 0) {
+    for (const bkt of buckets) {
+      if (bkt.count > 0) {
+        clusters.push({
+          idx: bkt.idx,
+          hueCenter: bkt.hueCenter,
+          count: bkt.count,
+          avgR: bkt.sumR / bkt.count,
+          avgG: bkt.sumG / bkt.count,
+          avgB: bkt.sumB / bkt.count,
+          avgSat: bkt.sumSat / bkt.count,
+          avgLum: bkt.sumLum / bkt.count,
+          score: bkt.count
+        });
+      }
+    }
+  }
+
+  // Sort by score descending - top cluster is dominant
+  clusters.sort((a, b) => b.score - a.score);
+
+  const primary = clusters[0];
+  let domR = Math.round(primary.avgR);
+  let domG = Math.round(primary.avgG);
+  let domB = Math.round(primary.avgB);
+
+  // Ensure readability for lyrics text if it's too dark
+  const maxVal = Math.max(domR, domG, domB);
+  if (maxVal > 0 && maxVal < 140) {
+    const factor = 150 / maxVal;
+    domR = Math.min(255, Math.round(domR * factor));
+    domG = Math.min(255, Math.round(domG * factor));
+    domB = Math.min(255, Math.round(domB * factor));
+  }
+  const dominant = { r: domR, g: domG, b: domB };
+
+  // Filter distinct clusters separated by >= 32 deg circular hue distance
+  const distinctClusters = [];
+  for (const c of clusters) {
+    const isDistinct = distinctClusters.every(d => {
+      const diff = Math.abs(d.hueCenter - c.hueCenter);
+      const circularDiff = Math.min(diff, 360 - diff);
+      return circularDiff >= 32;
+    });
+    if (isDistinct) distinctClusters.push(c);
+  }
+
+  const pHsl = rgbToHsl(primary.avgR, primary.avgG, primary.avgB);
+  const heroSat = Math.max(0.55, Math.min(0.85, pHsl.s * 1.25));
+  const heroLum = Math.max(0.42, Math.min(0.60, pHsl.l));
+
+  // c0: Deep ambient velvet background tint in the album's primary hue
+  const c0 = hslToRgb(pHsl.h, Math.min(0.35, heroSat * 0.6), 0.05);
+
+  let c1, c2, c3, c4;
+
+  if (distinctClusters.length >= 3) {
+    // Multi-hue artwork (3 distinct colors)
+    const c2Hsl = rgbToHsl(distinctClusters[1].avgR, distinctClusters[1].avgG, distinctClusters[1].avgB);
+    const c3Hsl = rgbToHsl(distinctClusters[2].avgR, distinctClusters[2].avgG, distinctClusters[2].avgB);
+    c1 = hslToRgb(pHsl.h, heroSat, heroLum);
+    c2 = hslToRgb(c2Hsl.h, Math.max(0.50, Math.min(0.85, c2Hsl.s * 1.2)), Math.max(0.40, Math.min(0.62, c2Hsl.l)));
+    c3 = hslToRgb(c3Hsl.h, Math.max(0.50, Math.min(0.85, c3Hsl.s * 1.2)), Math.max(0.45, Math.min(0.68, c3Hsl.l)));
+    c4 = hslToRgb(pHsl.h + 15, Math.min(0.85, heroSat * 1.05), Math.max(0.28, heroLum * 0.75));
+  } else if (distinctClusters.length === 2) {
+    // Dual-hue artwork (e.g. orange & teal, purple & amber)
+    const c2Hsl = rgbToHsl(distinctClusters[1].avgR, distinctClusters[1].avgG, distinctClusters[1].avgB);
+    const sat2 = Math.max(0.50, Math.min(0.85, c2Hsl.s * 1.2));
+    const lum2 = Math.max(0.40, Math.min(0.62, c2Hsl.l));
+    c1 = hslToRgb(pHsl.h, heroSat, heroLum);
+    c2 = hslToRgb(c2Hsl.h, sat2, lum2);
+    c3 = hslToRgb(pHsl.h - 10, Math.min(0.80, heroSat * 0.95), Math.min(0.72, heroLum + 0.16));
+    c4 = hslToRgb(c2Hsl.h + 12, Math.min(0.88, sat2 * 1.1), Math.max(0.28, lum2 - 0.14));
+  } else {
+    // Single-dominant hue artwork: harmonic analogous suite (zero foreign random colors!)
+    const h = pHsl.h;
+    c1 = hslToRgb(h, heroSat, heroLum);
+    c2 = hslToRgb(h + 18, Math.min(0.85, heroSat * 1.05), Math.min(0.65, heroLum + 0.08));
+    c3 = hslToRgb(h - 14, Math.min(0.80, heroSat * 0.95), Math.min(0.75, heroLum + 0.20));
+    c4 = hslToRgb(h + 8, Math.min(0.90, heroSat * 1.15), Math.max(0.28, heroLum - 0.16));
+  }
+
+  return {
+    dominant,
+    palette: [c0, c1, c2, c3, c4]
+  };
+}
+
+async function extractColorData(imgUrl) {
+  if (!imgUrl) {
+    return { dominant: DEFAULT_DOMINANT_COLOR, palette: DEFAULT_FLUID_PALETTE };
+  }
+  if (_colorDataCache.has(imgUrl)) {
+    return _colorDataCache.get(imgUrl);
+  }
+  if (_colorDataPromises.has(imgUrl)) {
+    return _colorDataPromises.get(imgUrl);
+  }
+
+  const promise = (async () => {
+    let targetUrl = imgUrl;
+
+    if (imgUrl.startsWith('http://') || imgUrl.startsWith('https://')) {
+      if (window.electronAPI && typeof window.electronAPI.fetchImageDataUrl === 'function') {
+        try {
+          const dataUrl = await window.electronAPI.fetchImageDataUrl(imgUrl);
+          if (dataUrl) targetUrl = dataUrl;
+        } catch (err) {
+          console.warn('[Utils] fetchImageDataUrl fallback to direct load:', err);
+        }
+      }
+    }
+
+    return new Promise((resolve) => {
+      let resolved = false;
+      const done = (data) => {
+        if (!resolved) {
+          resolved = true;
+          _colorDataCache.set(imgUrl, data);
+          _colorDataPromises.delete(imgUrl);
+          resolve(data);
+        }
+      };
+
+      const img = new Image();
+      if (!targetUrl.startsWith('data:')) {
+        img.crossOrigin = "Anonymous";
+      }
+
+      img.onload = () => {
+        try {
+          const canvas = document.createElement("canvas");
+          const size = 36;
+          canvas.width = size;
+          canvas.height = size;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, size, size);
+          const data = ctx.getImageData(0, 0, size, size).data;
+
+          const result = analyzeArtworkPixels(data);
+          done(result);
+        } catch (e) {
+          console.warn('[Utils] Failed analyzing artwork pixels:', e);
+          done({ dominant: DEFAULT_DOMINANT_COLOR, palette: DEFAULT_FLUID_PALETTE });
+        }
+      };
+
+      img.onerror = () => {
+        done({ dominant: DEFAULT_DOMINANT_COLOR, palette: DEFAULT_FLUID_PALETTE });
+      };
+
+      img.src = targetUrl;
+      if (img.complete && img.naturalWidth > 0) {
+        img.onload();
+      }
+    });
+  })();
+
+  _colorDataPromises.set(imgUrl, promise);
+  return promise;
+}
+
+async function extractDominantColor(imgUrl) {
+  const data = await extractColorData(imgUrl);
+  return data.dominant;
+}
+
 async function extractColorPalette(imgUrl) {
-  const fallback = [
-    { r: 8, g: 10, b: 18 },     // c0: Base dark
-    { r: 29, g: 185, b: 84 },   // c1: Primary emerald
-    { r: 14, g: 165, b: 233 },  // c2: Cyan highlight
-    { r: 139, g: 92, b: 246 },  // c3: Violet wave
-    { r: 244, g: 63, b: 94 }    // c4: Rose accent
-  ];
-
-  if (!imgUrl) return fallback;
-  if (_colorPaletteCache.has(imgUrl)) {
-    return _colorPaletteCache.get(imgUrl);
-  }
-
-  let targetUrl = imgUrl;
-  if (imgUrl.startsWith('http://') || imgUrl.startsWith('https://')) {
-    if (window.electronAPI && typeof window.electronAPI.fetchImageDataUrl === 'function') {
-      try {
-        const dataUrl = await window.electronAPI.fetchImageDataUrl(imgUrl);
-        if (dataUrl) targetUrl = dataUrl;
-      } catch (err) {}
-    }
-  }
-
-  return new Promise((resolve) => {
-    let resolved = false;
-    const done = (palette) => {
-      if (!resolved) {
-        resolved = true;
-        _colorPaletteCache.set(imgUrl, palette);
-        resolve(palette);
-      }
-    };
-
-    const img = new Image();
-    if (!targetUrl.startsWith('data:')) {
-      img.crossOrigin = "Anonymous";
-    }
-
-    img.onload = () => {
-      try {
-        const canvas = document.createElement("canvas");
-        const size = 32;
-        canvas.width = size;
-        canvas.height = size;
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(img, 0, 0, size, size);
-        const data = ctx.getImageData(0, 0, size, size).data;
-
-        // Group pixels into 12 hue buckets (30 deg each) for fine-grained color detection
-        const buckets = Array.from({ length: 12 }, () => []);
-        let totalR = 0, totalG = 0, totalB = 0, validCount = 0;
-        let saturatedCount = 0;
-
-        for (let i = 0; i < data.length; i += 4) {
-          const r = data[i], g = data[i+1], b = data[i+2], a = data[i+3];
-          if (a < 128) continue;
-
-          totalR += r; totalG += g; totalB += b;
-          validCount++;
-
-          const max = Math.max(r, g, b), min = Math.min(r, g, b);
-          const delta = max - min;
-          const lum = (max + min) / 510;
-          const sat = max === 0 ? 0 : delta / max;
-
-          // Exclude extreme pure black or blown-out white
-          if (lum < 0.10 || lum > 0.94) continue;
-
-          if (sat >= 0.12) saturatedCount++;
-
-          let hue = 0;
-          if (delta > 0) {
-            if (max === r) hue = ((g - b) / delta) % 6;
-            else if (max === g) hue = (b - r) / delta + 2;
-            else hue = (r - g) / delta + 4;
-            hue = Math.round(hue * 60);
-            if (hue < 0) hue += 360;
-          }
-
-          const bucketIdx = Math.min(11, Math.floor(hue / 30));
-          buckets[bucketIdx].push({ r, g, b, sat, lum, hue, weight: sat * 2.5 + (lum > 0.35 && lum < 0.65 ? 1.5 : 0.5) });
-        }
-
-        // Helper: Convert HSL to RGB
-        const hslToRgb = (h, s, l) => {
-          let r, g, b;
-          h = ((h % 360) + 360) % 360;
-          if (s === 0) {
-            r = g = b = l;
-          } else {
-            const hue2rgb = (p, q, t) => {
-              if (t < 0) t += 1;
-              if (t > 1) t -= 1;
-              if (t < 1/6) return p + (q - p) * 6 * t;
-              if (t < 1/2) return q;
-              if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
-              return p;
-            };
-            const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-            const p = 2 * l - q;
-            r = hue2rgb(p, q, (h / 360) + 1/3);
-            g = hue2rgb(p, q, h / 360);
-            b = hue2rgb(p, q, (h / 360) - 1/3);
-          }
-          return {
-            r: Math.round(r * 255),
-            g: Math.round(g * 255),
-            b: Math.round(b * 255)
-          };
-        };
-
-        // Helper: Boost saturation moderately while preserving authentic color tone
-        const boostVibrancy = (rawR, rawG, rawB) => {
-          const rf = rawR / 255, gf = rawG / 255, bf = rawB / 255;
-          const max = Math.max(rf, gf, bf), min = Math.min(rf, gf, bf);
-          let h = 0, s = 0, l = (max + min) / 2;
-          if (max !== min) {
-            const d = max - min;
-            s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-            if (max === rf) h = (gf - bf) / d + (gf < bf ? 6 : 0);
-            else if (max === gf) h = (bf - rf) / d + 2;
-            else h = (rf - gf) / d + 4;
-            h = Math.round(h * 60);
-          }
-          // Tasteful boost: amplify low saturation without creating fluorescent neon
-          const boostedSat = Math.min(0.88, Math.max(0.68, s * 1.35));
-          const balancedLum = Math.max(0.40, Math.min(0.62, l));
-          return hslToRgb(h, boostedSat, balancedLum);
-        };
-
-        // Check if artwork is predominantly monochromatic
-        const isMonochrome = validCount > 0 && (saturatedCount / validCount) < 0.08;
-
-        let pickedColors = [];
-
-        if (isMonochrome) {
-          // Elegant monochromatic silver & slate atmosphere
-          pickedColors = [
-            { r: 185, g: 195, b: 210 }, // c1: Soft luminous silver
-            { r: 95, g: 112, b: 135 },  // c2: Muted slate
-            { r: 220, g: 228, b: 240 }, // c3: High platinum crest
-            { r: 52, g: 60, b: 74 }     // c4: Deep charcoal tone
-          ];
-        } else {
-          // Sort buckets by total weight
-          buckets.forEach(b => b.sort((x, y) => y.weight - x.weight));
-          const activeBuckets = buckets.filter(b => b.length > 0).sort((a, b) => b[0].weight - a[0].weight);
-
-          for (let b of activeBuckets) {
-            if (pickedColors.length >= 4) break;
-            const best = b[0];
-            pickedColors.push(boostVibrancy(best.r, best.g, best.b));
-          }
-
-          // If few distinct hues exist, generate natural tonal variations of the real primary color
-          if (pickedColors.length > 0) {
-            const p = pickedColors[0];
-            const max = Math.max(p.r, p.g, p.b), min = Math.min(p.r, p.g, p.b);
-            let pSat = 0.7, pLum = 0.5, pHue = 142;
-            if (max !== min) {
-              const d = max - min;
-              pLum = (max + min) / 510;
-              pSat = pLum > 0.5 ? d / (510 - max - min) : d / (max + min);
-              if (max === p.r) pHue = ((p.g - p.b) / d + (p.g < p.b ? 6 : 0)) * 60;
-              else if (max === p.g) pHue = ((p.b - p.r) / d + 2) * 60;
-              else pHue = ((p.r - p.g) / d + 4) * 60;
-            }
-
-            // Natural tonal variations instead of clashing rainbow colors
-            if (pickedColors.length < 2) pickedColors.push(hslToRgb(pHue + 18, Math.min(0.85, pSat * 1.1), 0.44));
-            if (pickedColors.length < 3) pickedColors.push(hslToRgb(pHue - 14, Math.min(0.90, pSat * 0.95), 0.62));
-            if (pickedColors.length < 4) pickedColors.push(hslToRgb(pHue + 30, Math.min(0.82, pSat * 1.05), 0.38));
-          }
-        }
-
-        // Fallback safety if no pixels qualified
-        if (pickedColors.length < 4) {
-          pickedColors = fallback.slice(1);
-        }
-
-        // Base ambient tone c0: deep velvety dark tint matching the album hue
-        let baseHue = 142;
-        if (pickedColors.length > 0) {
-          const p = pickedColors[0];
-          const max = Math.max(p.r, p.g, p.b), min = Math.min(p.r, p.g, p.b);
-          if (max !== min) {
-            const d = max - min;
-            if (max === p.r) baseHue = ((p.g - p.b) / d + (p.g < p.b ? 6 : 0)) * 60;
-            else if (max === p.g) baseHue = ((p.b - p.r) / d + 2) * 60;
-            else baseHue = ((p.r - p.g) / d + 4) * 60;
-          }
-        }
-        const c0 = isMonochrome ? { r: 10, g: 12, b: 16 } : hslToRgb(baseHue, 0.30, 0.05);
-
-        const result = [c0, pickedColors[0], pickedColors[1], pickedColors[2], pickedColors[3]];
-        done(result);
-      } catch (e) {
-        done(fallback);
-      }
-    };
-
-    img.onerror = () => done(fallback);
-    img.src = targetUrl;
-    if (img.complete && img.naturalWidth > 0) {
-      img.onload();
-    }
-  });
+  const data = await extractColorData(imgUrl);
+  return data.palette;
 }
 
 function forceRecalculateDragRegions() {
@@ -413,5 +419,6 @@ window.showToast = showToast;
 window.formatTime = formatTime;
 window.extractDominantColor = extractDominantColor;
 window.extractColorPalette = extractColorPalette;
+window.extractColorData = extractColorData;
 window.forceRecalculateDragRegions = forceRecalculateDragRegions;
 window.ACCENT_COLOR_MAP = ACCENT_COLOR_MAP;

@@ -4698,6 +4698,15 @@ function handleEmptyPlayback() {
     fluidMeshGradientInstance.setPlaybackState(false, 'normal', settings.fluidSpeed || 1.0);
   }
 
+  document.documentElement.style.removeProperty('--art-color-1');
+  document.documentElement.style.removeProperty('--art-color-1-rgb');
+  document.documentElement.style.removeProperty('--art-color-2');
+  document.documentElement.style.removeProperty('--art-color-2-rgb');
+  if (settings.highlightColor === 'dynamic') {
+    document.documentElement.style.removeProperty('--highlight-color');
+    document.documentElement.style.removeProperty('--highlight-glow');
+  }
+
   document.body.classList.remove('is-playing', 'app-paused');
   document.body.classList.add('is-idle');
 
@@ -4966,13 +4975,25 @@ async function updateDynamicArtColor(artUrl) {
   if (!artUrl || artUrl === currentExtractedArtUrl) return;
   currentExtractedArtUrl = artUrl;
   try {
-    const colors = await extractDominantColor(artUrl);
-    if (!colors) return;
+    const colorData = window.extractColorData
+      ? await window.extractColorData(artUrl)
+      : { dominant: await extractDominantColor(artUrl), palette: await extractColorPalette(artUrl) };
+
+    const colors = colorData?.dominant || { r: 29, g: 185, b: 84 };
+    const palette = colorData?.palette;
+
     const c1 = `rgb(${colors.r}, ${colors.g}, ${colors.b})`;
-    const c2 = `rgb(${Math.max(0, colors.r - 80)}, ${Math.max(0, colors.g - 80)}, ${Math.max(0, colors.b - 80)})`;
+    const c2Color = (palette && palette[2]) ? palette[2] : {
+      r: Math.max(0, colors.r - 80),
+      g: Math.max(0, colors.g - 80),
+      b: Math.max(0, colors.b - 80)
+    };
+    const c2 = `rgb(${c2Color.r}, ${c2Color.g}, ${c2Color.b})`;
+
     document.documentElement.style.setProperty('--art-color-1', c1);
     document.documentElement.style.setProperty('--art-color-1-rgb', `${colors.r}, ${colors.g}, ${colors.b}`);
     document.documentElement.style.setProperty('--art-color-2', c2);
+    document.documentElement.style.setProperty('--art-color-2-rgb', `${c2Color.r}, ${c2Color.g}, ${c2Color.b}`);
 
     if (settings.highlightColor === 'dynamic') {
       const glowRaw = typeof settings.glowIntensity === 'number' ? settings.glowIntensity : (typeof settings.glow === 'number' ? settings.glow : 65);
@@ -4981,12 +5002,8 @@ async function updateDynamicArtColor(artUrl) {
       document.documentElement.style.setProperty('--highlight-glow', `rgba(${colors.r}, ${colors.g}, ${colors.b}, ${glowInt})`);
     }
 
-    if (window.extractColorPalette && fluidMeshGradientInstance) {
-      window.extractColorPalette(artUrl).then(palette => {
-        if (palette && fluidMeshGradientInstance) {
-          fluidMeshGradientInstance.setPalette(palette);
-        }
-      }).catch(e => console.warn('[Renderer] Palette extraction failed:', e));
+    if (fluidMeshGradientInstance && palette) {
+      fluidMeshGradientInstance.setPalette(palette);
     }
   } catch (err) {
     console.warn("[Renderer] Failed to update dynamic art color:", err);
@@ -7388,6 +7405,7 @@ window.onLastfmArtFound = function(artUrl) {
     if (currentTrackId) {
       saveArtToCache(currentTrackId, artUrl);
     }
+    updateDynamicArtColor(artUrl);
   }
 };
 
