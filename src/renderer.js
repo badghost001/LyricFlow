@@ -413,8 +413,12 @@ function updateDynamicIslandLyric(activeIndex, lineData, syncProgress) {
       if (activeWordSpan) {
         const spanCenter = activeWordSpan.offsetLeft + activeWordSpan.offsetWidth / 2;
         targetOffset = (zoneWidth / 2) - spanCenter;
-      } else if (lineData && lineData.duration && lineData.duration > 0) {
-        const ratio = Math.min(1, Math.max(0, (syncProgress - lineData.time) / lineData.duration));
+      } else if (lineData) {
+        const nextLine = (lyrics && activeIndex >= 0 && activeIndex + 1 < lyrics.length) ? lyrics[activeIndex + 1] : null;
+        const dur = (lineData.duration && lineData.duration > 0)
+          ? lineData.duration
+          : (nextLine && nextLine.time > lineData.time ? (nextLine.time - lineData.time) : 4000);
+        const ratio = Math.min(1, Math.max(0, (syncProgress - lineData.time) / dur));
         targetOffset = -ratio * (contentWidth - zoneWidth);
       }
       const maxScroll = -(contentWidth - zoneWidth);
@@ -4847,7 +4851,48 @@ function showNowPlayingNotification(trackInfo, playcount) {
   const artistName = trackInfo.artist || (trackInfo.artists ? trackInfo.artists.map(a => a.name).join(', ') : 'Unknown Artist');
   const artUrl = trackInfo.albumArtUrl || trackInfo.album?.images?.[0]?.url || '';
 
-  if (window.electronAPI && window.electronAPI.showNowPlayingNotification) {
+  // 1. Dynamic Island Mode: Trigger Apple auto-spring card expansion on song start!
+  if (isDynamicIslandMode) {
+    const island = document.getElementById("dynamic-island");
+    if (island) {
+      island.classList.add("island-auto-spring");
+      if (window._islandSpringTimeout) clearTimeout(window._islandSpringTimeout);
+      window._islandSpringTimeout = setTimeout(() => {
+        island.classList.remove("island-auto-spring");
+        window._islandSpringTimeout = null;
+      }, 4200);
+    }
+    return; // Suppress disruptive Windows native chime/toast while in Dynamic Island mode
+  }
+
+  // 2. Standard / Wallpaper Mode: Show sleek in-app Apple liquid-glass toast HUD
+  const toastNotification = document.getElementById("toast-notification");
+  if (toastNotification) {
+    if (window._nowPlayingToastTimeout) {
+      clearTimeout(window._nowPlayingToastTimeout);
+      window._nowPlayingToastTimeout = null;
+    }
+    const artImg = artUrl
+      ? `<img src="${escapeHTML(artUrl)}" style="width:24px;height:24px;border-radius:6px;object-fit:cover;flex-shrink:0;box-shadow:0 2px 6px rgba(0,0,0,0.4);" />`
+      : `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;color:var(--accent-bright, #1ed760);"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>`;
+
+    toastNotification.innerHTML = `
+      ${artImg}
+      <div style="display:flex;flex-direction:column;min-width:0;line-height:1.25;text-align:left;">
+        <span style="font-weight:650;color:#ffffff;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHTML(trackName)}</span>
+        <span style="font-size:11px;color:rgba(255,255,255,0.7);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHTML(artistName)}</span>
+      </div>
+    `;
+    toastNotification.classList.add("show");
+
+    window._nowPlayingToastTimeout = setTimeout(() => {
+      toastNotification.classList.remove("show");
+      window._nowPlayingToastTimeout = null;
+    }, 4000);
+  }
+
+  // 3. Native Windows desktop notification only if explicitly enabled
+  if (settings.nativeWindowsToast && window.electronAPI && window.electronAPI.showNowPlayingNotification) {
     window.electronAPI.showNowPlayingNotification({
       name: trackName,
       artist: artistName,

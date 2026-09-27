@@ -918,7 +918,7 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
             let m_size = m.size();
             let center_x = m_pos.x + ((m_size.width as i32 - island_w as i32) / 2);
             let top_y = m_pos.y;
-            let pad_h = ((460.0 - 210.0) / 2.0 * scale) as i32;
+            let pad_h = ((460.0 - 290.0) / 2.0 * scale) as i32;
 
             match dock {
                 "top-left" => {
