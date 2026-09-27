@@ -105,7 +105,9 @@ let settings = {
   autoHideAction: 'collapse',
   autoHideDelay: 3,
   preferredLyricProvider: 'auto',
-  preferredLyricProviders: []
+  preferredLyricProviders: [],
+  dynamicIslandMode: false,
+  dynamicIslandPosition: 'top-center'
 };
 
 // Playback State
@@ -369,10 +371,16 @@ function updateDynamicIslandLyric(activeIndex, lineData, syncProgress) {
 async function toggleDynamicIslandMode(forceState) {
   const targetState = typeof forceState === 'boolean' ? forceState : !isDynamicIslandMode;
   isDynamicIslandMode = targetState;
+  settings.dynamicIslandMode = isDynamicIslandMode;
   document.body.classList.toggle('mode-dynamic-island', isDynamicIslandMode);
 
+  const checkIsland = document.getElementById("check-dynamic-island");
+  if (checkIsland) checkIsland.checked = isDynamicIslandMode;
+
+  const dockPos = settings.dynamicIslandPosition || 'top-center';
+
   if (window.electronAPI && typeof window.electronAPI.setDynamicIslandMode === 'function') {
-    await window.electronAPI.setDynamicIslandMode(isDynamicIslandMode);
+    await window.electronAPI.setDynamicIslandMode(isDynamicIslandMode, dockPos);
   }
 
   syncDynamicIslandState();
@@ -2621,8 +2629,30 @@ function setupUIHandlers() {
     window.electronAPI.onDynamicIslandModeChanged((enabled) => {
       isDynamicIslandMode = Boolean(enabled);
       document.body.classList.toggle('mode-dynamic-island', isDynamicIslandMode);
+      const checkIsland = document.getElementById("check-dynamic-island");
+      if (checkIsland) checkIsland.checked = isDynamicIslandMode;
       if (isDynamicIslandMode) {
         syncDynamicIslandState();
+      }
+    });
+  }
+
+  const checkDynamicIsland = document.getElementById("check-dynamic-island");
+  if (checkDynamicIsland) {
+    checkDynamicIsland.checked = isDynamicIslandMode;
+    checkDynamicIsland.addEventListener("change", (e) => {
+      toggleDynamicIslandMode(e.target.checked);
+    });
+  }
+
+  const selectIslandPosition = document.getElementById("select-island-position");
+  if (selectIslandPosition) {
+    selectIslandPosition.value = settings.dynamicIslandPosition || 'top-center';
+    selectIslandPosition.addEventListener("change", (e) => {
+      settings.dynamicIslandPosition = e.target.value;
+      saveLocalSettings();
+      if (isDynamicIslandMode && window.electronAPI && window.electronAPI.setDynamicIslandMode) {
+        window.electronAPI.setDynamicIslandMode(true, settings.dynamicIslandPosition);
       }
     });
   }

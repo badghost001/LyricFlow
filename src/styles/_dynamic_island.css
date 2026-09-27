@@ -1,6 +1,6 @@
-/* Dynamic Island Mini Capsule Mode */
+/* iOS Dynamic Island Mini Capsule Mode (Fixed, Unmovable, Non-Clickthrough) */
 
-/* Hidden in standard mode */
+/* Hidden in standard overlay mode */
 #dynamic-island {
   display: none !important;
 }
@@ -9,6 +9,7 @@
 body.mode-dynamic-island {
   background: transparent !important;
   overflow: hidden !important;
+  user-select: none !important;
 }
 
 body.mode-dynamic-island .fluid-mesh-canvas,
@@ -38,73 +39,108 @@ body.mode-dynamic-island .app-container {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
   overflow: visible !important;
+  cursor: default !important;
+  -webkit-app-region: none !important;
 }
 
-/* The Liquid Glass Island Capsule */
+/* ==========================================================
+   THE TRUE iOS DYNAMIC ISLAND CAPSULE
+   - Solid Pitch Black (#000000)
+   - Unmovable (no drag cursor, no drag region)
+   - Non-clickthrough (receives all mouse pointer events)
+   - Fluid Apple Spring Expansion on Hover
+========================================================== */
 body.mode-dynamic-island #dynamic-island {
   display: flex !important;
   align-items: center;
   justify-content: space-between;
-  width: calc(100vw - 6px);
-  height: calc(100vh - 6px);
-  max-width: 440px;
+  
+  /* Compact state (iOS Notch Pill) */
+  width: 375px;
+  height: 44px;
+  max-width: calc(100vw - 8px);
   border-radius: 999px;
-  background: var(--glass-liquid-bg, rgba(16, 16, 26, 0.78));
-  backdrop-filter: var(--glass-lens-filter, blur(32px) saturate(190%) contrast(105%));
-  -webkit-backdrop-filter: var(--glass-lens-filter, blur(32px) saturate(190%) contrast(105%));
-  border: var(--glass-border, 1px solid rgba(255, 255, 255, 0.14));
+  
+  /* iOS Deep Obsidian / OLED Pitch Black */
+  background: #000000;
+  backdrop-filter: blur(36px) saturate(200%);
+  -webkit-backdrop-filter: blur(36px) saturate(200%);
+  
+  /* Razor-thin iOS outer rim & specular top highlight */
+  border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow:
-    var(--glass-specular-top, inset 0 1.5px 0.5px rgba(255, 255, 255, 0.25)),
-    var(--glass-bevel-bottom, inset 0 -1px 0.5px rgba(0, 0, 0, 0.35)),
-    0 16px 36px -4px rgba(0, 0, 0, 0.65),
-    0 0 24px rgba(var(--accent-primary-rgb, 29, 185, 84), 0.2);
-  padding: 4px 12px 4px 8px;
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.28),
+    0 16px 36px -4px rgba(0, 0, 0, 0.85),
+    0 0 0 1px rgba(0, 0, 0, 0.8);
+    
+  padding: 3px 12px 3px 6px;
   box-sizing: border-box;
   position: relative;
   overflow: hidden;
   user-select: none;
-  -webkit-app-region: drag;
-  cursor: move;
-  transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+  pointer-events: auto !important;
+  cursor: default !important;
+  -webkit-app-region: none !important;
+  
+  /* Apple Fluid Spring Physics */
+  transition:
+    width 0.35s cubic-bezier(0.32, 0.72, 0, 1),
+    height 0.35s cubic-bezier(0.32, 0.72, 0, 1),
+    box-shadow 0.3s cubic-bezier(0.32, 0.72, 0, 1),
+    border-color 0.3s ease;
+}
+
+/* iOS Dynamic Island Expansion on Hover */
+body.mode-dynamic-island #dynamic-island:hover {
+  width: 440px;
+  height: 48px;
+  border-color: rgba(255, 255, 255, 0.20);
+  box-shadow:
+    inset 0 1.5px 0.5px rgba(255, 255, 255, 0.35),
+    0 20px 48px -4px rgba(0, 0, 0, 0.92),
+    0 0 24px rgba(var(--accent-primary-rgb, 29, 185, 84), 0.25),
+    0 0 0 1px rgba(0, 0, 0, 0.9);
 }
 
 [data-theme="light"].mode-dynamic-island #dynamic-island {
-  background: var(--glass-liquid-bg, rgba(255, 255, 255, 0.8));
-  border-color: rgba(255, 255, 255, 0.5);
+  background: #0a0a0f;
+  border-color: rgba(255, 255, 255, 0.18);
   box-shadow:
-    var(--glass-specular-top, inset 0 1.5px 0.5px rgba(255, 255, 255, 0.7)),
-    var(--glass-bevel-bottom, inset 0 -1px 0.5px rgba(0, 0, 0, 0.08)),
-    0 12px 28px -4px rgba(0, 0, 0, 0.15),
-    0 0 20px rgba(var(--accent-primary-rgb, 29, 185, 84), 0.15);
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.4),
+    0 14px 32px -4px rgba(0, 0, 0, 0.35),
+    0 0 0 1px rgba(0, 0, 0, 0.5);
 }
 
-/* Left: Spinning Vinyl Disc */
+/* ==========================================================
+   LEFT: ALBUM ART TILE / ROTATING VINYL DISC
+========================================================== */
 .island-vinyl-wrapper {
   position: relative;
-  width: 42px;
-  height: 42px;
+  width: 38px;
+  height: 38px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  -webkit-app-region: drag;
+  -webkit-app-region: none !important;
+  cursor: default !important;
 }
 
 .island-vinyl-disc {
-  width: 38px;
-  height: 38px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
-  background: radial-gradient(circle at 35% 35%, #2a2a35 0%, #121218 55%, #050508 100%);
-  background-image: repeating-radial-gradient(circle at center, transparent 0, transparent 2px, rgba(255, 255, 255, 0.04) 3px, transparent 4px);
+  background: radial-gradient(circle at 35% 35%, #24242e 0%, #111116 55%, #050508 100%);
+  background-image: repeating-radial-gradient(circle at center, transparent 0, transparent 2px, rgba(255, 255, 255, 0.05) 3px, transparent 4px);
   box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.18),
-    0 3px 10px rgba(0, 0, 0, 0.5);
+    inset 0 0 0 1px rgba(255, 255, 255, 0.22),
+    0 3px 8px rgba(0, 0, 0, 0.6);
   position: relative;
   overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
-  animation: islandVinylSpin 4s linear infinite;
+  animation: islandVinylSpin 4.5s linear infinite;
   animation-play-state: paused;
 }
 
@@ -118,65 +154,65 @@ body.is-playing .island-vinyl-disc {
 }
 
 .island-art-img {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   object-fit: cover;
-  border: 1.5px solid rgba(255, 255, 255, 0.45);
-  box-shadow: 0 0 4px rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.7);
   pointer-events: none;
 }
 
 .vinyl-center-hole {
   position: absolute;
-  width: 4px;
-  height: 4px;
+  width: 3.5px;
+  height: 3.5px;
   border-radius: 50%;
   background: #000000;
-  border: 1px solid rgba(255, 255, 255, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.7);
   pointer-events: none;
 }
 
 .island-art-halo {
   position: absolute;
-  inset: -3px;
+  inset: -2px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(var(--accent-primary-rgb, 29, 185, 84), 0.35) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(var(--accent-primary-rgb, 29, 185, 84), 0.4) 0%, transparent 70%);
   pointer-events: none;
-  filter: blur(5px);
+  filter: blur(4px);
   transition: background 0.4s ease;
 }
 
-/* Center: Live Karaoke Lyric Zone */
+/* ==========================================================
+   CENTER: LIVE KARAOKE LYRIC ZONE
+========================================================== */
 .island-lyric-zone {
   flex: 1;
   min-width: 0;
-  padding: 0 12px;
+  padding: 0 10px;
   display: flex;
   align-items: center;
   justify-content: flex-start;
   overflow: hidden;
-  mask-image: linear-gradient(90deg, transparent 0%, black 5%, black 95%, transparent 100%);
-  -webkit-mask-image: linear-gradient(90deg, transparent 0%, black 5%, black 95%, transparent 100%);
-  -webkit-app-region: drag;
-  cursor: move;
+  mask-image: linear-gradient(90deg, transparent 0%, black 4%, black 96%, transparent 100%);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, black 4%, black 96%, transparent 100%);
+  -webkit-app-region: none !important;
+  cursor: default !important;
 }
 
 .island-lyric-line {
   white-space: nowrap;
-  font-size: 13.5px;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Outfit", "Inter", sans-serif;
+  font-size: 13px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.88);
+  color: rgba(255, 255, 255, 0.9);
   letter-spacing: -0.01em;
   display: inline-flex;
   align-items: center;
   gap: 4px;
   transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
   pointer-events: none;
-}
-
-[data-theme="light"] .island-lyric-line {
-  color: rgba(0, 0, 0, 0.85);
+  -webkit-font-smoothing: antialiased;
 }
 
 .island-lyric-line .lyric-word {
@@ -189,13 +225,8 @@ body.is-playing .island-vinyl-disc {
   color: #ffffff !important;
   transform: scale(1.08) translateY(-0.5px);
   text-shadow:
-    0 0 12px var(--highlight-glow, rgba(var(--accent-primary-rgb), 0.8)),
-    0 0 20px rgba(255, 255, 255, 0.7);
-}
-
-[data-theme="light"] .island-lyric-line .lyric-word.lyric-word-active {
-  color: var(--accent-primary) !important;
-  text-shadow: 0 0 10px rgba(var(--accent-primary-rgb), 0.4);
+    0 0 10px var(--highlight-glow, rgba(var(--accent-primary-rgb), 0.85)),
+    0 0 20px rgba(255, 255, 255, 0.8);
 }
 
 .island-lyric-line .lyric-word.lyric-word-completed,
@@ -204,66 +235,62 @@ body.is-playing .island-vinyl-disc {
   opacity: 0.95;
 }
 
-[data-theme="light"] .island-lyric-line .lyric-word.lyric-word-completed,
-[data-theme="light"] .island-lyric-line .lyric-word.lyric-word-passed {
-  color: #1d1d1f;
-  opacity: 0.90;
-}
-
 .island-idle-text {
   color: rgba(255, 255, 255, 0.55);
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 500;
   font-style: italic;
 }
 
-[data-theme="light"] .island-idle-text {
-  color: rgba(0, 0, 0, 0.5);
-}
-
-/* Right: Audio Wave Visualizer & Hover Playback Actions */
+/* ==========================================================
+   RIGHT: iOS EQUALIZER WAVEFORM & HOVER CONTROLS
+========================================================== */
 .island-actions {
   display: flex;
   align-items: center;
   flex-shrink: 0;
   position: relative;
   height: 100%;
+  -webkit-app-region: none !important;
 }
 
+/* 4-bar iOS Equalizer */
 .island-wave-visualizer {
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 2.5px;
   height: 18px;
   padding-right: 4px;
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   pointer-events: none;
 }
 
 .wave-bar {
   width: 3px;
   border-radius: 99px;
-  background: var(--accent-bright, #1ed760);
-  box-shadow: 0 0 8px rgba(var(--accent-primary-rgb), 0.6);
-  animation: islandWaveBounce 1.2s ease-in-out infinite;
+  background: var(--accent-primary, #1DB954);
+  box-shadow: 0 0 8px rgba(var(--accent-primary-rgb, 29, 185, 84), 0.7);
+  animation: islandWaveBounce 1.1s ease-in-out infinite;
 }
 
-.wave-bar.bar-1 { height: 11px; animation-delay: 0.0s; }
+.wave-bar.bar-1 { height: 9px;  animation-delay: 0.0s; }
 .wave-bar.bar-2 { height: 16px; animation-delay: 0.2s; }
-.wave-bar.bar-3 { height: 8px;  animation-delay: 0.4s; }
+.wave-bar.bar-3 { height: 12px; animation-delay: 0.4s; }
+.wave-bar.bar-4 { height: 7px;  animation-delay: 0.15s; }
 
 body:not(.is-playing) .wave-bar {
   animation-play-state: paused;
-  height: 4px !important;
-  opacity: 0.4;
+  height: 3px !important;
+  opacity: 0.35;
+  box-shadow: none;
 }
 
 @keyframes islandWaveBounce {
-  0%, 100% { transform: scaleY(0.4); }
+  0%, 100% { transform: scaleY(0.35); }
   50% { transform: scaleY(1.0); }
 }
 
-/* Hover Controls: Smoothly replaces the wave visualizer on hover */
+/* Hover Controls: Smoothly replaces the waveform on hover */
 .island-hover-controls {
   position: absolute;
   right: 0;
@@ -272,14 +299,16 @@ body:not(.is-playing) .wave-bar {
   gap: 4px;
   opacity: 0;
   pointer-events: none;
-  transform: translateX(6px);
-  transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1), transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-  -webkit-app-region: no-drag;
+  transform: translateX(8px);
+  transition:
+    opacity 0.25s cubic-bezier(0.32, 0.72, 0, 1),
+    transform 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+  -webkit-app-region: none !important;
 }
 
 #dynamic-island:hover .island-wave-visualizer {
   opacity: 0;
-  transform: translateX(-6px);
+  transform: translateX(-8px);
   pointer-events: none;
 }
 
@@ -293,39 +322,26 @@ body:not(.is-playing) .wave-bar {
   width: 26px;
   height: 26px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.12);
   border: 1px solid rgba(255, 255, 255, 0.18);
-  box-shadow: inset 0 1px 0.5px rgba(255, 255, 255, 0.25), 0 2px 6px rgba(0, 0, 0, 0.2);
+  box-shadow: inset 0 1px 0.5px rgba(255, 255, 255, 0.28), 0 2px 6px rgba(0, 0, 0, 0.3);
   color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
-  -webkit-app-region: no-drag !important;
-}
-
-[data-theme="light"] .island-btn {
-  background: rgba(0, 0, 0, 0.06);
-  border-color: rgba(0, 0, 0, 0.12);
-  color: #1d1d1f;
-  box-shadow: inset 0 1px 0.5px rgba(255, 255, 255, 0.5);
+  -webkit-app-region: none !important;
 }
 
 .island-btn:hover {
   transform: scale(1.12);
-  background: rgba(255, 255, 255, 0.22);
-  border-color: rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.24);
+  border-color: rgba(255, 255, 255, 0.38);
   box-shadow:
-    inset 0 1px 0.5px rgba(255, 255, 255, 0.4),
-    0 4px 12px rgba(0, 0, 0, 0.3),
-    0 0 14px rgba(var(--accent-primary-rgb), 0.35);
-}
-
-[data-theme="light"] .island-btn:hover {
-  background: rgba(0, 0, 0, 0.12);
-  border-color: rgba(0, 0, 0, 0.22);
-  color: #000;
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.45),
+    0 4px 12px rgba(0, 0, 0, 0.4),
+    0 0 14px rgba(var(--accent-primary-rgb, 29, 185, 84), 0.4);
 }
 
 .island-btn:active {
@@ -335,13 +351,13 @@ body:not(.is-playing) .wave-bar {
 .island-btn.island-btn-play {
   width: 28px;
   height: 28px;
-  background: rgba(var(--accent-primary-rgb, 29, 185, 84), 0.24);
-  border-color: rgba(var(--accent-primary-rgb, 29, 185, 84), 0.45);
+  background: rgba(var(--accent-primary-rgb, 29, 185, 84), 0.28);
+  border-color: rgba(var(--accent-primary-rgb, 29, 185, 84), 0.55);
 }
 
 .island-btn.island-btn-play:hover {
-  background: rgba(var(--accent-primary-rgb, 29, 185, 84), 0.4);
-  border-color: rgba(var(--accent-primary-rgb, 29, 185, 84), 0.65);
+  background: rgba(var(--accent-primary-rgb, 29, 185, 84), 0.45);
+  border-color: rgba(var(--accent-primary-rgb, 29, 185, 84), 0.75);
 }
 
 .island-btn.island-btn-expand {

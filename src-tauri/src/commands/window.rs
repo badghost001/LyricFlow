@@ -874,7 +874,6 @@ pub fn sync_taskbar_config(app: AppHandle, config: serde_json::Value) -> Result<
 static DYNAMIC_ISLAND_ACTIVE: AtomicBool = AtomicBool::new(false);
 static SAVED_ISLAND_MAIN_POS: OnceLock<Mutex<Option<(i32, i32)>>> = OnceLock::new();
 static SAVED_ISLAND_MAIN_SIZE: OnceLock<Mutex<Option<(u32, u32)>>> = OnceLock::new();
-static LAST_ISLAND_POS: OnceLock<Mutex<Option<(i32, i32)>>> = OnceLock::new();
 
 #[tauri::command]
 pub fn is_dynamic_island_mode() -> bool {
@@ -882,7 +881,7 @@ pub fn is_dynamic_island_mode() -> bool {
 }
 
 #[tauri::command]
-pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool) -> Result<(), String> {
+pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_pos: Option<String>) -> Result<(), String> {
     use tauri::Emitter;
     let app = window.app_handle();
 
@@ -905,34 +904,49 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool) -> Re
 
         let scale = window.scale_factor().unwrap_or(1.0);
         let island_w = (440.0 * scale) as u32;
-        let island_h = (60.0 * scale) as u32;
+        let island_h = (56.0 * scale) as u32;
 
-        let (target_x, target_y) = if let Some(last_pos) = LAST_ISLAND_POS.get_or_init(|| Mutex::new(None)).lock().ok().and_then(|g| *g) {
-            last_pos
-        } else if let Ok(Some(monitor)) = window.current_monitor() {
+        let dock = dock_pos.as_deref().unwrap_or("top-center");
+
+        let (target_x, target_y) = if let Ok(Some(monitor)) = window.current_monitor() {
             let m_pos = monitor.position();
             let m_size = monitor.size();
-            let x = m_pos.x + ((m_size.width as i32 - island_w as i32) / 2);
-            let y = m_pos.y + (20.0 * scale) as i32;
-            (x, y)
+            match dock {
+                "top-left" => {
+                    let x = m_pos.x + (16.0 * scale) as i32;
+                    let y = m_pos.y + (12.0 * scale) as i32;
+                    (x, y)
+                }
+                "top-right" => {
+                    let x = m_pos.x + m_size.width as i32 - island_w as i32 - (16.0 * scale) as i32;
+                    let y = m_pos.y + (12.0 * scale) as i32;
+                    (x, y)
+                }
+                "bottom-center" => {
+                    let x = m_pos.x + ((m_size.width as i32 - island_w as i32) / 2);
+                    let y = m_pos.y + m_size.height as i32 - island_h as i32 - (60.0 * scale) as i32;
+                    (x, y)
+                }
+                _ => {
+                    // Default: top-center (authentic iOS Dynamic Island)
+                    let x = m_pos.x + ((m_size.width as i32 - island_w as i32) / 2);
+                    let y = m_pos.y + (12.0 * scale) as i32;
+                    (x, y)
+                }
+            }
         } else {
-            (200, 40)
+            (200, 12)
         };
 
         let _ = window.set_size(tauri::PhysicalSize::new(island_w, island_h));
         let _ = window.set_position(tauri::PhysicalPosition::new(target_x, target_y));
         let _ = window.set_always_on_top(true);
+        let _ = window.set_ignore_cursor_events(false); // Non-clickthrough
+        let _ = window.set_resizable(false); // Unmovable & locked
         DYNAMIC_ISLAND_ACTIVE.store(true, Ordering::SeqCst);
     } else {
         if !DYNAMIC_ISLAND_ACTIVE.load(Ordering::SeqCst) {
             return Ok(());
-        }
-
-        // Save current island position so next time it opens where user left it
-        if let Ok(pos) = window.outer_position() {
-            if let Ok(mut lock) = LAST_ISLAND_POS.get_or_init(|| Mutex::new(None)).lock() {
-                *lock = Some((pos.x, pos.y));
-            }
         }
 
         let saved_pos = SAVED_ISLAND_MAIN_POS.get_or_init(|| Mutex::new(None)).lock().ok().and_then(|g| *g);
@@ -948,6 +962,7 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool) -> Re
         }
 
         let _ = window.set_always_on_top(false);
+        let _ = window.set_resizable(true);
         DYNAMIC_ISLAND_ACTIVE.store(false, Ordering::SeqCst);
     }
 

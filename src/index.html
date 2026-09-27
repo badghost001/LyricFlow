@@ -97,9 +97,9 @@
       </header>
 
       <!-- Dynamic Island Mini Capsule View (Active when body has .mode-dynamic-island) -->
-      <div id="dynamic-island" class="dynamic-island" data-tauri-drag-region>
+      <div id="dynamic-island" class="dynamic-island">
         <!-- Left: Spinning Vinyl Disc -->
-        <div class="island-vinyl-wrapper" data-tauri-drag-region>
+        <div class="island-vinyl-wrapper">
           <div class="island-vinyl-disc" id="island-vinyl-disc">
             <img id="island-art-img" class="island-art-img" src="" alt="Album Art" />
             <div class="vinyl-center-hole"></div>
@@ -108,7 +108,7 @@
         </div>
 
         <!-- Center: Live Karaoke Lyric Line -->
-        <div class="island-lyric-zone" data-tauri-drag-region>
+        <div class="island-lyric-zone">
           <div id="island-lyric-line" class="island-lyric-line">
             <span class="island-idle-text">LyricFlow</span>
           </div>
@@ -120,6 +120,7 @@
             <span class="wave-bar bar-1"></span>
             <span class="wave-bar bar-2"></span>
             <span class="wave-bar bar-3"></span>
+            <span class="wave-bar bar-4"></span>
           </div>
           <div class="island-hover-controls">
             <button id="island-btn-prev" class="island-btn" title="Previous Track (Ctrl+Left)">
@@ -1032,6 +1033,28 @@
                   <option value="56">56px</option>
                   <option value="64">64px (Extra Large)</option>
                   <option value="72">72px (Giant)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="settings-group">
+              <h4>Dynamic Island Mode</h4>
+              <div class="setting-row" style="margin-top: 6px;">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Collapse into an iOS-style Dynamic Island pill (Ctrl+Shift+D)">
+                  <span>Enable Dynamic Island (Ctrl+Shift+D)</span>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-dynamic-island" />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+              </div>
+              <div class="setting-row" style="margin-top: 6px;">
+                <label for="select-island-position">Dock Position (Fixed & Unmovable)</label>
+                <select id="select-island-position">
+                  <option value="top-center" selected>Top Center (iOS Notch)</option>
+                  <option value="top-left">Top Left</option>
+                  <option value="top-right">Top Right</option>
+                  <option value="bottom-center">Bottom Center (Above Taskbar)</option>
                 </select>
               </div>
             </div>

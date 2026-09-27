@@ -189,7 +189,7 @@
       safeInvoke('lastfm_api', { data: { method, params, apiKey, apiSecret, sessionKey } }, null),
     getTaskbarColor: () => safeInvoke('get_taskbar_color', {}, { theme: 'dark', color: '#ffffff', accentColor: '#1DB954' }),
     setTaskbarMode: (enabled, fromTray = false) => safeInvoke('set_taskbar_mode', { enabled, fromTray }, null),
-    setDynamicIslandMode: (enabled) => safeInvoke('set_dynamic_island_mode', { enabled }, null),
+    setDynamicIslandMode: (enabled, dockPos = 'top-center') => safeInvoke('set_dynamic_island_mode', { enabled, dockPos }, null),
     isDynamicIslandMode: () => safeInvoke('is_dynamic_island_mode', {}, false),
     getAvailableMonitors: () => safeInvoke('get_available_monitors', {}, []),
     setWallpaperMode: (enabled, monitorTarget = null) => safeInvoke('set_wallpaper_mode', { enabled, monitorTarget: monitorTarget ? String(monitorTarget) : null }, null),
