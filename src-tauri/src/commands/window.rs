@@ -903,15 +903,15 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
         }
 
         let scale = window.scale_factor().unwrap_or(1.0);
-        let island_w = (520.0 * scale) as u32;
-        let island_h = (90.0 * scale) as u32;
+        let island_w = (460.0 * scale) as u32;
+        let island_h = (130.0 * scale) as u32;
 
         let dock = dock_pos.as_deref().unwrap_or("top-center");
 
         let (target_x, target_y) = if let Ok(Some(monitor)) = window.current_monitor() {
             let m_pos = monitor.position();
             let m_size = monitor.size();
-            let pad_h = ((520.0 - 380.0) / 2.0 * scale) as i32;
+            let pad_h = ((460.0 - 210.0) / 2.0 * scale) as i32;
             match dock {
                 "top-left" => {
                     let x = m_pos.x + (16.0 * scale) as i32 - pad_h;

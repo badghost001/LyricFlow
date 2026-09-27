@@ -302,6 +302,15 @@ function syncDynamicIslandState() {
     halo.style.background = `radial-gradient(circle, rgba(var(--accent-primary-rgb, 29, 185, 84), 0.5) 0%, transparent 70%)`;
   }
 
+  const islandTitle = document.getElementById("island-track-title");
+  const islandArtist = document.getElementById("island-track-artist");
+  if (islandTitle) {
+    islandTitle.textContent = (currentTrack && currentTrack.name) ? currentTrack.name : 'LyricFlow';
+  }
+  if (islandArtist) {
+    islandArtist.textContent = (currentTrack && currentTrack.artist) ? currentTrack.artist : (isPlaying ? 'Playing...' : 'Waiting for music...');
+  }
+
   const fill = document.getElementById("island-progress-fill");
   if (fill && trackDuration > 0) {
     const pct = Math.min(100, Math.max(0, (currentProgress / trackDuration) * 100));
@@ -311,6 +320,7 @@ function syncDynamicIslandState() {
 
 function updateDynamicIslandLyric(activeIndex, lineData, syncProgress) {
   const islandLine = document.getElementById("island-lyric-line");
+  const islandExpLyric = document.getElementById("island-expanded-lyric");
   if (!islandLine) return;
 
   // Update micro progress bar
@@ -322,13 +332,18 @@ function updateDynamicIslandLyric(activeIndex, lineData, syncProgress) {
 
   if (!lineData) {
     if (currentTrack && currentTrack.name) {
-      islandLine.innerHTML = `<span class="island-idle-text"><span class="island-idle-title">${escapeHTML(currentTrack.name)}</span><span class="island-idle-dot">•</span><span class="island-idle-artist">${escapeHTML(currentTrack.artist || '')}</span></span>`;
+      islandLine.innerHTML = `<span class="island-idle-text"><span class="island-idle-title">${escapeHTML(currentTrack.name)}</span></span>`;
     } else {
       islandLine.innerHTML = `<span class="island-idle-text"><span class="island-idle-title">LyricFlow</span></span>`;
     }
     islandLine.style.transform = 'translateX(0px)';
     islandLine.dataset.lineIndex = '-1';
+    if (islandExpLyric) islandExpLyric.textContent = '';
     return;
+  }
+
+  if (islandExpLyric) {
+    islandExpLyric.textContent = lineData.text || '';
   }
 
   const hasWords = Boolean(lineData.words && lineData.words.length > 0);
