@@ -1,0 +1,349 @@
+/* Dynamic Island Mini Capsule Mode */
+
+/* Hidden in standard mode */
+#dynamic-island {
+  display: none !important;
+}
+
+/* Activated when body has .mode-dynamic-island */
+body.mode-dynamic-island {
+  background: transparent !important;
+  overflow: hidden !important;
+}
+
+body.mode-dynamic-island .fluid-mesh-canvas,
+body.mode-dynamic-island .ambient-glow,
+body.mode-dynamic-island .hud-header,
+body.mode-dynamic-island .app-screen,
+body.mode-dynamic-island #custom-bg-video,
+body.mode-dynamic-island #custom-bg-img,
+body.mode-dynamic-island .wallpaper-album-bg,
+body.mode-dynamic-island .wallpaper-album-bg-video,
+body.mode-dynamic-island .toast-notification,
+body.mode-dynamic-island .settings-panel {
+  display: none !important;
+}
+
+body.mode-dynamic-island .app-container {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  overflow: visible !important;
+}
+
+/* The Liquid Glass Island Capsule */
+body.mode-dynamic-island #dynamic-island {
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  width: calc(100vw - 6px);
+  height: calc(100vh - 6px);
+  max-width: 440px;
+  border-radius: 999px;
+  background: var(--glass-liquid-bg, rgba(16, 16, 26, 0.78));
+  backdrop-filter: var(--glass-lens-filter, blur(32px) saturate(190%) contrast(105%));
+  -webkit-backdrop-filter: var(--glass-lens-filter, blur(32px) saturate(190%) contrast(105%));
+  border: var(--glass-border, 1px solid rgba(255, 255, 255, 0.14));
+  box-shadow:
+    var(--glass-specular-top, inset 0 1.5px 0.5px rgba(255, 255, 255, 0.25)),
+    var(--glass-bevel-bottom, inset 0 -1px 0.5px rgba(0, 0, 0, 0.35)),
+    0 16px 36px -4px rgba(0, 0, 0, 0.65),
+    0 0 24px rgba(var(--accent-primary-rgb, 29, 185, 84), 0.2);
+  padding: 4px 12px 4px 8px;
+  box-sizing: border-box;
+  position: relative;
+  overflow: hidden;
+  user-select: none;
+  -webkit-app-region: drag;
+  cursor: move;
+  transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+[data-theme="light"].mode-dynamic-island #dynamic-island {
+  background: var(--glass-liquid-bg, rgba(255, 255, 255, 0.8));
+  border-color: rgba(255, 255, 255, 0.5);
+  box-shadow:
+    var(--glass-specular-top, inset 0 1.5px 0.5px rgba(255, 255, 255, 0.7)),
+    var(--glass-bevel-bottom, inset 0 -1px 0.5px rgba(0, 0, 0, 0.08)),
+    0 12px 28px -4px rgba(0, 0, 0, 0.15),
+    0 0 20px rgba(var(--accent-primary-rgb, 29, 185, 84), 0.15);
+}
+
+/* Left: Spinning Vinyl Disc */
+.island-vinyl-wrapper {
+  position: relative;
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  -webkit-app-region: drag;
+}
+
+.island-vinyl-disc {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #2a2a35 0%, #121218 55%, #050508 100%);
+  background-image: repeating-radial-gradient(circle at center, transparent 0, transparent 2px, rgba(255, 255, 255, 0.04) 3px, transparent 4px);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.18),
+    0 3px 10px rgba(0, 0, 0, 0.5);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: islandVinylSpin 4s linear infinite;
+  animation-play-state: paused;
+}
+
+body.is-playing .island-vinyl-disc {
+  animation-play-state: running;
+}
+
+@keyframes islandVinylSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.island-art-img {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1.5px solid rgba(255, 255, 255, 0.45);
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+}
+
+.vinyl-center-hole {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #000000;
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  pointer-events: none;
+}
+
+.island-art-halo {
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(var(--accent-primary-rgb, 29, 185, 84), 0.35) 0%, transparent 70%);
+  pointer-events: none;
+  filter: blur(5px);
+  transition: background 0.4s ease;
+}
+
+/* Center: Live Karaoke Lyric Zone */
+.island-lyric-zone {
+  flex: 1;
+  min-width: 0;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  overflow: hidden;
+  mask-image: linear-gradient(90deg, transparent 0%, black 5%, black 95%, transparent 100%);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, black 5%, black 95%, transparent 100%);
+  -webkit-app-region: drag;
+  cursor: move;
+}
+
+.island-lyric-line {
+  white-space: nowrap;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.88);
+  letter-spacing: -0.01em;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
+  pointer-events: none;
+}
+
+[data-theme="light"] .island-lyric-line {
+  color: rgba(0, 0, 0, 0.85);
+}
+
+.island-lyric-line .lyric-word {
+  display: inline-block;
+  transition: all 0.2s cubic-bezier(0.25, 1, 0.5, 1);
+  color: inherit;
+}
+
+.island-lyric-line .lyric-word.lyric-word-active {
+  color: #ffffff !important;
+  transform: scale(1.08) translateY(-0.5px);
+  text-shadow:
+    0 0 12px var(--highlight-glow, rgba(var(--accent-primary-rgb), 0.8)),
+    0 0 20px rgba(255, 255, 255, 0.7);
+}
+
+[data-theme="light"] .island-lyric-line .lyric-word.lyric-word-active {
+  color: var(--accent-primary) !important;
+  text-shadow: 0 0 10px rgba(var(--accent-primary-rgb), 0.4);
+}
+
+.island-lyric-line .lyric-word.lyric-word-completed,
+.island-lyric-line .lyric-word.lyric-word-passed {
+  color: #ffffff;
+  opacity: 0.95;
+}
+
+[data-theme="light"] .island-lyric-line .lyric-word.lyric-word-completed,
+[data-theme="light"] .island-lyric-line .lyric-word.lyric-word-passed {
+  color: #1d1d1f;
+  opacity: 0.90;
+}
+
+.island-idle-text {
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 12.5px;
+  font-weight: 500;
+  font-style: italic;
+}
+
+[data-theme="light"] .island-idle-text {
+  color: rgba(0, 0, 0, 0.5);
+}
+
+/* Right: Audio Wave Visualizer & Hover Playback Actions */
+.island-actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  position: relative;
+  height: 100%;
+}
+
+.island-wave-visualizer {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 18px;
+  padding-right: 4px;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  pointer-events: none;
+}
+
+.wave-bar {
+  width: 3px;
+  border-radius: 99px;
+  background: var(--accent-bright, #1ed760);
+  box-shadow: 0 0 8px rgba(var(--accent-primary-rgb), 0.6);
+  animation: islandWaveBounce 1.2s ease-in-out infinite;
+}
+
+.wave-bar.bar-1 { height: 11px; animation-delay: 0.0s; }
+.wave-bar.bar-2 { height: 16px; animation-delay: 0.2s; }
+.wave-bar.bar-3 { height: 8px;  animation-delay: 0.4s; }
+
+body:not(.is-playing) .wave-bar {
+  animation-play-state: paused;
+  height: 4px !important;
+  opacity: 0.4;
+}
+
+@keyframes islandWaveBounce {
+  0%, 100% { transform: scaleY(0.4); }
+  50% { transform: scaleY(1.0); }
+}
+
+/* Hover Controls: Smoothly replaces the wave visualizer on hover */
+.island-hover-controls {
+  position: absolute;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(6px);
+  transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1), transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  -webkit-app-region: no-drag;
+}
+
+#dynamic-island:hover .island-wave-visualizer {
+  opacity: 0;
+  transform: translateX(-6px);
+  pointer-events: none;
+}
+
+#dynamic-island:hover .island-hover-controls {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0);
+}
+
+.island-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.10);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: inset 0 1px 0.5px rgba(255, 255, 255, 0.25), 0 2px 6px rgba(0, 0, 0, 0.2);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  -webkit-app-region: no-drag !important;
+}
+
+[data-theme="light"] .island-btn {
+  background: rgba(0, 0, 0, 0.06);
+  border-color: rgba(0, 0, 0, 0.12);
+  color: #1d1d1f;
+  box-shadow: inset 0 1px 0.5px rgba(255, 255, 255, 0.5);
+}
+
+.island-btn:hover {
+  transform: scale(1.12);
+  background: rgba(255, 255, 255, 0.22);
+  border-color: rgba(255, 255, 255, 0.35);
+  box-shadow:
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.4),
+    0 4px 12px rgba(0, 0, 0, 0.3),
+    0 0 14px rgba(var(--accent-primary-rgb), 0.35);
+}
+
+[data-theme="light"] .island-btn:hover {
+  background: rgba(0, 0, 0, 0.12);
+  border-color: rgba(0, 0, 0, 0.22);
+  color: #000;
+}
+
+.island-btn:active {
+  transform: scale(0.92);
+}
+
+.island-btn.island-btn-play {
+  width: 28px;
+  height: 28px;
+  background: rgba(var(--accent-primary-rgb, 29, 185, 84), 0.24);
+  border-color: rgba(var(--accent-primary-rgb, 29, 185, 84), 0.45);
+}
+
+.island-btn.island-btn-play:hover {
+  background: rgba(var(--accent-primary-rgb, 29, 185, 84), 0.4);
+  border-color: rgba(var(--accent-primary-rgb, 29, 185, 84), 0.65);
+}
+
+.island-btn.island-btn-expand {
+  color: var(--accent-bright, #1ed760);
+}

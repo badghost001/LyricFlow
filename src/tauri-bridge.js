@@ -189,6 +189,8 @@
       safeInvoke('lastfm_api', { data: { method, params, apiKey, apiSecret, sessionKey } }, null),
     getTaskbarColor: () => safeInvoke('get_taskbar_color', {}, { theme: 'dark', color: '#ffffff', accentColor: '#1DB954' }),
     setTaskbarMode: (enabled, fromTray = false) => safeInvoke('set_taskbar_mode', { enabled, fromTray }, null),
+    setDynamicIslandMode: (enabled) => safeInvoke('set_dynamic_island_mode', { enabled }, null),
+    isDynamicIslandMode: () => safeInvoke('is_dynamic_island_mode', {}, false),
     getAvailableMonitors: () => safeInvoke('get_available_monitors', {}, []),
     setWallpaperMode: (enabled, monitorTarget = null) => safeInvoke('set_wallpaper_mode', { enabled, monitorTarget: monitorTarget ? String(monitorTarget) : null }, null),
     syncTaskbarModeState: (isTaskbarMode) => safeEmit('sync-taskbar-mode-state', isTaskbarMode),
@@ -283,6 +285,7 @@
     onUpdateTaskbarLyric: (cb) => safeListen('update-taskbar-lyric', (payload) => cb(payload)),
     onSyncTaskbarConfig: (cb) => safeListen('sync-taskbar-config', (payload) => cb(payload)),
     onTbOffsetSaved: (cb) => safeListen('tb-offset-saved', (payload) => cb(payload)),
+    onDynamicIslandModeChanged: (cb) => safeListen('dynamic-island-mode-changed', (payload) => cb(payload)),
   };
 
   // Taskbar window bridge polyfill

@@ -412,6 +412,8 @@ pub fn run() {
             window::update_taskbar_lyric_bounds,
             window::set_taskbar_dragging,
             window::set_edge_glow,
+            window::set_dynamic_island_mode,
+            window::is_dynamic_island_mode,
             window::set_wallpaper_mode,
             window::start_wallpaper_edit,
             window::end_wallpaper_edit,

@@ -16,6 +16,7 @@
     <link rel="stylesheet" href="styles/_taskbar.css" />
     <link rel="stylesheet" href="styles/_wallpaper.css" />
     <link rel="stylesheet" href="styles/_components.css" />
+    <link rel="stylesheet" href="styles/_dynamic_island.css" />
     <link rel="stylesheet" href="styles.css" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'self' ipc: http://ipc.localhost https://ipc.localhost https://tauri.localhost http://tauri.localhost tauri:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https:; font-src 'self' https: data:; img-src 'self' data: blob: file: lyricflow-media: http: https:; media-src 'self' blob: file: data: lyricflow-media: http: https:; connect-src 'self' ipc: http://ipc.localhost https://ipc.localhost https://tauri.localhost http://tauri.localhost tauri: http: https:;" />
@@ -83,6 +84,9 @@
           <button id="btn-settings" title="Settings" class="hud-btn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
           </button>
+          <button id="btn-dynamic-island" title="Dynamic Island Mini Mode (Ctrl+Shift+D)" class="hud-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="10" rx="5" ry="5"/><circle cx="7" cy="12" r="1.5" fill="currentColor"/></svg>
+          </button>
           <button id="btn-minimize" title="Minimize Application" class="hud-btn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
           </button>
@@ -91,6 +95,49 @@
           </button>
         </div>
       </header>
+
+      <!-- Dynamic Island Mini Capsule View (Active when body has .mode-dynamic-island) -->
+      <div id="dynamic-island" class="dynamic-island" data-tauri-drag-region>
+        <!-- Left: Spinning Vinyl Disc -->
+        <div class="island-vinyl-wrapper" data-tauri-drag-region>
+          <div class="island-vinyl-disc" id="island-vinyl-disc">
+            <img id="island-art-img" class="island-art-img" src="" alt="Album Art" />
+            <div class="vinyl-center-hole"></div>
+          </div>
+          <div class="island-art-halo" id="island-art-halo"></div>
+        </div>
+
+        <!-- Center: Live Karaoke Lyric Line -->
+        <div class="island-lyric-zone" data-tauri-drag-region>
+          <div id="island-lyric-line" class="island-lyric-line">
+            <span class="island-idle-text">LyricFlow</span>
+          </div>
+        </div>
+
+        <!-- Right: Audio Wave Visualizer & Hover Playback Actions -->
+        <div class="island-actions">
+          <div class="island-wave-visualizer" id="island-wave">
+            <span class="wave-bar bar-1"></span>
+            <span class="wave-bar bar-2"></span>
+            <span class="wave-bar bar-3"></span>
+          </div>
+          <div class="island-hover-controls">
+            <button id="island-btn-prev" class="island-btn" title="Previous Track (Ctrl+Left)">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5" stroke="currentColor" stroke-width="3"/></svg>
+            </button>
+            <button id="island-btn-play" class="island-btn island-btn-play" title="Play/Pause (Space)">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" id="island-icon-play"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" id="island-icon-pause" style="display: none;"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+            </button>
+            <button id="island-btn-next" class="island-btn" title="Next Track (Ctrl+Right)">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19" stroke="currentColor" stroke-width="3"/></svg>
+            </button>
+            <button id="island-btn-expand" class="island-btn island-btn-expand" title="Restore Full Overlay (Ctrl+Shift+D)">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/><polyline points="9 21 3 21 3 15"/><line x1="14" y1="10" x2="3" y2="21"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
 
       <!-- 0. STARTUP LOADING SCREEN -->
       <section class="app-screen active" id="screen-loading">

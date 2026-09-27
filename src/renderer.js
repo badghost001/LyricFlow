@@ -271,6 +271,120 @@ function endTaskbarDrag() {
   // The main process will send 'taskbar-drag-ended' with final offset & moved state
 }
 
+// ==========================================
+// DYNAMIC ISLAND MINI CAPSULE CONTROLLER
+// ==========================================
+let isDynamicIslandMode = false;
+
+function syncDynamicIslandState() {
+  const isPlayingActive = Boolean(isPlaying);
+  document.body.classList.toggle('is-playing', isPlayingActive);
+
+  const islandPlayIcon = document.getElementById("island-icon-play");
+  const islandPauseIcon = document.getElementById("island-icon-pause");
+  if (islandPlayIcon && islandPauseIcon) {
+    islandPlayIcon.style.display = isPlayingActive ? 'none' : 'block';
+    islandPauseIcon.style.display = isPlayingActive ? 'block' : 'none';
+  }
+
+  const islandArtImg = document.getElementById("island-art-img");
+  if (islandArtImg) {
+    const artUrl = currentStaticAlbumArtUrl || (widgetAlbumArt && widgetAlbumArt.src ? widgetAlbumArt.src : '');
+    if (artUrl && islandArtImg.src !== artUrl) {
+      islandArtImg.src = artUrl;
+    }
+  }
+
+  const halo = document.getElementById("island-art-halo");
+  if (halo) {
+    halo.style.background = `radial-gradient(circle, rgba(var(--accent-primary-rgb, 29, 185, 84), 0.45) 0%, transparent 70%)`;
+  }
+}
+
+function updateDynamicIslandLyric(activeIndex, lineData, syncProgress) {
+  const islandLine = document.getElementById("island-lyric-line");
+  if (!islandLine) return;
+
+  if (!lineData) {
+    if (currentTrack && currentTrack.name) {
+      islandLine.innerHTML = `<span class="island-idle-text">${escapeHTML(currentTrack.name)} • ${escapeHTML(currentTrack.artist || '')}</span>`;
+    } else {
+      islandLine.innerHTML = `<span class="island-idle-text">LyricFlow</span>`;
+    }
+    islandLine.dataset.lineIndex = '-1';
+    return;
+  }
+
+  const hasWords = Boolean(lineData.words && lineData.words.length > 0);
+
+  // If line changed, re-render spans
+  if (islandLine.dataset.lineIndex !== String(activeIndex)) {
+    islandLine.dataset.lineIndex = String(activeIndex);
+    if (hasWords) {
+      islandLine.innerHTML = lineData.words.map((w, i) => `<span class="lyric-word" data-word-idx="${i}">${escapeHTML(w.text || w.word || '')}</span>`).join(' ');
+      islandLine._cachedWordSpans = islandLine.querySelectorAll('.lyric-word');
+    } else {
+      islandLine.textContent = lineData.text || '';
+      islandLine._cachedWordSpans = null;
+    }
+  }
+
+  // If word spans exist, update word states!
+  if (hasWords && islandLine._cachedWordSpans && islandLine._cachedWordSpans.length > 0) {
+    const spans = islandLine._cachedWordSpans;
+    const engine = window.LyricsService?.instance?.engine;
+    let wordStates = null;
+    if (engine && engine.hasLyrics()) {
+      wordStates = engine.getLineWordStates(activeIndex, syncProgress / 1000);
+    }
+
+    if (wordStates && wordStates.length === spans.length) {
+      spans.forEach((span, wi) => {
+        const st = wordStates[wi] || 'upcoming';
+        span.classList.toggle('lyric-word-completed', st === 'completed');
+        span.classList.toggle('lyric-word-passed', st === 'completed');
+        span.classList.toggle('lyric-word-active', st === 'active');
+        span.classList.toggle('lyric-word-upcoming', st === 'upcoming');
+      });
+    } else {
+      let activeWordIdx = -1;
+      for (let i = 0; i < lineData.words.length; i++) {
+        const wordTime = lineData.words[i].start != null ? lineData.words[i].start * 1000 : lineData.words[i].timeMs;
+        if (wordTime <= syncProgress) {
+          activeWordIdx = i;
+        } else {
+          break;
+        }
+      }
+      spans.forEach((span, wi) => {
+        span.classList.toggle('lyric-word-completed', wi < activeWordIdx);
+        span.classList.toggle('lyric-word-passed', wi < activeWordIdx);
+        span.classList.toggle('lyric-word-active', wi === activeWordIdx);
+        span.classList.toggle('lyric-word-upcoming', wi > activeWordIdx);
+      });
+    }
+  }
+}
+
+async function toggleDynamicIslandMode(forceState) {
+  const targetState = typeof forceState === 'boolean' ? forceState : !isDynamicIslandMode;
+  isDynamicIslandMode = targetState;
+  document.body.classList.toggle('mode-dynamic-island', isDynamicIslandMode);
+
+  if (window.electronAPI && typeof window.electronAPI.setDynamicIslandMode === 'function') {
+    await window.electronAPI.setDynamicIslandMode(isDynamicIslandMode);
+  }
+
+  syncDynamicIslandState();
+
+  if (isDynamicIslandMode) {
+    if (lyrics && lyrics[activeLineIndex]) {
+      updateDynamicIslandLyric(activeLineIndex, lyrics[activeLineIndex], currentProgress);
+    } else {
+      updateDynamicIslandLyric(-1, null, 0);
+    }
+  }
+}
 
 function initDOMElements() {
   screenLogin = document.getElementById("screen-login");
@@ -2456,6 +2570,63 @@ function setupUIHandlers() {
     });
   }
 
+  // Dynamic Island HUD button listener
+  const btnDynamicIsland = document.getElementById("btn-dynamic-island");
+  if (btnDynamicIsland) {
+    btnDynamicIsland.addEventListener("click", () => {
+      toggleDynamicIslandMode();
+    });
+  }
+
+  // Dynamic Island hover controls
+  const islandBtnPrev = document.getElementById("island-btn-prev");
+  if (islandBtnPrev) {
+    islandBtnPrev.addEventListener("click", (e) => {
+      e.stopPropagation();
+      controlPlayback('previous');
+    });
+  }
+  const islandBtnPlay = document.getElementById("island-btn-play");
+  if (islandBtnPlay) {
+    islandBtnPlay.addEventListener("click", (e) => {
+      e.stopPropagation();
+      controlPlayback('play-pause');
+    });
+  }
+  const islandBtnNext = document.getElementById("island-btn-next");
+  if (islandBtnNext) {
+    islandBtnNext.addEventListener("click", (e) => {
+      e.stopPropagation();
+      controlPlayback('next');
+    });
+  }
+  const islandBtnExpand = document.getElementById("island-btn-expand");
+  if (islandBtnExpand) {
+    islandBtnExpand.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleDynamicIslandMode(false);
+    });
+  }
+
+  const dynamicIslandEl = document.getElementById("dynamic-island");
+  if (dynamicIslandEl) {
+    dynamicIslandEl.addEventListener("dblclick", (e) => {
+      if (!e.target.closest('.island-btn')) {
+        toggleDynamicIslandMode(false);
+      }
+    });
+  }
+
+  if (window.electronAPI && typeof window.electronAPI.onDynamicIslandModeChanged === 'function') {
+    window.electronAPI.onDynamicIslandModeChanged((enabled) => {
+      isDynamicIslandMode = Boolean(enabled);
+      document.body.classList.toggle('mode-dynamic-island', isDynamicIslandMode);
+      if (isDynamicIslandMode) {
+        syncDynamicIslandState();
+      }
+    });
+  }
+
   // Wallpaper Mode checkbox listener
   if (checkWallpaperMode) {
     checkWallpaperMode.addEventListener("change", (e) => {
@@ -2704,8 +2875,18 @@ function setupUIHandlers() {
     });
   }
   window.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && geniusModal && geniusModal.classList.contains('show')) {
-      hideGeniusModal();
+    if (e.key === 'Escape') {
+      if (geniusModal && geniusModal.classList.contains('show')) {
+        hideGeniusModal();
+      } else if (isDynamicIslandMode) {
+        toggleDynamicIslandMode(false);
+      }
+    }
+    // Ctrl+Shift+D or Ctrl+M to toggle Dynamic Island mode
+    if ((e.ctrlKey && e.shiftKey && (e.code === 'KeyD' || e.key.toLowerCase() === 'd')) ||
+        (e.ctrlKey && !e.shiftKey && (e.code === 'KeyM' || e.key.toLowerCase() === 'm'))) {
+      e.preventDefault();
+      toggleDynamicIslandMode();
     }
   });
 
@@ -4834,6 +5015,8 @@ async function handlePlaybackData(data) {
     updateAnimatedAlbumArt(track, albumArtUrl);
   }
 
+  syncDynamicIslandState();
+
   widgetTimeDuration.textContent = formatTime(trackDuration);
 
   // 3. Check if song changed
@@ -6483,6 +6666,9 @@ function updatePlayhead() {
         }
 
 
+        // Update Dynamic Island lyric line
+        updateDynamicIslandLyric(activeIndex, lyrics[activeIndex], syncProgress);
+
         // Update taskbar lyric line in Taskbar Mode
         if (settings.taskbarMode && tbLyricLine) {
           if (isUnsynced) {
@@ -6635,6 +6821,7 @@ async function controlPlayback(action, _retried = false) {
       handleTaskbarPauseAutoHide(false);
       updateAutoHideState();
     }
+    syncDynamicIslandState();
   }
 
   // If in local mode, missing config, or no access token available, use local OS/Spotify controls directly

@@ -871,4 +871,89 @@ pub fn sync_taskbar_config(app: AppHandle, config: serde_json::Value) -> Result<
     Ok(())
 }
 
+static DYNAMIC_ISLAND_ACTIVE: AtomicBool = AtomicBool::new(false);
+static SAVED_ISLAND_MAIN_POS: OnceLock<Mutex<Option<(i32, i32)>>> = OnceLock::new();
+static SAVED_ISLAND_MAIN_SIZE: OnceLock<Mutex<Option<(u32, u32)>>> = OnceLock::new();
+static LAST_ISLAND_POS: OnceLock<Mutex<Option<(i32, i32)>>> = OnceLock::new();
+
+#[tauri::command]
+pub fn is_dynamic_island_mode() -> bool {
+    DYNAMIC_ISLAND_ACTIVE.load(Ordering::SeqCst)
+}
+
+#[tauri::command]
+pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool) -> Result<(), String> {
+    use tauri::Emitter;
+    let app = window.app_handle();
+
+    if enabled {
+        if DYNAMIC_ISLAND_ACTIVE.load(Ordering::SeqCst) {
+            return Ok(());
+        }
+
+        // Save current window position & size
+        if let Ok(pos) = window.outer_position() {
+            if let Ok(mut lock) = SAVED_ISLAND_MAIN_POS.get_or_init(|| Mutex::new(None)).lock() {
+                *lock = Some((pos.x, pos.y));
+            }
+        }
+        if let Ok(size) = window.inner_size() {
+            if let Ok(mut lock) = SAVED_ISLAND_MAIN_SIZE.get_or_init(|| Mutex::new(None)).lock() {
+                *lock = Some((size.width, size.height));
+            }
+        }
+
+        let scale = window.scale_factor().unwrap_or(1.0);
+        let island_w = (440.0 * scale) as u32;
+        let island_h = (60.0 * scale) as u32;
+
+        let (target_x, target_y) = if let Some(last_pos) = LAST_ISLAND_POS.get_or_init(|| Mutex::new(None)).lock().ok().and_then(|g| *g) {
+            last_pos
+        } else if let Ok(Some(monitor)) = window.current_monitor() {
+            let m_pos = monitor.position();
+            let m_size = monitor.size();
+            let x = m_pos.x + ((m_size.width as i32 - island_w as i32) / 2);
+            let y = m_pos.y + (20.0 * scale) as i32;
+            (x, y)
+        } else {
+            (200, 40)
+        };
+
+        let _ = window.set_size(tauri::PhysicalSize::new(island_w, island_h));
+        let _ = window.set_position(tauri::PhysicalPosition::new(target_x, target_y));
+        let _ = window.set_always_on_top(true);
+        DYNAMIC_ISLAND_ACTIVE.store(true, Ordering::SeqCst);
+    } else {
+        if !DYNAMIC_ISLAND_ACTIVE.load(Ordering::SeqCst) {
+            return Ok(());
+        }
+
+        // Save current island position so next time it opens where user left it
+        if let Ok(pos) = window.outer_position() {
+            if let Ok(mut lock) = LAST_ISLAND_POS.get_or_init(|| Mutex::new(None)).lock() {
+                *lock = Some((pos.x, pos.y));
+            }
+        }
+
+        let saved_pos = SAVED_ISLAND_MAIN_POS.get_or_init(|| Mutex::new(None)).lock().ok().and_then(|g| *g);
+        let saved_size = SAVED_ISLAND_MAIN_SIZE.get_or_init(|| Mutex::new(None)).lock().ok().and_then(|g| *g);
+
+        if let (Some((px, py)), Some((sw, sh))) = (saved_pos, saved_size) {
+            let _ = window.set_size(tauri::PhysicalSize::new(sw, sh));
+            let _ = window.set_position(tauri::PhysicalPosition::new(px, py));
+        } else {
+            let scale = window.scale_factor().unwrap_or(1.0);
+            let _ = window.set_size(tauri::PhysicalSize::new((780.0 * scale) as u32, (560.0 * scale) as u32));
+            let _ = window.center();
+        }
+
+        let _ = window.set_always_on_top(false);
+        DYNAMIC_ISLAND_ACTIVE.store(false, Ordering::SeqCst);
+    }
+
+    let _ = app.emit("dynamic-island-mode-changed", enabled);
+    Ok(())
+}
+
+
 
