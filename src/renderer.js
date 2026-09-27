@@ -299,7 +299,13 @@ function syncDynamicIslandState() {
 
   const halo = document.getElementById("island-art-halo");
   if (halo) {
-    halo.style.background = `radial-gradient(circle, rgba(var(--accent-primary-rgb, 29, 185, 84), 0.45) 0%, transparent 70%)`;
+    halo.style.background = `radial-gradient(circle, rgba(var(--accent-primary-rgb, 29, 185, 84), 0.5) 0%, transparent 70%)`;
+  }
+
+  const fill = document.getElementById("island-progress-fill");
+  if (fill && trackDuration > 0) {
+    const pct = Math.min(100, Math.max(0, (currentProgress / trackDuration) * 100));
+    fill.style.width = `${pct}%`;
   }
 }
 
@@ -307,12 +313,20 @@ function updateDynamicIslandLyric(activeIndex, lineData, syncProgress) {
   const islandLine = document.getElementById("island-lyric-line");
   if (!islandLine) return;
 
+  // Update micro progress bar
+  const fill = document.getElementById("island-progress-fill");
+  if (fill && trackDuration > 0) {
+    const pct = Math.min(100, Math.max(0, (syncProgress / trackDuration) * 100));
+    fill.style.width = `${pct}%`;
+  }
+
   if (!lineData) {
     if (currentTrack && currentTrack.name) {
-      islandLine.innerHTML = `<span class="island-idle-text">${escapeHTML(currentTrack.name)} • ${escapeHTML(currentTrack.artist || '')}</span>`;
+      islandLine.innerHTML = `<span class="island-idle-text"><span class="island-idle-title">${escapeHTML(currentTrack.name)}</span><span class="island-idle-dot">•</span><span class="island-idle-artist">${escapeHTML(currentTrack.artist || '')}</span></span>`;
     } else {
-      islandLine.innerHTML = `<span class="island-idle-text">LyricFlow</span>`;
+      islandLine.innerHTML = `<span class="island-idle-text"><span class="island-idle-title">LyricFlow</span></span>`;
     }
+    islandLine.style.transform = 'translateX(0px)';
     islandLine.dataset.lineIndex = '-1';
     return;
   }
@@ -329,9 +343,11 @@ function updateDynamicIslandLyric(activeIndex, lineData, syncProgress) {
       islandLine.textContent = lineData.text || '';
       islandLine._cachedWordSpans = null;
     }
+    islandLine.style.transform = 'translateX(0px)';
   }
 
   // If word spans exist, update word states!
+  let activeWordSpan = null;
   if (hasWords && islandLine._cachedWordSpans && islandLine._cachedWordSpans.length > 0) {
     const spans = islandLine._cachedWordSpans;
     const engine = window.LyricsService?.instance?.engine;
@@ -347,6 +363,7 @@ function updateDynamicIslandLyric(activeIndex, lineData, syncProgress) {
         span.classList.toggle('lyric-word-passed', st === 'completed');
         span.classList.toggle('lyric-word-active', st === 'active');
         span.classList.toggle('lyric-word-upcoming', st === 'upcoming');
+        if (st === 'active') activeWordSpan = span;
       });
     } else {
       let activeWordIdx = -1;
@@ -363,7 +380,30 @@ function updateDynamicIslandLyric(activeIndex, lineData, syncProgress) {
         span.classList.toggle('lyric-word-passed', wi < activeWordIdx);
         span.classList.toggle('lyric-word-active', wi === activeWordIdx);
         span.classList.toggle('lyric-word-upcoming', wi > activeWordIdx);
+        if (wi === activeWordIdx) activeWordSpan = span;
       });
+    }
+  }
+
+  // Smooth auto-panning so the active word or lyric progress is always visible
+  const islandZone = document.getElementById("island-lyric-zone") || islandLine.parentElement;
+  if (islandZone) {
+    const zoneWidth = islandZone.clientWidth || 220;
+    const contentWidth = islandLine.scrollWidth || zoneWidth;
+    if (contentWidth > zoneWidth) {
+      let targetOffset = 0;
+      if (activeWordSpan) {
+        const spanCenter = activeWordSpan.offsetLeft + activeWordSpan.offsetWidth / 2;
+        targetOffset = (zoneWidth / 2) - spanCenter;
+      } else if (lineData && lineData.duration && lineData.duration > 0) {
+        const ratio = Math.min(1, Math.max(0, (syncProgress - lineData.time) / lineData.duration));
+        targetOffset = -ratio * (contentWidth - zoneWidth);
+      }
+      const maxScroll = -(contentWidth - zoneWidth);
+      const clampedOffset = Math.min(0, Math.max(maxScroll, targetOffset));
+      islandLine.style.transform = `translateX(${clampedOffset}px)`;
+    } else {
+      islandLine.style.transform = 'translateX(0px)';
     }
   }
 }
@@ -2621,6 +2661,26 @@ function setupUIHandlers() {
     dynamicIslandEl.addEventListener("dblclick", (e) => {
       if (!e.target.closest('.island-btn')) {
         toggleDynamicIslandMode(false);
+      }
+    });
+  }
+
+  const islandProgressTrack = document.getElementById("island-progress-track");
+  if (islandProgressTrack) {
+    islandProgressTrack.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (!config || trackDuration <= 0) return;
+      const rect = islandProgressTrack.getBoundingClientRect();
+      const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      const seekMs = Math.round(ratio * trackDuration);
+      if (config.localMode) {
+        lastPollProgress = seekMs;
+        lastPollTimestamp = Date.now();
+      } else if (config.access_token) {
+        fetch('https://api.spotify.com/v1/me/player/seek?position_ms=' + seekMs, {
+          method: 'PUT',
+          headers: { 'Authorization': 'Bearer ' + config.access_token }
+        }).catch(err => console.error("Seek error:", err));
       }
     });
   }

@@ -903,39 +903,40 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
         }
 
         let scale = window.scale_factor().unwrap_or(1.0);
-        let island_w = (440.0 * scale) as u32;
-        let island_h = (56.0 * scale) as u32;
+        let island_w = (520.0 * scale) as u32;
+        let island_h = (90.0 * scale) as u32;
 
         let dock = dock_pos.as_deref().unwrap_or("top-center");
 
         let (target_x, target_y) = if let Ok(Some(monitor)) = window.current_monitor() {
             let m_pos = monitor.position();
             let m_size = monitor.size();
+            let pad_h = ((520.0 - 380.0) / 2.0 * scale) as i32;
             match dock {
                 "top-left" => {
-                    let x = m_pos.x + (16.0 * scale) as i32;
-                    let y = m_pos.y + (12.0 * scale) as i32;
+                    let x = m_pos.x + (16.0 * scale) as i32 - pad_h;
+                    let y = m_pos.y;
                     (x, y)
                 }
                 "top-right" => {
-                    let x = m_pos.x + m_size.width as i32 - island_w as i32 - (16.0 * scale) as i32;
-                    let y = m_pos.y + (12.0 * scale) as i32;
+                    let x = m_pos.x + m_size.width as i32 - island_w as i32 - (16.0 * scale) as i32 + pad_h;
+                    let y = m_pos.y;
                     (x, y)
                 }
                 "bottom-center" => {
                     let x = m_pos.x + ((m_size.width as i32 - island_w as i32) / 2);
-                    let y = m_pos.y + m_size.height as i32 - island_h as i32 - (60.0 * scale) as i32;
+                    let y = m_pos.y + m_size.height as i32 - island_h as i32 - (48.0 * scale) as i32;
                     (x, y)
                 }
                 _ => {
                     // Default: top-center (authentic iOS Dynamic Island)
                     let x = m_pos.x + ((m_size.width as i32 - island_w as i32) / 2);
-                    let y = m_pos.y + (12.0 * scale) as i32;
+                    let y = m_pos.y;
                     (x, y)
                 }
             }
         } else {
-            (200, 12)
+            (200, 0)
         };
 
         let _ = window.set_size(tauri::PhysicalSize::new(island_w, island_h));

@@ -97,24 +97,23 @@
       </header>
 
       <!-- Dynamic Island Mini Capsule View (Active when body has .mode-dynamic-island) -->
-      <div id="dynamic-island" class="dynamic-island">
-        <!-- Left: Spinning Vinyl Disc -->
-        <div class="island-vinyl-wrapper">
-          <div class="island-vinyl-disc" id="island-vinyl-disc">
+      <div id="dynamic-island" class="dynamic-island" title="Double click to restore full window">
+        <!-- Left: High-Res Squircle Album Art Tile (Authentic Apple Music) -->
+        <div class="island-art-wrapper">
+          <div class="island-art-tile" id="island-art-tile">
             <img id="island-art-img" class="island-art-img" src="" alt="Album Art" />
-            <div class="vinyl-center-hole"></div>
           </div>
           <div class="island-art-halo" id="island-art-halo"></div>
         </div>
 
-        <!-- Center: Live Karaoke Lyric Line -->
-        <div class="island-lyric-zone">
+        <!-- Center: Live Karaoke Lyric Line with Smooth Auto-Panning -->
+        <div class="island-lyric-zone" id="island-lyric-zone">
           <div id="island-lyric-line" class="island-lyric-line">
-            <span class="island-idle-text">LyricFlow</span>
+            <span class="island-idle-text"><span class="island-idle-title">LyricFlow</span></span>
           </div>
         </div>
 
-        <!-- Right: Audio Wave Visualizer & Hover Playback Actions -->
+        <!-- Right: iOS Equalizer Waveform & Hover Playback Actions -->
         <div class="island-actions">
           <div class="island-wave-visualizer" id="island-wave">
             <span class="wave-bar bar-1"></span>
@@ -127,8 +126,8 @@
               <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5" stroke="currentColor" stroke-width="3"/></svg>
             </button>
             <button id="island-btn-play" class="island-btn island-btn-play" title="Play/Pause (Space)">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" id="island-icon-play"><polygon points="6 3 20 12 6 21 6 3"/></svg>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" id="island-icon-pause" style="display: none;"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" id="island-icon-play"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" id="island-icon-pause" style="display: none;"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
             </button>
             <button id="island-btn-next" class="island-btn" title="Next Track (Ctrl+Right)">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19" stroke="currentColor" stroke-width="3"/></svg>
@@ -137,6 +136,11 @@
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/><polyline points="9 21 3 21 3 15"/><line x1="14" y1="10" x2="3" y2="21"/></svg>
             </button>
           </div>
+        </div>
+
+        <!-- Bottom: iOS Now Playing Micro Progress Bar -->
+        <div class="island-progress-track" id="island-progress-track">
+          <div class="island-progress-fill" id="island-progress-fill"></div>
         </div>
       </div>
 
