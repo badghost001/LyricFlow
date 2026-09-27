@@ -6197,6 +6197,14 @@ function scrollLyrics(index) {
   if (index === activeLineIndex) return;
   if (cachedLineEls.length === 0) return;
 
+  // Clear nearby-1 from previous adjacent lines
+  if (window._lastNearbyLines) {
+    window._lastNearbyLines.forEach(el => {
+      if (el) el.classList.remove("nearby-1");
+    });
+    window._lastNearbyLines = null;
+  }
+
   // Update classes
   if (activeLineIndex >= 0 && cachedLineEls[activeLineIndex]) {
     cachedLineEls[activeLineIndex].classList.remove("active");
@@ -6207,6 +6215,18 @@ function scrollLyrics(index) {
   if (activeLineIndex >= 0 && cachedLineEls[activeLineIndex]) {
     const activeEl = cachedLineEls[activeLineIndex];
     activeEl.classList.add("active");
+
+    // Apply Apple Music cinematic optical blur to adjacent lines (±1)
+    const newNearby = [];
+    if (activeLineIndex > 0 && cachedLineEls[activeLineIndex - 1]) {
+      cachedLineEls[activeLineIndex - 1].classList.add("nearby-1");
+      newNearby.push(cachedLineEls[activeLineIndex - 1]);
+    }
+    if (activeLineIndex + 1 < cachedLineEls.length && cachedLineEls[activeLineIndex + 1]) {
+      cachedLineEls[activeLineIndex + 1].classList.add("nearby-1");
+      newNearby.push(cachedLineEls[activeLineIndex + 1]);
+    }
+    window._lastNearbyLines = newNearby;
 
     // Real-Time Genius Live Meaning sync (only if preview pill is enabled)
     if (settings.showAnnotations !== false && settings.showAnnotationPreview === true && !settings.taskbarMode && !settings.wallpaperMode) {
