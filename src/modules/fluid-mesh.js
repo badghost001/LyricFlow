@@ -21,7 +21,7 @@ class FluidMeshGradient {
       [29 / 255, 185 / 255, 84 / 255],   // c1: Vibrant Emerald
       [14 / 255, 165 / 255, 233 / 255],  // c2: Electric Cyan
       [139 / 255, 92 / 255, 246 / 255],  // c3: Neon Violet
-      [244 / 255, 63 / 94 / 255]         // c4: Rose Accent
+      [244 / 255, 63 / 255, 94 / 255]    // c4: Rose Accent
     ];
 
     // Current interpolated colors (for smooth cross-fade between tracks)
@@ -71,6 +71,23 @@ class FluidMeshGradient {
 
     this.handleResize();
     window.addEventListener('resize', () => this.handleResize(), { passive: true });
+
+    // Automatically pause WebGL rendering when window is hidden/minimized to save GPU and battery
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') {
+          if (this.running) {
+            this._wasRunningBeforeHide = true;
+            this.stop();
+          }
+        } else if (document.visibilityState === 'visible') {
+          if (this._wasRunningBeforeHide) {
+            this._wasRunningBeforeHide = false;
+            this.start();
+          }
+        }
+      });
+    }
 
     // Subtle interactive mouse influence
     window.addEventListener('pointermove', (e) => {
@@ -184,21 +201,31 @@ class FluidMeshGradient {
 
         float totalW = w1 + w2 + w3 + w4 + 0.001;
 
-        // Non-muddy perceptual color blending
-        vec3 fluidCol = (u_c1 * w1 + u_c2 * w2 + u_c3 * w3 + u_c4 * w4) / totalW;
+        // Perceptual gamma-corrected linear color blending prevents muddy grey fringes
+        vec3 c1_lin = pow(u_c1, vec3(2.2));
+        vec3 c2_lin = pow(u_c2, vec3(2.2));
+        vec3 c3_lin = pow(u_c3, vec3(2.2));
+        vec3 c4_lin = pow(u_c4, vec3(2.2));
+        vec3 c0_lin = pow(u_c0, vec3(2.2));
+
+        vec3 fluidCol_lin = (c1_lin * w1 + c2_lin * w2 + c3_lin * w3 + c4_lin * w4) / totalW;
 
         // Blend liquid lights over the deep velvety base color
-        float coverage = clamp(totalW * 0.62, 0.0, 1.0);
-        vec3 col = mix(u_c0, fluidCol, smoothstep(0.04, 0.96, coverage));
+        float coverage = clamp(totalW * 0.72, 0.0, 1.0);
+        vec3 col_lin = mix(c0_lin, fluidCol_lin, smoothstep(0.02, 0.98, coverage));
 
         // Luminous crest highlight (ethereal glow at high-energy intersections)
-        float crest = smoothstep(0.70, 1.0, w3 * w1) * 0.20;
-        col += u_c3 * crest;
+        // Uses the localized linear fluid color and authentic crest tone, eliminating foreign color pollution
+        float crest = smoothstep(0.65, 1.0, w3 * w1) * 0.25;
+        col_lin += (fluidCol_lin + c4_lin * 0.5) * crest;
 
-        // Soft peripheral vignette for center lyric clarity & depth
+        // Convert back to perceptual sRGB space
+        vec3 col = pow(max(vec3(0.0), col_lin), vec3(1.0 / 2.2));
+
+        // Soft peripheral vignette for center lyric clarity & depth - gentle falloff towards base, never pure black
         float dist = length(st - 0.5);
-        float vig = smoothstep(1.2, 0.28, dist);
-        col = mix(u_c0 * 0.70, col, vig);
+        float vig = smoothstep(1.35, 0.25, dist);
+        col = mix(u_c0 * 0.85, col, vig);
 
         // Ultra-fine micro-dither (anti-banding only, zero visible grain)
         float dither = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);

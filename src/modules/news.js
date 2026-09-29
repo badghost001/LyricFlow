@@ -1,54 +1,91 @@
 /**
- * LyricFlow - Music News Module
+ * LyricFlow - Music News Module (v2)
+ * Improved: caching, skeleton loaders, relative timestamps, smarter queries, refresh button
  */
 
 let activeNewsFilter = "";
+let _newsCache = {}; // key: filter+query -> { html, timestamp }
+const NEWS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+let _lastFetchTime = null;
 
-async function fetchMusicNews() {
+function timeAgo(dateStr) {
+  if (!dateStr) return "";
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return days === 1 ? "yesterday" : `${days}d ago`;
+}
+
+function showNewsSkeleton(newsBody, count = 5) {
+  newsBody.innerHTML = Array.from({ length: count }, () => `
+    <div class="news-skeleton">
+      <div class="news-skeleton-meta"></div>
+      <div class="news-skeleton-title"></div>
+      <div class="news-skeleton-title short"></div>
+    </div>
+  `).join("");
+}
+
+async function fetchMusicNews(bypassCache = false) {
   const newsBody = document.getElementById("news-body");
   const inputNewsFilter = document.getElementById("input-news-filter");
+  const updatedLabel = document.getElementById("news-last-updated");
   if (!newsBody) return;
 
-  try {
-    const queryText = (inputNewsFilter && inputNewsFilter.value) ? inputNewsFilter.value.trim() : "";
-    let q = "";
+  const queryText = (inputNewsFilter && inputNewsFilter.value) ? inputNewsFilter.value.trim() : "";
+  let q = "";
 
-    // Construct boolean query
-    if (queryText !== "") {
-      const topic = activeNewsFilter ? `OR ${activeNewsFilter}` : `OR "new music" OR announces`;
-      q = `"${queryText}" (album OR release OR tour OR drops ${topic}) when:30d`;
-    } else {
-      let topic = `("new album" OR "tour announcement" OR "drops new" OR "album release" OR "new music")`;
-      if (activeNewsFilter) {
-        if (activeNewsFilter.includes("drama")) {
-          topic = `(controversy OR drama OR feud OR statement)`;
-        } else if (activeNewsFilter.includes("interview")) {
-          topic = `(interview OR podcast OR "speaks out")`;
-        } else if (activeNewsFilter.includes("billboard")) {
-          topic = `("billboard hot 100" OR "charts" OR "debuts at number")`;
-        } else if (activeNewsFilter.includes("album")) {
-          topic = `("new album" OR "drops new" OR "album release")`;
-        } else if (activeNewsFilter.includes("tour")) {
-          topic = `("tour announcement" OR "world tour" OR dates)`;
-        }
+  if (queryText !== "") {
+    const topic = activeNewsFilter ? `OR ${activeNewsFilter}` : `OR "new music" OR announces`;
+    q = `"${queryText}" (album OR release OR tour OR drops ${topic}) when:14d`;
+  } else {
+    let topic = `("new album" OR "tour announcement" OR "drops new" OR "album release" OR "new music" OR "music video")` ;
+    if (activeNewsFilter) {
+      if (activeNewsFilter.includes("drama")) {
+        topic = `(controversy OR drama OR feud OR statement OR "speaks out")`;
+      } else if (activeNewsFilter.includes("interview")) {
+        topic = `(interview OR podcast OR "sits down with" OR "talks about")`;
+      } else if (activeNewsFilter.includes("billboard")) {
+        topic = `("billboard hot 100" OR "charts" OR "debuts at number" OR "certified platinum")`;
+      } else if (activeNewsFilter.includes("album")) {
+        topic = `("new album" OR "drops new" OR "album release" OR "deluxe edition")`;
+      } else if (activeNewsFilter.includes("tour")) {
+        topic = `("tour announcement" OR "world tour" OR "concert dates" OR dates)`;
       }
-      q = `("Billboard" OR "Rolling Stone") ${topic} when:7d`;
     }
+    q = `("Billboard" OR "Rolling Stone" OR "Pitchfork" OR "NME" OR "Variety" OR "Complex") music ${topic} when:3d`;
+  }
 
+  const cacheKey = `${activeNewsFilter}||${queryText}`;
+  const cached = _newsCache[cacheKey];
+  if (!bypassCache && cached && (Date.now() - cached.timestamp) < NEWS_CACHE_TTL) {
+    newsBody.innerHTML = cached.html;
+    if (updatedLabel) {
+      const mins = Math.round((Date.now() - cached.timestamp) / 60000);
+      updatedLabel.textContent = mins < 1 ? "Updated just now" : `Updated ${mins}m ago`;
+    }
+    return;
+  }
+
+  showNewsSkeleton(newsBody);
+
+  try {
     const text = await window.electronAPI.fetchMusicNews(q);
     const parser = new DOMParser();
     const xml = parser.parseFromString(text, "text/xml");
 
     let items = Array.from(xml.querySelectorAll("item"));
 
-    // Sort items by date descending (latest first)
     items.sort((a, b) => {
       const dateA = new Date(a.querySelector("pubDate")?.textContent || 0).getTime();
       const dateB = new Date(b.querySelector("pubDate")?.textContent || 0).getTime();
       return dateB - dateA;
     });
 
-    // Deduplicate repeated news based on title similarity
     const uniqueItems = [];
     for (const item of items) {
       const rawTitle = item.querySelector("title")?.textContent || "Untitled";
@@ -59,11 +96,9 @@ async function fetchMusicNews() {
         displayTitle = rawTitle.substring(0, rawTitle.lastIndexOf(` - ${source}`));
       }
 
-      // Normalize and extract significant words
       const normalized = displayTitle.toLowerCase().replace(/[^a-z0-9\s]/g, "");
       const words = new Set(normalized.split(/\s+/).filter(w => w.length > 2));
 
-      // Check overlap with already added items
       let isDuplicate = false;
       for (const added of uniqueItems) {
         let overlap = 0;
@@ -71,7 +106,6 @@ async function fetchMusicNews() {
           if (added.words.has(w)) overlap++;
         }
         const minWords = Math.min(words.size, added.words.size);
-        // If more than 65% of the shorter title's words match, it's a duplicate
         if (minWords > 0 && (overlap / minWords) > 0.65) {
           isDuplicate = true;
           break;
@@ -83,40 +117,43 @@ async function fetchMusicNews() {
       }
     }
 
-    // Take top 50 unique
     const finalItems = uniqueItems.slice(0, 50);
 
     if (finalItems.length === 0) {
-      newsBody.innerHTML = `<div style="text-align: center; color: rgba(255,255,255,0.5); font-size: 13px; margin-top: 20px;">No news found.</div>`;
+      newsBody.innerHTML = `<div class="news-empty">No headlines found. Try a different filter or artist name.</div>`;
       return;
     }
 
-    newsBody.innerHTML = finalItems.map(obj => {
+    const html = finalItems.map(obj => {
       const { item, displayTitle, source } = obj;
       const rawLink = item.querySelector("link")?.textContent || "#";
       const pubDate = item.querySelector("pubDate")?.textContent || "";
-      const dateStr = pubDate ? new Date(pubDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : "";
-
-      // Sanitize external RSS data to prevent XSS
+      const relativeTime = timeAgo(pubDate);
       const safeTitle = escapeHTML(displayTitle);
       const safeSource = escapeHTML(source);
-      const safeDate = escapeHTML(dateStr);
+      const safeTime = escapeHTML(relativeTime);
       const safeLink = rawLink.startsWith('http') ? encodeURI(rawLink) : '#';
 
       return `
-        <a href="${safeLink}" target="_blank" style="display: block; padding: 12px; background: rgba(255,255,255,0.05); border-radius: 8px; text-decoration: none; border: 1px solid rgba(255,255,255,0.05); transition: background 0.2s; cursor: pointer;">
-          <div style="font-size: 13px; color: rgba(255,255,255,0.95); font-weight: 500; line-height: 1.4;">${safeTitle}</div>
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
-            <div style="font-size: 10px; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;">${safeSource}</div>
-            <div style="font-size: 10px; color: rgba(255,255,255,0.4);">${safeDate}</div>
+        <a class="news-card" href="${safeLink}" target="_blank">
+          <div class="news-card-meta">
+            <span class="news-source-badge">${safeSource}</span>
+            <span class="news-timestamp">${safeTime}</span>
           </div>
+          <div class="news-card-title">${safeTitle}</div>
         </a>
       `;
     }).join("");
 
+    newsBody.innerHTML = html;
+    _newsCache[cacheKey] = { html, timestamp: Date.now() };
+    _lastFetchTime = Date.now();
+
+    if (updatedLabel) updatedLabel.textContent = "Updated just now";
+
   } catch (err) {
     console.error("News Fetch Error:", err);
-    newsBody.innerHTML = `<div style="text-align: center; color: #f87171; font-size: 13px; margin-top: 20px;">Failed to load headlines: ${escapeHTML(err.message)}</div>`;
+    newsBody.innerHTML = `<div class="news-empty error">Failed to load headlines: ${escapeHTML(err.message)}</div>`;
   }
 }
 

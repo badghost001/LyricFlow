@@ -52,9 +52,9 @@ body.window-blurred .fluid-mesh-canvas {
   overflow: hidden;
   pointer-events: none;
   background:
-    radial-gradient(ellipse at 20% 50%, rgba(var(--accent-primary-rgb, 29, 185, 84), 0.04) 0%, transparent 60%),
-    radial-gradient(ellipse at 80% 50%, rgba(var(--accent-bright-rgb, 30, 215, 96), 0.03) 0%, transparent 60%),
-    rgba(10, 10, 15, 0.4);
+    radial-gradient(ellipse at 20% 50%, rgba(var(--art-color-1-rgb, 40, 40, 50), 0.12) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 50%, rgba(var(--art-color-2-rgb, 20, 20, 30), 0.08) 0%, transparent 60%),
+    rgba(var(--art-color-base-rgb, 10, 10, 15), 0.45);
   transition: background 0.8s cubic-bezier(0.16, 1, 0.3, 1);
   contain: strict;
 }
@@ -86,9 +86,9 @@ body.app-paused .glow-orb {
 body:not(.is-playing) .ambient-glow,
 body.app-paused .ambient-glow {
   background:
-    radial-gradient(ellipse at 25% 45%, rgba(var(--accent-primary-rgb, 29, 185, 84), 0.08) 0%, transparent 65%),
-    radial-gradient(ellipse at 75% 55%, rgba(var(--accent-bright-rgb, 30, 215, 96), 0.05) 0%, transparent 65%),
-    rgba(10, 10, 18, 0.65);
+    radial-gradient(ellipse at 25% 45%, rgba(var(--art-color-1-rgb, 40, 40, 50), 0.14) 0%, transparent 65%),
+    radial-gradient(ellipse at 75% 55%, rgba(var(--art-color-2-rgb, 20, 20, 30), 0.09) 0%, transparent 65%),
+    rgba(var(--art-color-base-rgb, 10, 10, 18), 0.65);
   animation: ambientBreathe 14s infinite ease-in-out;
 }
 
@@ -108,7 +108,7 @@ body.window-blurred .glow-orb {
   height: 50vw;
   top: -10%;
   left: -10%;
-  background: radial-gradient(circle at center, var(--art-color-1) 0%, rgba(var(--art-color-1-rgb, 29, 185, 84), 0.35) 40%, transparent 70%);
+  background: radial-gradient(circle at center, var(--art-color-1) 0%, rgba(var(--art-color-1-rgb, 40, 40, 50), 0.35) 40%, transparent 70%);
   animation: floatOrb1 25s infinite alternate ease-in-out;
 }
 

@@ -1,4 +1,7 @@
-/* Music News Side Panel */
+/* ====================================================
+   Music News Side Panel — v2
+   ==================================================== */
+
 #news-panel {
   position: absolute;
   top: 0;
@@ -32,13 +35,90 @@
   pointer-events: none !important;
 }
 
+/* Header */
+.news-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 30px 40px 16px;
+  max-width: 800px;
+  width: 100%;
+  margin: 0 auto;
+  gap: 10px;
+}
+
+.news-panel-header h3 {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  background: linear-gradient(135deg, #ffffff 30%, var(--accent-soft) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  flex: 1;
+}
+
+.news-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.news-updated-label {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.35);
+  white-space: nowrap;
+  font-style: italic;
+}
+
+[data-theme="light"] .news-updated-label {
+  color: rgba(0, 0, 0, 0.35);
+}
+
+/* Filter input */
+.news-filter-input {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-primary, #fff);
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.2s;
+}
+
+.news-filter-input:focus {
+  border-color: rgba(var(--accent-primary-rgb, 29, 185, 84), 0.4);
+}
+
+[data-theme="light"] .news-filter-input {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.1);
+  color: #1d1d1f;
+}
+
+/* Filter pills */
+#news-filter-pills {
+  padding: 8px 40px 0;
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  max-width: 800px;
+  width: 100%;
+  margin: 0 auto;
+}
+
 #news-filter-pills::-webkit-scrollbar {
   display: none;
 }
 
 .news-pill {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.06);
   color: var(--text-secondary, rgba(255, 255, 255, 0.7));
   border-radius: 16px;
   padding: 4px 12px;
@@ -56,7 +136,7 @@
 }
 
 .news-pill:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.14);
   color: #ffffff;
 }
 
@@ -66,9 +146,156 @@
 }
 
 .news-pill.active {
-  background: var(--accent-primary, #1DB954);
-  color: #ffffff;
+  background: rgba(var(--accent-primary-rgb, 29, 185, 84), 0.18);
+  color: var(--accent-primary, #1DB954);
   font-weight: 600;
-  border-color: var(--accent-primary, #1DB954);
-  box-shadow: 0 2px 10px rgba(var(--accent-primary-rgb), 0.3);
+  border-color: rgba(var(--accent-primary-rgb, 29, 185, 84), 0.35);
+  box-shadow: 0 2px 10px rgba(var(--accent-primary-rgb, 29, 185, 84), 0.2);
+}
+
+/* Refresh button */
+#btn-news-refresh {
+  opacity: 0.65;
+  transition: opacity 0.2s, transform 0.3s;
+}
+
+#btn-news-refresh:hover {
+  opacity: 1;
+}
+
+#btn-news-refresh.spinning svg {
+  animation: news-spin 0.7s linear infinite;
+}
+
+@keyframes news-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ====================================================
+   News Cards
+   ==================================================== */
+
+.news-card {
+  display: block;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
+}
+
+.news-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="light"] .news-card {
+  background: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .news-card:hover {
+  background: rgba(0, 0, 0, 0.06);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
+.news-card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 7px;
+}
+
+.news-source-badge {
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent-primary, #1DB954);
+  background: rgba(var(--accent-primary-rgb, 29, 185, 84), 0.1);
+  border: 1px solid rgba(var(--accent-primary-rgb, 29, 185, 84), 0.2);
+  padding: 2px 7px;
+  border-radius: 10px;
+}
+
+.news-timestamp {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.35);
+  font-style: italic;
+}
+
+[data-theme="light"] .news-timestamp {
+  color: rgba(0, 0, 0, 0.35);
+}
+
+.news-card-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.92);
+  line-height: 1.45;
+}
+
+[data-theme="light"] .news-card-title {
+  color: rgba(0, 0, 0, 0.85);
+}
+
+/* Empty / Error State */
+.news-empty {
+  text-align: center;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 13px;
+  margin-top: 30px;
+  line-height: 1.5;
+  padding: 0 20px;
+}
+
+.news-empty.error {
+  color: #f87171;
+}
+
+[data-theme="light"] .news-empty {
+  color: rgba(0, 0, 0, 0.4);
+}
+
+/* ====================================================
+   Skeleton Loaders
+   ==================================================== */
+
+.news-skeleton {
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  animation: skeleton-pulse 1.4s ease infinite;
+}
+
+.news-skeleton-meta {
+  height: 14px;
+  width: 30%;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+}
+
+.news-skeleton-title {
+  height: 14px;
+  width: 90%;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+}
+
+.news-skeleton-title.short {
+  width: 65%;
+}
+
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
 }

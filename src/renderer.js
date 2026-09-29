@@ -5,12 +5,26 @@ function escapeHTML(str) {
   return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
 }
 
+function decodeHtmlEntities(str) {
+  if (!str || typeof str !== 'string' || !str.includes('&')) return str || '';
+  return str
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&#039;/g, "'")
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(code));
+}
+
 // DOM Elements
 let screenLogin, screenLyrics, screenOnboarding, formAuth, btnSubmitAuth, authStatus, btnLocalMode;
 let clientIDInput;
 let lyricsViewport, lyricsContainer;
 let widgetAlbumArt, widgetArtFallback, widgetTrackName, widgetArtistName, widgetPlaycount, widgetProgressFill, widgetTimeCurrent, widgetTimeDuration;
-let btnClickThrough, checkAlwaysOnTop, btnMinimize, btnSettings, btnClose, btnSettingsClose, settingsPanel, btnLogout;
+let checkAlwaysOnTop, btnMinimize, btnSettings, btnClose, btnSettingsClose, settingsPanel, btnLogout;
+
 let btnSpotifyConnect, spotifySetupDiv, spotifyConnectedDiv, spotifyAccountStatus;
 let btnNews, btnNewsClose, newsPanel, newsBody, inputNewsFilter;
 let selectFontSize, valFontSize, selectAlign, sliderBgOpacity, valBgOpacity, sliderGlow, valGlow, selectTheme;
@@ -99,7 +113,8 @@ let settings = {
   syncOffsetMs: 0,
   trackOffsets: {},
   lastfmScrobble: false,
-  skipLang: 'en',
+  translateLang: 'en',
+  skipLang: 'none',
   autoHideLyrics: false,
   autoHideTrigger: 'paused',
   autoHideAction: 'collapse',
@@ -107,7 +122,10 @@ let settings = {
   preferredLyricProvider: 'auto',
   preferredLyricProviders: [],
   dynamicIslandMode: false,
-  dynamicIslandPosition: 'top-center'
+  dynamicIslandPosition: 'top-center',
+  islandVisualizerBars: 4,
+  islandTranslationMode: 'bilingual',
+  islandInactivityTimeout: 30000
 };
 
 // Playback State
@@ -274,10 +292,230 @@ function endTaskbarDrag() {
   // The main process will send 'taskbar-drag-ended' with final offset & moved state
 }
 
-// ==========================================
-// DYNAMIC ISLAND MINI CAPSULE CONTROLLER
-// ==========================================
 let isDynamicIslandMode = false;
+let lastSpectrumBars = null;
+let islandBoundsAnimFrame = null;
+
+let lastPushedBounds = { x: -1, y: -1, width: -1, height: -1 };
+
+function pushDynamicIslandBounds() {
+  if (!isDynamicIslandMode) return;
+  const pri = document.getElementById("dynamic-island");
+  if (!pri || !window.electronAPI || typeof window.electronAPI.updateIslandBounds !== 'function') return;
+
+  const r1 = pri.getBoundingClientRect();
+  let unionLeft = r1.left;
+  let unionTop = r1.top;
+  let unionRight = r1.right;
+  let unionBottom = r1.bottom;
+
+  // Include satellite translation island if visible
+  const sat = document.getElementById("dynamic-island-translation");
+  if (sat && sat.offsetWidth > 0 && sat.offsetHeight > 0) {
+    const r2 = sat.getBoundingClientRect();
+    if (r2.width > 0 && r2.height > 0) {
+      unionLeft = Math.min(unionLeft, r2.left);
+      unionTop = Math.min(unionTop, r2.top);
+      unionRight = Math.max(unionRight, r2.right);
+      unionBottom = Math.max(unionBottom, r2.bottom);
+    }
+  }
+
+  // Include in-app discovery prompt modal if open
+  const promptModal = document.getElementById("island-prompt-modal");
+  if (promptModal && promptModal.style.display !== 'none') {
+    const r3 = promptModal.getBoundingClientRect();
+    if (r3.width > 0 && r3.height > 0) {
+      unionLeft = Math.min(unionLeft, r3.left);
+      unionTop = Math.min(unionTop, r3.top);
+      unionRight = Math.max(unionRight, r3.right);
+      unionBottom = Math.max(unionBottom, r3.bottom);
+    }
+  }
+
+  const newBounds = {
+    x: Math.round(unionLeft),
+    y: Math.round(unionTop),
+    width: Math.round(unionRight - unionLeft),
+    height: Math.round(unionBottom - unionTop)
+  };
+
+  // Skip IPC if bounds haven't changed
+  if (
+    lastPushedBounds.x === newBounds.x &&
+    lastPushedBounds.y === newBounds.y &&
+    lastPushedBounds.width === newBounds.width &&
+    lastPushedBounds.height === newBounds.height
+  ) {
+    return;
+  }
+
+  lastPushedBounds = newBounds;
+  window.electronAPI.updateIslandBounds(newBounds);
+}
+
+function startDynamicIslandBoundsTracking(durationMs = 450) {
+  if (islandBoundsAnimFrame) {
+    cancelAnimationFrame(islandBoundsAnimFrame);
+    islandBoundsAnimFrame = null;
+  }
+  const startTime = performance.now();
+  function track(now) {
+    pushDynamicIslandBounds();
+    if (now - startTime < durationMs && isDynamicIslandMode) {
+      islandBoundsAnimFrame = requestAnimationFrame(track);
+    } else {
+      pushDynamicIslandBounds();
+      islandBoundsAnimFrame = null;
+    }
+  }
+  islandBoundsAnimFrame = requestAnimationFrame(track);
+}
+
+function setVisualizerBarCount(count) {
+  const c = parseInt(count, 10) || 4;
+  settings.islandVisualizerBars = c;
+  const islandWave = document.getElementById("island-wave");
+  if (islandWave) {
+    islandWave.innerHTML = Array.from({ length: c }, (_, i) => `<span class="wave-bar bar-${i + 1}"></span>`).join("");
+    lastSpectrumBars = islandWave.querySelectorAll(".wave-bar");
+    if (typeof checkVisualizerFallback === 'function') {
+      checkVisualizerFallback();
+    }
+  }
+  const widthMap = { 4: '340px', 6: '355px', 8: '370px' };
+  const compactWidth = widthMap[c] || '340px';
+  document.documentElement.style.setProperty('--island-compact-width', compactWidth);
+  setTimeout(pushDynamicIslandBounds, 50);
+}
+
+function applyDynamicIslandDockClass(dockPos) {
+  const pos = dockPos || settings.dynamicIslandPosition || 'top-center';
+  const allPositions = ['top-center', 'top-left', 'top-right', 'bottom-center'];
+  allPositions.forEach(p => {
+    document.body.classList.remove(`island-dock-${p}`);
+  });
+  if (isDynamicIslandMode) {
+    document.body.classList.add(`island-dock-${pos}`);
+    setTimeout(pushDynamicIslandBounds, 50);
+  }
+}
+
+let lastAudioEnergyTimestamp = 0;
+
+function checkVisualizerFallback() {
+  const islandWave = document.getElementById("island-wave");
+  if (!islandWave) return;
+  const isAudioActive = Boolean(isPlaying) || document.body.classList.contains("is-playing");
+
+  if (!isAudioActive) {
+    if (islandWave.classList.contains("is-fallback")) {
+      islandWave.classList.remove("is-fallback");
+    }
+    const bars = lastSpectrumBars || islandWave.querySelectorAll(".wave-bar");
+    bars.forEach(bar => {
+      bar.style.transform = 'scaleY(0.16)';
+    });
+    return;
+  }
+
+  // Audio is actively playing; check if real loopback spectrum was received in the last 350ms
+  const msSinceEnergy = Date.now() - lastAudioEnergyTimestamp;
+  if (msSinceEnergy > 350) {
+    if (!islandWave.classList.contains("is-fallback")) {
+      islandWave.classList.add("is-fallback");
+      const bars = lastSpectrumBars || islandWave.querySelectorAll(".wave-bar");
+      bars.forEach(bar => {
+        bar.style.transform = '';
+      });
+    }
+  }
+}
+
+// Low-overhead watchdog ensuring the visualizer never stays dead/frozen during playback
+setInterval(checkVisualizerFallback, 250);
+
+// Audio-Reactive Spectrum Equalizer Listener
+if (window.electronAPI && typeof window.electronAPI.onAudioSpectrum === 'function') {
+  window.electronAPI.onAudioSpectrum((bands) => {
+    if (!Array.isArray(bands) || bands.length === 0) return;
+    const islandWave = document.getElementById("island-wave");
+    if (!islandWave) return;
+
+    if (!lastSpectrumBars || lastSpectrumBars.length !== (settings.islandVisualizerBars || 4)) {
+      lastSpectrumBars = islandWave.querySelectorAll(".wave-bar");
+    }
+    const bars = lastSpectrumBars;
+    if (!bars || bars.length === 0) return;
+
+    const isAudioActive = Boolean(isPlaying) || document.body.classList.contains("is-playing");
+    if (!isAudioActive) {
+      if (islandWave.classList.contains("is-fallback")) {
+        islandWave.classList.remove("is-fallback");
+      }
+      bars.forEach(bar => {
+        bar.style.transform = 'scaleY(0.16)';
+      });
+      return;
+    }
+
+    // Check if bands contain real non-zero audio energy (> 0.015)
+    const hasEnergy = bands.some(b => typeof b === 'number' && b > 0.015);
+    if (!hasEnergy) {
+      checkVisualizerFallback();
+      return;
+    }
+
+    lastAudioEnergyTimestamp = Date.now();
+    if (islandWave.classList.contains("is-fallback")) {
+      islandWave.classList.remove("is-fallback");
+    }
+
+    const barCount = bars.length;
+    let values = [];
+    if (barCount === 4) {
+      values = [
+        Math.max(bands[0] || 0, bands[1] || 0),
+        Math.max(bands[2] || 0, bands[3] || 0),
+        Math.max(bands[4] || 0, bands[5] || 0),
+        Math.max(bands[6] || 0, bands[7] || 0)
+      ];
+    } else if (barCount === 6) {
+      values = [
+        bands[0] || 0,
+        bands[1] || 0,
+        ((bands[2] || 0) + (bands[3] || 0)) * 0.5,
+        bands[4] || 0,
+        bands[5] || 0,
+        Math.max(bands[6] || 0, bands[7] || 0)
+      ];
+    } else {
+      values = bands.slice(0, barCount);
+    }
+
+    for (let i = 0; i < bars.length; i++) {
+      const raw = values[i] != null ? values[i] : 0;
+      const clamped = Math.min(1.0, Math.max(0.16, 0.16 + raw * 0.84));
+      bars[i].style.transform = `scaleY(${clamped.toFixed(2)})`;
+    }
+  });
+}
+
+function updateMarqueeOverflow(container, textElement, speedPxPerSec = 28) {
+  if (!container || !textElement) return;
+  textElement.classList.remove('is-overflowing');
+  const diff = textElement.scrollWidth - container.clientWidth;
+  if (diff > 4) {
+    const dur = Math.max(4.0, (diff / speedPxPerSec) + 3.0);
+    textElement.style.setProperty('--marquee-dist', `-${diff + 8}px`);
+    textElement.style.setProperty('--marquee-dur', `${dur.toFixed(1)}s`);
+    void textElement.offsetWidth; // Force reflow so marquee animation resets cleanly
+    textElement.classList.add('is-overflowing');
+  } else {
+    textElement.style.removeProperty('--marquee-dist');
+    textElement.style.removeProperty('--marquee-dur');
+  }
+}
 
 function syncDynamicIslandState() {
   const isPlayingActive = Boolean(isPlaying);
@@ -312,122 +550,703 @@ function syncDynamicIslandState() {
 
   if (islandTitle) {
     islandTitle.textContent = trackTitle;
+    updateMarqueeOverflow(document.getElementById("island-title-wrapper"), islandTitle);
   }
   if (islandArtist) {
     islandArtist.textContent = trackArtist;
+    updateMarqueeOverflow(document.getElementById("island-artist-wrapper"), islandArtist);
   }
 
   const fill = document.getElementById("island-progress-fill");
-  if (fill && trackDuration > 0) {
-    const pct = Math.min(100, Math.max(0, (currentProgress / trackDuration) * 100));
-    fill.style.width = `${pct}%`;
+  const thumb = document.getElementById("island-progress-thumb");
+  const timeCurrent = document.getElementById("island-time-current");
+  const timeRemaining = document.getElementById("island-time-remaining");
+  if (trackDuration > 0) {
+    const curMs = Math.max(0, Math.min(trackDuration, currentProgress || 0));
+    const pct = Math.min(100, Math.max(0, (curMs / trackDuration) * 100));
+    if (fill) fill.style.width = `${pct}%`;
+    if (thumb) thumb.style.left = `${pct}%`;
+    if (timeCurrent && typeof formatTime === 'function') {
+      timeCurrent.textContent = formatTime(curMs);
+    }
+    if (timeRemaining && typeof formatTime === 'function') {
+      timeRemaining.textContent = '-' + formatTime(Math.max(0, trackDuration - curMs));
+    }
+  }
+
+  const btnTrans = document.getElementById("island-btn-translate");
+  if (btnTrans) {
+    const isTransActive = (settings.islandTranslationMode || 'bilingual') !== 'none';
+    btnTrans.classList.toggle('active', isTransActive);
+  }
+
+  if (typeof checkVisualizerFallback === 'function') {
+    checkVisualizerFallback();
   }
 }
 
-function updateDynamicIslandLyric(activeIndex, lineData, syncProgress) {
-  const islandLine = document.getElementById("island-lyric-line");
-  const islandExpLyric = document.getElementById("island-expanded-lyric");
-  if (!islandLine) return;
+let currentIslandOffset = 0;
+let lastIslandActiveWordSpan = null;
 
-  // Update micro progress bar
-  const fill = document.getElementById("island-progress-fill");
-  if (fill && trackDuration > 0) {
-    const pct = Math.min(100, Math.max(0, (syncProgress / trackDuration) * 100));
-    fill.style.width = `${pct}%`;
+function getDynamicIslandSyncData(syncProgress) {
+  if (!lyrics || lyrics.length === 0) {
+    return { lineIndex: -1, lineData: null, isInstrumental: false };
   }
 
-  if (!lineData) {
-    const trackObj = (typeof currentPlayingTrackObj !== 'undefined' && currentPlayingTrackObj) ? currentPlayingTrackObj : null;
-    const trackTitle = (trackObj && trackObj.name) || (widgetTrackName && widgetTrackName.textContent ? widgetTrackName.textContent : 'LyricFlow');
-    islandLine.innerHTML = `<span class="island-idle-text"><span class="island-idle-title">${escapeHTML(trackTitle)}</span></span>`;
-    islandLine.style.transform = 'translateX(0px)';
-    islandLine.dataset.lineIndex = '-1';
-    if (islandExpLyric) islandExpLyric.textContent = '';
+  const isUnsynced = lyrics[0].timeMs === 9999999;
+  if (isUnsynced) {
+    return { lineIndex: 0, lineData: lyrics[0], isInstrumental: false };
+  }
+
+  const firstLine = lyrics[0];
+  const firstLineStart = (firstLine.timeMs != null && !isNaN(firstLine.timeMs))
+    ? firstLine.timeMs
+    : ((firstLine.start != null) ? firstLine.start * 1000 : 0);
+
+  // 1. Song intro / prelude before first vocal line starts (with 800ms anticipation)
+  if (syncProgress < firstLineStart - 800) {
+    return { lineIndex: -1, lineData: null, isInstrumental: false };
+  }
+
+  function getLineTiming(line, next) {
+    const start = (line.timeMs != null && !isNaN(line.timeMs))
+      ? line.timeMs
+      : ((line.start != null) ? line.start * 1000 : 0);
+
+    let end = 0;
+    if (line.words && line.words.length > 0) {
+      const lastW = line.words[line.words.length - 1];
+      const lwStart = (lastW.start != null ? lastW.start * 1000 : lastW.timeMs) || start;
+      end = (lastW.end != null && lastW.end > 0)
+        ? (lastW.end * 1000)
+        : (lwStart + 450);
+    } else if (line.end != null && line.end > 0) {
+      end = line.end * 1000;
+    } else if (line.duration && line.duration > 0) {
+      end = start + line.duration;
+    } else {
+      const textLen = (line.text || '').length;
+      end = start + Math.max(2500, Math.min(8000, textLen * 140));
+    }
+
+    const nextStart = next
+      ? ((next.timeMs != null && !isNaN(next.timeMs)) ? next.timeMs : ((next.start != null) ? next.start * 1000 : Infinity))
+      : Infinity;
+
+    return { start, end, nextStart };
+  }
+
+  // 2. Find matching line index with 700ms lead-in for smooth anticipation
+  let idx = 0;
+  for (let i = 0; i < lyrics.length; i++) {
+    const timing = getLineTiming(lyrics[i], lyrics[i + 1]);
+    if (syncProgress >= timing.start - 700) {
+      idx = i;
+    } else {
+      break;
+    }
+  }
+
+  const curLine = lyrics[idx];
+  const curTiming = getLineTiming(curLine, lyrics[idx + 1]);
+
+  // 3. Check for instrumental break between lines (> 3.0s total silence)
+  // Allow a graceful 1.4s dwell after line ends for user to finish reading
+  const isPastLine = syncProgress > curTiming.end + 1400;
+  const isFarFromNext = (curTiming.nextStart - syncProgress) > 2200;
+
+  if (isPastLine && isFarFromNext && idx < lyrics.length - 1) {
+    return { lineIndex: -2, lineData: null, isInstrumental: true };
+  }
+
+  return { lineIndex: idx, lineData: curLine, isInstrumental: false };
+}
+
+let lastPlaybackActivityMs = Date.now();
+let isIslandSleeping = false;
+let lastSatelliteActiveState = false;
+
+let satelliteTextAnimTimeout = null;
+let satelliteTextCleanupTimeout = null;
+function animateSatelliteTextChange(satText, satMarqueeWrapper, newText) {
+  if (!satText) return;
+  if (!satText.textContent || satText.textContent === '•••' || satText.textContent === '♪ ♪ ♪') {
+    if (satelliteTextAnimTimeout) clearTimeout(satelliteTextAnimTimeout);
+    if (satelliteTextCleanupTimeout) clearTimeout(satelliteTextCleanupTimeout);
+    satText.classList.remove("satellite-text-swapping", "satellite-text-entering");
+    satText.textContent = newText;
+    if (satMarqueeWrapper) updateMarqueeOverflow(satMarqueeWrapper, satText);
+    return;
+  }
+  if (satelliteTextAnimTimeout) clearTimeout(satelliteTextAnimTimeout);
+  if (satelliteTextCleanupTimeout) clearTimeout(satelliteTextCleanupTimeout);
+
+  satText.classList.remove("satellite-text-entering");
+  satText.classList.add("satellite-text-swapping");
+
+  satelliteTextAnimTimeout = setTimeout(() => {
+    satText.textContent = newText;
+    satText.classList.remove("satellite-text-swapping");
+    satText.classList.add("satellite-text-entering");
+    if (satMarqueeWrapper) {
+      updateMarqueeOverflow(satMarqueeWrapper, satText);
+    }
+    satelliteTextCleanupTimeout = setTimeout(() => {
+      satText.classList.remove("satellite-text-entering");
+    }, 240);
+  }, 120);
+}
+
+function resetSatelliteIslandState(immediate = true) {
+  lastSatelliteActiveState = false;
+  if (satelliteTextAnimTimeout) {
+    clearTimeout(satelliteTextAnimTimeout);
+    satelliteTextAnimTimeout = null;
+  }
+  if (satelliteTextCleanupTimeout) {
+    clearTimeout(satelliteTextCleanupTimeout);
+    satelliteTextCleanupTimeout = null;
+  }
+
+  const satIsland = document.getElementById("dynamic-island-translation");
+  const satBridge = document.getElementById("island-bridge");
+  const satText = document.getElementById("island-satellite-text");
+
+  document.body.classList.remove('has-satellite-active');
+  if (satIsland) {
+    satIsland.classList.remove('island-vaporizing', 'island-materializing');
+    satIsland.style.display = 'none';
+  }
+  if (satBridge) {
+    satBridge.style.display = 'none';
+  }
+  if (satText) {
+    satText.textContent = '•••';
+    satText.classList.remove('satellite-text-swapping', 'satellite-text-entering', 'is-overflowing');
+  }
+  if (immediate && window.caEmitterLayer && typeof window.caEmitterLayer.clear === 'function') {
+    window.caEmitterLayer.clear();
+  }
+  pushDynamicIslandBounds();
+}
+
+function dismissSatelliteForUntranslatedTrack() {
+  const satIsland = document.getElementById("dynamic-island-translation");
+  const satBridge = document.getElementById("island-bridge");
+  if (!lastSatelliteActiveState && (!satIsland || satIsland.style.display === 'none')) {
+    return;
+  }
+  lastSatelliteActiveState = false;
+  const ambientColor = (typeof getComputedStyle === 'function' && document.documentElement)
+    ? (getComputedStyle(document.documentElement).getPropertyValue('--ambient-glow-color').trim() || '#38bdf8')
+    : '#38bdf8';
+  if (satIsland && satIsland.offsetWidth > 0 && window.caEmitterLayer) {
+    window.caEmitterLayer.vaporize(satIsland, () => {
+      document.body.classList.remove('has-satellite-active');
+      satIsland.style.display = 'none';
+      if (satBridge) satBridge.style.display = 'none';
+      pushDynamicIslandBounds();
+    }, { ambientColor });
+  } else {
+    document.body.classList.remove('has-satellite-active');
+    if (satIsland) satIsland.style.display = 'none';
+    if (satBridge) satBridge.style.display = 'none';
+    pushDynamicIslandBounds();
+  }
+}
+
+function checkDynamicIslandInactivity() {
+  if (!isDynamicIslandMode) return;
+  const timeoutMs = (typeof settings.islandInactivityTimeout === 'number') ? settings.islandInactivityTimeout : 30000;
+  if (timeoutMs <= 0) return; // 'Never'
+
+  // If music is actively playing, keep activity timestamp fresh and wake island if sleeping
+  if (isPlaying) {
+    lastPlaybackActivityMs = Date.now();
+    if (isIslandSleeping) {
+      wakeDynamicIsland();
+    }
     return;
   }
 
-  if (islandExpLyric) {
-    islandExpLyric.textContent = lineData.text || '';
+  // When paused, stopped, or no music, calculate elapsed idle time
+  const idleTime = Date.now() - lastPlaybackActivityMs;
+  if (idleTime >= timeoutMs && !isIslandSleeping) {
+    console.log(`[DynamicIsland] Inactivity timeout reached (${idleTime}ms >= ${timeoutMs}ms). Sleeping island.`);
+    sleepDynamicIsland();
+  }
+}
+
+function sleepDynamicIsland() {
+  if (isIslandSleeping || !isDynamicIslandMode) return;
+  isIslandSleeping = true;
+  lastSatelliteActiveState = false;
+  const pri = document.getElementById("dynamic-island");
+  const sat = document.getElementById("dynamic-island-translation");
+  const bridge = document.getElementById("island-bridge");
+
+  const ambientColor = (typeof getComputedStyle === 'function' && document.documentElement)
+    ? (getComputedStyle(document.documentElement).getPropertyValue('--ambient-glow-color').trim() || '#38bdf8')
+    : '#38bdf8';
+
+  if (sat && sat.style.display !== 'none' && window.caEmitterLayer) {
+    window.caEmitterLayer.vaporize(sat, () => {
+      document.body.classList.remove('has-satellite-active');
+      sat.style.display = 'none';
+      if (bridge) bridge.style.display = 'none';
+    }, { ambientColor });
+  } else {
+    document.body.classList.remove('has-satellite-active');
+    if (sat) sat.style.display = 'none';
+    if (bridge) bridge.style.display = 'none';
   }
 
-  const hasWords = Boolean(lineData.words && lineData.words.length > 0);
-
-  // If line changed, re-render spans
-  if (islandLine.dataset.lineIndex !== String(activeIndex)) {
-    islandLine.dataset.lineIndex = String(activeIndex);
-    if (hasWords) {
-      islandLine.innerHTML = lineData.words.map((w, i) => `<span class="lyric-word" data-word-idx="${i}">${escapeHTML(w.text || w.word || '')}</span>`).join(' ');
-      islandLine._cachedWordSpans = islandLine.querySelectorAll('.lyric-word');
-    } else {
-      islandLine.textContent = lineData.text || '';
-      islandLine._cachedWordSpans = null;
+  if (pri && window.caEmitterLayer) {
+    window.caEmitterLayer.vaporize(pri, () => {
+      document.body.classList.add("island-sleeping");
+      if (window.electronAPI && window.electronAPI.updateIslandBounds) {
+        window.electronAPI.updateIslandBounds({ x: 0, y: 0, width: 0, height: 0 });
+      }
+    }, { ambientColor });
+  } else if (pri) {
+    document.body.classList.add("island-sleeping");
+    if (window.electronAPI && window.electronAPI.updateIslandBounds) {
+      window.electronAPI.updateIslandBounds({ x: 0, y: 0, width: 0, height: 0 });
     }
+  }
+}
+
+function wakeDynamicIsland() {
+  lastPlaybackActivityMs = Date.now();
+  if (!isIslandSleeping) return;
+  isIslandSleeping = false;
+  lastSatelliteActiveState = false;
+  document.body.classList.remove("island-sleeping");
+  const pri = document.getElementById("dynamic-island");
+  const ambientColor = (typeof getComputedStyle === 'function' && document.documentElement)
+    ? (getComputedStyle(document.documentElement).getPropertyValue('--ambient-glow-color').trim() || '#38bdf8')
+    : '#38bdf8';
+
+  if (pri && window.caEmitterLayer) {
+    window.caEmitterLayer.materialize(pri, () => {
+      syncDynamicIslandState();
+      pushDynamicIslandBounds();
+    }, { ambientColor });
+  } else {
+    if (pri) pri.style.display = '';
+    syncDynamicIslandState();
+    pushDynamicIslandBounds();
+  }
+  if (lyrics && lyrics.length > 0 && activeLineIndex >= 0) {
+    updateDynamicIslandLyric(activeLineIndex, lyrics[activeLineIndex], currentProgress);
+  }
+}
+
+function showIslandSatellitePrompt() {
+  if (settings.islandSatellitePrompted || !isDynamicIslandMode) return;
+  const modal = document.getElementById("island-prompt-modal");
+  if (!modal) return;
+  modal.style.display = 'block';
+  setTimeout(pushDynamicIslandBounds, 50);
+}
+
+function dismissIslandSatellitePrompt(enableSatellite) {
+  settings.islandSatellitePrompted = true;
+  settings.islandSatelliteEnabled = Boolean(enableSatellite);
+  saveLocalSettings();
+  const chk = document.getElementById("check-island-satellite");
+  if (chk) chk.checked = settings.islandSatelliteEnabled;
+  const modal = document.getElementById("island-prompt-modal");
+  if (modal) modal.style.display = 'none';
+  syncDynamicIslandState();
+  setTimeout(pushDynamicIslandBounds, 60);
+}
+
+function updateDynamicIslandLyric(targetIndex, lineData, syncProgress, isInstrumental = false) {
+  if (isIslandSleeping) return;
+  if (isPlaying) {
+    lastPlaybackActivityMs = Date.now();
+  }
+
+  const islandLine = document.getElementById("island-lyric-line");
+  const islandSubline = document.getElementById("island-lyric-subline");
+  const islandExpLyric = document.getElementById("island-expanded-lyric");
+  const dynamicIslandEl = document.getElementById("dynamic-island");
+  const btnTranslate = document.getElementById("island-btn-translate");
+  const satIsland = document.getElementById("dynamic-island-translation");
+  const satBridge = document.getElementById("island-bridge");
+  const satText = document.getElementById("island-satellite-text");
+  const satLang = document.getElementById("island-satellite-lang");
+  const satMarqueeWrapper = document.getElementById("island-satellite-marquee-wrapper");
+
+  if (!islandLine) return;
+
+  // 1. Scrubber time elapsed & remaining + fill & thumb
+  const fill = document.getElementById("island-progress-fill");
+  const thumb = document.getElementById("island-progress-thumb");
+  const timeCurrent = document.getElementById("island-time-current");
+  const timeRemaining = document.getElementById("island-time-remaining");
+  if (trackDuration > 0) {
+    const curMs = Math.max(0, Math.min(trackDuration, syncProgress || 0));
+    const pct = Math.min(100, Math.max(0, (curMs / trackDuration) * 100));
+    if (fill) fill.style.width = `${pct}%`;
+    if (thumb) thumb.style.left = `${pct}%`;
+    if (timeCurrent && typeof formatTime === 'function') {
+      timeCurrent.textContent = formatTime(curMs);
+    }
+    if (timeRemaining && typeof formatTime === 'function') {
+      timeRemaining.textContent = '-' + formatTime(Math.max(0, trackDuration - curMs));
+    }
+  }
+
+  const transMode = settings.islandTranslationMode || 'bilingual';
+  const isSatelliteEnabled = settings.islandSatelliteEnabled !== false && transMode !== 'none';
+
+  // 1. Check if the song has at least one foreign translated line (different from original)
+  const trackHasTranslation = Boolean(
+    lyrics && lyrics.length > 0 &&
+    lyrics.some(l => l.subText && l.subText.trim().length > 0 && l.subText.trim().toLowerCase() !== (l.text || '').trim().toLowerCase())
+  );
+
+  // 2. Check if the CURRENT line has a foreign translation (not English/identical)
+  const curOrigText = (lineData && lineData.text) ? lineData.text.trim() : '';
+  const curSubText = (lineData && lineData.subText) ? lineData.subText.trim() : '';
+  const lineHasTranslation = Boolean(
+    curSubText &&
+    curSubText.length > 0 &&
+    curSubText.toLowerCase() !== curOrigText.toLowerCase()
+  );
+
+  // 3. Docking rule: MUST have line translation!
+  const shouldSatelliteBeDocked = Boolean(
+    isSatelliteEnabled &&
+    trackHasTranslation &&
+    lineHasTranslation &&
+    !isIslandSleeping
+  );
+
+  const subText = lineHasTranslation ? curSubText : '';
+  const hasTrans = Boolean(subText && transMode !== 'none');
+
+  if (btnTranslate) {
+    btnTranslate.classList.toggle('active', transMode !== 'none');
+  }
+
+  // Ask user in LyricFlow via discovery prompt if they have not decided yet
+  if (isDynamicIslandMode && trackHasTranslation && !settings.islandSatellitePrompted) {
+    showIslandSatellitePrompt();
+  }
+
+  const trackObj = (typeof currentPlayingTrackObj !== 'undefined' && currentPlayingTrackObj) ? currentPlayingTrackObj : null;
+  const trackTitle = (trackObj && trackObj.name) || (widgetTrackName && widgetTrackName.textContent ? widgetTrackName.textContent : 'LyricFlow');
+  const trackArtist = (trackObj && trackObj.artists && trackObj.artists[0]?.name) || (widgetArtistName && widgetArtistName.textContent ? widgetArtistName.textContent : '');
+
+  const islandTitle = document.getElementById("island-track-title");
+  const islandArtist = document.getElementById("island-track-artist");
+  if (islandTitle && islandTitle.textContent !== trackTitle) {
+    islandTitle.textContent = trackTitle;
+    updateMarqueeOverflow(document.getElementById("island-title-wrapper"), islandTitle);
+  }
+  if (islandArtist && islandArtist.textContent !== trackArtist) {
+    islandArtist.textContent = trackArtist;
+    updateMarqueeOverflow(document.getElementById("island-artist-wrapper"), islandArtist);
+  }
+
+  // 4. Update Connected Satellite Island Lifecycle (Silent within song)
+  if (satIsland && satBridge) {
+    if (!trackHasTranslation) {
+      // Song with NO translation: if it was active from previous track, vaporize it away
+      if (lastSatelliteActiveState) {
+        dismissSatelliteForUntranslatedTrack();
+      } else {
+        document.body.classList.remove('has-satellite-active');
+        satIsland.classList.remove('island-vaporizing', 'island-materializing');
+        satIsland.style.display = 'none';
+        satBridge.style.display = 'none';
+        if (satText) satText.classList.remove('is-overflowing');
+      }
+    } else if (shouldSatelliteBeDocked) {
+      // Foreign language line: quietly show satellite pill (zero particles mid-song)
+      if (!lastSatelliteActiveState) {
+        lastSatelliteActiveState = true;
+        document.body.classList.add('has-satellite-active');
+        satIsland.style.display = 'flex';
+        satBridge.style.display = 'block';
+        pushDynamicIslandBounds();
+      }
+      if (satLang) {
+        const langCode = (settings.translateLang && settings.translateLang !== 'none') ? settings.translateLang : 'en';
+        satLang.textContent = langCode.split('-')[0].toUpperCase();
+      }
+      const displaySub = decodeHtmlEntities(subText);
+      if (satText && satText.textContent !== displaySub) {
+        satText.textContent = displaySub;
+        if (satMarqueeWrapper) updateMarqueeOverflow(satMarqueeWrapper, satText);
+      }
+    } else {
+      // English line in foreign song, or instrumental break: quietly hide satellite pill (zero particles mid-song)
+      if (lastSatelliteActiveState) {
+        lastSatelliteActiveState = false;
+        document.body.classList.remove('has-satellite-active');
+        satIsland.style.display = 'none';
+        satBridge.style.display = 'none';
+        pushDynamicIslandBounds();
+      }
+    }
+  }
+
+  // 2. Idle, Intro, or Instrumental Break
+  if (!lineData || targetIndex < 0) {
+    if (dynamicIslandEl) dynamicIslandEl.classList.remove('island-mode-stacked');
+    if (islandSubline) islandSubline.style.display = 'none';
+
+    const isBreak = isInstrumental || targetIndex === -2;
+    const idleHtml = isBreak
+      ? `<span class="island-idle-text"><span class="island-idle-title">${escapeHTML(trackTitle)}</span> • <span class="island-instrumental-dots">♪ ♪ ♪</span></span>`
+      : `<span class="island-idle-text"><span class="island-idle-title">${escapeHTML(trackTitle)}</span>${trackArtist ? ` • ${escapeHTML(trackArtist)}` : ''}</span>`;
+
+    if (islandLine.dataset.lineIndex !== String(targetIndex)) {
+      islandLine.dataset.lineIndex = String(targetIndex);
+      islandLine.dataset.subText = "";
+      islandLine.dataset.transMode = transMode;
+      islandLine.dataset.satellite = String(shouldSatelliteBeDocked);
+      islandLine.innerHTML = idleHtml;
+      islandLine.style.transform = 'translateX(0px)';
+      currentIslandOffset = 0;
+      lastIslandActiveWordSpan = null;
+    }
+    if (islandExpLyric) {
+      islandExpLyric.textContent = isBreak ? `${trackTitle} • Instrumental` : trackTitle;
+    }
+    return;
+  }
+
+  // 3. Update Hero Expanded Stage Lyric
+  if (islandExpLyric) {
+    islandExpLyric.textContent = (transMode === 'translated' && subText && !shouldSatelliteBeDocked) ? subText : (lineData.text || '');
+  }
+
+  // 5. Compact View Layout per Mode
+  const isStackedMode = (!shouldSatelliteBeDocked && transMode === 'stacked' && hasTrans);
+  if (dynamicIslandEl) {
+    dynamicIslandEl.classList.toggle('island-mode-stacked', isStackedMode);
+  }
+  if (islandSubline) {
+    if (isStackedMode) {
+      islandSubline.textContent = subText;
+      islandSubline.style.display = 'block';
+    } else {
+      islandSubline.style.display = 'none';
+    }
+  }
+
+  const hasWords = Boolean(lineData.words && lineData.words.length > 0 && transMode !== 'translated');
+  const needsRerender = (
+    islandLine.dataset.lineIndex !== String(targetIndex) ||
+    islandLine.dataset.subText !== subText ||
+    islandLine.dataset.transMode !== transMode ||
+    islandLine.dataset.satellite !== String(shouldSatelliteBeDocked)
+  );
+
+  // 6. Line or Translation Changed: Re-render DOM
+  if (needsRerender) {
+    islandLine.dataset.lineIndex = String(targetIndex);
+    islandLine.dataset.subText = subText;
+    islandLine.dataset.transMode = transMode;
+    islandLine.dataset.satellite = String(shouldSatelliteBeDocked);
+    lastIslandActiveWordSpan = null;
+
+    if (shouldSatelliteBeDocked) {
+      // Clean original karaoke line without cut-offs; translation is in satellite capsule
+      if (hasWords) {
+        islandLine.innerHTML = lineData.words.map((w, i) => `<span class="lyric-word" data-word-idx="${i}">${escapeHTML(w.text || w.word || '')}</span>`).join(' ');
+        islandLine._cachedWordSpans = islandLine.querySelectorAll('.lyric-word');
+      } else {
+        islandLine.textContent = lineData.text || '';
+        islandLine._cachedWordSpans = null;
+      }
+    } else if (transMode === 'translated' && subText) {
+      // Translated only mode
+      islandLine.textContent = subText;
+      islandLine._cachedWordSpans = null;
+    } else if (transMode === 'bilingual' && hasTrans) {
+      // Inline Original • Translation fallback
+      const transHtml = `<span class="island-trans-divider"> • </span><span class="island-trans-inline">${escapeHTML(subText)}</span>`;
+      if (hasWords) {
+        islandLine.innerHTML = lineData.words.map((w, i) => `<span class="lyric-word" data-word-idx="${i}">${escapeHTML(w.text || w.word || '')}</span>`).join(' ') + transHtml;
+        islandLine._cachedWordSpans = islandLine.querySelectorAll('.lyric-word');
+      } else {
+        islandLine.innerHTML = escapeHTML(lineData.text || '') + transHtml;
+        islandLine._cachedWordSpans = null;
+      }
+    } else {
+      // Stacked, hover-only, none, or song without translation
+      if (hasWords) {
+        islandLine.innerHTML = lineData.words.map((w, i) => `<span class="lyric-word" data-word-idx="${i}">${escapeHTML(w.text || w.word || '')}</span>`).join(' ');
+        islandLine._cachedWordSpans = islandLine.querySelectorAll('.lyric-word');
+      } else {
+        islandLine.textContent = lineData.text || '';
+        islandLine._cachedWordSpans = null;
+      }
+    }
+    currentIslandOffset = 0;
     islandLine.style.transform = 'translateX(0px)';
   }
 
-  // If word spans exist, update word states!
+  // 6. Word-by-Word Karaoke State Update
   let activeWordSpan = null;
   if (hasWords && islandLine._cachedWordSpans && islandLine._cachedWordSpans.length > 0) {
     const spans = islandLine._cachedWordSpans;
-    const engine = window.LyricsService?.instance?.engine;
-    let wordStates = null;
-    if (engine && engine.hasLyrics()) {
-      wordStates = engine.getLineWordStates(activeIndex, syncProgress / 1000);
+    const words = lineData.words;
+    const wordsCount = words.length;
+
+    for (let wi = 0; wi < wordsCount; wi++) {
+      const w = words[wi];
+      const wStart = (w.start != null ? w.start * 1000 : w.timeMs) || 0;
+      const nextW = words[wi + 1];
+      const nextWStart = nextW ? ((nextW.start != null ? nextW.start * 1000 : nextW.timeMs) || (wStart + 500)) : Infinity;
+
+      const span = spans[wi];
+      if (!span) continue;
+
+      if (syncProgress < wStart) {
+        span.classList.remove('lyric-word-active', 'lyric-word-completed', 'lyric-word-passed');
+        span.classList.add('lyric-word-upcoming');
+      } else if (syncProgress >= wStart && syncProgress < nextWStart) {
+        span.classList.remove('lyric-word-upcoming', 'lyric-word-completed', 'lyric-word-passed');
+        span.classList.add('lyric-word-active');
+        activeWordSpan = span;
+        lastIslandActiveWordSpan = span;
+      } else {
+        span.classList.remove('lyric-word-active', 'lyric-word-upcoming');
+        span.classList.add('lyric-word-completed', 'lyric-word-passed');
+      }
     }
 
-    if (wordStates && wordStates.length === spans.length) {
-      spans.forEach((span, wi) => {
-        const st = wordStates[wi] || 'upcoming';
-        span.classList.toggle('lyric-word-completed', st === 'completed');
-        span.classList.toggle('lyric-word-passed', st === 'completed');
-        span.classList.toggle('lyric-word-active', st === 'active');
-        span.classList.toggle('lyric-word-upcoming', st === 'upcoming');
-        if (st === 'active') activeWordSpan = span;
-      });
-    } else {
-      let activeWordIdx = -1;
-      for (let i = 0; i < lineData.words.length; i++) {
-        const wordTime = lineData.words[i].start != null ? lineData.words[i].start * 1000 : lineData.words[i].timeMs;
-        if (wordTime <= syncProgress) {
-          activeWordIdx = i;
-        } else {
-          break;
-        }
-      }
-      spans.forEach((span, wi) => {
-        span.classList.toggle('lyric-word-completed', wi < activeWordIdx);
-        span.classList.toggle('lyric-word-passed', wi < activeWordIdx);
-        span.classList.toggle('lyric-word-active', wi === activeWordIdx);
-        span.classList.toggle('lyric-word-upcoming', wi > activeWordIdx);
-        if (wi === activeWordIdx) activeWordSpan = span;
-      });
+    if (!activeWordSpan && lastIslandActiveWordSpan) {
+      activeWordSpan = lastIslandActiveWordSpan;
     }
   }
 
-  // Smooth auto-panning so the active word or lyric progress is always visible
+  // 7. Smooth Panning Math
   const islandZone = document.getElementById("island-lyric-zone") || islandLine.parentElement;
   if (islandZone) {
-    const zoneWidth = islandZone.clientWidth || 220;
+    const zoneWidth = islandZone.clientWidth || 250;
     const contentWidth = islandLine.scrollWidth || zoneWidth;
-    if (contentWidth > zoneWidth) {
-      let targetOffset = 0;
-      if (activeWordSpan) {
-        const spanCenter = activeWordSpan.offsetLeft + activeWordSpan.offsetWidth / 2;
-        targetOffset = (zoneWidth / 2) - spanCenter;
-      } else if (lineData) {
-        const nextLine = (lyrics && activeIndex >= 0 && activeIndex + 1 < lyrics.length) ? lyrics[activeIndex + 1] : null;
-        const dur = (lineData.duration && lineData.duration > 0)
-          ? lineData.duration
-          : (nextLine && nextLine.time > lineData.time ? (nextLine.time - lineData.time) : 4000);
-        const ratio = Math.min(1, Math.max(0, (syncProgress - lineData.time) / dur));
-        targetOffset = -ratio * (contentWidth - zoneWidth);
-      }
+
+    if (contentWidth > zoneWidth + 4) {
       const maxScroll = -(contentWidth - zoneWidth);
-      const clampedOffset = Math.min(0, Math.max(maxScroll, targetOffset));
-      islandLine.style.transform = `translateX(${clampedOffset}px)`;
+      let targetOffset = 0;
+
+      if (activeWordSpan) {
+        const spanCenter = activeWordSpan.offsetLeft + (activeWordSpan.offsetWidth / 2);
+        const anchorX = zoneWidth * 0.38;
+        const rawOffset = anchorX - spanCenter;
+        targetOffset = Math.min(0, Math.max(maxScroll, rawOffset));
+      } else if (lineData) {
+        const lineStartTime = (lineData.timeMs != null && !isNaN(lineData.timeMs))
+          ? lineData.timeMs
+          : ((lineData.start != null) ? lineData.start * 1000 : 0);
+
+        const nextLine = (lyrics && targetIndex >= 0 && targetIndex + 1 < lyrics.length) ? lyrics[targetIndex + 1] : null;
+        const nextLineTime = nextLine
+          ? ((nextLine.timeMs != null && !isNaN(nextLine.timeMs)) ? nextLine.timeMs : ((nextLine.start != null) ? nextLine.start * 1000 : 0))
+          : 0;
+
+        const textLen = (lineData.text || '').length;
+        const estimatedVocalDur = Math.max(2500, Math.min(8000, textLen * 140));
+        const maxGap = nextLineTime > lineStartTime ? (nextLineTime - lineStartTime) : estimatedVocalDur;
+        const effectiveDur = (lineData.duration && lineData.duration > 0)
+          ? lineData.duration
+          : Math.min(maxGap, estimatedVocalDur);
+
+        const elapsed = syncProgress - lineStartTime;
+        const progressFrac = Math.min(1, Math.max(0, elapsed / Math.max(1000, effectiveDur)));
+
+        let scrollRatio = 0;
+        if (progressFrac <= 0.15) {
+          scrollRatio = 0;
+        } else if (progressFrac >= 0.85) {
+          scrollRatio = 1;
+        } else {
+          const t = (progressFrac - 0.15) / 0.70;
+          scrollRatio = 0.5 - 0.5 * Math.cos(t * Math.PI);
+        }
+        targetOffset = -scrollRatio * (contentWidth - zoneWidth);
+        targetOffset = Math.min(0, Math.max(maxScroll, targetOffset));
+      }
+
+      if (Math.abs(targetOffset - currentIslandOffset) > 140) {
+        currentIslandOffset = targetOffset;
+      } else {
+        currentIslandOffset += (targetOffset - currentIslandOffset) * 0.20;
+      }
+      islandLine.style.transform = `translateX(${currentIslandOffset.toFixed(2)}px)`;
+
+      islandZone.style.maskImage = 'linear-gradient(90deg, #000 0%, #000 calc(100% - 16px), transparent 100%)';
+      islandZone.style.webkitMaskImage = 'linear-gradient(90deg, #000 0%, #000 calc(100% - 16px), transparent 100%)';
     } else {
+      currentIslandOffset = 0;
       islandLine.style.transform = 'translateX(0px)';
+      islandZone.style.maskImage = 'none';
+      islandZone.style.webkitMaskImage = 'none';
     }
+  }
+}
+
+function cycleIslandTranslationMode() {
+  const modes = ['bilingual', 'stacked', 'hover-only', 'translated', 'none'];
+  const current = settings.islandTranslationMode || 'bilingual';
+  const nextIdx = (modes.indexOf(current) + 1) % modes.length;
+  const nextMode = modes[nextIdx];
+  settings.islandTranslationMode = nextMode;
+  saveLocalSettings();
+
+  const selectTrans = document.getElementById("select-island-translation");
+  if (selectTrans) {
+    selectTrans.value = nextMode;
+  }
+
+  const modeLabels = {
+    'bilingual': 'Inline (Original • Translation)',
+    'stacked': 'Dual-Line Subtitle',
+    'hover-only': 'Hover Preview Only',
+    'translated': 'Translated Lyrics Only',
+    'none': 'Translation Off'
+  };
+
+  if (typeof showToast === 'function') {
+    showToast(`Island: ${modeLabels[nextMode] || nextMode}`, 2000);
+  }
+
+  // If user enabled an active translation mode, ensure a translation language is active
+  if (nextMode !== 'none') {
+    if (!settings.translateLang || settings.translateLang === 'none') {
+      settings.translateLang = 'en';
+      const selectTransEl = document.getElementById("select-translate");
+      if (selectTransEl) selectTransEl.value = 'en';
+      saveLocalSettings();
+    }
+    // If current song lacks translations, trigger background translation
+    if (currentTrackId && lyrics && lyrics.length > 0 && !lyrics.some(l => l.subText && l.subText.trim())) {
+      const curCacheKey = `lyrics_cache_v21_${currentTrackId}`;
+      if (typeof triggerAutoTranslation === 'function') {
+        triggerAutoTranslation(currentTrackId, lyrics, curCacheKey);
+      }
+    }
+  }
+
+  const islandLine = document.getElementById("island-lyric-line");
+  if (islandLine) {
+    islandLine.dataset.lineIndex = "";
+    islandLine.dataset.transMode = "";
+    islandLine.dataset.subText = "";
+  }
+  if (lyrics && lyrics.length > 0 && activeLineIndex >= 0) {
+    const line = lyrics[activeLineIndex];
+    updateDynamicIslandLyric(activeLineIndex, line, currentProgress);
+  } else {
+    syncDynamicIslandState();
   }
 }
 
@@ -441,6 +1260,7 @@ async function toggleDynamicIslandMode(forceState) {
   if (checkIsland) checkIsland.checked = isDynamicIslandMode;
 
   const dockPos = settings.dynamicIslandPosition || 'top-center';
+  applyDynamicIslandDockClass(dockPos);
 
   if (window.electronAPI && typeof window.electronAPI.setDynamicIslandMode === 'function') {
     await window.electronAPI.setDynamicIslandMode(isDynamicIslandMode, dockPos);
@@ -453,15 +1273,33 @@ async function toggleDynamicIslandMode(forceState) {
   }
 
   if (isDynamicIslandMode) {
+    if (fluidMeshGradientInstance) {
+      fluidMeshGradientInstance.stop();
+    }
+    lastPlaybackActivityMs = Date.now();
+    if (isIslandSleeping) {
+      wakeDynamicIsland();
+    }
+    setTimeout(() => {
+      pushDynamicIslandBounds();
+      startDynamicIslandBoundsTracking(500);
+    }, 60);
     try {
-      if (lyrics && lyrics[activeLineIndex]) {
-        updateDynamicIslandLyric(activeLineIndex, lyrics[activeLineIndex], currentProgress);
-      } else {
-        updateDynamicIslandLyric(-1, null, 0);
-      }
+      const syncProgress = currentProgress + (settings.syncOffsetMs || 0);
+      const islandSync = getDynamicIslandSyncData(syncProgress);
+      updateDynamicIslandLyric(islandSync.lineIndex, islandSync.lineData, syncProgress, islandSync.isInstrumental);
     } catch (err) {
       console.warn("[DynamicIsland] Error updating lyric on toggle:", err);
     }
+  } else {
+    lastPushedBounds = { x: -1, y: -1, width: -1, height: -1 };
+    if (fluidMeshGradientInstance && (settings.bgStyle || 'fluid') === 'fluid' && !settings.taskbarMode) {
+      fluidMeshGradientInstance.start();
+    }
+    isIslandSleeping = false;
+    document.body.classList.remove('island-sleeping');
+    const pri = document.getElementById("dynamic-island");
+    if (pri) pri.style.display = '';
   }
 }
 
@@ -535,7 +1373,7 @@ function initDOMElements() {
   widgetTimeCurrent = document.getElementById("widget-time-current");
   widgetTimeDuration = document.getElementById("widget-time-duration");
 
-  btnClickThrough = document.getElementById("btn-click-through");
+
 
   // Controls & Taskbar DOM Elements
   checkTaskbarMode = document.getElementById("check-taskbar-mode");
@@ -913,6 +1751,17 @@ function loadLocalSettings(skipIPC = false) {
     }
     if (settings.geniusPosition === 'top') {
       settings.geniusPosition = 'top-left';
+    }
+
+    // Migrate translation defaults
+    if (!settings.translateLang) {
+      settings.translateLang = 'en';
+    }
+    if (settings.skipLang === undefined || settings.skipLang === 'en') {
+      settings.skipLang = 'none';
+    }
+    if (settings.islandInactivityTimeout === undefined) {
+      settings.islandInactivityTimeout = 30000;
     }
 
     if (settings.preferredLyricProvider && (!settings.preferredLyricProviders || settings.preferredLyricProviders.length === 0)) {
@@ -1476,6 +2325,22 @@ function applyVisualSettings(fromTray = false, skipIPC = false) {
     });
   }
 
+  // Dynamic Island Visualizer Bars & Dock Position
+  setVisualizerBarCount(settings.islandVisualizerBars || 4);
+  applyDynamicIslandDockClass(settings.dynamicIslandPosition);
+  const selectIslandTransInit = document.getElementById("select-island-translation");
+  if (selectIslandTransInit) {
+    selectIslandTransInit.value = settings.islandTranslationMode || 'bilingual';
+  }
+  const checkIslandSatInit = document.getElementById("check-island-satellite");
+  if (checkIslandSatInit) {
+    checkIslandSatInit.checked = settings.islandSatelliteEnabled !== false;
+  }
+  const selectIslandInactivityInit = document.getElementById("select-island-inactivity-timeout");
+  if (selectIslandInactivityInit) {
+    selectIslandInactivityInit.value = String(settings.islandInactivityTimeout ?? 30000);
+  }
+
   // Font Size
   document.documentElement.style.setProperty('--font-size', `${settings.fontSize}px`);
   if (selectFontSize) selectFontSize.value = settings.fontSize;
@@ -1523,7 +2388,7 @@ function applyVisualSettings(fromTray = false, skipIPC = false) {
 
   if (fluidMeshGradientInstance) {
     const isWallpaperStyle2 = settings.wallpaperMode && (settings.wallpaperStyle === 'style2');
-    const shouldRunMesh = ((currentBgStyle === 'fluid') || isWallpaperStyle2) && !settings.taskbarMode && (!hasCustomBackground || isWallpaperStyle2);
+    const shouldRunMesh = !isDynamicIslandMode && ((currentBgStyle === 'fluid') || isWallpaperStyle2) && !settings.taskbarMode && (!hasCustomBackground || isWallpaperStyle2);
     if (shouldRunMesh) {
       fluidMeshGradientInstance.start();
       fluidMeshGradientInstance.setPlaybackState(
@@ -1554,7 +2419,8 @@ function applyVisualSettings(fromTray = false, skipIPC = false) {
   const glowInt = glowRaw / 100;
 
   if (settings.highlightColor === 'dynamic') {
-    colorVal = 'var(--art-color-1, #1DB954)';
+    const isLight = settings.theme === 'light' || document.documentElement.getAttribute('data-theme') === 'light';
+    colorVal = isLight ? '#1d1d1f' : '#ffffff';
     glowColor = `rgba(var(--art-color-1-rgb, 29, 185, 84), ${glowInt})`;
   } else if (settings.highlightColor === 'green') {
     colorVal = '#1db954';
@@ -1603,14 +2469,10 @@ function applyVisualSettings(fromTray = false, skipIPC = false) {
   // Window Toggles (sync UI states)
 
 
-  if (settings.clickThrough) {
-    if (btnClickThrough) btnClickThrough.classList.add("active");
-  } else {
-    if (btnClickThrough) btnClickThrough.classList.remove("active");
-  }
   if (checkAlwaysOnTop) {
     checkAlwaysOnTop.checked = settings.alwaysOnTop;
   }
+
 
   // Render text shadows for glowing
   if (settings.glow > 0) {
@@ -2342,15 +3204,31 @@ function setupUIHandlers() {
 
   const selectTranslate = document.getElementById("select-translate");
   if (selectTranslate) {
-    selectTranslate.value = settings.translateLang || "none";
+    selectTranslate.value = settings.translateLang || "en";
     selectTranslate.addEventListener("change", (e) => {
       settings.translateLang = e.target.value;
       saveLocalSettings();
       clearLyricsCaches();
-      if (currentTrackId) {
-        const title = widgetTrackName ? widgetTrackName.textContent : "";
-        const artist = widgetArtistName ? widgetArtistName.textContent : "";
-        fetchLyrics(currentTrackId, title, artist, trackDuration);
+      if (currentTrackId && lyrics && lyrics.length > 0) {
+        if (settings.translateLang === 'none') {
+          lyrics.forEach(l => { delete l.subText; });
+          delete lyrics._transLang;
+          renderLyrics();
+          const islandLine = document.getElementById("island-lyric-line");
+          if (islandLine) {
+            islandLine.dataset.lineIndex = "";
+            islandLine.dataset.transMode = "";
+            islandLine.dataset.subText = "";
+          }
+          if (activeLineIndex >= 0) {
+            updateDynamicIslandLyric(activeLineIndex, lyrics[activeLineIndex], currentProgress);
+          }
+        } else {
+          const curCacheKey = `lyrics_cache_v21_${currentTrackId}`;
+          if (typeof triggerAutoTranslation === 'function') {
+            triggerAutoTranslation(currentTrackId, lyrics, curCacheKey, true);
+          }
+        }
       }
     });
   }
@@ -2358,15 +3236,16 @@ function setupUIHandlers() {
   // Skip Translation For (language)
   const selectSkipLang = document.getElementById("select-skip-lang");
   if (selectSkipLang) {
-    selectSkipLang.value = settings.skipLang || 'en';
+    selectSkipLang.value = settings.skipLang || 'none';
     selectSkipLang.addEventListener("change", (e) => {
       settings.skipLang = e.target.value;
       saveLocalSettings();
       clearLyricsCaches();
-      if (currentTrackId) {
-        const title = widgetTrackName ? widgetTrackName.textContent : "";
-        const artist = widgetArtistName ? widgetArtistName.textContent : "";
-        fetchLyrics(currentTrackId, title, artist, trackDuration);
+      if (currentTrackId && lyrics && lyrics.length > 0 && settings.translateLang && settings.translateLang !== 'none') {
+        const curCacheKey = `lyrics_cache_v21_${currentTrackId}`;
+        if (typeof triggerAutoTranslation === 'function') {
+          triggerAutoTranslation(currentTrackId, lyrics, curCacheKey, true);
+        }
       }
     });
   }
@@ -2420,10 +3299,19 @@ function setupUIHandlers() {
     });
   }
 
+  // Helper: briefly pulse value label when slider changes
+  function triggerSliderPulse(el) {
+    if (!el) return;
+    el.classList.remove('slider-value-changed');
+    void el.offsetWidth; // force reflow
+    el.classList.add('slider-value-changed');
+  }
+
   if (sliderBgOpacity) {
     sliderBgOpacity.addEventListener("input", (e) => {
       settings.bgOpacity = parseInt(e.target.value, 10);
       applyVisualSettings();
+      if (valBgOpacity) triggerSliderPulse(valBgOpacity);
       saveLocalSettings();
     });
   }
@@ -2546,6 +3434,7 @@ function setupUIHandlers() {
     sliderGlow.addEventListener("input", (e) => {
       settings.glow = parseInt(e.target.value, 10);
       applyVisualSettings();
+      if (valGlow) triggerSliderPulse(valGlow);
       saveLocalSettings();
     });
   }
@@ -2561,7 +3450,10 @@ function setupUIHandlers() {
   if (sliderFluidSpeed) {
     sliderFluidSpeed.addEventListener("input", (e) => {
       settings.fluidSpeed = parseFloat(e.target.value) / 100;
-      if (valFluidSpeed) valFluidSpeed.textContent = `${settings.fluidSpeed.toFixed(1)}x`;
+      if (valFluidSpeed) {
+        valFluidSpeed.textContent = `${settings.fluidSpeed.toFixed(1)}x`;
+        triggerSliderPulse(valFluidSpeed);
+      }
       if (fluidMeshGradientInstance) {
         fluidMeshGradientInstance.setPlaybackState(isPlaying, window._currentBpmProfile || 'normal', settings.fluidSpeed);
       }
@@ -2602,6 +3494,7 @@ function setupUIHandlers() {
     sliderLineSpacing.addEventListener("input", (e) => {
       settings.lineSpacing = parseInt(e.target.value, 10);
       applyVisualSettings();
+      if (valLineSpacing) triggerSliderPulse(valLineSpacing);
       saveLocalSettings();
     });
   }
@@ -2634,11 +3527,8 @@ function setupUIHandlers() {
   // Toggles & Windows Management
 
 
-  if (btnClickThrough) {
-    btnClickThrough.addEventListener("click", () => {
-      toggleClickThrough();
-    });
-  }
+
+
 
   // Removed broken toggleAlwaysOnTop listener
 
@@ -2686,9 +3576,46 @@ function setupUIHandlers() {
       toggleDynamicIslandMode(false);
     });
   }
-
+  const islandBtnTranslate = document.getElementById("island-btn-translate");
+  if (islandBtnTranslate) {
+    islandBtnTranslate.addEventListener("click", (e) => {
+      e.stopPropagation();
+      cycleIslandTranslationMode();
+    });
+  }
   const dynamicIslandEl = document.getElementById("dynamic-island");
   if (dynamicIslandEl) {
+    dynamicIslandEl.addEventListener("mouseenter", () => {
+      wakeDynamicIsland();
+      startDynamicIslandBoundsTracking(450);
+      const titleEl = document.getElementById("island-track-title");
+      const artistEl = document.getElementById("island-track-artist");
+      if (titleEl) updateMarqueeOverflow(document.getElementById("island-title-wrapper"), titleEl);
+      if (artistEl) updateMarqueeOverflow(document.getElementById("island-artist-wrapper"), artistEl);
+    });
+    dynamicIslandEl.addEventListener("mousemove", () => {
+      lastPlaybackActivityMs = Date.now();
+    });
+    dynamicIslandEl.addEventListener("mouseleave", () => {
+      startDynamicIslandBoundsTracking(450);
+    });
+    dynamicIslandEl.addEventListener("transitionstart", () => {
+      startDynamicIslandBoundsTracking(450);
+    });
+    dynamicIslandEl.addEventListener("transitionend", () => {
+      pushDynamicIslandBounds();
+    });
+    if (window.ResizeObserver) {
+      const ro = new ResizeObserver(() => {
+        pushDynamicIslandBounds();
+        const titleEl = document.getElementById("island-track-title");
+        const artistEl = document.getElementById("island-track-artist");
+        if (titleEl) updateMarqueeOverflow(document.getElementById("island-title-wrapper"), titleEl);
+        if (artistEl) updateMarqueeOverflow(document.getElementById("island-artist-wrapper"), artistEl);
+      });
+      ro.observe(dynamicIslandEl);
+    }
+
     dynamicIslandEl.addEventListener("dblclick", (e) => {
       if (!e.target.closest('.island-btn')) {
         toggleDynamicIslandMode(false);
@@ -2723,7 +3650,12 @@ function setupUIHandlers() {
       const checkIsland = document.getElementById("check-dynamic-island");
       if (checkIsland) checkIsland.checked = isDynamicIslandMode;
       if (isDynamicIslandMode) {
+        applyDynamicIslandDockClass(settings.dynamicIslandPosition);
         syncDynamicIslandState();
+        setTimeout(() => {
+          pushDynamicIslandBounds();
+          startDynamicIslandBoundsTracking(500);
+        }, 60);
       }
     });
   }
@@ -2741,10 +3673,120 @@ function setupUIHandlers() {
     selectIslandPosition.value = settings.dynamicIslandPosition || 'top-center';
     selectIslandPosition.addEventListener("change", (e) => {
       settings.dynamicIslandPosition = e.target.value;
+      applyDynamicIslandDockClass(settings.dynamicIslandPosition);
       saveLocalSettings();
       if (isDynamicIslandMode && window.electronAPI && window.electronAPI.setDynamicIslandMode) {
         window.electronAPI.setDynamicIslandMode(true, settings.dynamicIslandPosition);
+        setTimeout(() => {
+          pushDynamicIslandBounds();
+          startDynamicIslandBoundsTracking(500);
+        }, 80);
       }
+    });
+  }
+
+  const selectIslandVisualizerBars = document.getElementById("select-island-visualizer-bars");
+  if (selectIslandVisualizerBars) {
+    selectIslandVisualizerBars.value = String(settings.islandVisualizerBars || 4);
+    selectIslandVisualizerBars.addEventListener("change", (e) => {
+      const bars = parseInt(e.target.value, 10) || 4;
+      setVisualizerBarCount(bars);
+      saveLocalSettings();
+    });
+  }
+
+  const selectIslandTranslation = document.getElementById("select-island-translation");
+  if (selectIslandTranslation) {
+    selectIslandTranslation.value = settings.islandTranslationMode || 'bilingual';
+    selectIslandTranslation.addEventListener("change", (e) => {
+      settings.islandTranslationMode = e.target.value;
+      saveLocalSettings();
+      const islandLine = document.getElementById("island-lyric-line");
+      if (islandLine) {
+        islandLine.dataset.lineIndex = "";
+        islandLine.dataset.transMode = "";
+      }
+      if (lyrics && lyrics.length > 0 && activeLineIndex >= 0) {
+        updateDynamicIslandLyric(activeLineIndex, lyrics[activeLineIndex], currentProgress);
+      } else {
+        syncDynamicIslandState();
+      }
+    });
+  }
+
+  const checkIslandSatellite = document.getElementById("check-island-satellite");
+  if (checkIslandSatellite) {
+    checkIslandSatellite.checked = settings.islandSatelliteEnabled !== false;
+    checkIslandSatellite.addEventListener("change", (e) => {
+      settings.islandSatelliteEnabled = e.target.checked;
+      saveLocalSettings();
+      syncDynamicIslandState();
+      setTimeout(pushDynamicIslandBounds, 50);
+    });
+  }
+
+  const selectIslandInactivityTimeout = document.getElementById("select-island-inactivity-timeout");
+  if (selectIslandInactivityTimeout) {
+    selectIslandInactivityTimeout.value = String(settings.islandInactivityTimeout ?? 30000);
+    selectIslandInactivityTimeout.addEventListener("change", (e) => {
+      settings.islandInactivityTimeout = parseInt(e.target.value, 10);
+      saveLocalSettings();
+      lastPlaybackActivityMs = Date.now();
+      if (isIslandSleeping) {
+        wakeDynamicIsland();
+      }
+    });
+  }
+
+  // Periodic Inactivity Checker (1-second tick)
+  setInterval(checkDynamicIslandInactivity, 1000);
+
+  // Satellite chip click listener (cycles translation mode)
+  const islandSatelliteChip = document.getElementById("island-satellite-chip");
+  if (islandSatelliteChip) {
+    islandSatelliteChip.addEventListener("click", (e) => {
+      e.stopPropagation();
+      cycleIslandTranslationMode();
+    });
+  }
+
+  // Satellite Island hover & marquee tracking
+  const dynamicIslandTranslationEl = document.getElementById("dynamic-island-translation");
+  if (dynamicIslandTranslationEl) {
+    dynamicIslandTranslationEl.addEventListener("mouseenter", () => {
+      wakeDynamicIsland();
+      startDynamicIslandBoundsTracking(450);
+      const satText = document.getElementById("island-satellite-text");
+      const satWrap = document.getElementById("island-satellite-marquee-wrapper");
+      if (satText && satWrap) updateMarqueeOverflow(satWrap, satText);
+    });
+    dynamicIslandTranslationEl.addEventListener("mousemove", () => {
+      lastPlaybackActivityMs = Date.now();
+    });
+    dynamicIslandTranslationEl.addEventListener("mouseleave", () => {
+      startDynamicIslandBoundsTracking(450);
+    });
+    dynamicIslandTranslationEl.addEventListener("transitionstart", () => {
+      startDynamicIslandBoundsTracking(450);
+    });
+    dynamicIslandTranslationEl.addEventListener("transitionend", () => {
+      pushDynamicIslandBounds();
+    });
+  }
+
+  // In-App Discovery Prompt Modal Buttons
+  const btnPromptEnable = document.getElementById("btn-island-prompt-enable");
+  if (btnPromptEnable) {
+    btnPromptEnable.addEventListener("click", (e) => {
+      e.stopPropagation();
+      dismissIslandSatellitePrompt(true);
+    });
+  }
+  const btnPromptDismiss = document.getElementById("btn-island-prompt-dismiss");
+  if (btnPromptDismiss) {
+    btnPromptDismiss.addEventListener("click", (e) => {
+      e.stopPropagation();
+      dismissIslandSatellitePrompt(false);
     });
   }
 
@@ -3009,6 +4051,11 @@ function setupUIHandlers() {
       e.preventDefault();
       toggleDynamicIslandMode();
     }
+    // Ctrl+Shift+T to cycle Dynamic Island translation mode
+    if (e.ctrlKey && e.shiftKey && (e.code === 'KeyT' || e.key.toLowerCase() === 't')) {
+      e.preventDefault();
+      cycleIslandTranslationMode();
+    }
   });
 
   // Auto-Hide Lyrics event listeners
@@ -3169,6 +4216,20 @@ function setupUIHandlers() {
   if (btnNewsClose) {
     btnNewsClose.addEventListener("click", () => {
       if (newsPanel) newsPanel.classList.remove("open");
+    });
+  }
+
+  const btnNewsRefresh = document.getElementById("btn-news-refresh");
+  if (btnNewsRefresh) {
+    btnNewsRefresh.addEventListener("click", () => {
+      btnNewsRefresh.classList.add("spinning");
+      if (typeof fetchMusicNews === 'function') {
+        fetchMusicNews(true).finally(() => {
+          setTimeout(() => btnNewsRefresh.classList.remove("spinning"), 600);
+        });
+      } else {
+        setTimeout(() => btnNewsRefresh.classList.remove("spinning"), 600);
+      }
     });
   }
 
@@ -3349,12 +4410,9 @@ function setupUIHandlers() {
     const isOverInteractive = e.target.closest('button, input, select, .hud-header, .playback-widget, .settings-panel, a, label, .drag-handle, .lyrics-empty-state');
     if (isOverInteractive) {
       setClickThroughCached(false);
-    } else {
-      if (settings.clickThrough) {
-        setClickThroughCached(true);
-      }
     }
   });
+
 
   // Disable click-through on window focus, restore on blur (except in taskbar mode)
   window.addEventListener('focus', () => {
@@ -3373,10 +4431,8 @@ function setupUIHandlers() {
       if (isDraggingTb) return;
       return;
     }
-    if (config && settings.clickThrough) {
-      setClickThroughCached(true);
-    }
   });
+
 
   document.addEventListener('mouseleave', () => {
     if (settings.taskbarMode && config && isDraggingTb) {
@@ -3451,20 +4507,12 @@ function setupUIHandlers() {
     });
   }
 
-  // Shortcut and system level listeners from main process
-  window.electronAPI.onToggleClickThrough(() => {
-    toggleClickThrough();
-  });
 
   window.electronAPI.onWindowRestored(() => {
-    // Disable click-through on restore to let users interact immediately
-    if (settings.clickThrough) {
-      toggleClickThrough();
-    } else {
-      setClickThroughCached(false);
-    }
+    setClickThroughCached(false);
     forceRecalculateDragRegions();
   });
+
 
   if (window.electronAPI.onForceNormalMode) {
     window.electronAPI.onForceNormalMode(() => {
@@ -3638,6 +4686,12 @@ function setupUIHandlers() {
         if (btnPauseSvg) btnPauseSvg.style.display = 'block';
         handleTaskbarPauseAutoHide(false);
         updateAutoHideState();
+        document.body.classList.toggle('is-playing', true);
+        document.body.classList.toggle('app-paused', false);
+        syncDynamicIslandState();
+        if (typeof checkVisualizerFallback === 'function') {
+          checkVisualizerFallback();
+        }
       }
     } else {
       // Song paused: freeze internal clock exactly here, right now, without backwards jump
@@ -3652,6 +4706,12 @@ function setupUIHandlers() {
         if (btnPauseSvg) btnPauseSvg.style.display = 'none';
         handleTaskbarPauseAutoHide(true);
         updateAutoHideState();
+        document.body.classList.toggle('is-playing', false);
+        document.body.classList.toggle('app-paused', true);
+        syncDynamicIslandState();
+        if (typeof checkVisualizerFallback === 'function') {
+          checkVisualizerFallback();
+        }
       }
     }
   });
@@ -3726,12 +4786,31 @@ function setupUIHandlers() {
 
 
   // Lyric Share Card listener
+  function _openShareWithIslandInterop(idx) {
+    const preferredIdx = (typeof idx === 'number' && idx >= 0) ? idx : null;
+    if (typeof isDynamicIslandMode !== 'undefined' && isDynamicIslandMode) {
+      window._returnToIslandAfterShare = true;
+      if (window.electronAPI && window.electronAPI.setDynamicIslandMode) {
+        window.electronAPI.setDynamicIslandMode(false);
+      }
+      setTimeout(() => {
+        if (typeof window.openShareModal === 'function') window.openShareModal(preferredIdx);
+      }, 200);
+      return;
+    }
+    if (typeof window.openShareModal === 'function') {
+      window.openShareModal(preferredIdx);
+    } else if (typeof generateShareCard === 'function') {
+      generateShareCard();
+    }
+  }
+
   window.electronAPI.onShareActiveLyric(() => {
-    generateShareCard();
+    _openShareWithIslandInterop(activeLineIndex);
   });
   if (btnShareLyric) {
     btnShareLyric.addEventListener("click", () => {
-      generateShareCard();
+      _openShareWithIslandInterop(activeLineIndex);
     });
   }
 
@@ -3790,6 +4869,12 @@ function setupUIHandlers() {
     if (((e.ctrlKey || e.metaKey) && (e.key === 'r' || e.key === 'R')) || e.key === 'F5') {
       e.preventDefault();
       cycleAlternativeLyrics();
+      return;
+    }
+
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 's' || e.key === 'S')) {
+      e.preventDefault();
+      _openShareWithIslandInterop(activeLineIndex);
       return;
     }
 
@@ -4141,44 +5226,14 @@ function applyAutoHide(hide) {
     appContainer.classList.remove('auto-hide-collapsed');
     document.body.classList.remove('auto-hide-faded');
     document.body.classList.remove('auto-hide-collapsed');
-    if (!settings.clickThrough) {
-      setClickThroughCached(false);
-    }
-  }
-}
+    setClickThroughCached(false);
 
-
-
-function toggleClickThrough() {
-  settings.clickThrough = !settings.clickThrough;
-  try {
-    setClickThroughCached(settings.clickThrough);
-    applyVisualSettings();
-    saveLocalSettings();
-
-    // Show a floating indicator if locked
-    if (settings.clickThrough) {
-      const banner = document.createElement("div");
-      banner.id = "lock-banner";
-      banner.style.cssText = "position: absolute; top: 52px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.85); border: 1px solid #1DB954; color: #1DB954; padding: 6px 14px; border-radius: 6px; font-size: 11.5px; font-weight: 600; z-index: 1000; pointer-events: none; transition: opacity 0.5s ease; box-shadow: 0 4px 14px rgba(0,0,0,0.6);";
-      banner.textContent = "Click-Through Active • Press Ctrl+Shift+L to unlock";
-      document.body.appendChild(banner);
-      setTimeout(() => {
-        banner.style.opacity = '0';
-        setTimeout(() => banner.remove(), 500);
-      }, 3500);
-    } else {
-      const existing = document.getElementById("lock-banner");
-      if (existing) existing.remove();
-      showToast("Click-Through Disabled (Interactive Mode)", 2500, 'success');
-    }
-  } catch (e) {
-    console.error("toggleClickThrough error:", e);
   }
 }
 
 
 // Navigation Screens
+
 function showLoginScreen() {
   if (screenOnboarding) {
     screenOnboarding.classList.remove("active");
@@ -4195,9 +5250,6 @@ function showLoginScreen() {
   // Ensure taskbar mode is deactivated visually on logout/login screen
   applyVisualSettings();
   setClickThroughCached(false);
-  if (window.electronAPI && typeof window.electronAPI.setClickThrough === 'function') {
-    window.electronAPI.setClickThrough(false);
-  }
 
   if (screenLogin) {
     screenLogin.classList.add("active");
@@ -4459,7 +5511,8 @@ function showLyricsScreen() {
   startPolling();
 
   // Set default window properties from settings on start
-  setClickThroughCached(settings.clickThrough || false);
+  setClickThroughCached(false);
+
 
   // Apply visual settings (including taskbarMode toggles) after config is set
   applyVisualSettings();
@@ -4702,6 +5755,23 @@ function handleEmptyPlayback() {
   document.documentElement.style.removeProperty('--art-color-1-rgb');
   document.documentElement.style.removeProperty('--art-color-2');
   document.documentElement.style.removeProperty('--art-color-2-rgb');
+  document.documentElement.style.removeProperty('--art-color-3');
+  document.documentElement.style.removeProperty('--art-color-3-rgb');
+  document.documentElement.style.removeProperty('--art-color-4');
+  document.documentElement.style.removeProperty('--art-color-4-rgb');
+  document.documentElement.style.removeProperty('--art-color-base');
+  document.documentElement.style.removeProperty('--art-color-base-rgb');
+  document.documentElement.style.removeProperty('--art-color-dominant');
+  document.documentElement.style.removeProperty('--art-color-dominant-rgb');
+  if (!settings.accentColor || settings.accentColor === 'auto' || settings.accentColor === 'dynamic') {
+    document.documentElement.style.removeProperty('--accent-primary');
+    document.documentElement.style.removeProperty('--accent-primary-rgb');
+    document.documentElement.style.removeProperty('--accent-bright');
+    document.documentElement.style.removeProperty('--accent-bright-rgb');
+    document.documentElement.style.removeProperty('--accent-secondary');
+    document.documentElement.style.removeProperty('--accent-tertiary');
+    document.documentElement.style.removeProperty('--accent-quaternary');
+  }
   if (settings.highlightColor === 'dynamic') {
     document.documentElement.style.removeProperty('--highlight-color');
     document.documentElement.style.removeProperty('--highlight-glow');
@@ -4979,27 +6049,46 @@ async function updateDynamicArtColor(artUrl) {
       ? await window.extractColorData(artUrl)
       : { dominant: await extractDominantColor(artUrl), palette: await extractColorPalette(artUrl) };
 
-    const colors = colorData?.dominant || { r: 29, g: 185, b: 84 };
+    const dominant = colorData?.dominant || { r: 29, g: 185, b: 84 };
     const palette = colorData?.palette;
+    const c0 = (palette && palette[0]) || colorData?.base || { r: 8, g: 10, b: 18 };
+    const c1 = (palette && palette[1]) || colorData?.primary || dominant;
+    const c2 = (palette && palette[2]) || colorData?.secondary || { r: Math.max(0, dominant.r - 40), g: Math.max(0, dominant.g - 40), b: Math.max(0, dominant.b - 40) };
+    const c3 = (palette && palette[3]) || colorData?.tertiary || c2;
+    const c4 = (palette && palette[4]) || colorData?.quaternary || c1;
 
-    const c1 = `rgb(${colors.r}, ${colors.g}, ${colors.b})`;
-    const c2Color = (palette && palette[2]) ? palette[2] : {
-      r: Math.max(0, colors.r - 80),
-      g: Math.max(0, colors.g - 80),
-      b: Math.max(0, colors.b - 80)
-    };
-    const c2 = `rgb(${c2Color.r}, ${c2Color.g}, ${c2Color.b})`;
+    // Export comprehensive artwork palette CSS variables
+    document.documentElement.style.setProperty('--art-color-1', `rgb(${c1.r}, ${c1.g}, ${c1.b})`);
+    document.documentElement.style.setProperty('--art-color-1-rgb', `${c1.r}, ${c1.g}, ${c1.b}`);
+    document.documentElement.style.setProperty('--art-color-2', `rgb(${c2.r}, ${c2.g}, ${c2.b})`);
+    document.documentElement.style.setProperty('--art-color-2-rgb', `${c2.r}, ${c2.g}, ${c2.b}`);
+    document.documentElement.style.setProperty('--art-color-3', `rgb(${c3.r}, ${c3.g}, ${c3.b})`);
+    document.documentElement.style.setProperty('--art-color-3-rgb', `${c3.r}, ${c3.g}, ${c3.b}`);
+    document.documentElement.style.setProperty('--art-color-4', `rgb(${c4.r}, ${c4.g}, ${c4.b})`);
+    document.documentElement.style.setProperty('--art-color-4-rgb', `${c4.r}, ${c4.g}, ${c4.b}`);
+    document.documentElement.style.setProperty('--art-color-base', `rgb(${c0.r}, ${c0.g}, ${c0.b})`);
+    document.documentElement.style.setProperty('--art-color-base-rgb', `${c0.r}, ${c0.g}, ${c0.b}`);
+    document.documentElement.style.setProperty('--art-color-dominant', `rgb(${dominant.r}, ${dominant.g}, ${dominant.b})`);
+    document.documentElement.style.setProperty('--art-color-dominant-rgb', `${dominant.r}, ${dominant.g}, ${dominant.b}`);
 
-    document.documentElement.style.setProperty('--art-color-1', c1);
-    document.documentElement.style.setProperty('--art-color-1-rgb', `${colors.r}, ${colors.g}, ${colors.b}`);
-    document.documentElement.style.setProperty('--art-color-2', c2);
-    document.documentElement.style.setProperty('--art-color-2-rgb', `${c2Color.r}, ${c2Color.g}, ${c2Color.b}`);
+    // Harmonize dynamic accent theme and share cards with authentic artwork colors
+    if (!settings.accentColor || settings.accentColor === 'auto' || settings.accentColor === 'dynamic') {
+      document.documentElement.style.setProperty('--accent-primary', `rgb(${c1.r}, ${c1.g}, ${c1.b})`);
+      document.documentElement.style.setProperty('--accent-primary-rgb', `${c1.r}, ${c1.g}, ${c1.b}`);
+      document.documentElement.style.setProperty('--accent-bright', `rgb(${c4.r}, ${c4.g}, ${c4.b})`);
+      document.documentElement.style.setProperty('--accent-bright-rgb', `${c4.r}, ${c4.g}, ${c4.b}`);
+      document.documentElement.style.setProperty('--accent-secondary', `rgb(${c2.r}, ${c2.g}, ${c2.b})`);
+      document.documentElement.style.setProperty('--accent-tertiary', `rgb(${c3.r}, ${c3.g}, ${c3.b})`);
+      document.documentElement.style.setProperty('--accent-quaternary', `rgb(${c4.r}, ${c4.g}, ${c4.b})`);
+    }
 
+    // Dynamic lyric text: keep text crisp white (or dark in light mode) with dynamic artwork glow aura
     if (settings.highlightColor === 'dynamic') {
       const glowRaw = typeof settings.glowIntensity === 'number' ? settings.glowIntensity : (typeof settings.glow === 'number' ? settings.glow : 65);
       const glowInt = glowRaw / 100;
-      document.documentElement.style.setProperty('--highlight-color', 'var(--art-color-1, #1DB954)');
-      document.documentElement.style.setProperty('--highlight-glow', `rgba(${colors.r}, ${colors.g}, ${colors.b}, ${glowInt})`);
+      const isLight = document.documentElement.getAttribute('data-theme') === 'light' || settings.theme === 'light';
+      document.documentElement.style.setProperty('--highlight-color', isLight ? '#1d1d1f' : '#ffffff');
+      document.documentElement.style.setProperty('--highlight-glow', `rgba(${c1.r}, ${c1.g}, ${c1.b}, ${glowInt})`);
     }
 
     if (fluidMeshGradientInstance && palette) {
@@ -5112,7 +6201,14 @@ async function handlePlaybackData(data) {
     }
   }
 
+  const wasPlaying = isPlaying;
   isPlaying = isCurrentlyPlaying;
+  if (!wasPlaying && isCurrentlyPlaying) {
+    lastPlaybackActivityMs = Date.now();
+    if (isIslandSleeping) {
+      wakeDynamicIsland();
+    }
+  }
   document.body.classList.toggle('is-playing', isCurrentlyPlaying);
   document.body.classList.toggle('app-paused', !isCurrentlyPlaying);
   document.body.classList.remove('is-idle');
@@ -5212,6 +6308,24 @@ async function handlePlaybackData(data) {
     activeLineIndex = -1;
     userScrolling = false;
     hideResyncButton();
+    const targetCacheKey = `lyrics_cache_v21_${currentTrackId}`;
+    let isKnownUntranslated = false;
+    try {
+      const cachedRaw = localStorage.getItem(targetCacheKey);
+      if (cachedRaw) {
+        const cObj = JSON.parse(cachedRaw);
+        if (cObj.noTransNeeded) isKnownUntranslated = true;
+      }
+    } catch (_) {}
+
+    if (isKnownUntranslated) {
+      dismissSatelliteForUntranslatedTrack();
+    } else {
+      const satText = document.getElementById("island-satellite-text");
+      if (satText && satText.textContent !== '•••') {
+        satText.textContent = '•••';
+      }
+    }
     if (widgetPlaycount) widgetPlaycount.style.display = "none";
 
     lyricsContainer.innerHTML = '<div class="lyric-line placeholder">Loading lyrics...</div>';
@@ -5303,7 +6417,14 @@ async function handlePlaybackData(data) {
 
     const targetTrackId = track.id;
     const targetTrackName = track.name;
-    const targetArtistName = (track.artists && track.artists[0] && track.artists[0].name) ? track.artists[0].name : '';
+    const allArtists = (track.artists && Array.isArray(track.artists) && track.artists.length > 0)
+      ? track.artists.map(a => a.name).filter(Boolean).join(", ")
+      : (track.artist || '');
+    const primaryArtist = (track.artists && track.artists[0] && track.artists[0].name)
+      ? track.artists[0].name
+      : (allArtists.split(/,| feat\.| ft\./i)[0].trim() || 'Unknown');
+    const targetArtistName = allArtists || primaryArtist;
+    const targetAlbumName = track.album?.name || '';
     const targetTrackDuration = trackDuration;
     const finalIsrc = track.external_ids?.isrc || null;
 
@@ -5313,9 +6434,13 @@ async function handlePlaybackData(data) {
 
     const executeTrackFetches = () => {
       if (currentTrackId !== targetTrackId) return;
-      fetchGeniusFact(targetTrackName, targetArtistName);
-      fetchGeniusAnnotations(targetTrackName, targetArtistName, targetTrackId);
-      fetchLyrics(targetTrackId, targetTrackName, targetArtistName || 'Unknown', targetTrackDuration, finalIsrc);
+      fetchGeniusFact(targetTrackName, primaryArtist);
+      fetchGeniusAnnotations(targetTrackName, primaryArtist, targetTrackId);
+      fetchLyrics(targetTrackId, targetTrackName, targetArtistName || 'Unknown', targetTrackDuration, finalIsrc, {
+        allArtists,
+        primaryArtist,
+        album: targetAlbumName
+      });
     };
 
     if (hasCachedLyrics) {
@@ -5485,6 +6610,103 @@ const trackLyricsCandidateIndex = {};
 const rejectedLyricsSignatures = {};
 let isReloadingLyrics = false;
 
+/**
+ * Non-blocking Auto-Translation Engine
+ * Translates song lyrics into target language and persists translations into cache.
+ */
+async function triggerAutoTranslation(targetTrackId, linesToTranslate, cacheKey = null, force = false) {
+  if (!settings.translateLang || settings.translateLang === 'none') return;
+  if (!linesToTranslate || !Array.isArray(linesToTranslate) || linesToTranslate.length === 0) return;
+  if (!window.electronAPI || typeof window.electronAPI.translateText !== 'function') return;
+
+  // If already translated into this exact language and not forced, skip
+  if (!force && linesToTranslate._transLang === settings.translateLang && (linesToTranslate._noTransNeeded || linesToTranslate.some(l => l.subText && l.subText.trim()))) {
+    return;
+  }
+
+  const skipLang = settings.skipLang || 'none';
+  const combinedText = linesToTranslate.map(l => (l.text || '').replace(/[\r\n]+/g, ' ').trim()).join('\n');
+  if (!combinedText.trim()) return;
+
+  const translationRequestId = `${targetTrackId}_${settings.translateLang}`;
+  triggerAutoTranslation._activeRequest = translationRequestId;
+
+  try {
+    const transRes = await window.electronAPI.translateText(combinedText, settings.translateLang, skipLang);
+    // Ignore stale request if a newer translation was triggered
+    if (triggerAutoTranslation._activeRequest !== translationRequestId) return;
+
+    if (!transRes || !transRes.text) {
+      if (transRes && transRes.skipped) {
+        console.log(`[LF-LYRICS] Auto-translation skipped: original track matches target/skip language (${transRes.src})`);
+        linesToTranslate._transLang = settings.translateLang;
+        linesToTranslate._noTransNeeded = true;
+      }
+      return;
+    }
+
+    const transLines = transRes.text.split('\n');
+    let hasNewTrans = false;
+    const limit = Math.min(transLines.length, linesToTranslate.length);
+
+    for (let i = 0; i < limit; i++) {
+      let transText = transLines[i] ? transLines[i].trim() : '';
+      transText = decodeHtmlEntities(transText);
+      const origText = (linesToTranslate[i].text || '').trim();
+      if (transText && transText.toLowerCase() !== origText.toLowerCase()) {
+        linesToTranslate[i].subText = transText;
+        hasNewTrans = true;
+      }
+    }
+
+    linesToTranslate._transLang = settings.translateLang;
+    if (!hasNewTrans) {
+      linesToTranslate._noTransNeeded = true;
+    }
+
+    // Persist updated lyrics with subText back into cache
+    if (cacheKey) {
+      try {
+        const cachedRaw = localStorage.getItem(cacheKey);
+        if (cachedRaw) {
+          const cachedObj = JSON.parse(cachedRaw);
+          cachedObj.lyrics = linesToTranslate;
+          cachedObj.transLang = settings.translateLang;
+          if (!hasNewTrans) cachedObj.noTransNeeded = true;
+          if (window.safeStorageSet) {
+            window.safeStorageSet(cacheKey, JSON.stringify(cachedObj));
+          } else {
+            localStorage.setItem(cacheKey, JSON.stringify(cachedObj));
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (hasNewTrans) {
+      // If track is still active, update UI immediately
+      if (targetTrackId === currentTrackId) {
+        renderLyrics();
+        const islandLine = document.getElementById("island-lyric-line");
+        if (islandLine) {
+          islandLine.dataset.lineIndex = "";
+          islandLine.dataset.transMode = "";
+          islandLine.dataset.subText = "";
+        }
+        if (lyrics && lyrics.length > 0 && activeLineIndex >= 0) {
+          updateDynamicIslandLyric(activeLineIndex, lyrics[activeLineIndex], currentProgress);
+        }
+      }
+    } else {
+      // Track has no translation needed: ensure satellite is reset & turned off
+      if (targetTrackId === currentTrackId) {
+        resetSatelliteIslandState(false);
+      }
+    }
+  } catch (err) {
+    console.warn("[LF-LYRICS] Translation Notice:", err);
+  }
+}
+
 // Synced lyrics fetching via V2 Unified Proxy (Spotify Internal) + Direct LRCLIB
 async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = null, options = {}) {
   if (typeof isrc === 'object' && isrc !== null && Object.keys(options).length === 0) {
@@ -5528,12 +6750,37 @@ async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = nu
     if (cachedStr) {
       try {
         const cachedData = JSON.parse(cachedStr);
-        if (trackId === currentTrackId && cachedData.lyrics?.length > 0) {
+        // Integrity check: If this is Yeat "Back Home" (194s ADL track) but cached lyrics are the 2023 AftërLyfe "Back homë" ("flew it to milan" / "working on dying"), bust cache immediately!
+        const isYeatBackHome = cleanTrack.toLowerCase() === "back home" && cleanArtist.toLowerCase().includes("yeat");
+        const isPollutedYeatLyrics = isYeatBackHome && Array.isArray(cachedData.lyrics) && cachedData.lyrics.some(l => {
+          const t = (l.text || "").toLowerCase();
+          return t.includes("working on dying") || t.includes("flew it to milan") || t.includes("fly no jet");
+        });
+
+        if (isPollutedYeatLyrics) {
+          console.warn("[LF-LYRICS] Detected corrupted/polluted cache for Yeat - Back Home. Busting stale cache.");
+          localStorage.removeItem(cacheKey);
+          localStorage.removeItem(`lyrics_cache_${trackId}`);
+          if (!rejectedLyricsSignatures[trackId]) rejectedLyricsSignatures[trackId] = new Set();
+          const currentSig = cachedData.lyrics.slice(0, 4).map(l => (l.text || "").trim().toLowerCase()).join("|");
+          if (currentSig) rejectedLyricsSignatures[trackId].add(currentSig);
+        } else if (trackId === currentTrackId && cachedData.lyrics?.length > 0) {
           lyrics = cachedData.lyrics;
+          lyrics._transLang = cachedData.transLang;
           isFetchingLyrics = false;
           updateTimingStatus(cachedData.level || 2, cachedData.source || "", cachedData.candidateInfo || "");
           renderLyrics();
           adaptBpmSync(lyrics);
+
+          // Non-blocking Auto-Translation check on cached lyrics
+          if (settings.translateLang && settings.translateLang !== 'none') {
+            const hasSubText = lyrics.some(l => l.subText && l.subText.trim());
+            const langMatches = cachedData.transLang === settings.translateLang;
+            if ((!hasSubText && !cachedData.noTransNeeded) || !langMatches) {
+              triggerAutoTranslation(trackId, lyrics, cacheKey);
+            }
+          }
+
           if (cachedData.level === 3) return;
         }
       } catch (e) { console.error(e); }
@@ -5552,9 +6799,35 @@ async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = nu
       return /\[\d{1,2}:\d{2}[.:]\d{2,3}\]/.test(text);
     };
 
+    const extractLineText = (l) => {
+      if (!l) return "";
+      if (typeof l === "string") return l.trim();
+      if (typeof l.text === "string" && l.text.trim()) return l.text.trim();
+      if (typeof l.words === "string" && l.words.trim()) return l.words.trim();
+      if (Array.isArray(l.words) && l.words.length > 0) {
+        return l.words.map(w => (typeof w === 'string' ? w : (w.text || w.string || ""))).join(" ").trim();
+      }
+      return "";
+    };
+
     const getLinesSignature = (lines) => {
-      if (!lines || lines.length === 0) return "";
-      return lines.slice(0, 4).map(l => (l.text || l.words || "").trim().toLowerCase()).join("|");
+      if (!lines || !Array.isArray(lines) || lines.length === 0) return "";
+      return lines
+        .map(extractLineText)
+        .filter(t => t.length > 0)
+        .slice(0, 4)
+        .map(t => t.toLowerCase())
+        .join("|");
+    };
+
+    const isPollutedYeatLyrics = (lines) => {
+      if (!lines || !Array.isArray(lines)) return false;
+      const isYeatBackHome = cleanTrack.toLowerCase() === "back home" && (cleanArtist.toLowerCase().includes("yeat") || (options.allArtists && options.allArtists.toLowerCase().includes("yeat")));
+      if (!isYeatBackHome) return false;
+      return lines.some(l => {
+        const t = extractLineText(l).toLowerCase();
+        return t.includes("working on dying") || t.includes("flew it to milan") || t.includes("fly no jet");
+      });
     };
 
     const applyLyricsData = async (parsedLines, sourceLevel, sourceName = "", candidateInfo = "", normalizedLyricsObj = null) => {
@@ -5570,6 +6843,19 @@ async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = nu
 
       if (trackId !== currentTrackId || parsedLines.length === 0) {
         console.warn(`[LF-LYRICS] applyLyricsData REJECTED: trackId match=${trackId === currentTrackId}, filteredLines=${parsedLines.length}`);
+        return false;
+      }
+
+      // Automatically reject known polluted Yeat "Back Home" entries (2023 AftërLyfe lyrics uploaded under 194s track)
+      if (isPollutedYeatLyrics(parsedLines)) {
+        console.warn(`[LF-LYRICS] applyLyricsData REJECTED: detected polluted/mismatched Yeat - Back Home lyrics`);
+        return false;
+      }
+
+      // Check rejected lyrics signature (e.g. user clicked reload or cycling)
+      const linesSig = getLinesSignature(parsedLines);
+      if (rejectedLyricsSignatures[trackId]?.has(linesSig)) {
+        console.warn(`[LF-LYRICS] applyLyricsData REJECTED: signature matches previously rejected lyrics for ${trackId}`);
         return false;
       }
 
@@ -5636,27 +6922,7 @@ async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = nu
       if (btnHide) btnHide.style.display = "inline-flex";
 
       // Non-blocking Auto-Translation (runs in background without stalling lyrics rendering)
-      if (settings.translateLang && settings.translateLang !== 'none') {
-        const skipLang = settings.skipLang || 'none';
-        const combinedText = parsedLines.map(l => l.text).join('\n');
-        window.electronAPI.translateText(combinedText, settings.translateLang, skipLang)
-          .then(transRes => {
-            if (trackId !== currentTrackId) return;
-            const transLines = (transRes && transRes.text) ? transRes.text.split('\n') : [];
-            let hasNewTrans = false;
-            parsedLines.forEach((line, i) => {
-              const transText = transLines[i] ? transLines[i].trim() : '';
-              if (transText && transText.toLowerCase() !== line.text.trim().toLowerCase()) {
-                line.subText = transText;
-                hasNewTrans = true;
-              }
-            });
-            if (hasNewTrans && trackId === currentTrackId) {
-              renderLyrics();
-            }
-          })
-          .catch(err => { console.warn("[LF-LYRICS] Translation Notice:", err); });
-      }
+      triggerAutoTranslation(trackId, parsedLines, cacheKey);
 
       return true;
     };
@@ -5721,6 +6987,15 @@ async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = nu
             parsed = candidate.parsedLines;
           }
           if (parsed.length > 0) {
+            if (isPollutedYeatLyrics(parsed)) {
+              console.debug(`[LF-DEBUG] rustLyricsFetch candidate matched polluted Yeat lyrics for ${trackId}, skipping`);
+              return false;
+            }
+            const sig = getLinesSignature(parsed);
+            if (rejectedLyricsSignatures[trackId]?.has(sig)) {
+              console.debug(`[LF-DEBUG] rustLyricsFetch candidate matched rejected signature for ${trackId}, skipping`);
+              return false;
+            }
             const hasWords = parsed.some(l => l.words && l.words.length > 0);
             const level = hasWords ? 3 : (candidate.syncType === 'WORD_SYNCED' ? 3 : (candidate.syncType === 'LINE_SYNCED' ? 2 : 1));
             return await applyLyricsData(parsed, level, candidate.provider, candidate.candidateInfo || "");
@@ -5757,8 +7032,12 @@ async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = nu
           console.debug(`[LF-DEBUG] proxyFetch data.source="${data.source}", syncType="${data.syncType}", linesCount=${data.lines?.length || 0}`);
           
           if (data.source === "Spotify" && data.lines && data.lines.length > 0) {
+            if (isPollutedYeatLyrics(data.lines)) {
+              console.debug(`[LF-DEBUG] proxyFetch Spotify returned polluted Yeat lyrics for ${trackId}, skipping`);
+              return false;
+            }
             const sig = getLinesSignature(data.lines);
-            if (options.forceRefresh && rejectedLyricsSignatures[trackId]?.has(sig)) {
+            if (rejectedLyricsSignatures[trackId]?.has(sig)) {
               console.debug(`[LF-DEBUG] proxyFetch returned identical rejected lyrics for ${trackId}, skipping for alternative candidate`);
               return false;
             }
@@ -5766,8 +7045,12 @@ async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = nu
             return await applyLyricsData(data.lines, level, "Spotify");
           } else if (data.source === "LRCLIB" && data.rawLRC) {
             const parsed = parseLRC(data.rawLRC);
+            if (isPollutedYeatLyrics(parsed)) {
+              console.debug(`[LF-DEBUG] proxyFetch LRCLIB returned polluted Yeat lyrics for ${trackId}, skipping`);
+              return false;
+            }
             const sig = getLinesSignature(parsed);
-            if (options.forceRefresh && rejectedLyricsSignatures[trackId]?.has(sig)) {
+            if (rejectedLyricsSignatures[trackId]?.has(sig)) {
               console.debug(`[LF-DEBUG] proxyFetch LRCLIB returned identical rejected lyrics for ${trackId}`);
               return false;
             }
@@ -5796,61 +7079,123 @@ async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = nu
         let candidatePool = [];
         let exactResult = null;
 
-        // On initial attempt without force-refresh, try fast exact GET
+        // On initial attempt without force-refresh, try fast exact GET.
+        // Try both original track name and cleanTrack across artist variants (primary + all artists)
         if (!options.forceRefresh && candidateIdx === 0) {
-          const params = new URLSearchParams({ artist_name: cleanArtist, track_name: cleanTrack });
-          if (durationSec > 0) params.set("duration", durationSec);
-          try {
-            const res = await fetch(`https://lrclib.net/api/get?${params}`, { signal });
-            if (res.ok) {
-              const d = await res.json();
-              if (d && (hasLrcTimestamps(d.syncedLyrics) || d.plainLyrics)) {
-                exactResult = d;
-              }
+          const originalTrackName = trackName;
+          const artistVariants = [
+            cleanArtist,
+            ...(options.allArtists && options.allArtists !== cleanArtist ? [options.allArtists] : []),
+            ...(options.primaryArtist && options.primaryArtist !== cleanArtist ? [options.primaryArtist] : [])
+          ];
+          const trackVariants = (originalTrackName && originalTrackName !== cleanTrack)
+            ? [originalTrackName, cleanTrack]
+            : [cleanTrack];
+
+          for (const aName of artistVariants) {
+            if (exactResult) break;
+            for (const tName of trackVariants) {
+              try {
+                const params = new URLSearchParams({ artist_name: aName, track_name: tName });
+                if (durationSec > 0) params.set("duration", durationSec);
+                const res = await fetch(`https://lrclib.net/api/get?${params}`, { signal });
+                if (res.ok) {
+                  const d = await res.json();
+                  if (d && (hasLrcTimestamps(d.syncedLyrics) || d.plainLyrics)) {
+                    const lrc = d.syncedLyrics || d.plainLyrics;
+                    const parsed = parseLRC(lrc);
+                    if (!isPollutedYeatLyrics(parsed)) {
+                      const sig = getLinesSignature(parsed);
+                      if (!rejectedLyricsSignatures[trackId]?.has(sig)) {
+                        exactResult = d;
+                        console.debug(`[LF-DEBUG] LRCLIB exact GET matched with artist="${aName}", track="${tName}"`);
+                        break;
+                      }
+                    } else {
+                      console.debug(`[LF-DEBUG] LRCLIB exact GET rejected polluted Yeat lyrics for artist="${aName}", track="${tName}"`);
+                    }
+                  }
+                }
+              } catch (e) { /* continue */ }
             }
-          } catch (e) { /* fallback to search */ }
+          }
         }
 
         if (!exactResult || !hasLrcTimestamps(exactResult.syncedLyrics)) {
-          // Query both targeted search and keyword search
-          const searchPromises = [
+          // Query targeted search and keyword search across primary artist and all artists
+          const searchQueries = [
             fetch(`https://lrclib.net/api/search?track_name=${encodeURIComponent(cleanTrack)}&artist_name=${encodeURIComponent(cleanArtist)}`, { signal })
               .then(r => r.ok ? r.json() : []).catch(() => []),
             fetch(`https://lrclib.net/api/search?q=${encodeURIComponent(cleanTrack + " " + cleanArtist)}`, { signal })
               .then(r => r.ok ? r.json() : []).catch(() => [])
           ];
 
-          const [resByMeta, resByQuery] = await Promise.all(searchPromises);
-          const rawCandidates = [...(resByMeta || []), ...(resByQuery || [])];
+          if (options.allArtists && options.allArtists !== cleanArtist) {
+            searchQueries.push(
+              fetch(`https://lrclib.net/api/search?q=${encodeURIComponent(cleanTrack + " " + options.allArtists)}`, { signal })
+                .then(r => r.ok ? r.json() : []).catch(() => [])
+            );
+          }
 
-          // Deduplicate by item ID
+          const searchResults = await Promise.all(searchQueries);
+          const rawCandidates = searchResults.flat();
+
+          // Deduplicate by item ID AND lyrics content signature (to collapse duplicate lyrics)
           const seenIds = new Set();
+          const seenSigs = new Set();
           const unique = [];
           for (const item of rawCandidates) {
             if (item && item.id && !seenIds.has(item.id)) {
               seenIds.add(item.id);
-              unique.push(item);
+              const lrc = item.syncedLyrics || item.plainLyrics || "";
+              const lines = parseLRC(lrc);
+              const sig = getLinesSignature(lines);
+              if (sig && !seenSigs.has(sig)) {
+                seenSigs.add(sig);
+                unique.push(item);
+              } else if (!sig) {
+                unique.push(item);
+              }
             }
           }
 
-          // Filter by match
+          // Filter by match (and discard known polluted entries)
           const sArtist = cleanArtist.toLowerCase();
+          const sAllArtists = (options.allArtists || cleanArtist).toLowerCase();
           const sTrack = cleanTrack.toLowerCase();
           const valid = unique.filter(r => {
+            const lrc = r.syncedLyrics || r.plainLyrics || "";
+            const lines = parseLRC(lrc);
+            if (isPollutedYeatLyrics(lines)) return false;
             const rArtist = (r.artistName || "").toLowerCase();
             const rTrack = (r.trackName || "").toLowerCase();
             return rArtist.includes(sArtist) || sArtist.includes(rArtist) ||
+                   rArtist.includes(sAllArtists) || sAllArtists.includes(rArtist) ||
                    rTrack.includes(sTrack) || sTrack.includes(rTrack);
           });
 
-          // Sort synced candidates by duration proximity
+          // Sort synced candidates by composite score: title/artist match quality first, then duration proximity.
+          const titleMatchScore = (r) => {
+            const rTrack = (r.trackName || '').toLowerCase();
+            const rArtist = (r.artistName || '').toLowerCase();
+            const origLower = trackName.toLowerCase();
+            if (rTrack === origLower && (rArtist.includes(sArtist) || sArtist.includes(rArtist))) return 0; // exact original match
+            if ((origLower.includes(rTrack) || rTrack.includes(origLower)) && rArtist.includes(sArtist)) return 1;
+            if (rTrack === sTrack) return 2;
+            return 3;
+          };
+
           const syncedList = valid.filter(r => hasLrcTimestamps(r.syncedLyrics));
           const plainList = valid.filter(r => !hasLrcTimestamps(r.syncedLyrics) && r.plainLyrics);
 
-          if (durationSec > 0) {
-            syncedList.sort((a, b) => Math.abs((a.duration || 0) - durationSec) - Math.abs((b.duration || 0) - durationSec));
-            plainList.sort((a, b) => Math.abs((a.duration || 0) - durationSec) - Math.abs((b.duration || 0) - durationSec));
-          }
+          const compositeSort = (a, b) => {
+            const scoreDiff = titleMatchScore(a) - titleMatchScore(b);
+            if (scoreDiff !== 0) return scoreDiff;
+            if (durationSec > 0) return Math.abs((a.duration || 0) - durationSec) - Math.abs((b.duration || 0) - durationSec);
+            return 0;
+          };
+          syncedList.sort(compositeSort);
+          plainList.sort(compositeSort);
 
           candidatePool = [...syncedList, ...plainList];
         } else {
@@ -5858,7 +7203,7 @@ async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = nu
         }
 
         // On reload, filter out candidates matching rejected lyrics signatures
-        if (options.forceRefresh && rejectedLyricsSignatures[trackId]?.size > 0 && candidatePool.length > 1) {
+        if (options.forceRefresh && rejectedLyricsSignatures[trackId]?.size > 0 && candidatePool.length > 0) {
           const nonRejected = candidatePool.filter(c => {
             const lrc = c.syncedLyrics || c.plainLyrics || "";
             const lines = parseLRC(lrc);
@@ -6467,6 +7812,14 @@ function renderLyrics() {
       }
     });
 
+    // Feature: Right-click lyric line to open share card at that line
+    el.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      if (typeof window.openShareModal === 'function') {
+        window.openShareModal(index);
+      }
+    });
+
     frag.appendChild(el);
     cachedLineEls.push(el);
   });
@@ -6841,9 +8194,12 @@ function updatePlayhead() {
         }
 
 
-        // Update Dynamic Island lyric line
+        // Update Dynamic Island lyric line with smart synchronization
         try {
-          updateDynamicIslandLyric(activeIndex, lyrics[activeIndex], syncProgress);
+          if (!isIslandSleeping) {
+            const islandSync = getDynamicIslandSyncData(syncProgress);
+            updateDynamicIslandLyric(islandSync.lineIndex, islandSync.lineData, syncProgress, islandSync.isInstrumental);
+          }
         } catch (err) {
           console.warn("[DynamicIsland] Error updating lyric line:", err);
         }
@@ -6946,6 +8302,12 @@ function updatePlayhead() {
           // Width is managed by taskbar_renderer.js via scheduleResize — do NOT call here
         }
       }
+    } else {
+      try {
+        if (!isIslandSleeping) {
+          updateDynamicIslandLyric(-1, null, currentProgress, false);
+        }
+      } catch (_) {}
     }
 
     // Last.fm Progress check for scrobbling (throttled to ~1Hz)

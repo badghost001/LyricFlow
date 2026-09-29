@@ -1,12 +1,12 @@
 {
   "name": "lyricflow",
-  "version": "1.3.1",
+  "version": "1.4.0",
   "description": "LyricFlow",
   "main": "main.js",
   "type": "commonjs",
   "scripts": {
     "start": "electron . --no-sandbox",
-    "test": "node tests/lyrics-plus.test.js",
+    "test": "node -c src/renderer.js src/tauri-bridge.js src/modules/*.js && node tests/lyrics-plus.test.js && node tests/translation.test.js && node tests/island-timeout.test.js && node tests/share-card.test.js && node tests/color-extraction.test.js",
     "build:win": "electron-builder --win",
     "publish": "electron-builder --win -p always",
     "tauri": "tauri",

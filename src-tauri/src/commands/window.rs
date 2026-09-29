@@ -42,6 +42,25 @@ pub fn update_taskbar_lyric_bounds(rect: LyricBounds) -> Result<(), String> {
     Ok(())
 }
 
+static ISLAND_BOUNDS: OnceLock<Mutex<Option<LyricBounds>>> = OnceLock::new();
+static ISLAND_GEOMETRY: OnceLock<Mutex<(i32, i32, f64)>> = OnceLock::new();
+
+fn get_island_bounds() -> &'static Mutex<Option<LyricBounds>> {
+    ISLAND_BOUNDS.get_or_init(|| Mutex::new(None))
+}
+
+fn get_island_geometry() -> &'static Mutex<(i32, i32, f64)> {
+    ISLAND_GEOMETRY.get_or_init(|| Mutex::new((0, 0, 1.0)))
+}
+
+#[tauri::command]
+pub fn update_island_bounds(rect: LyricBounds) -> Result<(), String> {
+    if let Ok(mut lock) = get_island_bounds().lock() {
+        *lock = Some(rect);
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub fn set_taskbar_dragging(dragging: bool) -> Result<(), String> {
     TASKBAR_DRAGGING.store(dragging, Ordering::SeqCst);
@@ -901,8 +920,8 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
         }
 
         let scale = window.scale_factor().unwrap_or(1.0);
-        let island_w = (460.0 * scale) as u32;
-        let island_h = (130.0 * scale) as u32;
+        let island_w = (520.0 * scale) as u32;
+        let island_h = (210.0 * scale) as u32;
 
         let dock = dock_pos.as_deref().unwrap_or("top-center");
 
@@ -918,20 +937,43 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
             let m_size = m.size();
             let center_x = m_pos.x + ((m_size.width as i32 - island_w as i32) / 2);
             let top_y = m_pos.y;
-            let pad_h = ((460.0 - 290.0) / 2.0 * scale) as i32;
+
+            #[cfg(target_os = "windows")]
+            let taskbar_top = {
+                use windows::Win32::UI::WindowsAndMessaging::{
+                    SystemParametersInfoW, SPI_GETWORKAREA, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS,
+                };
+                use windows::Win32::Foundation::RECT;
+                let mut wa = RECT::default();
+                let ok = unsafe {
+                    SystemParametersInfoW(
+                        SPI_GETWORKAREA,
+                        0,
+                        Some(&mut wa as *mut _ as *mut _),
+                        SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS(0),
+                    )
+                };
+                if ok.is_ok() && wa.bottom > 0 && wa.bottom <= m_pos.y + m_size.height as i32 {
+                    wa.bottom
+                } else {
+                    m_pos.y + m_size.height as i32 - (48.0 * scale) as i32
+                }
+            };
+            #[cfg(not(target_os = "windows"))]
+            let taskbar_top = m_pos.y + m_size.height as i32 - (48.0 * scale) as i32;
 
             match dock {
                 "top-left" => {
-                    let x = m_pos.x + (16.0 * scale) as i32 - pad_h;
+                    let x = m_pos.x + (16.0 * scale) as i32;
                     (x, top_y)
                 }
                 "top-right" => {
-                    let x = m_pos.x + m_size.width as i32 - island_w as i32 - (16.0 * scale) as i32 + pad_h;
+                    let x = m_pos.x + m_size.width as i32 - island_w as i32 - (16.0 * scale) as i32;
                     (x, top_y)
                 }
                 "bottom-center" => {
                     let x = center_x;
-                    let y = m_pos.y + m_size.height as i32 - island_h as i32 - (48.0 * scale) as i32;
+                    let y = taskbar_top - island_h as i32;
                     (x, y)
                 }
                 _ => {
@@ -981,11 +1023,91 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
             "[DynamicIsland] Docked to {}: target=({}, {}), size=({}x{}), scale={}",
             dock, target_x, target_y, island_w, island_h, scale
         ));
+
+        if let Ok(mut lock) = get_island_geometry().lock() {
+            *lock = (target_x, target_y, scale);
+        }
+
+        if let Ok(mut lock) = get_island_bounds().lock() {
+            let initial_rect = match dock {
+                "top-left" => LyricBounds { x: 0, y: 0, width: 340, height: 36 },
+                "top-right" => LyricBounds { x: 180, y: 0, width: 340, height: 36 },
+                "bottom-center" => LyricBounds { x: 90, y: 174, width: 340, height: 36 },
+                _ => LyricBounds { x: 90, y: 0, width: 340, height: 36 },
+            };
+            *lock = Some(initial_rect);
+        }
+
         DYNAMIC_ISLAND_ACTIVE.store(true, Ordering::SeqCst);
+
+        // Spawn background cursor hit-testing monitor thread so surrounding transparent area is click-through
+        #[cfg(target_os = "windows")]
+        {
+            let win_clone = window.clone();
+            std::thread::Builder::new()
+                .name("dynamic-island-hit-test".to_string())
+                .spawn(move || {
+                    use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
+                    use windows::Win32::Foundation::POINT;
+
+                    let mut current_clickthrough = false;
+                    let mut last_pt = POINT { x: -9999, y: -9999 };
+                    let mut last_bounds_id: (i32, i32, i32, i32) = (-1, -1, -1, -1);
+
+                    while DYNAMIC_ISLAND_ACTIVE.load(Ordering::SeqCst) {
+                        std::thread::sleep(std::time::Duration::from_millis(25));
+
+                        if !DYNAMIC_ISLAND_ACTIVE.load(Ordering::SeqCst) {
+                            break;
+                        }
+
+                        let mut pt = POINT::default();
+                        if unsafe { GetCursorPos(&mut pt) }.is_ok() {
+                            let bounds_opt = get_island_bounds().lock().ok().and_then(|g| *g);
+                            let cur_bounds_id = bounds_opt.map(|b| (b.x, b.y, b.width, b.height)).unwrap_or((0, 0, 0, 0));
+
+                            if pt.x == last_pt.x && pt.y == last_pt.y && cur_bounds_id == last_bounds_id {
+                                continue;
+                            }
+                            last_pt = pt;
+                            last_bounds_id = cur_bounds_id;
+
+                            let (win_x, win_y, scale) = get_island_geometry().lock().ok().map(|g| *g).unwrap_or((0, 0, 1.0));
+
+                            let is_over_island = if let Some(b) = bounds_opt {
+                                if b.width > 0 && b.height > 0 {
+                                    let pad = (10.0 * scale) as i32; // 10px generous buffer for effortless hover
+                                    let left = win_x + (b.x as f64 * scale) as i32 - pad;
+                                    let top = win_y + (b.y as f64 * scale) as i32 - pad;
+                                    let right = win_x + ((b.x + b.width) as f64 * scale) as i32 + pad;
+                                    let bottom = win_y + ((b.y + b.height) as f64 * scale) as i32 + pad;
+
+                                    pt.x >= left && pt.x <= right && pt.y >= top && pt.y <= bottom
+                                } else {
+                                    false
+                                }
+                            } else {
+                                false
+                            };
+
+                            let should_clickthrough = !is_over_island;
+                            if should_clickthrough != current_clickthrough {
+                                current_clickthrough = should_clickthrough;
+                                let _ = win_clone.set_ignore_cursor_events(should_clickthrough);
+                            }
+                        }
+                    }
+
+                    let _ = win_clone.set_ignore_cursor_events(false);
+                })
+                .expect("Failed to spawn dynamic island hit test thread");
+        }
     } else {
         if !DYNAMIC_ISLAND_ACTIVE.load(Ordering::SeqCst) {
             return Ok(());
         }
+        DYNAMIC_ISLAND_ACTIVE.store(false, Ordering::SeqCst);
+        let _ = window.set_ignore_cursor_events(false);
 
         let saved_pos = SAVED_ISLAND_MAIN_POS.get_or_init(|| Mutex::new(None)).lock().ok().and_then(|mut g| g.take());
         let saved_size = SAVED_ISLAND_MAIN_SIZE.get_or_init(|| Mutex::new(None)).lock().ok().and_then(|mut g| g.take());

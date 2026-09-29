@@ -122,187 +122,552 @@ function rgbToHsl(r, g, b) {
   return { h: hue, s: sat, l: lum };
 }
 
-function analyzeArtworkPixels(data) {
-  const NUM_BUCKETS = 16;
-  const BUCKET_DEG = 360 / NUM_BUCKETS;
+// --- High-Performance Authentic Artwork Color & Palette Extraction Engine ---
+// Fast Modified Median Cut Quantization (MMCQ) in 3D RGB color space.
+// Extracts genuine cluster centroids from artwork pixels with zero synthetic hue offsets,
+// authentic monochrome preservation, and true ambient depth.
 
-  let totalR = 0, totalG = 0, totalB = 0, validPixelCount = 0;
-  let saturatedCount = 0;
+class VBox {
+  constructor(r1, r2, g1, g2, b1, b2, histo) {
+    this.r1 = r1; this.r2 = r2;
+    this.g1 = g1; this.g2 = g2;
+    this.b1 = b1; this.b2 = b2;
+    this.histo = histo;
+    this._count = null;
+    this._avg = null;
+  }
 
-  const buckets = Array.from({ length: NUM_BUCKETS }, (_, i) => ({
-    idx: i,
-    hueCenter: i * BUCKET_DEG + BUCKET_DEG / 2,
-    count: 0,
-    sumR: 0, sumG: 0, sumB: 0,
-    sumSat: 0, sumLum: 0,
-    sumWeight: 0
-  }));
+  volume() {
+    return (this.r2 - this.r1 + 1) * (this.g2 - this.g1 + 1) * (this.b2 - this.b1 + 1);
+  }
 
-  for (let i = 0; i < data.length; i += 4) {
-    const r = data[i], g = data[i + 1], b = data[i + 2], a = data[i + 3];
-    if (a < 128) continue;
+  count() {
+    if (this._count !== null) return this._count;
+    let n = 0;
+    const { r1, r2, g1, g2, b1, b2, histo } = this;
+    for (let r = r1; r <= r2; r++) {
+      for (let g = g1; g <= g2; g++) {
+        for (let b = b1; b <= b2; b++) {
+          const idx = (r << 10) | (g << 5) | b;
+          n += histo[idx];
+        }
+      }
+    }
+    this._count = n;
+    return n;
+  }
 
-    totalR += r; totalG += g; totalB += b;
-    validPixelCount++;
+  avg() {
+    if (this._avg !== null) return this._avg;
+    let n = 0;
+    let rSum = 0, gSum = 0, bSum = 0;
+    const { r1, r2, g1, g2, b1, b2, histo } = this;
+    for (let r = r1; r <= r2; r++) {
+      const r_shifted = r << 10;
+      const r_mult = r * 8 + 4;
+      for (let g = g1; g <= g2; g++) {
+        const r_g = r_shifted | (g << 5);
+        const g_mult = g * 8 + 4;
+        for (let b = b1; b <= b2; b++) {
+          const cnt = histo[r_g | b];
+          if (cnt > 0) {
+            n += cnt;
+            rSum += cnt * r_mult;
+            gSum += cnt * g_mult;
+            bSum += cnt * (b * 8 + 4);
+          }
+        }
+      }
+    }
+    if (n > 0) {
+      this._avg = {
+        r: Math.round(rSum / n),
+        g: Math.round(gSum / n),
+        b: Math.round(bSum / n),
+        count: n
+      };
+    } else {
+      this._avg = {
+        r: Math.round(((r1 + r2) / 2) * 8 + 4),
+        g: Math.round(((g1 + g2) / 2) * 8 + 4),
+        b: Math.round(((b1 + b2) / 2) * 8 + 4),
+        count: 0
+      };
+    }
+    return this._avg;
+  }
+}
 
-    const { h, s, l } = rgbToHsl(r, g, b);
-
-    // Skip near-black or near-white extremes
-    if (l < 0.08 || l > 0.94) continue;
-
-    if (s >= 0.12) {
-      saturatedCount++;
-      const bucketIdx = Math.min(NUM_BUCKETS - 1, Math.floor(h / BUCKET_DEG));
-      const bkt = buckets[bucketIdx];
-      bkt.count++;
-      bkt.sumR += r;
-      bkt.sumG += g;
-      bkt.sumB += b;
-      bkt.sumSat += s;
-      bkt.sumLum += l;
-
-      // Weight: favor vibrant, medium-brightness pixels
-      const weight = (0.5 + s * 1.5) * (1.0 - Math.abs(l - 0.5) * 0.6);
-      bkt.sumWeight += weight;
+function shrinkBox(vbox, histo) {
+  let rMin = vbox.r1;
+  outerR1: for (let r = vbox.r1; r <= vbox.r2; r++) {
+    const r_shift = r << 10;
+    for (let g = vbox.g1; g <= vbox.g2; g++) {
+      const r_g = r_shift | (g << 5);
+      for (let b = vbox.b1; b <= vbox.b2; b++) {
+        if (histo[r_g | b] > 0) {
+          rMin = r;
+          break outerR1;
+        }
+      }
     }
   }
 
-  const isMonochrome = validPixelCount > 0 && (saturatedCount / validPixelCount) < 0.08;
+  let rMax = vbox.r2;
+  outerR2: for (let r = vbox.r2; r >= rMin; r--) {
+    const r_shift = r << 10;
+    for (let g = vbox.g1; g <= vbox.g2; g++) {
+      const r_g = r_shift | (g << 5);
+      for (let b = vbox.b1; b <= vbox.b2; b++) {
+        if (histo[r_g | b] > 0) {
+          rMax = r;
+          break outerR2;
+        }
+      }
+    }
+  }
 
-  if (isMonochrome || saturatedCount === 0) {
-    let avgR = validPixelCount ? Math.round(totalR / validPixelCount) : 180;
-    let avgG = validPixelCount ? Math.round(totalG / validPixelCount) : 190;
-    let avgB = validPixelCount ? Math.round(totalB / validPixelCount) : 205;
+  let gMin = vbox.g1;
+  outerG1: for (let g = vbox.g1; g <= vbox.g2; g++) {
+    const g_shift = g << 5;
+    for (let r = rMin; r <= rMax; r++) {
+      const r_g = (r << 10) | g_shift;
+      for (let b = vbox.b1; b <= vbox.b2; b++) {
+        if (histo[r_g | b] > 0) {
+          gMin = g;
+          break outerG1;
+        }
+      }
+    }
+  }
 
-    const maxVal = Math.max(avgR, avgG, avgB);
-    if (maxVal > 0 && maxVal < 140) {
-      const factor = 150 / maxVal;
-      avgR = Math.min(255, Math.round(avgR * factor));
-      avgG = Math.min(255, Math.round(avgG * factor));
-      avgB = Math.min(255, Math.round(avgB * factor));
+  let gMax = vbox.g2;
+  outerG2: for (let g = vbox.g2; g >= gMin; g--) {
+    const g_shift = g << 5;
+    for (let r = rMin; r <= rMax; r++) {
+      const r_g = (r << 10) | g_shift;
+      for (let b = vbox.b1; b <= vbox.b2; b++) {
+        if (histo[r_g | b] > 0) {
+          gMax = g;
+          break outerG2;
+        }
+      }
+    }
+  }
+
+  let bMin = vbox.b1;
+  outerB1: for (let b = vbox.b1; b <= vbox.b2; b++) {
+    for (let r = rMin; r <= rMax; r++) {
+      const r_shift = r << 10;
+      for (let g = gMin; g <= gMax; g++) {
+        if (histo[r_shift | (g << 5) | b] > 0) {
+          bMin = b;
+          break outerB1;
+        }
+      }
+    }
+  }
+
+  let bMax = vbox.b2;
+  outerB2: for (let b = vbox.b2; b >= bMin; b--) {
+    for (let r = rMin; r <= rMax; r++) {
+      const r_shift = r << 10;
+      for (let g = gMin; g <= gMax; g++) {
+        if (histo[r_shift | (g << 5) | b] > 0) {
+          bMax = b;
+          break outerB2;
+        }
+      }
+    }
+  }
+
+  return new VBox(rMin, rMax, gMin, gMax, bMin, bMax, histo);
+}
+
+function medianCutSplit(vbox, histo) {
+  const rW = vbox.r2 - vbox.r1;
+  const gW = vbox.g2 - vbox.g1;
+  const bW = vbox.b2 - vbox.b1;
+  const maxW = Math.max(rW, gW, bW);
+
+  if (maxW === 0) return [vbox];
+
+  let splitDim = 'r';
+  if (gW >= rW && gW >= bW) splitDim = 'g';
+  else if (bW >= rW && bW >= gW) splitDim = 'b';
+
+  const total = vbox.count();
+  if (total <= 1) return [vbox];
+
+  const partialSums = [];
+  let sum = 0;
+
+  if (splitDim === 'r') {
+    for (let r = vbox.r1; r <= vbox.r2; r++) {
+      let sliceCount = 0;
+      const r_shift = r << 10;
+      for (let g = vbox.g1; g <= vbox.g2; g++) {
+        const r_g = r_shift | (g << 5);
+        for (let b = vbox.b1; b <= vbox.b2; b++) {
+          sliceCount += histo[r_g | b];
+        }
+      }
+      sum += sliceCount;
+      partialSums[r] = sum;
+    }
+    const half = total / 2;
+    for (let r = vbox.r1; r <= vbox.r2; r++) {
+      if (partialSums[r] >= half) {
+        const left = r - vbox.r1;
+        const right = vbox.r2 - r;
+        let splitPoint = r;
+        if (left <= right) splitPoint = Math.min(vbox.r2 - 1, Math.max(vbox.r1, r));
+        else splitPoint = Math.max(vbox.r1, Math.min(vbox.r2 - 1, r - 1));
+        const box1 = shrinkBox(new VBox(vbox.r1, splitPoint, vbox.g1, vbox.g2, vbox.b1, vbox.b2, histo), histo);
+        const box2 = shrinkBox(new VBox(splitPoint + 1, vbox.r2, vbox.g1, vbox.g2, vbox.b1, vbox.b2, histo), histo);
+        box1._count = partialSums[splitPoint];
+        box2._count = total - box1._count;
+        return [box1, box2];
+      }
+    }
+  } else if (splitDim === 'g') {
+    for (let g = vbox.g1; g <= vbox.g2; g++) {
+      let sliceCount = 0;
+      const g_shift = g << 5;
+      for (let r = vbox.r1; r <= vbox.r2; r++) {
+        const r_g = (r << 10) | g_shift;
+        for (let b = vbox.b1; b <= vbox.b2; b++) {
+          sliceCount += histo[r_g | b];
+        }
+      }
+      sum += sliceCount;
+      partialSums[g] = sum;
+    }
+    const half = total / 2;
+    for (let g = vbox.g1; g <= vbox.g2; g++) {
+      if (partialSums[g] >= half) {
+        const left = g - vbox.g1;
+        const right = vbox.g2 - g;
+        let splitPoint = g;
+        if (left <= right) splitPoint = Math.min(vbox.g2 - 1, Math.max(vbox.g1, g));
+        else splitPoint = Math.max(vbox.g1, Math.min(vbox.g2 - 1, g - 1));
+        const box1 = shrinkBox(new VBox(vbox.r1, vbox.r2, vbox.g1, splitPoint, vbox.b1, vbox.b2, histo), histo);
+        const box2 = shrinkBox(new VBox(vbox.r1, vbox.r2, splitPoint + 1, vbox.g2, vbox.b1, vbox.b2, histo), histo);
+        box1._count = partialSums[splitPoint];
+        box2._count = total - box1._count;
+        return [box1, box2];
+      }
+    }
+  } else {
+    for (let b = vbox.b1; b <= vbox.b2; b++) {
+      let sliceCount = 0;
+      for (let r = vbox.r1; r <= vbox.r2; r++) {
+        const r_shift = r << 10;
+        for (let g = vbox.g1; g <= vbox.g2; g++) {
+          sliceCount += histo[r_shift | (g << 5) | b];
+        }
+      }
+      sum += sliceCount;
+      partialSums[b] = sum;
+    }
+    const half = total / 2;
+    for (let b = vbox.b1; b <= vbox.b2; b++) {
+      if (partialSums[b] >= half) {
+        const left = b - vbox.b1;
+        const right = vbox.b2 - b;
+        let splitPoint = b;
+        if (left <= right) splitPoint = Math.min(vbox.b2 - 1, Math.max(vbox.b1, b));
+        else splitPoint = Math.max(vbox.b1, Math.min(vbox.b2 - 1, b - 1));
+        const box1 = shrinkBox(new VBox(vbox.r1, vbox.r2, vbox.g1, vbox.g2, vbox.b1, splitPoint, histo), histo);
+        const box2 = shrinkBox(new VBox(vbox.r1, vbox.r2, vbox.g1, vbox.g2, splitPoint + 1, vbox.b2, histo), histo);
+        box1._count = partialSums[splitPoint];
+        box2._count = total - box1._count;
+        return [box1, box2];
+      }
+    }
+  }
+
+  return [vbox];
+}
+
+function quantizeMMCQ(histo, targetBoxes = 16) {
+  const rootBox = shrinkBox(new VBox(0, 31, 0, 31, 0, 31, histo), histo);
+  if (rootBox.count() === 0) return [];
+
+  let boxes = [rootBox];
+
+  while (boxes.length < targetBoxes) {
+    boxes.sort((a, b) => (b.count() * b.volume()) - (a.count() * a.volume()));
+    const boxToSplit = boxes.shift();
+
+    if (boxToSplit.count() <= 1 || boxToSplit.volume() <= 1) {
+      boxes.push(boxToSplit);
+      break;
     }
 
+    const splitResult = medianCutSplit(boxToSplit, histo);
+    if (splitResult.length === 1) {
+      boxes.push(splitResult[0]);
+      break;
+    } else {
+      boxes.push(splitResult[0]);
+      boxes.push(splitResult[1]);
+    }
+  }
+
+  return boxes;
+}
+
+function colorDist(a, b) {
+  const dr = a.r - b.r;
+  const dg = a.g - b.g;
+  const db = a.b - b.b;
+  return Math.sqrt(2 * dr * dr + 4 * dg * dg + 3 * db * db) / 3;
+}
+
+function analyzeArtworkPixels(data) {
+  const histo = new Uint32Array(32768);
+  let totalValidPixels = 0;
+  let totalR = 0, totalG = 0, totalB = 0;
+
+  for (let i = 0; i < data.length; i += 4) {
+    const a = data[i + 3];
+    if (a < 128) continue;
+    const r = data[i], g = data[i + 1], b = data[i + 2];
+    totalValidPixels++;
+    totalR += r; totalG += g; totalB += b;
+    const r5 = r >> 3, g5 = g >> 3, b5 = b >> 3;
+    const idx = (r5 << 10) | (g5 << 5) | b5;
+    histo[idx]++;
+  }
+
+  if (totalValidPixels === 0) {
+    const defaultDom = { r: 29, g: 185, b: 84 };
     return {
-      dominant: { r: avgR, g: avgG, b: avgB },
+      dominant: defaultDom,
+      primary: defaultDom,
+      secondary: { r: 14, g: 165, b: 233 },
+      tertiary: { r: 139, g: 92, b: 246 },
+      quaternary: { r: 244, g: 63, b: 94 },
+      base: { r: 8, g: 10, b: 18 },
       palette: [
-        { r: 8, g: 10, b: 15 },      // c0: Deep charcoal
-        { r: 180, g: 190, b: 205 },  // c1: Luminous soft silver
-        { r: 95, g: 110, b: 130 },   // c2: Muted slate
-        { r: 220, g: 228, b: 240 },  // c3: High platinum crest
-        { r: 45, g: 52, b: 65 }      // c4: Deep graphite tone
+        { r: 8, g: 10, b: 18 },
+        defaultDom,
+        { r: 14, g: 165, b: 233 },
+        { r: 139, g: 92, b: 246 },
+        { r: 244, g: 63, b: 94 }
       ]
     };
   }
 
-  // Reject tiny single-pixel outliers (must represent at least 2.5% of colorful pixels)
-  const minPixelThreshold = Math.max(1, Math.floor(saturatedCount * 0.025));
-  let clusters = [];
+  const boxes = quantizeMMCQ(histo, 16);
+  const clusters = [];
 
-  for (const bkt of buckets) {
-    if (bkt.count >= minPixelThreshold) {
-      const avgR = bkt.sumR / bkt.count;
-      const avgG = bkt.sumG / bkt.count;
-      const avgB = bkt.sumB / bkt.count;
-      const avgSat = bkt.sumSat / bkt.count;
-      const avgLum = bkt.sumLum / bkt.count;
-      const avgWeight = bkt.sumWeight / bkt.count;
-      const score = Math.pow(bkt.count, 0.85) * avgWeight;
-
+  for (const b of boxes) {
+    const c = b.avg();
+    if (c.count > 0) {
+      const hsl = rgbToHsl(c.r, c.g, c.b);
       clusters.push({
-        idx: bkt.idx,
-        hueCenter: bkt.hueCenter,
-        count: bkt.count,
-        avgR, avgG, avgB,
-        avgSat, avgLum,
-        score
+        r: c.r,
+        g: c.g,
+        b: c.b,
+        count: c.count,
+        h: hsl.h,
+        s: hsl.s,
+        l: hsl.l
       });
     }
   }
 
   if (clusters.length === 0) {
-    for (const bkt of buckets) {
-      if (bkt.count > 0) {
-        clusters.push({
-          idx: bkt.idx,
-          hueCenter: bkt.hueCenter,
-          count: bkt.count,
-          avgR: bkt.sumR / bkt.count,
-          avgG: bkt.sumG / bkt.count,
-          avgB: bkt.sumB / bkt.count,
-          avgSat: bkt.sumSat / bkt.count,
-          avgLum: bkt.sumLum / bkt.count,
-          score: bkt.count
-        });
-      }
+    const avgR = Math.round(totalR / totalValidPixels);
+    const avgG = Math.round(totalG / totalValidPixels);
+    const avgB = Math.round(totalB / totalValidPixels);
+    const fallbackDom = { r: avgR, g: avgG, b: avgB };
+    return {
+      dominant: fallbackDom,
+      primary: fallbackDom,
+      secondary: fallbackDom,
+      tertiary: fallbackDom,
+      quaternary: fallbackDom,
+      base: { r: Math.max(8, Math.round(avgR * 0.2)), g: Math.max(8, Math.round(avgG * 0.2)), b: Math.max(8, Math.round(avgB * 0.2)) },
+      palette: [
+        { r: Math.max(8, Math.round(avgR * 0.2)), g: Math.max(8, Math.round(avgG * 0.2)), b: Math.max(8, Math.round(avgB * 0.2)) },
+        fallbackDom,
+        fallbackDom,
+        fallbackDom,
+        fallbackDom
+      ]
+    };
+  }
+
+  // Sort by population descending
+  clusters.sort((a, b) => b.count - a.count);
+
+  let weightedSatSum = 0;
+  for (const c of clusters) {
+    weightedSatSum += c.s * c.count;
+  }
+  const avgSat = weightedSatSum / totalValidPixels;
+  const isMonochrome = avgSat < 0.08;
+
+  if (isMonochrome) {
+    const avgR = totalR / totalValidPixels;
+    const avgG = totalG / totalValidPixels;
+    const avgB = totalB / totalValidPixels;
+    const dominant = { r: Math.round(avgR), g: Math.round(avgG), b: Math.round(avgB) };
+
+    const lumAvg = (0.299 * avgR + 0.587 * avgG + 0.114 * avgB) || 1;
+    const rRatio = avgR / lumAvg;
+    const gRatio = avgG / lumAvg;
+    const bRatio = avgB / lumAvg;
+
+    let lumBase, lumHero, lumShadow, lumCrest, lumLow;
+    if (lumAvg < 45) {
+      // Dark moody / black album (e.g. Donda, dark metal/rap covers)
+      lumBase = Math.max(6, Math.round(lumAvg * 0.5));
+      lumHero = Math.min(65, Math.round(lumAvg * 1.8 + 8));
+      lumShadow = Math.min(40, Math.round(lumAvg * 1.2 + 4));
+      lumCrest = Math.min(95, Math.round(lumAvg * 2.5 + 14));
+      lumLow = Math.max(10, Math.round(lumAvg * 0.8));
+    } else if (lumAvg > 210) {
+      // Light / white album (e.g. White Album)
+      lumBase = Math.max(140, Math.round(lumAvg * 0.7));
+      lumHero = Math.round(lumAvg * 0.92);
+      lumShadow = Math.round(lumAvg * 0.82);
+      lumCrest = Math.min(255, Math.round(lumAvg * 0.98));
+      lumLow = Math.round(lumAvg * 0.75);
+    } else {
+      // Balanced mid-tone monochrome / sepia
+      lumBase = Math.max(14, Math.round(lumAvg * 0.22));
+      lumHero = Math.min(220, Math.max(80, Math.round(lumAvg * 1.15)));
+      lumShadow = Math.max(25, Math.round(lumAvg * 0.55));
+      lumCrest = Math.min(245, Math.round(lumAvg * 1.55 + 20));
+      lumLow = Math.max(18, Math.round(lumAvg * 0.35));
+    }
+
+    const makeTonal = (lum) => ({
+      r: Math.min(255, Math.max(0, Math.round(lum * rRatio))),
+      g: Math.min(255, Math.max(0, Math.round(lum * gRatio))),
+      b: Math.min(255, Math.max(0, Math.round(lum * bRatio)))
+    });
+
+    const c0 = makeTonal(lumBase);
+    const c1 = makeTonal(lumHero);
+    const c2 = makeTonal(lumShadow);
+    const c3 = makeTonal(lumCrest);
+    const c4 = makeTonal(lumLow);
+
+    return {
+      dominant,
+      primary: c1,
+      secondary: c2,
+      tertiary: c3,
+      quaternary: c4,
+      base: c0,
+      palette: [c0, c1, c2, c3, c4]
+    };
+  }
+
+  // Colorful artwork:
+  const dominant = { r: clusters[0].r, g: clusters[0].g, b: clusters[0].b };
+  const domHsl = rgbToHsl(dominant.r, dominant.g, dominant.b);
+
+  // Score vibrant hero candidates (c1)
+  let bestHero = clusters[0];
+  let bestScore = -1;
+
+  for (const c of clusters) {
+    // Avoid extreme black and extreme white for hero vibrant pick
+    if (c.l < 0.08 || c.l > 0.94) continue;
+    const popRatio = c.count / totalValidPixels;
+    const lumSweetSpot = 1.0 - Math.abs(c.l - 0.5) * 0.45;
+    const score = Math.pow(popRatio, 0.55) * (c.s * 1.5 + 0.3) * lumSweetSpot;
+    if (score > bestScore) {
+      bestScore = score;
+      bestHero = c;
     }
   }
 
-  // Sort by score descending - top cluster is dominant
-  clusters.sort((a, b) => b.score - a.score);
+  const c1 = { r: bestHero.r, g: bestHero.g, b: bestHero.b };
+  const c1Hsl = rgbToHsl(c1.r, c1.g, c1.b);
 
-  const primary = clusters[0];
-  let domR = Math.round(primary.avgR);
-  let domG = Math.round(primary.avgG);
-  let domB = Math.round(primary.avgB);
-
-  // Ensure readability for lyrics text if it's too dark
-  const maxVal = Math.max(domR, domG, domB);
-  if (maxVal > 0 && maxVal < 140) {
-    const factor = 150 / maxVal;
-    domR = Math.min(255, Math.round(domR * factor));
-    domG = Math.min(255, Math.round(domG * factor));
-    domB = Math.min(255, Math.round(domB * factor));
-  }
-  const dominant = { r: domR, g: domG, b: domB };
-
-  // Filter distinct clusters separated by >= 32 deg circular hue distance
-  const distinctClusters = [];
+  // Secondary (c2): largest cluster with perceptual contrast from c1
+  let c2Candidate = null;
   for (const c of clusters) {
-    const isDistinct = distinctClusters.every(d => {
-      const diff = Math.abs(d.hueCenter - c.hueCenter);
-      const circularDiff = Math.min(diff, 360 - diff);
-      return circularDiff >= 32;
-    });
-    if (isDistinct) distinctClusters.push(c);
+    if (c === bestHero) continue;
+    if (c.l < 0.08 || c.l > 0.94) continue;
+    if (colorDist(c, c1) >= 32) {
+      c2Candidate = c;
+      break;
+    }
+  }
+  let c2;
+  if (c2Candidate) {
+    c2 = { r: c2Candidate.r, g: c2Candidate.g, b: c2Candidate.b };
+  } else {
+    // Monochromatic colorful cover (e.g. all red, all blue): use authentic tonal variation of same hue
+    const targetLum = c1Hsl.l < 0.5 ? Math.min(0.85, c1Hsl.l + 0.28) : Math.max(0.18, c1Hsl.l - 0.25);
+    c2 = hslToRgb(c1Hsl.h, c1Hsl.s, targetLum);
   }
 
-  const pHsl = rgbToHsl(primary.avgR, primary.avgG, primary.avgB);
-  const heroSat = Math.max(0.55, Math.min(0.85, pHsl.s * 1.25));
-  const heroLum = Math.max(0.42, Math.min(0.60, pHsl.l));
-
-  // c0: Deep ambient velvet background tint in the album's primary hue
-  const c0 = hslToRgb(pHsl.h, Math.min(0.35, heroSat * 0.6), 0.05);
-
-  let c1, c2, c3, c4;
-
-  if (distinctClusters.length >= 3) {
-    // Multi-hue artwork (3 distinct colors)
-    const c2Hsl = rgbToHsl(distinctClusters[1].avgR, distinctClusters[1].avgG, distinctClusters[1].avgB);
-    const c3Hsl = rgbToHsl(distinctClusters[2].avgR, distinctClusters[2].avgG, distinctClusters[2].avgB);
-    c1 = hslToRgb(pHsl.h, heroSat, heroLum);
-    c2 = hslToRgb(c2Hsl.h, Math.max(0.50, Math.min(0.85, c2Hsl.s * 1.2)), Math.max(0.40, Math.min(0.62, c2Hsl.l)));
-    c3 = hslToRgb(c3Hsl.h, Math.max(0.50, Math.min(0.85, c3Hsl.s * 1.2)), Math.max(0.45, Math.min(0.68, c3Hsl.l)));
-    c4 = hslToRgb(pHsl.h + 15, Math.min(0.85, heroSat * 1.05), Math.max(0.28, heroLum * 0.75));
-  } else if (distinctClusters.length === 2) {
-    // Dual-hue artwork (e.g. orange & teal, purple & amber)
-    const c2Hsl = rgbToHsl(distinctClusters[1].avgR, distinctClusters[1].avgG, distinctClusters[1].avgB);
-    const sat2 = Math.max(0.50, Math.min(0.85, c2Hsl.s * 1.2));
-    const lum2 = Math.max(0.40, Math.min(0.62, c2Hsl.l));
-    c1 = hslToRgb(pHsl.h, heroSat, heroLum);
-    c2 = hslToRgb(c2Hsl.h, sat2, lum2);
-    c3 = hslToRgb(pHsl.h - 10, Math.min(0.80, heroSat * 0.95), Math.min(0.72, heroLum + 0.16));
-    c4 = hslToRgb(c2Hsl.h + 12, Math.min(0.88, sat2 * 1.1), Math.max(0.28, lum2 - 0.14));
+  // Tertiary (c3): next largest cluster distinct from c1 and c2
+  let c3Candidate = null;
+  for (const c of clusters) {
+    if (c === bestHero || c === c2Candidate) continue;
+    if (colorDist(c, c1) >= 26 && colorDist(c, c2) >= 26) {
+      c3Candidate = c;
+      break;
+    }
+  }
+  let c3;
+  if (c3Candidate) {
+    c3 = { r: c3Candidate.r, g: c3Candidate.g, b: c3Candidate.b };
   } else {
-    // Single-dominant hue artwork: harmonic analogous suite (zero foreign random colors!)
-    const h = pHsl.h;
-    c1 = hslToRgb(h, heroSat, heroLum);
-    c2 = hslToRgb(h + 18, Math.min(0.85, heroSat * 1.05), Math.min(0.65, heroLum + 0.08));
-    c3 = hslToRgb(h - 14, Math.min(0.80, heroSat * 0.95), Math.min(0.75, heroLum + 0.20));
-    c4 = hslToRgb(h + 8, Math.min(0.90, heroSat * 1.15), Math.max(0.28, heroLum - 0.16));
+    const targetLum = Math.max(0.14, c1Hsl.l * 0.65);
+    c3 = hslToRgb(c1Hsl.h, Math.max(0.2, c1Hsl.s * 0.8), targetLum);
+  }
+
+  // Crest Highlight (c4): brightest highlight from image
+  let c4Candidate = null;
+  let maxLum = -1;
+  for (const c of clusters) {
+    if (c.count >= totalValidPixels * 0.015 && c.l > maxLum && c.l >= 0.65) {
+      maxLum = c.l;
+      c4Candidate = c;
+    }
+  }
+  let c4;
+  if (c4Candidate) {
+    c4 = { r: c4Candidate.r, g: c4Candidate.g, b: c4Candidate.b };
+  } else {
+    c4 = hslToRgb(c1Hsl.h, Math.min(0.5, c1Hsl.s * 0.85), Math.min(0.92, Math.max(0.75, c1Hsl.l + 0.32)));
+  }
+
+  // Ambient Base (c0): deep foundational tone
+  let c0Candidate = null;
+  for (const c of clusters) {
+    if (c.l <= 0.18 && c.l >= 0.04 && c.count >= totalValidPixels * 0.03) {
+      if (!c0Candidate || c.count > c0Candidate.count) {
+        c0Candidate = c;
+      }
+    }
+  }
+  let c0;
+  if (c0Candidate) {
+    c0 = { r: c0Candidate.r, g: c0Candidate.g, b: c0Candidate.b };
+  } else {
+    // Deep velvet tint matching artwork dominant hue
+    c0 = hslToRgb(domHsl.h, Math.min(0.35, domHsl.s * 0.6), 0.08);
   }
 
   return {
     dominant,
+    primary: c1,
+    secondary: c2,
+    tertiary: c3,
+    quaternary: c4,
+    base: c0,
     palette: [c0, c1, c2, c3, c4]
   };
 }
@@ -351,7 +716,7 @@ async function extractColorData(imgUrl) {
       img.onload = () => {
         try {
           const canvas = document.createElement("canvas");
-          const size = 36;
+          const size = 48;
           canvas.width = size;
           canvas.height = size;
           const ctx = canvas.getContext("2d");
@@ -413,12 +778,33 @@ const ACCENT_COLOR_MAP = {
   teal: '#14b8a6'
 };
 
-// Expose on global window object
-window.escapeHTML = escapeHTML;
-window.showToast = showToast;
-window.formatTime = formatTime;
-window.extractDominantColor = extractDominantColor;
-window.extractColorPalette = extractColorPalette;
-window.extractColorData = extractColorData;
-window.forceRecalculateDragRegions = forceRecalculateDragRegions;
-window.ACCENT_COLOR_MAP = ACCENT_COLOR_MAP;
+// Expose on global window object (Browser) and module.exports (Node.js test environment)
+if (typeof window !== 'undefined') {
+  window.escapeHTML = escapeHTML;
+  window.showToast = showToast;
+  window.formatTime = formatTime;
+  window.rgbToHsl = rgbToHsl;
+  window.hslToRgb = hslToRgb;
+  window.analyzeArtworkPixels = analyzeArtworkPixels;
+  window.extractDominantColor = extractDominantColor;
+  window.extractColorPalette = extractColorPalette;
+  window.extractColorData = extractColorData;
+  window.forceRecalculateDragRegions = forceRecalculateDragRegions;
+  window.ACCENT_COLOR_MAP = ACCENT_COLOR_MAP;
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    escapeHTML,
+    showToast,
+    formatTime,
+    rgbToHsl,
+    hslToRgb,
+    analyzeArtworkPixels,
+    extractDominantColor,
+    extractColorPalette,
+    extractColorData,
+    forceRecalculateDragRegions,
+    ACCENT_COLOR_MAP
+  };
+}

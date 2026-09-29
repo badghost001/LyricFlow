@@ -171,13 +171,27 @@
 
 .settings-group h4 {
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--accent-soft);
+  color: var(--accent-primary, #1DB954);
+  opacity: 0.9;
+  border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.05));
+  padding-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.settings-group h4::before {
+  content: '';
+  display: inline-block;
+  width: 3px;
+  height: 12px;
+  background: var(--accent-primary, #1DB954);
+  border-radius: 2px;
   opacity: 0.75;
-  border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.04));
-  padding-bottom: 6px;
+  flex-shrink: 0;
 }
 
 .setting-row {
@@ -312,3 +326,107 @@ select option {
   display: inline-block;
 }
 
+/* Shortcut rows */
+.shortcut-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.shortcut-row:last-child {
+  border-bottom: none;
+}
+
+.shortcut-row-label {
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+[data-theme="light"] .shortcut-row-label {
+  color: rgba(0, 0, 0, 0.75);
+}
+
+.kbd-badge.playback {
+  color: var(--accent-primary, #1DB954);
+  border-color: rgba(var(--accent-primary-rgb, 29, 185, 84), 0.25);
+  background: rgba(var(--accent-primary-rgb, 29, 185, 84), 0.06);
+}
+
+.kbd-badge.navigation {
+  color: #60a5fa;
+  border-color: rgba(96, 165, 250, 0.25);
+  background: rgba(96, 165, 250, 0.06);
+}
+
+.kbd-badge.system {
+  color: rgba(255, 255, 255, 0.5);
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* Slider value confirmation pulse */
+@keyframes value-confirm {
+  0% { color: var(--accent-primary, #1DB954); transform: scale(1.18); }
+  100% { color: var(--text-tertiary, rgba(255, 255, 255, 0.45)); transform: scale(1); }
+}
+
+.slider-value-changed {
+  animation: value-confirm 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* File picker buttons */
+.file-picker-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.file-picker-btn {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.88);
+  border-radius: 6px;
+  padding: 5px 10px;
+  cursor: pointer;
+  font-size: 12px;
+  font-family: inherit;
+  transition: background 0.2s, border-color 0.2s;
+  flex-grow: 1;
+}
+
+.file-picker-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.file-picker-clear {
+  background: rgba(244, 63, 94, 0.06);
+  border: 1px solid rgba(244, 63, 94, 0.25);
+  color: var(--accent-rose, #f43f5e);
+  border-radius: 6px;
+  padding: 5px 10px;
+  cursor: pointer;
+  font-size: 12px;
+  font-family: inherit;
+  transition: background 0.2s;
+}
+
+.file-picker-clear:hover {
+  background: rgba(244, 63, 94, 0.15);
+}
+
+.file-picker-name {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.38);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+  margin-top: 3px;
+}
+
+[data-theme="light"] .file-picker-name {
+  color: rgba(0, 0, 0, 0.38);
+}

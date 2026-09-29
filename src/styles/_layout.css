@@ -7,7 +7,7 @@
   position: relative;
   z-index: 1;
   background:
-    linear-gradient(135deg, rgba(var(--accent-primary-rgb, 29, 185, 84), 0.03) 0%, transparent 50%, rgba(var(--accent-bright-rgb, 30, 215, 96), 0.02) 100%),
+    linear-gradient(135deg, rgba(var(--art-color-1-rgb, 255, 255, 255), 0.04) 0%, transparent 50%, rgba(var(--art-color-2-rgb, 255, 255, 255), 0.02) 100%),
     rgba(10, 10, 15, var(--bg-opacity));
   border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.09));
   border-radius: 16px;
@@ -24,7 +24,7 @@
 body.bg-style-fluid .app-container {
   background:
     radial-gradient(ellipse at 50% 20%, rgba(255, 255, 255, 0.04) 0%, transparent 65%),
-    rgba(10, 10, 18, calc(var(--bg-opacity, 0.85) * 0.65)) !important;
+    rgba(var(--art-color-base-rgb, 10, 10, 18), calc(var(--bg-opacity, 0.85) * 0.55)) !important;
   backdrop-filter: blur(32px) saturate(1.9) contrast(105%);
   -webkit-backdrop-filter: blur(32px) saturate(1.9) contrast(105%);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -57,7 +57,7 @@ body.custom-bg-active .app-container {
 [data-theme="light"] .app-container {
   border-color: rgba(0, 0, 0, 0.08);
   background:
-    linear-gradient(135deg, rgba(var(--accent-primary-rgb, 29, 185, 84), 0.05) 0%, transparent 50%, rgba(var(--accent-bright-rgb, 30, 215, 96), 0.03) 100%),
+    linear-gradient(135deg, rgba(var(--art-color-1-rgb, 0, 0, 0), 0.04) 0%, transparent 50%, rgba(var(--art-color-2-rgb, 0, 0, 0), 0.02) 100%),
     rgba(255, 255, 255, var(--bg-opacity));
 }
 

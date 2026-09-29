@@ -146,37 +146,82 @@ pub async fn lastfm_api(data: serde_json::Value) -> Result<serde_json::Value, St
 
 #[tauri::command]
 pub async fn translate_text(text: String, target_lang: String, skip_lang: Option<String>) -> Result<serde_json::Value, String> {
-    let client = get_shared_client();
-    let url = format!("https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl={target_lang}&dt=t");
-    let res = client.post(&url)
-        .header("Content-Type", "application/x-www-form-urlencoded")
-        .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
-        .form(&[("q", &text)])
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
-
-    if !res.status().is_success() {
-        return Ok(serde_json::json!({ "text": null, "src": "error" }));
+    if text.trim().is_empty() {
+        return Ok(serde_json::json!({ "text": null, "src": "empty" }));
     }
 
-    let data: serde_json::Value = res.json().await.map_err(|e| e.to_string())?;
-    let mut full_translation = String::new();
-    if let Some(arr) = data[0].as_array() {
-        for item in arr {
-            if let Some(s) = item[0].as_str() {
-                full_translation.push_str(s);
+    let client = get_shared_client();
+    let user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+    let clients = ["dict-chrome-ex", "gtx"];
+    let mut last_err = String::new();
+
+    for google_client in clients {
+        let url = format!("https://translate.googleapis.com/translate_a/single?client={google_client}&sl=auto&tl={target_lang}&dt=t");
+        let res = client.post(&url)
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .header("User-Agent", user_agent)
+            .form(&[("q", &text)])
+            .send()
+            .await;
+
+        match res {
+            Ok(resp) if resp.status().is_success() => {
+                if let Ok(data) = resp.json::<serde_json::Value>().await {
+                    let mut full_translation = String::new();
+                    if let Some(arr) = data[0].as_array() {
+                        for item in arr {
+                            if let Some(s) = item[0].as_str() {
+                                full_translation.push_str(s);
+                            }
+                        }
+                    }
+                    let src_lang = data[2].as_str().unwrap_or("unknown");
+
+                    crate::log_to_file(&format!(
+                        "[Translate API] Success via client='{}': src='{}', target='{}', chars={}",
+                        google_client, src_lang, target_lang, full_translation.len()
+                    ));
+
+                    // Normalize language tags for comparison (e.g., 'en-US' matches 'en')
+                    let src_base = src_lang.split('-').next().unwrap_or(src_lang).to_lowercase();
+
+                    let is_explicit_skip = skip_lang.as_deref().map_or(false, |sl| {
+                        if sl == "none" || sl.is_empty() {
+                            return false;
+                        }
+                        let sl_base = sl.split('-').next().unwrap_or(sl).to_lowercase();
+                        src_lang.eq_ignore_ascii_case(sl) || src_base == sl_base
+                    });
+
+                    if is_explicit_skip {
+                        crate::log_to_file(&format!(
+                            "[Translate API] Skipping translation: is_explicit_skip=true (src='{}', target='{}')",
+                            src_lang, target_lang
+                        ));
+                        return Ok(serde_json::json!({ "text": null, "src": src_lang, "skipped": true }));
+                    }
+
+                    if full_translation.trim().is_empty() {
+                        return Ok(serde_json::json!({ "text": null, "src": src_lang }));
+                    }
+
+                    return Ok(serde_json::json!({ "text": full_translation, "src": src_lang }));
+                }
+            }
+            Ok(resp) => {
+                let status = resp.status();
+                last_err = format!("HTTP {}", status);
+                crate::log_to_file(&format!("[Translate API] Client '{}' returned non-success status: {}", google_client, status));
+            }
+            Err(e) => {
+                last_err = e.to_string();
+                crate::log_to_file(&format!("[Translate API] Client '{}' request error: {}", google_client, e));
             }
         }
     }
-    let src_lang = data[2].as_str().unwrap_or("unknown");
 
-    if src_lang.eq_ignore_ascii_case(&target_lang) ||
-       skip_lang.as_deref().map_or(false, |sl| sl != "none" && src_lang.eq_ignore_ascii_case(sl)) {
-        return Ok(serde_json::json!({ "text": null, "src": src_lang }));
-    }
-
-    Ok(serde_json::json!({ "text": full_translation, "src": src_lang }))
+    crate::log_to_file(&format!("[Translate API] All translation endpoints failed. Last error: {}", last_err));
+    Ok(serde_json::json!({ "text": null, "src": "error", "error": last_err }))
 }
 
 #[tauri::command]

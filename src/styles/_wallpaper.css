@@ -42,7 +42,7 @@ body.wallpaper-mode .app-container {
   border: 0;
   border-radius: 0;
   background:
-    radial-gradient(ellipse at center, rgba(var(--art-color-1-rgb, 29, 185, 84), 0.16), transparent 55%),
+    radial-gradient(ellipse at center, rgba(var(--art-color-1-rgb, 40, 40, 50), 0.16), transparent 55%),
     rgba(5, 5, 7, 0.52) !important;
 }
 
@@ -166,7 +166,7 @@ body.wallpaper-mode .wallpaper-art-shell {
     rgba(12, 12, 16, 0.82);
   box-shadow:
     0 30px 90px rgba(0, 0, 0, 0.7),
-    0 12px 40px rgba(var(--art-color-1-rgb, 29, 185, 84), 0.35),
+    0 12px 40px rgba(var(--art-color-1-rgb, 0, 0, 0), 0.35),
     inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
@@ -346,16 +346,16 @@ body.wallpaper-style-3 .lyric-line.active {
 /* Word-by-word active word styling in Wallpaper Mode */
 body.wallpaper-mode.wbw-active .lyric-line.active .lyric-word.lyric-word-passed,
 body.wallpaper-mode.wbw-active .lyric-line.active .lyric-word.lyric-word-completed {
-  color: var(--highlight-color, #ffffff) !important;
+  color: #ffffff !important;
   opacity: 0.7 !important;
 }
 
 body.wallpaper-mode.wbw-active .lyric-line.active .lyric-word.lyric-word-active {
-  color: var(--highlight-color, #ffffff) !important;
+  color: #ffffff !important;
   opacity: 1 !important;
   text-shadow:
-    0 0 20px var(--highlight-glow, rgba(29, 185, 84, 0.8)),
-    0 0 35px var(--highlight-glow, rgba(29, 185, 84, 0.5)),
+    0 0 20px var(--highlight-glow, rgba(var(--art-color-1-rgb, 255, 255, 255), 0.8)),
+    0 0 35px var(--highlight-glow, rgba(var(--art-color-1-rgb, 255, 255, 255), 0.5)),
     0 4px 20px rgba(0, 0, 0, 0.9) !important;
   transform: scale(1.08) translateY(-2px) !important;
 }

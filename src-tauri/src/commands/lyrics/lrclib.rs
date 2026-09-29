@@ -66,10 +66,15 @@ pub async fn search_lrclib(
         }
     }
 
-    // Deduplicate by ID
+    // Deduplicate by ID and lyrics content signature
     let mut seen_ids = std::collections::HashSet::new();
+    let mut seen_sigs = std::collections::HashSet::new();
     for c in &candidates {
         seen_ids.insert(c.candidate_id.clone());
+        let sig = extract_lyrics_sig(&c.raw_lrc);
+        if !sig.is_empty() {
+            seen_sigs.insert(sig);
+        }
     }
 
     for item in raw_items {
@@ -79,6 +84,10 @@ pub async fn search_lrclib(
                 continue;
             }
             if let Some(candidate) = parse_lrclib_item(&item, &search_query, duration_sec) {
+                let sig = extract_lyrics_sig(&candidate.raw_lrc);
+                if !sig.is_empty() && !seen_sigs.insert(sig) {
+                    continue; // Skip duplicate candidate with identical lyrics
+                }
                 // Only accept reasonable matches
                 if candidate.score >= 0.65 {
                     candidates.push(candidate);
@@ -148,3 +157,31 @@ fn parse_lrclib_item(
         duration_diff_sec,
     })
 }
+
+fn extract_lyrics_sig(lrc: &str) -> String {
+    lrc.lines()
+        .filter_map(|line| {
+            let trimmed = line.trim();
+            if trimmed.is_empty()
+                || trimmed.starts_with("[ti:")
+                || trimmed.starts_with("[ar:")
+                || trimmed.starts_with("[al:")
+            {
+                return None;
+            }
+            let without_ts = if let Some(end_bracket) = trimmed.find(']') {
+                trimmed[end_bracket + 1..].trim()
+            } else {
+                trimmed
+            };
+            if without_ts.len() > 2 {
+                Some(without_ts.to_lowercase())
+            } else {
+                None
+            }
+        })
+        .take(3)
+        .collect::<Vec<_>>()
+        .join("|")
+}
+

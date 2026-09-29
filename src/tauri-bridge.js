@@ -191,6 +191,7 @@
     setTaskbarMode: (enabled, fromTray = false) => safeInvoke('set_taskbar_mode', { enabled, fromTray }, null),
     setDynamicIslandMode: (enabled, dockPos = 'top-center') => safeInvoke('set_dynamic_island_mode', { enabled, dockPos, dock_pos: dockPos }, null),
     isDynamicIslandMode: () => safeInvoke('is_dynamic_island_mode', {}, false),
+    updateIslandBounds: (rect) => safeInvoke('update_island_bounds', { rect }, null),
     getAvailableMonitors: () => safeInvoke('get_available_monitors', {}, []),
     setWallpaperMode: (enabled, monitorTarget = null) => safeInvoke('set_wallpaper_mode', { enabled, monitorTarget: monitorTarget ? String(monitorTarget) : null }, null),
     syncTaskbarModeState: (isTaskbarMode) => safeEmit('sync-taskbar-mode-state', isTaskbarMode),
@@ -286,6 +287,7 @@
     onSyncTaskbarConfig: (cb) => safeListen('sync-taskbar-config', (payload) => cb(payload)),
     onTbOffsetSaved: (cb) => safeListen('tb-offset-saved', (payload) => cb(payload)),
     onDynamicIslandModeChanged: (cb) => safeListen('dynamic-island-mode-changed', (payload) => cb(payload)),
+    onAudioSpectrum: (cb) => safeListen('audio-visualizer-bands', (payload) => cb(payload)),
   };
 
   // Taskbar window bridge polyfill

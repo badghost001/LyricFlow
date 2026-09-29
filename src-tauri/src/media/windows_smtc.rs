@@ -183,7 +183,7 @@ impl WindowsSmtcBackend {
 
     fn get_manager() -> Option<GlobalSystemMediaTransportControlsSessionManager> {
         ensure_com();
-        let mut lock = CACHED_MANAGER.lock().unwrap();
+        let mut lock = CACHED_MANAGER.lock().unwrap_or_else(|p| p.into_inner());
         if let Some(ref manager) = *lock {
             return Some(manager.clone());
         }
@@ -266,7 +266,7 @@ impl MediaSessionBackend for WindowsSmtcBackend {
             Some(s) => s,
             None => {
                 // If session is temporarily lost (e.g. Spotify pause/idle), maintain cached track with is_playing = false
-                let mut lock = CACHED_TRACK.lock().unwrap();
+                let mut lock = CACHED_TRACK.lock().unwrap_or_else(|p| p.into_inner());
                 if let Some(ref mut track) = *lock {
                     track.is_playing = false;
                     return Some(track.clone());
@@ -333,7 +333,7 @@ impl MediaSessionBackend for WindowsSmtcBackend {
 
         if title.is_empty() {
             // If title is empty or transiently unavailable (e.g. during track transition), return cached track
-            let mut lock = CACHED_TRACK.lock().unwrap();
+            let mut lock = CACHED_TRACK.lock().unwrap_or_else(|p| p.into_inner());
             if let Some(ref mut track) = *lock {
                 track.is_playing = is_playing;
                 if position_ms > 0 {
@@ -357,7 +357,7 @@ impl MediaSessionBackend for WindowsSmtcBackend {
             taskbar_hidden: false,
         };
 
-        let mut lock = CACHED_TRACK.lock().unwrap();
+        let mut lock = CACHED_TRACK.lock().unwrap_or_else(|p| p.into_inner());
         *lock = Some(metadata.clone());
 
         Some(metadata)
@@ -367,14 +367,14 @@ impl MediaSessionBackend for WindowsSmtcBackend {
     fn trigger_control(&self, action: &str, position_ms: u64) {
         if let Some(session) = Self::get_current_session() {
             match action {
-                "play" => { let _ = session.TryPlayAsync().map(|a| a.get()); },
-                "pause" => { let _ = session.TryPauseAsync().map(|a| a.get()); },
-                "toggle" | "toggle-play-pause" | "play-pause" => { let _ = session.TryTogglePlayPauseAsync().map(|a| a.get()); },
-                "next" => { let _ = session.TrySkipNextAsync().map(|a| a.get()); },
-                "previous" => { let _ = session.TrySkipPreviousAsync().map(|a| a.get()); },
+                "play" => { let _ = session.TryPlayAsync(); },
+                "pause" => { let _ = session.TryPauseAsync(); },
+                "toggle" | "toggle-play-pause" | "play-pause" => { let _ = session.TryTogglePlayPauseAsync(); },
+                "next" => { let _ = session.TrySkipNextAsync(); },
+                "previous" => { let _ = session.TrySkipPreviousAsync(); },
                 "seek" => {
                     let requested_pos = (position_ms as i64) * 10_000;
-                    let _ = session.TryChangePlaybackPositionAsync(requested_pos).map(|a| a.get());
+                    let _ = session.TryChangePlaybackPositionAsync(requested_pos);
                 },
                 _ => {}
             }

@@ -63,18 +63,18 @@ body.mode-dynamic-island #dynamic-island {
   flex-direction: column;
   justify-content: center;
   align-items: stretch;
-  margin: 0 auto !important;
-  margin-top: 0 !important;
-  top: 0 !important;
+  margin: 0 auto;
+  margin-top: 0;
+  top: 0;
   
-  /* Compact Pill (Idle State) - 290px for generous lyrics readability */
-  width: 290px;
-  height: 34px;
+  /* Compact Pill (Idle State) - dynamically responsive based on visualizer bars */
+  width: var(--island-compact-width, 340px);
+  height: 36px;
   border-radius: 999px;
   
   /* Deep Obsidian OLED Black */
   background: #000000;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow:
     inset 0 1px 0.5px rgba(255, 255, 255, 0.28),
     inset 0 -0.5px 0.5px rgba(255, 255, 255, 0.08),
@@ -100,15 +100,21 @@ body.mode-dynamic-island #dynamic-island {
     border-color 0.3s ease;
 }
 
+/* Stacked Translation Mode (Compact Pill: 44px height for dual lines) */
+body.mode-dynamic-island #dynamic-island.island-mode-stacked {
+  height: 44px;
+  border-radius: 22px;
+}
+
 /* ==========================================================
    HOVER EXPANSION: THE OPENED NOW PLAYING CARD
-   - Opens smoothly to 410px × 114px strictly on hover
-   - Shows Song Name + Artist Name + 44px Album Art + Controls
+   - Opens smoothly to 410px × 122px strictly on hover
+   - Shows Song Name + Artist Name + 44px Album Art + Scrubber + Controls
 ========================================================== */
 body.mode-dynamic-island #dynamic-island:hover {
-  width: 410px;
-  height: 114px;
-  border-radius: 26px;
+  width: 430px;
+  height: 126px;
+  border-radius: 28px;
   padding: 10px 14px 10px 14px;
   justify-content: space-between;
   border-color: rgba(255, 255, 255, 0.20);
@@ -170,7 +176,7 @@ body.mode-dynamic-island #dynamic-island:hover {
   border: 1px solid rgba(255, 255, 255, 0.2);
   box-shadow:
     inset 0 1px 0.5px rgba(255, 255, 255, 0.35),
-    0 2px 6px rgba(0, 0, 0, 0.5);
+    0 1px 3px rgba(0, 0, 0, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -248,52 +254,105 @@ body:not(.is-playing) .island-art-halo {
 .island-lyric-zone {
   width: 100%;
   display: flex;
-  align-items: center;
-  justify-content: flex-start;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
   overflow: hidden;
   position: relative;
-  mask-image: linear-gradient(90deg, black 0%, black 92%, transparent 100%);
-  -webkit-mask-image: linear-gradient(90deg, black 0%, black 92%, transparent 100%);
+  /* 100% opaque on left, subtle fade only on right before visualizer */
+  mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 14px), transparent 100%);
+  -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 14px), transparent 100%);
   cursor: default !important;
 }
 
 .island-lyric-line {
+  position: relative;
   white-space: nowrap;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Outfit", "Inter", sans-serif;
   font-size: 11.5px;
   font-weight: 590;
-  color: rgba(255, 255, 255, 0.88);
+  color: rgba(255, 255, 255, 0.92);
   letter-spacing: -0.01em;
   display: inline-flex;
   align-items: center;
-  gap: 3.5px;
+  gap: 0px;
   will-change: transform;
-  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
+  /* Removed transform transition so high-framerate JS damping provides zero-latency sync */
+  transition: opacity 0.2s ease;
   pointer-events: none;
   -webkit-font-smoothing: antialiased;
 }
 
+.island-mode-stacked .island-lyric-line {
+  font-size: 11px;
+}
+
+.island-lyric-subline {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Outfit", "Inter", sans-serif;
+  font-size: 9.5px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.65);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  line-height: 1.2;
+  margin-top: 1px;
+  pointer-events: none;
+}
+
+.island-trans-divider {
+  color: rgba(255, 255, 255, 0.35);
+  margin: 0 4px;
+  font-weight: 400;
+}
+
+.island-trans-inline {
+  color: rgba(255, 255, 255, 0.65);
+  font-weight: 500;
+}
+
 .island-lyric-line .lyric-word {
   display: inline-block;
-  transition: color 0.18s ease, transform 0.18s cubic-bezier(0.25, 1, 0.5, 1), text-shadow 0.18s ease;
-  color: rgba(255, 255, 255, 0.55);
+  margin-right: 3px;
+  transition: color 0.14s ease, transform 0.14s cubic-bezier(0.25, 1, 0.5, 1), text-shadow 0.14s ease;
+  color: rgba(255, 255, 255, 0.42);
 }
 
 .island-lyric-line .lyric-word.lyric-word-active {
   color: #ffffff !important;
-  transform: scale(1.04) translateY(-0.5px);
+  transform: scale(1.06) translateY(-0.5px);
   text-shadow:
-    0 0 8px rgba(255, 255, 255, 0.85),
-    0 0 16px rgba(255, 255, 255, 0.45);
+    0 0 10px rgba(255, 255, 255, 0.95),
+    0 0 20px rgba(255, 255, 255, 0.55);
 }
 
 .island-lyric-line .lyric-word.lyric-word-completed,
 .island-lyric-line .lyric-word.lyric-word-passed {
   color: rgba(255, 255, 255, 0.92);
+  transform: none;
+  text-shadow: none;
 }
 
 .island-lyric-line .lyric-word.lyric-word-upcoming {
-  color: rgba(255, 255, 255, 0.45);
+  color: rgba(255, 255, 255, 0.42);
+  transform: none;
+  text-shadow: none;
+}
+
+.island-instrumental-dots {
+  display: inline-flex;
+  align-items: center;
+  letter-spacing: 2px;
+  font-size: 11px;
+  opacity: 0.8;
+  animation: islandPulse 2.2s ease-in-out infinite;
+}
+
+@keyframes islandPulse {
+  0%, 100% { opacity: 0.45; transform: scale(0.96); }
+  50% { opacity: 0.95; transform: scale(1.04); }
 }
 
 .island-idle-text {
@@ -314,21 +373,43 @@ body:not(.is-playing) .island-art-halo {
   font-weight: 600;
 }
 
-/* EXPANDED INFO (Shown strictly on hover: Song Name + Artist Name + Live Lyrics) */
-.island-expanded-info {
-  display: none;
+/* ==========================================================
+   TIER 1 (CENTER): TRACK METADATA IN HEADER ROW
+========================================================== */
+.island-track-meta {
+  display: none !important;
   opacity: 0;
   flex-direction: column;
   justify-content: center;
   width: 100%;
+  min-width: 0;
   padding: 0 4px;
   overflow: hidden;
   transition: opacity 0.25s ease 0.05s;
 }
 
-#dynamic-island:hover .island-expanded-info {
+#dynamic-island:hover .island-track-meta {
   display: flex !important;
   opacity: 1;
+}
+
+.island-title-wrapper {
+  width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  position: relative;
+  mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 10px), transparent 100%);
+  -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 10px), transparent 100%);
+}
+
+.island-artist-wrapper {
+  width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  position: relative;
+  margin-top: 1px;
+  mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 10px), transparent 100%);
+  -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 10px), transparent 100%);
 }
 
 .island-track-title {
@@ -338,41 +419,262 @@ body:not(.is-playing) .island-art-halo {
   color: #ffffff;
   letter-spacing: -0.015em;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  display: inline-block;
   line-height: 1.25;
 }
 
 .island-track-artist {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Outfit", "Inter", sans-serif;
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 500;
   color: rgba(255, 255, 255, 0.65);
   letter-spacing: -0.01em;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin-top: 1px;
+  display: inline-block;
   line-height: 1.2;
 }
 
-.island-expanded-lyric {
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Outfit", "Inter", sans-serif;
-  font-size: 11px;
-  font-weight: 500;
-  color: rgba(255, 255, 255, 0.85);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+/* ==========================================================
+   TIER 2: THE HERO LYRIC & TRANSLATION STAGE (FULL WIDTH)
+========================================================== */
+.island-stage {
+  display: none !important;
+  opacity: 0;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  width: 100%;
+  margin: 3px 0 1px 0;
+  transition: opacity 0.28s cubic-bezier(0.32, 0.72, 0, 1) 0.05s, transform 0.28s cubic-bezier(0.32, 0.72, 0, 1) 0.05s;
+  transform: translateY(3px);
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: normal;
-  margin-top: 2px;
-  line-height: 1.3;
 }
 
-.island-expanded-lyric:empty {
+#dynamic-island:hover .island-stage {
+  display: flex !important;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.island-stage-original {
+  width: 100%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  min-height: 17px;
+  padding: 0 2px;
+  mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 12px), transparent 100%);
+  -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 12px), transparent 100%);
+}
+
+.island-stage-lyric {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Outfit", "Inter", sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.95);
+  letter-spacing: -0.015em;
+  white-space: nowrap;
+  line-height: 1.25;
+}
+
+/* ==========================================================
+   MAGNETIC OPTICAL BRIDGE
+   - Subtle vertical connecting neck linking primary and satellite islands
+========================================================== */
+.island-bridge {
   display: none;
+  width: 4px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.24);
+  border-radius: 99px;
+  margin: 0 auto;
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.45);
+  pointer-events: none;
+  z-index: 999;
+  flex-shrink: 0;
+  transition: opacity 0.3s cubic-bezier(0.32, 0.72, 0, 1), transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+body.mode-dynamic-island.has-satellite-active .island-bridge {
+  display: block !important;
+}
+
+/* ==========================================================
+   CONNECTED SATELLITE TRANSLATION ISLAND
+   - Dedicated Pitch-Black OLED Satellite Capsule
+   - Zero Cut-Off, Continuous Marquee, Interactive Chip
+   - Apple Fluid Spring Physics
+========================================================== */
+.dynamic-island-translation {
+  display: none !important;
+  align-items: center;
+  gap: 7px;
+  margin: 0 auto;
+  
+  /* Sizing: Sleek pill */
+  width: var(--island-satellite-width, 320px);
+  min-width: 220px;
+  max-width: 440px;
+  height: 30px;
+  border-radius: 999px;
+  
+  /* Obsidian OLED Black matching primary island */
+  background: #000000;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow:
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.28),
+    inset 0 -0.5px 0.5px rgba(255, 255, 255, 0.08),
+    0 10px 24px -4px rgba(0, 0, 0, 0.75),
+    0 0 0 1px rgba(0, 0, 0, 0.95);
+    
+  padding: 3px 10px 3px 6px;
+  box-sizing: border-box;
+  position: relative;
+  overflow: hidden;
+  user-select: none;
+  pointer-events: auto !important;
+  cursor: default !important;
+  -webkit-app-region: none !important;
+  z-index: 1000;
+  flex-shrink: 0;
+  
+  /* Spring entry & resizing */
+  transition:
+    width 0.38s cubic-bezier(0.32, 0.72, 0, 1),
+    height 0.38s cubic-bezier(0.32, 0.72, 0, 1),
+    transform 0.38s cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 0.3s cubic-bezier(0.32, 0.72, 0, 1),
+    border-color 0.3s ease,
+    box-shadow 0.35s ease;
+}
+
+body.mode-dynamic-island.has-satellite-active .dynamic-island-translation,
+body.mode-dynamic-island #dynamic-island-translation.island-vaporizing,
+body.mode-dynamic-island #dynamic-island-translation.island-materializing {
+  display: flex !important;
+}
+
+.dynamic-island-translation:hover {
+  border-color: rgba(255, 255, 255, 0.25);
+  box-shadow:
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.40),
+    0 14px 30px -4px rgba(0, 0, 0, 0.85),
+    0 0 12px rgba(56, 189, 248, 0.15),
+    0 0 0 1px rgba(0, 0, 0, 0.95);
+}
+
+/* Tactile Sparkle Chip Button */
+.island-trans-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3.5px;
+  padding: 1.5px 7px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.24) 0%, rgba(255, 255, 255, 0.10) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.30);
+  box-shadow:
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.45),
+    0 1px 4px rgba(0, 0, 0, 0.35);
+  color: #ffffff;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+  -webkit-app-region: none !important;
+}
+
+.island-trans-chip:hover {
+  transform: scale(1.08);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.36) 0%, rgba(255, 255, 255, 0.16) 100%);
+  border-color: rgba(255, 255, 255, 0.50);
+  box-shadow:
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.60),
+    0 0 10px rgba(56, 189, 248, 0.40);
+}
+
+.island-trans-chip:active {
+  transform: scale(0.88);
+}
+
+.island-trans-sparkle {
+  font-size: 9.5px;
+  color: #38bdf8;
+  filter: drop-shadow(0 0 4px rgba(56, 189, 248, 0.7));
+  animation: sparklePulse 3s ease-in-out infinite;
+}
+
+@keyframes sparklePulse {
+  0%, 100% { transform: scale(0.9) rotate(0deg); opacity: 0.85; }
+  50% { transform: scale(1.15) rotate(15deg); opacity: 1; }
+}
+
+.island-trans-pill {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Outfit", sans-serif;
+  text-transform: uppercase;
+}
+
+/* Translation Marquee & Typography */
+.island-trans-marquee-wrapper,
+.island-satellite-marquee-wrapper {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  position: relative;
+  mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 10px), transparent 100%);
+  -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 10px), transparent 100%);
+}
+
+.island-trans-text,
+.island-satellite-text {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Outfit", "Inter", sans-serif;
+  font-size: 11px;
+  font-weight: 550;
+  color: rgba(255, 255, 255, 0.95);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  display: inline-block;
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.22);
+}
+
+.satellite-text-swapping {
+  opacity: 0 !important;
+  transform: translateY(-4px) scale(0.97) !important;
+  transition: opacity 0.12s ease-out, transform 0.12s cubic-bezier(0.32, 0.72, 0, 1) !important;
+}
+
+.satellite-text-entering {
+  animation: satelliteTextSlideIn 0.24s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes satelliteTextSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Auto-Marquee Overflow Animation (Never cut off!) */
+.is-overflowing {
+  display: inline-block !important;
+  will-change: transform;
+  animation: appleMarqueeScroll var(--marquee-dur, 6s) cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite alternate;
+}
+
+@keyframes appleMarqueeScroll {
+  0%, 20% {
+    transform: translateX(0px);
+  }
+  80%, 100% {
+    transform: translateX(var(--marquee-dist, -60px));
+  }
 }
 
 /* ==========================================================
@@ -388,12 +690,12 @@ body:not(.is-playing) .island-art-halo {
   -webkit-app-region: none !important;
 }
 
-/* 4-bar Apple Music Equalizer */
+/* Audio-Reactive Equalizer */
 .island-wave-visualizer {
   display: flex;
   align-items: flex-end; /* Bottom-anchored like real equalizer */
   justify-content: center;
-  gap: 2.5px;
+  gap: 2px;
   height: 15px;
   padding-right: 2px;
   pointer-events: none;
@@ -406,70 +708,108 @@ body:not(.is-playing) .island-art-halo {
 
 .wave-bar {
   width: 2.5px;
+  height: 15px;
   border-radius: 99px;
   background: #ffffff;
   box-shadow: 0 0 4px rgba(255, 255, 255, 0.4);
   transform-origin: bottom center;
+  transform: scaleY(0.16);
+  transition: transform 0.04s cubic-bezier(0.1, 0.9, 0.2, 1), opacity 0.2s ease;
+  will-change: transform;
 }
 
-.wave-bar.bar-1 {
-  height: 12px;
+/* Harmonic Apple Music Fallback Animation (active when audio capture is silent or unavailable) */
+.island-wave-visualizer.is-fallback .wave-bar {
+  transition: opacity 0.2s ease;
+}
+
+.island-wave-visualizer.is-fallback .wave-bar.bar-1 {
   animation: appleEqBar1 1.2s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
 }
-.wave-bar.bar-2 {
-  height: 15px;
+.island-wave-visualizer.is-fallback .wave-bar.bar-2 {
   animation: appleEqBar2 1.2s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
 }
-.wave-bar.bar-3 {
-  height: 14px;
+.island-wave-visualizer.is-fallback .wave-bar.bar-3 {
   animation: appleEqBar3 1.2s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
 }
-.wave-bar.bar-4 {
-  height: 10px;
+.island-wave-visualizer.is-fallback .wave-bar.bar-4 {
   animation: appleEqBar4 1.2s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
 }
-
-body:not(.is-playing) .wave-bar {
-  animation: none !important;
-  height: 2.5px !important;
-  opacity: 0.35;
-  box-shadow: none;
+.island-wave-visualizer.is-fallback .wave-bar.bar-5 {
+  animation: appleEqBar2 1.35s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite 0.15s;
+}
+.island-wave-visualizer.is-fallback .wave-bar.bar-6 {
+  animation: appleEqBar3 1.15s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite 0.3s;
+}
+.island-wave-visualizer.is-fallback .wave-bar.bar-7 {
+  animation: appleEqBar1 1.25s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite 0.2s;
+}
+.island-wave-visualizer.is-fallback .wave-bar.bar-8 {
+  animation: appleEqBar4 1.10s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite 0.4s;
 }
 
 @keyframes appleEqBar1 {
-  0%, 100% { height: 4px; opacity: 0.65; }
-  25% { height: 12px; opacity: 1; }
-  50% { height: 6px; opacity: 0.75; }
-  75% { height: 13px; opacity: 1; }
+  0%, 100% { transform: scaleY(0.28); opacity: 0.75; }
+  25% { transform: scaleY(0.85); opacity: 1; }
+  50% { transform: scaleY(0.42); opacity: 0.8; }
+  75% { transform: scaleY(0.95); opacity: 1; }
 }
 
 @keyframes appleEqBar2 {
-  0%, 100% { height: 14px; opacity: 1; }
-  30% { height: 5px; opacity: 0.7; }
-  60% { height: 15px; opacity: 1; }
-  85% { height: 7px; opacity: 0.8; }
+  0%, 100% { transform: scaleY(0.92); opacity: 1; }
+  30% { transform: scaleY(0.35); opacity: 0.75; }
+  60% { transform: scaleY(1.0); opacity: 1; }
+  85% { transform: scaleY(0.48); opacity: 0.85; }
 }
 
 @keyframes appleEqBar3 {
-  0%, 100% { height: 6px; opacity: 0.75; }
-  20% { height: 14px; opacity: 1; }
-  55% { height: 4px; opacity: 0.65; }
-  80% { height: 12px; opacity: 1; }
+  0%, 100% { transform: scaleY(0.40); opacity: 0.8; }
+  20% { transform: scaleY(0.95); opacity: 1; }
+  55% { transform: scaleY(0.28); opacity: 0.7; }
+  80% { transform: scaleY(0.82); opacity: 1; }
 }
 
 @keyframes appleEqBar4 {
-  0%, 100% { height: 3px; opacity: 0.55; }
-  35% { height: 10px; opacity: 0.95; }
-  65% { height: 5px; opacity: 0.7; }
-  90% { height: 9px; opacity: 0.9; }
+  0%, 100% { transform: scaleY(0.22); opacity: 0.65; }
+  35% { transform: scaleY(0.70); opacity: 0.95; }
+  65% { transform: scaleY(0.35); opacity: 0.75; }
+  90% { transform: scaleY(0.60); opacity: 0.9; }
 }
 
+body:not(.is-playing) .wave-bar {
+  transform: scaleY(0.16);
+  opacity: 0.35;
+  box-shadow: none;
+  animation: none !important;
+}
+
+body:not(.is-playing) .island-wave-visualizer.is-fallback .wave-bar {
+  animation: none !important;
+  transform: scaleY(0.16) !important;
+}
+
+#dynamic-island .island-top-actions #island-btn-translate,
 #dynamic-island .island-top-actions #island-btn-expand {
   display: none !important;
 }
 
+#dynamic-island:hover .island-top-actions #island-btn-translate,
 #dynamic-island:hover .island-top-actions #island-btn-expand {
   display: flex !important;
+}
+
+.island-btn.island-btn-translate {
+  width: 22px;
+  height: 22px;
+  color: rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.island-btn.island-btn-translate.active {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.22);
+  border-color: rgba(255, 255, 255, 0.40);
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.25);
 }
 
 /* ==========================================================
@@ -492,20 +832,47 @@ body:not(.is-playing) .wave-bar {
   pointer-events: auto;
 }
 
+/* iOS Now Playing Scrubber with Time Labels */
+.island-scrubber-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 2px;
+}
+
+.island-scrubber-time {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Outfit", "Inter", sans-serif;
+  font-size: 10px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.55);
+  letter-spacing: -0.01em;
+  min-width: 28px;
+  user-select: none;
+}
+
+#island-time-current {
+  text-align: left;
+}
+
+#island-time-remaining {
+  text-align: right;
+}
+
 /* Micro Progress Bar */
 .island-progress-track {
-  width: 100%;
-  height: 3px;
+  flex: 1;
+  height: 3.5px;
   background: rgba(255, 255, 255, 0.16);
   border-radius: 99px;
-  overflow: hidden;
-  cursor: pointer;
   position: relative;
-  transition: height 0.2s ease;
+  cursor: pointer;
+  transition: height 0.2s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .island-progress-track:hover {
-  height: 4.5px;
+  height: 5px;
 }
 
 .island-progress-fill {
@@ -514,7 +881,25 @@ body:not(.is-playing) .wave-bar {
   background: #ffffff;
   border-radius: 99px;
   box-shadow: 0 0 6px rgba(255, 255, 255, 0.65);
-  transition: width 0.15s linear;
+  transition: width 0.12s linear;
+}
+
+.island-progress-thumb {
+  position: absolute;
+  top: 50%;
+  left: 0%;
+  transform: translate(-50%, -50%) scale(0);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  transition: transform 0.18s cubic-bezier(0.32, 0.72, 0, 1);
+  pointer-events: none;
+}
+
+.island-progress-track:hover .island-progress-thumb {
+  transform: translate(-50%, -50%) scale(1);
 }
 
 /* Playback Control Buttons (Previous, Play/Pause, Next) */
@@ -555,7 +940,7 @@ body:not(.is-playing) .wave-bar {
 }
 
 .island-btn:active {
-  transform: scale(0.92);
+  transform: scale(0.88);
 }
 
 /* Apple Hardware Tactile Play/Pause Disc */
@@ -588,4 +973,282 @@ body:not(.is-playing) .wave-bar {
   height: 22px;
   color: rgba(255, 255, 255, 0.9);
   background: rgba(255, 255, 255, 0.08);
+}
+
+/* ==========================================================
+   DOCK POSITION ADAPTERS (DUAL-CAPSULE SUPPORT)
+========================================================== */
+
+/* Top Center (Default iOS Notch) */
+body.island-dock-top-center .app-container {
+  align-items: center !important;
+  justify-content: flex-start !important;
+}
+body.island-dock-top-center #dynamic-island {
+  margin: 0 auto !important;
+  top: 0 !important;
+  bottom: auto !important;
+}
+body.island-dock-top-center #dynamic-island-translation {
+  margin: 0 auto !important;
+}
+
+/* Top Left: Anchored to left, full album art visible */
+body.island-dock-top-left .app-container {
+  align-items: flex-start !important;
+  justify-content: flex-start !important;
+  padding-left: 0 !important;
+}
+body.island-dock-top-left #dynamic-island {
+  margin-left: 0 !important;
+  margin-right: auto !important;
+  top: 0 !important;
+  bottom: auto !important;
+}
+body.island-dock-top-left .island-bridge {
+  margin-left: 28px !important;
+  margin-right: auto !important;
+}
+body.island-dock-top-left #dynamic-island-translation {
+  margin-left: 0 !important;
+  margin-right: auto !important;
+}
+
+/* Top Right: Anchored to right, full controls visible */
+body.island-dock-top-right .app-container {
+  align-items: flex-end !important;
+  justify-content: flex-start !important;
+  padding-right: 0 !important;
+}
+body.island-dock-top-right #dynamic-island {
+  margin-right: 0 !important;
+  margin-left: auto !important;
+  top: 0 !important;
+  bottom: auto !important;
+}
+body.island-dock-top-right .island-bridge {
+  margin-right: 28px !important;
+  margin-left: auto !important;
+}
+body.island-dock-top-right #dynamic-island-translation {
+  margin-right: 0 !important;
+  margin-left: auto !important;
+}
+
+/* Above Taskbar (Bottom Center): Flush to taskbar & opens UPWARDS */
+body.island-dock-bottom-center .app-container {
+  flex-direction: column-reverse !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+}
+body.island-dock-bottom-center #dynamic-island {
+  margin: 0 auto !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  top: auto !important;
+  bottom: 0 !important;
+  box-shadow:
+    inset 0 -1px 0.5px rgba(255, 255, 255, 0.28),
+    inset 0 0.5px 0.5px rgba(255, 255, 255, 0.08),
+    0 -12px 28px -4px rgba(0, 0, 0, 0.75),
+    0 0 0 1px rgba(0, 0, 0, 0.95);
+}
+body.island-dock-bottom-center #dynamic-island:hover {
+  box-shadow:
+    inset 0 -1.5px 0.5px rgba(255, 255, 255, 0.35),
+    inset 0 0.5px 0.5px rgba(255, 255, 255, 0.10),
+    0 -20px 48px -4px rgba(0, 0, 0, 0.95),
+    0 0 24px rgba(255, 255, 255, 0.06),
+    0 0 0 1px rgba(0, 0, 0, 0.95);
+}
+body.island-dock-bottom-center #dynamic-island-translation {
+  margin: 0 auto !important;
+  box-shadow:
+    inset 0 -1px 0.5px rgba(255, 255, 255, 0.28),
+    inset 0 0.5px 0.5px rgba(255, 255, 255, 0.08),
+    0 -10px 24px -4px rgba(0, 0, 0, 0.75),
+    0 0 0 1px rgba(0, 0, 0, 0.95);
+}
+
+/* ==========================================================
+   IN-APP FEATURE DISCOVERY PROMPT MODAL
+   - Sleek Apple Glass Card asking user if they want the feature
+========================================================== */
+.island-prompt-modal {
+  position: absolute;
+  top: 48px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2000;
+  width: 320px;
+  animation: promptFadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  pointer-events: auto !important;
+}
+
+body.island-dock-bottom-center .island-prompt-modal {
+  top: auto;
+  bottom: 50px;
+}
+
+@keyframes promptFadeIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -10px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
+.island-prompt-card {
+  background: rgba(18, 18, 24, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 16px;
+  padding: 12px 14px;
+  box-shadow:
+    0 16px 36px rgba(0, 0, 0, 0.85),
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.island-prompt-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.island-prompt-sparkle {
+  color: #38bdf8;
+  font-size: 13px;
+  filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.8));
+}
+
+.island-prompt-title {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Outfit", sans-serif;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: #ffffff;
+  letter-spacing: -0.01em;
+}
+
+.island-prompt-desc {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Outfit", sans-serif;
+  font-size: 11px;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.island-prompt-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.island-prompt-btn-primary {
+  flex: 1;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #000000;
+  border: none;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Outfit", sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.island-prompt-btn-primary:hover {
+  background: #f1f5f9;
+  transform: scale(1.02);
+}
+
+.island-prompt-btn-secondary {
+  flex: 1;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Outfit", sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.island-prompt-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+}
+
+/* ==========================================================
+   APPLE CORE ANIMATION PARTICLE ENGINE (CAEmitterLayer)
+   - Hardware-accelerated stardust dispersion overlay
+   - Fluid spring implosion & emergence states
+========================================================== */
+.island-ca-emitter-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none !important;
+  z-index: 2500;
+}
+
+/* GPU Hardware Layer Promotion */
+#dynamic-island,
+#dynamic-island-translation,
+.island-satellite-text {
+  will-change: transform, opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* Vaporization dissolution (spring implode into stardust) */
+.island-vaporizing {
+  pointer-events: none !important;
+  transition:
+    transform 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 0.38s ease !important;
+  transform: scale(0.92) translateY(2px) !important;
+  opacity: 0 !important;
+}
+
+/* Materialization emergence (spring emergence from quantum vacuum) */
+.island-materializing {
+  animation: islandMaterialize 0.46s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+@keyframes islandMaterialize {
+  0% {
+    opacity: 0;
+    transform: scale(0.88) translateY(-4px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Complete sleep mode when inactive */
+body.mode-dynamic-island.island-sleeping #dynamic-island {
+  display: none !important;
+  pointer-events: none !important;
+}
+body.mode-dynamic-island.island-sleeping #dynamic-island-translation {
+  display: none !important;
+  pointer-events: none !important;
+}
+body.mode-dynamic-island.island-sleeping .island-bridge {
+  display: none !important;
+  pointer-events: none !important;
 }

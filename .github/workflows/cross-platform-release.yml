@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - 'feature/tauri-rust-rebuild'
+      - 'main'
     tags:
       - 'v*'
   workflow_dispatch:

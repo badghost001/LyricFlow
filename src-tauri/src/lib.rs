@@ -1,6 +1,7 @@
 pub mod models;
 pub mod media;
 pub mod commands;
+pub mod audio;
 
 use commands::*;
 use tauri::{
@@ -49,6 +50,12 @@ pub fn run() {
     let b = b.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
         log_to_file("[LyricFlow] Second instance launched! Bringing existing main window to front...");
         if let Some(w) = app.get_webview_window("main") {
+            if let Ok(pos) = w.outer_position() {
+                if pos.x < -1000 || pos.y < -1000 {
+                    let _ = w.set_position(tauri::PhysicalPosition::new(100, 100));
+                    let _ = w.center();
+                }
+            }
             let _ = w.unminimize();
             let _ = w.show();
             let _ = w.set_focus();
@@ -64,10 +71,9 @@ pub fn run() {
                 .with_handler(|app, shortcut, event| {
                     if event.state() == tauri_plugin_global_shortcut::ShortcutState::Pressed {
                         let text = format!("{:?}", shortcut).to_lowercase();
-                        if text.contains("shift") && text.contains("keyl") {
-                            let _ = app.emit("toggle-click-through-shortcut", ());
-                        } else if text.contains("shift") && text.contains("keyc") {
+                        if text.contains("shift") && text.contains("keyc") {
                             let _ = app.emit("copy-active-lyric", ());
+
                         } else if text.contains("shift") && text.contains("keys") {
                             let _ = app.emit("share-active-lyric", ());
                         } else if text.contains("shift") && text.contains("arrowleft") {
@@ -115,7 +121,8 @@ pub fn run() {
             log_to_file("[LyricFlow] Registering shortcuts...");
             // Register Global Shortcuts
             let shortcuts = [
-                "ctrl+shift+l",
+
+
                 "ctrl+shift+c",
                 "ctrl+shift+s",
                 "ctrl+shift+left",
@@ -337,6 +344,10 @@ pub fn run() {
             }
             log_to_file("[LyricFlow] setup() completed successfully");
 
+            // Dedicated Background Audio Loopback Visualizer
+            let visualizer = audio::AudioVisualizer::new();
+            visualizer.start(app_handle.clone());
+
             // Dedicated Background Media Polling Thread (runs on OS thread with COM MTA apartment, zero Tokio contention)
             let bg_handle = app_handle.clone();
             std::thread::Builder::new()
@@ -400,7 +411,8 @@ pub fn run() {
             config::select_background_file,
             config::select_animated_art_file,
             config::read_file_data_url,
-            window::set_click_through,
+
+
             window::set_always_on_top,
             window::minimize_app,
             window::copy_to_clipboard,
@@ -414,6 +426,7 @@ pub fn run() {
             window::set_edge_glow,
             window::set_dynamic_island_mode,
             window::is_dynamic_island_mode,
+            window::update_island_bounds,
             window::set_wallpaper_mode,
             window::start_wallpaper_edit,
             window::end_wallpaper_edit,
