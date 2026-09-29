@@ -365,6 +365,48 @@ impl MediaSessionBackend for WindowsSmtcBackend {
     }
 
     fn trigger_control(&self, action: &str, position_ms: u64) {
+        #[cfg(target_os = "windows")]
+        extern "system" {
+            fn keybd_event(b_vk: u8, b_scan: u8, dw_flags: u32, dw_extra_info: usize);
+        }
+
+        match action {
+            "volume-up" => {
+                #[cfg(target_os = "windows")]
+                unsafe {
+                    keybd_event(0xAF, 0, 1, 0); // VK_VOLUME_UP down
+                    keybd_event(0xAF, 0, 1 | 2, 0); // VK_VOLUME_UP up
+                }
+                return;
+            }
+            "volume-down" => {
+                #[cfg(target_os = "windows")]
+                unsafe {
+                    keybd_event(0xAE, 0, 1, 0); // VK_VOLUME_DOWN down
+                    keybd_event(0xAE, 0, 1 | 2, 0); // VK_VOLUME_DOWN up
+                }
+                return;
+            }
+            "volume-mute" | "mute" | "toggle-mute" => {
+                #[cfg(target_os = "windows")]
+                unsafe {
+                    keybd_event(0xAD, 0, 1, 0); // VK_VOLUME_MUTE down
+                    keybd_event(0xAD, 0, 1 | 2, 0); // VK_VOLUME_MUTE up
+                }
+                return;
+            }
+            "volume" | "set-volume" => {
+                // If a specific volume level (0..100) is requested
+                #[cfg(target_os = "windows")]
+                {
+                    let target_percent = position_ms.min(100) as f32;
+                    let _ = set_windows_master_volume(target_percent);
+                }
+                return;
+            }
+            _ => {}
+        }
+
         if let Some(session) = Self::get_current_session() {
             match action {
                 "play" => { let _ = session.TryPlayAsync(); },
@@ -379,6 +421,31 @@ impl MediaSessionBackend for WindowsSmtcBackend {
                 _ => {}
             }
         }
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn set_windows_master_volume(percent: f32) -> Result<(), String> {
+    unsafe {
+        let _ = windows::Win32::System::Com::CoInitializeEx(None, windows::Win32::System::Com::COINIT_MULTITHREADED);
+        use windows::Win32::Media::Audio::*;
+        use windows::Win32::Media::Audio::Endpoints::*;
+        use windows::Win32::System::Com::*;
+
+        let enumerator: IMMDeviceEnumerator = CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)
+            .map_err(|e| e.to_string())?;
+        let device = enumerator.GetDefaultAudioEndpoint(eRender, eMultimedia)
+            .or_else(|_| enumerator.GetDefaultAudioEndpoint(eRender, eConsole))
+            .map_err(|e| e.to_string())?;
+        let endpoint_vol: IAudioEndpointVolume = device.Activate(CLSCTX_ALL, None)
+            .map_err(|e| e.to_string())?;
+
+        let scalar = (percent / 100.0).clamp(0.0, 1.0);
+        let _ = endpoint_vol.SetMasterVolumeLevelScalar(scalar, std::ptr::null());
+        if scalar > 0.0 {
+            let _ = endpoint_vol.SetMute(false, std::ptr::null());
+        }
+        Ok(())
     }
 }
 

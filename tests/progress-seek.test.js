@@ -310,6 +310,58 @@ function runProgressSeekTests() {
     assert.ok(lastPollProgress >= 29500 && lastPollProgress <= 30000);
   });
 
+  // Test 11: formatTime Edge Cases and Guards
+  test('11. formatTime safely guards against null, undefined, NaN, and negative values', () => {
+    function formatTime(ms) {
+      if (!ms || isNaN(ms) || ms <= 0) return '0:00';
+      const totalSec = Math.floor(ms / 1000);
+      const min = Math.floor(totalSec / 60);
+      const sec = totalSec % 60;
+      return `${min}:${String(sec).padStart(2, '0')}`;
+    }
+
+    assert.strictEqual(formatTime(undefined), '0:00');
+    assert.strictEqual(formatTime(null), '0:00');
+    assert.strictEqual(formatTime(NaN), '0:00');
+    assert.strictEqual(formatTime(-1000), '0:00');
+    assert.strictEqual(formatTime(0), '0:00');
+    assert.strictEqual(formatTime(5000), '0:05');
+    assert.strictEqual(formatTime(65000), '1:05');
+    assert.strictEqual(formatTime(215000), '3:35');
+  });
+
+  // Test 12: Progress Bar Time Stamps Display & Remaining Time Formatting
+  test('12. Progress time display renders clean separator and supports remaining time toggle', () => {
+    function formatTime(ms) {
+      if (!ms || isNaN(ms) || ms <= 0) return '0:00';
+      const totalSec = Math.floor(ms / 1000);
+      const min = Math.floor(totalSec / 60);
+      const sec = totalSec % 60;
+      return `${min}:${String(sec).padStart(2, '0')}`;
+    }
+
+    function formatProgressDisplay(currentMs, durationMs, showRemaining) {
+      const curStr = formatTime(currentMs);
+      const durStr = showRemaining
+        ? `-${formatTime(Math.max(0, durationMs - currentMs))}`
+        : formatTime(durationMs);
+      return `${curStr} / ${durStr}`;
+    }
+
+    // Standard total time mode at 1:15 of 3:45
+    assert.strictEqual(formatProgressDisplay(75000, 225000, false), '1:15 / 3:45');
+
+    // Remaining time toggle mode at 1:15 of 3:45 (remaining = 2:30)
+    assert.strictEqual(formatProgressDisplay(75000, 225000, true), '1:15 / -2:30');
+
+    // Start of song
+    assert.strictEqual(formatProgressDisplay(0, 180000, false), '0:00 / 3:00');
+    assert.strictEqual(formatProgressDisplay(0, 180000, true), '0:00 / -3:00');
+
+    // Missing duration fallback
+    assert.strictEqual(formatProgressDisplay(0, 0, false), '0:00 / 0:00');
+  });
+
   console.log(`Results: ${passedTests}/${totalTests} tests passed.\n`);
   if (passedTests !== totalTests) {
     process.exit(1);

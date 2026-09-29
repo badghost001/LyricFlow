@@ -1543,6 +1543,34 @@ function initDOMElements() {
   widgetTimeCurrent = document.getElementById("widget-time-current");
   widgetTimeDuration = document.getElementById("widget-time-duration");
 
+  const mainArtContainer = document.querySelector(".widget-art-container");
+  if (mainArtContainer) {
+    mainArtContainer.title = "Scroll to adjust volume, middle-click to mute";
+    mainArtContainer.addEventListener("wheel", (e) => {
+      e.preventDefault();
+      const delta = e.deltaY < 0 ? 5 : -5;
+      adjustIslandVolume(delta, true);
+    }, { passive: false });
+
+    mainArtContainer.addEventListener("auxclick", (e) => {
+      if (e.button !== 1) return;
+      e.preventDefault();
+      toggleAppMute();
+    });
+  }
+
+  const progressTimeEl = document.querySelector(".progress-time");
+  if (progressTimeEl) {
+    progressTimeEl.addEventListener("click", () => {
+      window._showRemainingTime = !window._showRemainingTime;
+      if (trackDuration > 0 && widgetTimeDuration) {
+        widgetTimeDuration.textContent = window._showRemainingTime
+          ? `-${formatTime(Math.max(0, trackDuration - (currentProgress || 0)))}`
+          : formatTime(trackDuration);
+      }
+    });
+  }
+
 
 
   // Controls & Taskbar DOM Elements
@@ -3830,7 +3858,7 @@ function seekPlayback(targetMs) {
   }
 }
 
-function adjustIslandVolume(deltaPercent) {
+function adjustIslandVolume(deltaPercent, showHud = true) {
   currentIslandVolumePercent = Math.max(0, Math.min(100, currentIslandVolumePercent + deltaPercent));
   isIslandMuted = currentIslandVolumePercent === 0;
 
@@ -3839,6 +3867,16 @@ function adjustIslandVolume(deltaPercent) {
   else if (currentIslandVolumePercent < 35) volIcon = "🔈";
   else if (currentIslandVolumePercent < 70) volIcon = "🔉";
 
+  if (window.electronAPI && window.electronAPI.triggerLocalPlaybackControl) {
+    if (deltaPercent > 0) {
+      window.electronAPI.triggerLocalPlaybackControl("volume-up", currentIslandVolumePercent);
+    } else if (deltaPercent < 0) {
+      window.electronAPI.triggerLocalPlaybackControl("volume-down", currentIslandVolumePercent);
+    } else {
+      window.electronAPI.triggerLocalPlaybackControl("volume", currentIslandVolumePercent);
+    }
+  }
+
   if (config && config.access_token && !config.localMode) {
     fetch(`https://api.spotify.com/v1/me/player/volume?volume_percent=${currentIslandVolumePercent}`, {
       method: 'PUT',
@@ -3846,12 +3884,49 @@ function adjustIslandVolume(deltaPercent) {
     }).catch(() => {});
   }
 
-  showIslandHud({
-    icon: volIcon,
-    text: `${currentIslandVolumePercent}%`,
-    percent: currentIslandVolumePercent,
-    showBar: true
-  });
+  if (isDynamicIslandMode && showHud) {
+    showIslandHud({
+      icon: volIcon,
+      text: `${currentIslandVolumePercent}%`,
+      percent: currentIslandVolumePercent,
+      showBar: true
+    });
+  } else if (!isDynamicIslandMode && showHud && typeof showToast === 'function') {
+    showToast(`${volIcon} Volume: ${currentIslandVolumePercent}%`, 1000);
+  }
+}
+
+function toggleAppMute() {
+  if (isIslandMuted) {
+    currentIslandVolumePercent = lastIslandMuteVolume || 50;
+    isIslandMuted = false;
+    if (isDynamicIslandMode) {
+      showIslandHud({ icon: "🔊", text: `${currentIslandVolumePercent}%`, percent: currentIslandVolumePercent, showBar: true });
+    } else if (typeof showToast === 'function') {
+      showToast(`🔊 Volume: ${currentIslandVolumePercent}%`, 1000);
+    }
+    if (window.electronAPI && window.electronAPI.triggerLocalPlaybackControl) {
+      window.electronAPI.triggerLocalPlaybackControl("volume", currentIslandVolumePercent);
+    }
+  } else {
+    lastIslandMuteVolume = currentIslandVolumePercent;
+    currentIslandVolumePercent = 0;
+    isIslandMuted = true;
+    if (isDynamicIslandMode) {
+      showIslandHud({ icon: "🔇", text: "Muted", percent: 0, showBar: true });
+    } else if (typeof showToast === 'function') {
+      showToast("🔇 Muted", 1000);
+    }
+    if (window.electronAPI && window.electronAPI.triggerLocalPlaybackControl) {
+      window.electronAPI.triggerLocalPlaybackControl("volume-mute", 0);
+    }
+  }
+  if (config && config.access_token && !config.localMode) {
+    fetch(`https://api.spotify.com/v1/me/player/volume?volume_percent=${currentIslandVolumePercent}`, {
+      method: 'PUT',
+      headers: { "Authorization": `Bearer ${config.access_token}` }
+    }).catch(() => {});
+  }
 }
 
     dynamicIslandEl.addEventListener("dblclick", (e) => {
@@ -3897,22 +3972,7 @@ function adjustIslandVolume(deltaPercent) {
     dynamicIslandEl.addEventListener("auxclick", (e) => {
       if (e.button !== 1 || !isDynamicIslandMode) return;
       e.preventDefault();
-      if (isIslandMuted) {
-        currentIslandVolumePercent = lastIslandMuteVolume || 50;
-        isIslandMuted = false;
-        showIslandHud({ icon: "🔊", text: `${currentIslandVolumePercent}%`, percent: currentIslandVolumePercent, showBar: true });
-      } else {
-        lastIslandMuteVolume = currentIslandVolumePercent;
-        currentIslandVolumePercent = 0;
-        isIslandMuted = true;
-        showIslandHud({ icon: "🔇", text: "Muted", percent: 0, showBar: true });
-      }
-      if (config && config.access_token && !config.localMode) {
-        fetch(`https://api.spotify.com/v1/me/player/volume?volume_percent=${currentIslandVolumePercent}`, {
-          method: 'PUT',
-          headers: { "Authorization": `Bearer ${config.access_token}` }
-        }).catch(() => {});
-      }
+      toggleAppMute();
     });
   }
 
@@ -3959,6 +4019,9 @@ function adjustIslandVolume(deltaPercent) {
             const remMs = Math.max(0, trackDuration - previewMs);
             remEl.textContent = `-${formatTime(remMs)}`;
           }
+        } else if (widgetTimeDuration && window._showRemainingTime) {
+          const remMs = Math.max(0, trackDuration - previewMs);
+          widgetTimeDuration.textContent = `-${formatTime(remMs)}`;
         }
       }
     }
@@ -8598,8 +8661,17 @@ function updatePlayhead() {
         }
 
         const timeStr = formatTime(currentProgress);
-        if (widgetTimeCurrent.textContent !== timeStr) {
+        if (widgetTimeCurrent && widgetTimeCurrent.textContent !== timeStr) {
           widgetTimeCurrent.textContent = timeStr;
+        }
+
+        if (widgetTimeDuration && trackDuration > 0) {
+          const durStr = window._showRemainingTime
+            ? `-${formatTime(Math.max(0, trackDuration - currentProgress))}`
+            : formatTime(trackDuration);
+          if (widgetTimeDuration.textContent !== durStr) {
+            widgetTimeDuration.textContent = durStr;
+          }
         }
       }
 

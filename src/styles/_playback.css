@@ -386,14 +386,53 @@
 
 .progress-time {
   display: flex;
-  gap: 4px;
-  font-size: 10px;
+  align-items: center;
+  gap: 3px;
+  font-size: 10.5px;
   font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-tertiary, rgba(255, 255, 255, 0.45));
+  white-space: nowrap;
+  user-select: none;
+  cursor: pointer;
+  flex-shrink: 0;
+  letter-spacing: -0.01em;
+  transition: opacity 0.2s ease;
+}
+
+.progress-time:hover {
+  opacity: 0.92;
+}
+
+.progress-time #widget-time-current {
+  color: var(--text-secondary, rgba(255, 255, 255, 0.85));
+  font-weight: 500;
+}
+
+.progress-time .progress-time-separator {
   color: var(--text-tertiary, rgba(255, 255, 255, 0.35));
+  font-size: 9px;
+  margin: 0 1px;
+}
+
+.progress-time #widget-time-duration {
+  color: var(--text-tertiary, rgba(255, 255, 255, 0.55));
 }
 
 [data-theme="light"] .progress-time {
-  color: rgba(0, 0, 0, 0.4);
+  color: rgba(0, 0, 0, 0.45);
+}
+
+[data-theme="light"] .progress-time #widget-time-current {
+  color: rgba(0, 0, 0, 0.85);
+}
+
+[data-theme="light"] .progress-time .progress-time-separator {
+  color: rgba(0, 0, 0, 0.30);
+}
+
+[data-theme="light"] .progress-time #widget-time-duration {
+  color: rgba(0, 0, 0, 0.55);
 }
 
 /* Widget playback controls styling */
