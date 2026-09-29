@@ -1403,11 +1403,23 @@ body.mode-dynamic-island.island-sleeping .island-bridge {
   justify-content: center;
   z-index: 100;
   pointer-events: none;
-  background: rgba(0, 0, 0, 0.42);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border-radius: 999px;
-  transition: opacity 0.2s ease, transform 0.2s cubic-bezier(0.32, 0.72, 0, 1);
+  background: rgba(0, 0, 0, 0.38);
+  border-radius: inherit;
+  animation: islandHudOverlayIn 0.18s ease forwards;
+}
+
+.island-hud-overlay.is-leaving {
+  animation: islandHudOverlayOut 0.2s ease forwards;
+}
+
+@keyframes islandHudOverlayIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes islandHudOverlayOut {
+  from { opacity: 1; }
+  to   { opacity: 0; }
 }
 
 .island-hud-pill {
