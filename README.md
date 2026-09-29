@@ -1,91 +1,132 @@
 <div align="center">
   <img src="assets/icon.png" alt="LyricFlow Logo" width="128" />
   <h1>LyricFlow</h1>
-  <p><strong>A lightweight, glassmorphic desktop lyrics overlay with real-time sync for Spotify and local media.</strong></p>
-  <p><i>Rebuilt from the ground up in native Rust & Tauri v2 for ultra-low memory usage (< 30 MB) and instant responsiveness.</i></p>
+  <p><strong>A breathtaking, ultra-lightweight desktop lyrics overlay with real-time synchronization, Dynamic Island, and adaptive ambient aesthetics.</strong></p>
+  <p><i>Engineered in native Rust (Tauri v2) for sub-30 MB RAM usage, instant responsiveness, and cross-platform performance.</i></p>
   
   <p>
     <a href="https://github.com/badghost001/LyricFlow/releases/latest"><img src="https://img.shields.io/github/v/release/badghost001/LyricFlow?style=flat-square&color=1DB954" alt="Latest Release" /></a>
     <a href="https://github.com/badghost001/LyricFlow/releases"><img src="https://img.shields.io/github/downloads/badghost001/LyricFlow/total?style=flat-square&color=blue" alt="Total Downloads" /></a>
     <a href="https://v2.tauri.app/"><img src="https://img.shields.io/badge/Tauri-v2-24C8DB?style=flat-square&logo=tauri&logoColor=white" alt="Tauri v2" /></a>
     <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/Rust-1.80+-DEA584?style=flat-square&logo=rust&logoColor=white" alt="Rust" /></a>
-    <a href="LICENSE"><img src="https://img.shields.io/badge/License-Proprietary-lightgrey?style=flat-square" alt="License" /></a>
+    <a href="https://github.com/badghost001/LyricFlow/blob/main/LICENSE"><img src="https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-brightgreen?style=flat-square" alt="Platform Support" /></a>
+    <a href="https://github.com/badghost001/LyricFlow/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-Proprietary-lightgrey?style=flat-square" alt="License" /></a>
   </p>
 
   <p>
-    <a href="#features">Features</a> •
-    <a href="#screenshots">Screenshots</a> •
-    <a href="#keyboard-shortcuts">Keyboard Shortcuts</a> •
-    <a href="#installation">Installation</a> •
-    <a href="#building-from-source">Building from Source</a> •
-    <a href="#technologies-used">Technologies Used</a>
+    <a href="#-whats-new-in-v140">What's New</a> •
+    <a href="#-key-features">Features</a> •
+    <a href="#-screenshots">Screenshots</a> •
+    <a href="#-keyboard-shortcuts">Shortcuts</a> •
+    <a href="#-installation">Installation</a> •
+    <a href="#-building-from-source">Build from Source</a> •
+    <a href="#-architecture--tech-stack">Tech Stack</a>
   </p>
 </div>
 
 ---
 
-## ✨ Features
+## 🌟 What's New in v1.4.0
 
-- 🦀 **High-Speed Dual Rust Lyrics Engine:** Queries **LRCLIB** and an optimized **Cloudflare Proxy** in parallel via asynchronous `tokio::join!`. Runs completely in native Rust with zero browser CORS barriers and smart fallback (`LINE_SYNCED` → `PLAIN_TEXT`).
-- 🎵 **Real-Time Line Synchronization:** Follows your music line-by-line with smooth clock slew interpolation, track switch debouncing, and per-song sync offset customization.
-- 🪟 **Seamless Taskbar & Menu Bar Mode:** Docks lyrics directly into your Windows Taskbar (or macOS Menu Bar). Features sub-millisecond cursor hit-testing, automatic click-through, right-click menu suppression, and continuous `HWND_TOPMOST` z-order keeping.
-- 🖼️ **Ambient Wallpaper & Fullscreen Mode:** Transforms your desktop into an immersive music visualizer with Apple Music-inspired blurred album background pan effects, dynamic fluid typography, and Spotify Canvas MP4 loop playback.
-- 🎨 **Glassmorphism & Adaptive Palette:** Modern frosted-glass aesthetics with background blur, dynamic color extraction derived on the fly from current album artwork, and optional reactive Screen Edge Glow.
-- 📻 **Native OS Media Backends:**
-  - **Windows:** Deep integration with Windows SMTC (System Media Transport Controls) via a dedicated MTA COM worker thread—supports Spotify Desktop, YouTube, Apple Music, and local media players.
-  - **macOS:** Native AppleScript IPC integration with Spotify Desktop and Apple Music (`Music.app`).
-- 🖼️ **High-Resolution Artwork Fallback:** Automatic background enhancement of low-res SMTC thumbnails with crystal-clear 600×600 artwork fetched via native iTunes and Deezer backends.
-- 🧠 **Genius & Last.fm Knowledge:** Live song facts, verified annotations, and instant Last.fm scrobbling and playback tracking.
-- ⚡ **Ultra-Low Memory Footprint:** Consumes only **~20–30 MB of RAM** (over 90% reduction compared to Electron) with near 0% idle CPU usage.
-- 🔄 **Automatic Background Updates:** Seamless background OTA updates verified cryptographically with Minisign.
+- 🏝️ **Dynamic Island & Dual-Connected Satellite:** Apple-inspired floating pill with real-time audio visualizer, interactive controls, and an intelligent **Satellite Translation Pill** that docks right below the island for on-the-fly bilingual lyrics.
+- ✨ **CoreAnimation Stardust Emitter (`CAEmitterEngine`):** Smooth stardust particle vaporization and materialization animations on inactivity sleep and wake transitions, with silent seamless in-song transitions.
+- 🎨 **3D MMCQ Adaptive Color Quantization:** 5-bit color space (`32×32×32` RGB voxel grid) Modified Median Cut Quantization extracting authentic artwork centroids in ~1.6ms. Zero artificial rainbow offsets—preserves genuine monochrome, warm sepia, and obsidian dark covers.
+- 🪟 **Luminous White Typography:** High-contrast `#ffffff` lyrics text paired with dynamically extracted artwork glow auras for peak legibility over dynamic album art and video canvases.
+- 🔄 **Minisign Cryptographic OTA Auto-Updates:** Full cross-platform background update pipeline with signed `latest.json` manifests for Windows, macOS, and Linux.
+
+---
+
+## ✨ Key Features
+
+### 🏝️ Dynamic Island with Dual Connected Satellite
+- **Adaptive Docking Pill:** Floats seamlessly at the top of your screen, displaying current line lyrics, track progress, and album artwork.
+- **Dual Connected Satellite Island:** Docks adjacent or below the main island to display real-time line-by-line foreign language translations.
+- **Smart Language Detection:** Automatically suppresses redundant translations when lyrics are in English/native languages, smoothly expanding into view only when foreign phrases appear.
+- **Inactivity Sleep & Stardust Physics:** Auto-sleeps after customizable idle timeouts (30s, 1m, 2m, 5m, or Never) with particle dispersion animations powered by `CAEmitterEngine`.
+- **Integrated Audio Visualizer:** High-performance WASAPI loopback audio reactive frequency bars pulsing directly within the island.
+
+### 🦀 High-Speed Dual-Tier Rust Lyrics Engine
+- **Asynchronous Parallel Fetching:** Simultaneously queries **LRCLIB**, high-speed **Cloudflare Proxy**, and **Musixmatch** using `tokio::join!`. Runs in native Rust with zero browser CORS constraints.
+- **Smart Waterfall Fallbacks:** Seamless cascade from Word-Synced Karaoke (`WORD_SYNCED`) → Line-Synced (`LINE_SYNCED`) → Plain Text (`PLAIN_TEXT`), backed by Spotify Color-Lyrics, NetEase, and Genius.
+- **Syllable-by-Syllable Karaoke Timing:** Word-level glow highlights following the artist's vocal cadence in real time.
+- **Clock Slew Interpolation & Debouncing:** Eliminates jitter and desync when seeking, skipping tracks, or resuming playback.
+
+### 🎨 3D MMCQ Ambient Canvas & Glow Engine
+- **Modified Median Cut Quantization (MMCQ):** Extracts a synchronized 5-tier color palette (`dominant`, `secondary`, `accent`, `highlight`, `background`) in ~1.6ms with zero synthetic hue offsets.
+- **Fluid Mesh WebGL Shader:** Gamma-corrected linear color blending (`pow(c, 2.2)`) with specular sheen crests that match the mood of the album cover.
+- **Screen Edge Glow:** Optional peripheral ambient screen border lighting synchronized to the rhythm and color palette of the playing song.
+- **Pure White Legibility:** Word and line highlights locked to crisp white typography with dynamic ambient artwork aura.
+
+### 🪟 Flexible Display Modes
+- **Floating Glassmorphic Window:** Resizable, draggable frosted-glass window with adjustable background blur, font size, and layout scaling.
+- **Windows Taskbar Mode:** Docks single-line synced lyrics directly into the Windows Taskbar (`Shell_TrayWnd`) with sub-millisecond cursor hit-testing and continuous topmost z-order preservation.
+- **Ambient Wallpaper & Fullscreen:** Immersive full-screen visualizer mode featuring Apple Music-style blurred artwork pan animations, dynamic typography, and looping Spotify Canvas MP4 playback.
+
+### 📸 Lyric Share Card Studio
+- **Multi-Format Social Presets:** Generate visually stunning lyric cards in **Instagram Story (9:16)**, **Square (1:1)**, **Portrait Feed (4:5)**, and **Landscape (16:9)**.
+- **Curated Typography Stacks:** Switch between Modern Sans, Editorial Serif, Monospace, and Soft Rounded font stacks.
+- **Multi-Mode Lyrics Rendering:** Original lyrics, Bilingual (Original + Translation), or Translation-only view with instant clipboard copying and PNG saving.
+
+### 📻 Deep Native OS Integrations
+- **Windows:** System Media Transport Controls (SMTC) via dedicated MTA COM worker thread—supporting Spotify Desktop, Apple Music, YouTube Music, web browsers, and local media players.
+- **macOS:** AppleScript IPC for Spotify and Apple Music (`Music.app`).
+- **High-Res Artwork Upscaling:** Automatically detects and replaces low-resolution media transport thumbnails with pristine 600×600 artwork from iTunes and Deezer APIs.
+- **Genius Facts & Last.fm:** Real-time song annotations, trivia pills, and automatic Last.fm scrobbling.
 
 ---
 
 ## 📸 Screenshots
 
+<div align="center">
+
 ### Main Floating Window
 *Glassmorphic overlay with dynamic active line glow, live Genius trivia pill, and seamless playback controls.*
-<p align="center">
-  <img src="assets/screenshots/main-view.png" alt="LyricFlow Main Window" width="900" />
-</p>
+<br/>
+<img src="assets/screenshots/main-view.png" alt="LyricFlow Main Window" width="850" />
+
+<br/><br/>
 
 ### Synced Floating Overlay
-*Positioned effortlessly over Spotify Desktop, keeping your focus on the music.*
-<p align="center">
-  <img src="assets/screenshots/floating-overlay.png" alt="LyricFlow Floating Overlay" width="900" />
-</p>
+*Positioned effortlessly over Spotify Desktop or any media player.*
+<br/>
+<img src="assets/screenshots/floating-overlay.png" alt="LyricFlow Floating Overlay" width="850" />
+
+<br/><br/>
 
 ### Taskbar Mode
-*Unobtrusive single-line lyrics ticker docked directly into the Windows Taskbar with zero interference to tray or taskbar icons.*
-<p align="center">
-  <img src="assets/screenshots/taskbar-mode.png" alt="LyricFlow Taskbar Mode" width="1000" />
-</p>
+*Unobtrusive single-line lyrics ticker docked directly into the Windows Taskbar with zero interference to icons.*
+<br/>
+<img src="assets/screenshots/taskbar-mode.png" alt="LyricFlow Taskbar Mode" width="950" />
+
+<br/><br/>
 
 ### Ambient Wallpaper / Fullscreen Mode
-*Oversized fluid typography and animated background visuals driven by the current track.*
-<p align="center">
-  <img src="assets/screenshots/wallpaper-mode.png" alt="LyricFlow Wallpaper Mode" width="900" />
-</p>
+*Fluid typography, animated canvas backgrounds, and Spotify Canvas MP4 loops.*
+<br/>
+<img src="assets/screenshots/wallpaper-mode.png" alt="LyricFlow Wallpaper Mode" width="850" />
+
+<br/><br/>
 
 ### Settings & Aesthetics Panel
 *Customize fonts, opacity, highlight glows, custom video/image backgrounds, screen edge glow, and timing offsets.*
-<p align="center">
-  <img src="assets/screenshots/settings-panel.png" alt="LyricFlow Settings Panel" width="850" />
-</p>
+<br/>
+<img src="assets/screenshots/settings-panel.png" alt="LyricFlow Settings Panel" width="800" />
+
+</div>
 
 ---
 
 ## ⌨️ Keyboard Shortcuts
 
 | Shortcut | Action | Description |
-|:---|:---|:---|
+| :--- | :--- | :--- |
 | <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>L</kbd> | **Toggle Click-Through** | Makes overlay transparent to clicks (pass-through for gaming/work) |
 | <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>C</kbd> | **Copy Active Lyric** | Copies current playing lyric line to clipboard |
-| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd> | **Share Lyric** | Opens the lyric quote sharing dialog |
+| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd> | **Share Lyric** | Opens the lyric share card studio dialog |
 | <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Arrows</kbd> | **Nudge Overlay** | Fine-tunes the window position by 2px in any direction |
-| <kbd>Ctrl</kbd> + <kbd>[</kbd> / <kbd>]</kbd> | **Adjust Sync Offset** | Shifts lyric timing by -50ms / +50ms |
+| <kbd>Ctrl</kbd> + <kbd>[</kbd> / <kbd>]</kbd> | **Adjust Sync Offset** | Shifts lyric timing earlier/later by 50ms |
 | <kbd>Ctrl</kbd> + <kbd>0</kbd> | **Reset Sync** | Resets song-specific timing offset to zero |
-| <kbd>Ctrl</kbd> + <kbd>R</kbd> | **Alternative Lyrics** | Cycles or picks alternate lyrics candidates |
+| <kbd>Ctrl</kbd> + <kbd>R</kbd> | **Alternative Lyrics** | Cycles or chooses alternative lyrics candidates |
 | <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>Space</kbd> | **Play / Pause** | Toggles playback across active media player |
 | <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>→</kbd> | **Next Track** | Skips to the next song |
 | <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>←</kbd> | **Previous Track** | Returns to the previous song |
@@ -94,77 +135,133 @@
 
 ## 📦 Installation
 
-### Windows (Recommended)
-1. Head over to the latest **[Releases](https://github.com/badghost001/LyricFlow/releases/latest)** page.
-2. Download the installer:
-   - **NSIS Setup:** `LyricFlow-v1.3.0-Setup.exe` (installs to User/Program Files with desktop shortcut & uninstaller)
-   - **MSI Package:** `LyricFlow-v1.3.0-x64.msi`
-3. Launch the installer and start enjoying real-time lyrics!
+Download the latest version from the **[Releases](https://github.com/badghost001/LyricFlow/releases/latest)** page:
 
-### macOS
-1. Go to the **[Releases](https://github.com/badghost001/LyricFlow/releases/latest)** page.
-2. Download `LyricFlow.dmg` (Universal binary for Apple Silicon M1–M4 & Intel x86_64).
-3. Drag `LyricFlow.app` into your **Applications** folder.
-4. *macOS Permission Note:* On first launch, grant automation permissions for Spotify or Apple Music when prompted so LyricFlow can detect playback.
+### 🪟 Windows
+- **NSIS Setup Installer (Recommended):** [`LyricFlow_1.4.0_x64-setup.exe`](https://github.com/badghost001/LyricFlow/releases/download/v1.4.0/LyricFlow_1.4.0_x64-setup.exe)
+  - Installs for current user, creates Start Menu and Desktop shortcuts, supports seamless auto-update.
+- **Windows MSI Package:** [`LyricFlow_1.4.0_x64_en-US.msi`](https://github.com/badghost001/LyricFlow/releases/download/v1.4.0/LyricFlow_1.4.0_x64_en-US.msi)
+  - Standard Windows Installer package suitable for automated or enterprise deployment.
+
+### 🍏 macOS
+- **Universal DMG Installer:** [`LyricFlow_1.4.0_universal.dmg`](https://github.com/badghost001/LyricFlow/releases/download/v1.4.0/LyricFlow_1.4.0_universal.dmg)
+  - Universal binary running natively on both **Apple Silicon (M1/M2/M3/M4)** and **Intel** Macs.
+  - Open the DMG and drag `LyricFlow.app` into your `Applications` folder.
+- **Standalone App Bundle:** [`LyricFlow_universal.app.tar.gz`](https://github.com/badghost001/LyricFlow/releases/download/v1.4.0/LyricFlow_universal.app.tar.gz)
+
+### 🐧 Linux
+- **Standalone AppImage:** [`LyricFlow_1.4.0_amd64.AppImage`](https://github.com/badghost001/LyricFlow/releases/download/v1.4.0/LyricFlow_1.4.0_amd64.AppImage)
+  - Make executable (`chmod +x LyricFlow_1.4.0_amd64.AppImage`) and launch directly on any modern distribution.
+- **Debian / Ubuntu Package:** [`LyricFlow_1.4.0_amd64.deb`](https://github.com/badghost001/LyricFlow/releases/download/v1.4.0/LyricFlow_1.4.0_amd64.deb)
+  - Install via `sudo dpkg -i LyricFlow_1.4.0_amd64.deb` or Software Center.
+- **Fedora / RHEL / openSUSE Package:** [`LyricFlow-1.4.0-1.x86_64.rpm`](https://github.com/badghost001/LyricFlow/releases/download/v1.4.0/LyricFlow-1.4.0-1.x86_64.rpm)
+  - Install via `sudo rpm -i LyricFlow-1.4.0-1.x86_64.rpm`.
 
 ---
 
 ## 🛠️ Building from Source
 
 ### Prerequisites
-- **Node.js 20+** and `npm`
-- **Rust 1.80+** (`rustup default stable`)
-- **Windows:** C++ build tools (Visual Studio 2022 Build Tools with Desktop C++)
+1. **Node.js 20+** and `npm`
+2. **Rust stable toolchain** (1.80+):
+   ```bash
+   rustup default stable
+   ```
+3. **Platform-specific build dependencies:**
+   - **Windows:** Visual Studio 2022 Build Tools (Desktop development with C++).
+   - **Linux (Ubuntu/Debian):**
+     ```bash
+     sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+     ```
+   - **macOS:** Xcode Command Line Tools (`xcode-select --install`).
 
 ### Build Steps
 
 ```bash
-# 1. Clone the repository
+# 1. Clone repository
 git clone https://github.com/badghost001/LyricFlow.git
 cd LyricFlow
 
-# 2. Install frontend dependencies
-npm install
+# 2. Run unit tests
+npm test
 
-# 3. Run in development mode
+# 3. Launch in development mode
 npm run tauri:dev
 
-# 4. Build release bundles (NSIS & MSI)
+# 4. Compile optimized release bundles
 npm run tauri:build
 ```
 
-Release binaries and installers will be output to `src-tauri/target/release/bundle/`.
+Compiled binaries and distribution installers will be generated under `src-tauri/target/release/bundle/`.
 
 ---
 
-## 🔬 Technologies Used
+## 🔬 Architecture & Tech Stack
 
-- **[Tauri v2](https://v2.tauri.app/)** & **[Rust](https://www.rust-lang.org/)** — Core native runtime, memory management, and asynchronous command layer.
-- **Vanilla JS, HTML5 & Modern CSS** — Glassmorphism, hardware-accelerated animations, and responsive layouts without heavy framework bloat.
-- **[LRCLIB](https://lrclib.net/)** & **Cloudflare Workers** — High-accuracy, time-synced `.lrc` lyrics streaming.
-- **Windows SMTC & Win32 APIs** (`windows` crate) — System Media Transport Controls, native taskbar metrics (`SPI_GETWORKAREA`), and top-level z-order management.
-- **AppleScript IPC** — Native media synchronization on macOS.
-- **[Genius API](https://genius.com/)** & **[Last.fm API](https://www.last.fm/api)** — Live song annotations and scrobbling.
+```mermaid
+flowchart TD
+    subgraph UI ["🎨 Frontend Presentation"]
+        DOM["HTML5 / Modern CSS\n(Glassmorphism & MMCQ Glow)"]
+        Mesh["Fluid Mesh WebGL\n(Gamma Linear Shader)"]
+        Island["Dynamic Island & Satellite\n(CAEmitterEngine Stardust)"]
+        Share["Share Card Studio\n(9:16, 1:1, 4:5, 16:9)"]
+    end
+
+    subgraph Rust ["🦀 Native Rust Core (Tauri v2)"]
+        Bridge["IPC Bridge / Polyfill\n(tauri-bridge.js)"]
+        SMTC["Windows SMTC & MTA COM\n(Media Transport Controls)"]
+        WASAPI["WASAPI Audio Loopback\n(Cooley-Tukey 1024 FFT)"]
+        Engine["Multi-Tier Lyrics Engine\n(tokio::join! Parallel Fetch)"]
+        Updater["Tauri v2 Updater Plugin\n(Minisign Cryptographic Verification)"]
+    end
+
+    subgraph Cloud ["🌐 External APIs & Upstream"]
+        LRCLIB["LRCLIB & Cloudflare Proxy"]
+        Musixmatch["Musixmatch / Spotify"]
+        Genius["Genius Annotations & Last.fm"]
+        OTA["GitHub Releases latest.json"]
+    end
+
+    DOM --- Bridge
+    Mesh --- Bridge
+    Island --- Bridge
+    Share --- Bridge
+
+    Bridge --- SMTC
+    Bridge --- WASAPI
+    Bridge --- Engine
+    Bridge --- Updater
+
+    Engine --- LRCLIB
+    Engine --- Musixmatch
+    Engine --- Genius
+    Updater --- OTA
+```
+
+- **Runtime:** [Tauri v2](https://v2.tauri.app/) + [Rust](https://www.rust-lang.org/) (Static binary, memory footprint ~20–30 MB).
+- **Color Engine:** 3D Modified Median Cut Quantization (MMCQ) in 5-bit RGB space with specular sheen cresting.
+- **Audio DSP:** Real-time 1024-point Cooley-Tukey Radix-2 FFT via Windows WASAPI loopback capture.
+- **OTA Verification:** Minisign public-key cryptographic signature verification (`RWTaItANfUTU/0362Wj+EoMDDCWQRsjRp+3xaB3OJ9P7g3gD0Qm2e+MQ`).
 
 ---
 
 ## 🤝 Contributing
 
-Contributions, issues, and feature requests are welcome!
-- Feel free to check the [issues page](https://github.com/badghost001/LyricFlow/issues) if you have an idea or bug to report.
-- Pull requests for new providers, localized translations, and UI polish are appreciated.
+Contributions, bug reports, and suggestions are warmly welcomed!
+- Check out the [Issues](https://github.com/badghost001/LyricFlow/issues) page to report bugs or request features.
+- Pull requests for additional lyric providers, translations, or UI enhancements are always appreciated.
 
 ---
 
-## 🎉 Special Thanks
+## 🎉 Community & Special Thanks
 
-A huge shoutout to the community over at **[BHABHI KI कुटिया](https://discord.gg/bhabhi)** for the feedback, ideas, and early testing!
+A huge shoutout to the community over at **[BHABHI KI कुटिया](https://discord.gg/bhabhi)** for continuous testing, feedback, and creative ideas!
 
 ---
 
 ## 📝 License
 
-This project is licensed under a Proprietary License (All Rights Reserved). See the [LICENSE](LICENSE) file for details.
+This project is licensed under a Proprietary License (All Rights Reserved). See the [LICENSE](LICENSE) file for full details.
 
 <div align="center">
   <i>Crafted with ❤️ by <a href="https://github.com/badghost001">badghost</a></i>
