@@ -79,21 +79,28 @@
 
 <div align="center">
 
-### Main Floating Window
-*Glassmorphic overlay with dynamic active line glow, live Genius trivia pill, and seamless playback controls.*
+### Dynamic Island with Dual-Connected Satellite Translation
+*Floating pill with live WASAPI audio visualizer and docked real-time bilingual translation satellite.*
 <br/>
-<img src="assets/screenshots/main-view.png" alt="LyricFlow Main Window" width="850" />
+<img src="assets/screenshots/dynamic-island-satellite.png" alt="Dynamic Island with Satellite Translation" width="950" />
 
 <br/><br/>
 
-### Synced Floating Overlay
-*Positioned effortlessly over Spotify Desktop or any media player.*
+### Expanded Dynamic Island & Media Controls
+*Interactive track scrubbing, playback controls, and docked translation subtext with zero text cut-off.*
 <br/>
-<img src="assets/screenshots/floating-overlay.png" alt="LyricFlow Floating Overlay" width="850" />
+<img src="assets/screenshots/dynamic-island-expanded.png" alt="Expanded Dynamic Island" width="950" />
 
 <br/><br/>
 
-### Taskbar Mode
+### 3D MMCQ Adaptive Color Window & White Lyrics
+*Pure white typography with luminous artwork glow aura, seamlessly tinted to authentic album palette centroids.*
+<br/>
+<img src="assets/screenshots/adaptive-color-lyrics.png" alt="3D MMCQ Adaptive Color Lyrics" width="950" />
+
+<br/><br/>
+
+### Windows Taskbar Dock Mode
 *Unobtrusive single-line lyrics ticker docked directly into the Windows Taskbar with zero interference to icons.*
 <br/>
 <img src="assets/screenshots/taskbar-mode.png" alt="LyricFlow Taskbar Mode" width="950" />
@@ -107,10 +114,10 @@
 
 <br/><br/>
 
-### Settings & Aesthetics Panel
-*Customize fonts, opacity, highlight glows, custom video/image backgrounds, screen edge glow, and timing offsets.*
+### Settings & Aesthetics Studio
+*Deep personalization: OLED themes, dynamic album accents, custom fonts, line spacing, and inactivity sleep timers.*
 <br/>
-<img src="assets/screenshots/settings-panel.png" alt="LyricFlow Settings Panel" width="800" />
+<img src="assets/screenshots/settings-panel.png" alt="LyricFlow Settings Panel" width="950" />
 
 </div>
 
