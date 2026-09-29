@@ -261,7 +261,6 @@
   height: 5px;
   background: rgba(255, 255, 255, 0.10);
   border-radius: 999px;
-  overflow: hidden;
   position: relative;
   cursor: pointer;
   box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.4);
@@ -273,8 +272,28 @@
   box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.15);
 }
 
-.progress-bar-bg:hover {
-  height: 7px;
+.progress-bar-bg:hover,
+.progress-bar-bg.is-scrubbing {
+  height: 8px;
+}
+
+.progress-bar-hover {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 0%;
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  z-index: 1;
+}
+
+.progress-bar-bg:hover .progress-bar-hover,
+.progress-bar-bg.is-scrubbing .progress-bar-hover {
+  opacity: 1;
 }
 
 .progress-bar-fill {
@@ -286,6 +305,60 @@
   position: relative;
   box-shadow: 0 0 10px rgba(var(--accent-primary-rgb), 0.5), inset 0 1px 0.5px rgba(255, 255, 255, 0.4);
   animation: progressPulse 2.5s ease-in-out infinite;
+  z-index: 2;
+}
+
+.progress-bar-bg.is-scrubbing .progress-bar-fill {
+  transition: none !important;
+}
+
+.progress-bar-thumb {
+  position: absolute;
+  top: 50%;
+  left: 0%;
+  transform: translate(-50%, -50%) scale(0);
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.6), 0 0 8px rgba(var(--accent-primary-rgb, 29, 185, 84), 0.5);
+  pointer-events: none;
+  transition: transform 0.16s cubic-bezier(0.32, 0.72, 0, 1);
+  z-index: 3;
+}
+
+.progress-bar-bg:hover .progress-bar-thumb,
+.progress-bar-bg.is-scrubbing .progress-bar-thumb {
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.progress-tooltip {
+  position: absolute;
+  bottom: calc(100% + 7px);
+  left: 0%;
+  transform: translateX(-50%) scale(0.85);
+  background: rgba(18, 18, 22, 0.94);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease, transform 0.15s cubic-bezier(0.32, 0.72, 0, 1);
+  white-space: nowrap;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55);
+  z-index: 100;
+}
+
+.progress-bar-bg:hover .progress-tooltip,
+.progress-bar-bg.is-scrubbing .progress-tooltip {
+  opacity: 1;
+  transform: translateX(-50%) scale(1);
 }
 
 .progress-bar-bg:hover .progress-bar-fill {

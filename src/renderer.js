@@ -128,7 +128,9 @@ let settings = {
   islandVocalCountdown: true,
   islandWheelGestures: true,
   islandTranslationMode: 'bilingual',
-  islandInactivityTimeout: 30000
+  islandInactivityTimeout: 30000,
+  progressBarSeek: true,
+  progressWheelSeek: true
 };
 
 // Playback State
@@ -148,6 +150,8 @@ let dragStartScreenX = 0;
 let dragStartOffset = 0;
 let hasMovedTb = false;
 let lastTbContentWidth = 0;
+let isScrubbingMainProgress = false;
+let isScrubbingIslandProgress = false;
 
 function onTaskbarDragMove(e) {
   // No-op: drag movement is handled by main process cursor polling
@@ -649,20 +653,22 @@ function syncDynamicIslandState() {
     }
   }
 
-  const fill = document.getElementById("island-progress-fill");
-  const thumb = document.getElementById("island-progress-thumb");
-  const timeCurrent = document.getElementById("island-time-current");
-  const timeRemaining = document.getElementById("island-time-remaining");
-  if (trackDuration > 0) {
-    const curMs = Math.max(0, Math.min(trackDuration, currentProgress || 0));
-    const pct = Math.min(100, Math.max(0, (curMs / trackDuration) * 100));
-    if (fill) fill.style.width = `${pct}%`;
-    if (thumb) thumb.style.left = `${pct}%`;
-    if (timeCurrent && typeof formatTime === 'function') {
-      timeCurrent.textContent = formatTime(curMs);
-    }
-    if (timeRemaining && typeof formatTime === 'function') {
-      timeRemaining.textContent = '-' + formatTime(Math.max(0, trackDuration - curMs));
+  if (!isScrubbingIslandProgress) {
+    const fill = document.getElementById("island-progress-fill");
+    const thumb = document.getElementById("island-progress-thumb");
+    const timeCurrent = document.getElementById("island-time-current");
+    const timeRemaining = document.getElementById("island-time-remaining");
+    if (trackDuration > 0) {
+      const curMs = Math.max(0, Math.min(trackDuration, currentProgress || 0));
+      const pct = Math.min(100, Math.max(0, (curMs / trackDuration) * 100));
+      if (fill) fill.style.width = `${pct}%`;
+      if (thumb) thumb.style.left = `${pct}%`;
+      if (timeCurrent && typeof formatTime === 'function') {
+        timeCurrent.textContent = formatTime(curMs);
+      }
+      if (timeRemaining && typeof formatTime === 'function') {
+        timeRemaining.textContent = '-' + formatTime(Math.max(0, trackDuration - curMs));
+      }
     }
   }
 
@@ -976,20 +982,22 @@ function updateDynamicIslandLyric(targetIndex, lineData, syncProgress, isInstrum
   if (!islandLine) return;
 
   // 1. Scrubber time elapsed & remaining + fill & thumb
-  const fill = document.getElementById("island-progress-fill");
-  const thumb = document.getElementById("island-progress-thumb");
-  const timeCurrent = document.getElementById("island-time-current");
-  const timeRemaining = document.getElementById("island-time-remaining");
-  if (trackDuration > 0) {
-    const curMs = Math.max(0, Math.min(trackDuration, syncProgress || 0));
-    const pct = Math.min(100, Math.max(0, (curMs / trackDuration) * 100));
-    if (fill) fill.style.width = `${pct}%`;
-    if (thumb) thumb.style.left = `${pct}%`;
-    if (timeCurrent && typeof formatTime === 'function') {
-      timeCurrent.textContent = formatTime(curMs);
-    }
-    if (timeRemaining && typeof formatTime === 'function') {
-      timeRemaining.textContent = '-' + formatTime(Math.max(0, trackDuration - curMs));
+  if (!isScrubbingIslandProgress) {
+    const fill = document.getElementById("island-progress-fill");
+    const thumb = document.getElementById("island-progress-thumb");
+    const timeCurrent = document.getElementById("island-time-current");
+    const timeRemaining = document.getElementById("island-time-remaining");
+    if (trackDuration > 0) {
+      const curMs = Math.max(0, Math.min(trackDuration, syncProgress || 0));
+      const pct = Math.min(100, Math.max(0, (curMs / trackDuration) * 100));
+      if (fill) fill.style.width = `${pct}%`;
+      if (thumb) thumb.style.left = `${pct}%`;
+      if (timeCurrent && typeof formatTime === 'function') {
+        timeCurrent.textContent = formatTime(curMs);
+      }
+      if (timeRemaining && typeof formatTime === 'function') {
+        timeRemaining.textContent = '-' + formatTime(Math.max(0, trackDuration - curMs));
+      }
     }
   }
 
@@ -2461,6 +2469,14 @@ function applyVisualSettings(fromTray = false, skipIPC = false) {
   if (selectIslandInactivityInit) {
     selectIslandInactivityInit.value = String(settings.islandInactivityTimeout ?? 30000);
   }
+  const checkProgressBarSeekInit = document.getElementById("check-progress-bar-seek");
+  if (checkProgressBarSeekInit) {
+    checkProgressBarSeekInit.checked = settings.progressBarSeek !== false;
+  }
+  const checkProgressWheelSeekInit = document.getElementById("check-progress-wheel-seek");
+  if (checkProgressWheelSeekInit) {
+    checkProgressWheelSeekInit.checked = settings.progressWheelSeek !== false;
+  }
 
   // Font Size
   document.documentElement.style.setProperty('--font-size', `${settings.fontSize}px`);
@@ -3843,17 +3859,188 @@ function adjustIslandVolume(deltaPercent) {
     });
   }
 
-  const islandProgressTrack = document.getElementById("island-progress-track");
-  if (islandProgressTrack) {
-    islandProgressTrack.addEventListener("click", (e) => {
+  function attachScrubberController({
+    trackEl,
+    fillEl,
+    thumbEl,
+    hoverEl,
+    tooltipEl,
+    timeCurrentEl,
+    isIsland = false
+  }) {
+    if (!trackEl) return;
+
+    let isScrubbing = false;
+
+    function getRatio(e) {
+      const rect = trackEl.getBoundingClientRect();
+      if (!rect.width || rect.width <= 0) return 0;
+      return Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    }
+
+    function updateVisuals(ratio, isDragging) {
+      if (trackDuration <= 0) return;
+      const previewMs = Math.round(ratio * trackDuration);
+      const percent = ratio * 100;
+
+      if (hoverEl && !isDragging) {
+        hoverEl.style.width = `${percent}%`;
+      }
+      if (tooltipEl) {
+        tooltipEl.style.left = `${percent}%`;
+        const deltaSec = Math.round((previewMs - (currentProgress || 0)) / 1000);
+        const deltaStr = deltaSec > 0 ? ` (+${deltaSec}s)` : (deltaSec < 0 ? ` (${deltaSec}s)` : "");
+        tooltipEl.textContent = `${formatTime(previewMs)}${deltaStr}`;
+      }
+      if (isDragging) {
+        if (fillEl) fillEl.style.width = `${percent}%`;
+        if (thumbEl) thumbEl.style.left = `${percent}%`;
+        if (timeCurrentEl) timeCurrentEl.textContent = formatTime(previewMs);
+        if (isIsland) {
+          const remEl = document.getElementById("island-time-remaining");
+          if (remEl) {
+            const remMs = Math.max(0, trackDuration - previewMs);
+            remEl.textContent = `-${formatTime(remMs)}`;
+          }
+        }
+      }
+    }
+
+    trackEl.addEventListener("pointerdown", (e) => {
+      if (e.button !== 0 || trackDuration <= 0) return;
+      if (settings.progressBarSeek === false) return;
+      e.preventDefault();
       e.stopPropagation();
-      if (!config || trackDuration <= 0) return;
-      const rect = islandProgressTrack.getBoundingClientRect();
-      const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+
+      isScrubbing = true;
+      if (isIsland) isScrubbingIslandProgress = true;
+      else isScrubbingMainProgress = true;
+
+      trackEl.classList.add("is-scrubbing");
+      try { trackEl.setPointerCapture(e.pointerId); } catch (_) {}
+
+      const ratio = getRatio(e);
+      updateVisuals(ratio, true);
+    });
+
+    trackEl.addEventListener("pointermove", (e) => {
+      if (trackDuration <= 0) return;
+      const ratio = getRatio(e);
+
+      if (isScrubbing) {
+        e.preventDefault();
+        e.stopPropagation();
+        updateVisuals(ratio, true);
+      } else {
+        if (settings.progressBarSeek !== false) {
+          updateVisuals(ratio, false);
+        }
+      }
+    });
+
+    function commitSeek(e) {
+      if (!isScrubbing) return;
+      e.preventDefault();
+      e.stopPropagation();
+
+      const ratio = getRatio(e);
       const seekMs = Math.round(ratio * trackDuration);
+
+      isScrubbing = false;
+      if (isIsland) isScrubbingIslandProgress = false;
+      else isScrubbingMainProgress = false;
+
+      trackEl.classList.remove("is-scrubbing");
+      try { trackEl.releasePointerCapture(e.pointerId); } catch (_) {}
+
       seekPlayback(seekMs);
+
+      if (isIsland) {
+        const jumpDeltaSec = Math.round((seekMs - (lastPollProgress || 0)) / 1000);
+        const icon = jumpDeltaSec >= 0 ? "⏩" : "⏪";
+        showIslandHud({
+          icon,
+          text: `${formatTime(seekMs)}`,
+          percent: (seekMs / trackDuration) * 100,
+          showBar: true
+        });
+      }
+    }
+
+    trackEl.addEventListener("pointerup", commitSeek);
+    trackEl.addEventListener("pointercancel", commitSeek);
+
+    trackEl.addEventListener("pointerleave", () => {
+      if (!isScrubbing && hoverEl) {
+        hoverEl.style.width = "0%";
+      }
+    });
+
+    trackEl.addEventListener("wheel", (e) => {
+      if (settings.progressWheelSeek === false || trackDuration <= 0) return;
+      if (settings.progressBarSeek === false) return;
+      e.preventDefault();
+      e.stopPropagation();
+
+      const stepMs = e.shiftKey ? 15000 : 5000;
+      const deltaMs = e.deltaY < 0 ? stepMs : -stepMs;
+      const newPos = Math.max(0, Math.min(trackDuration, (currentProgress || 0) + deltaMs));
+
+      seekPlayback(newPos);
+
+      const ratio = newPos / trackDuration;
+      if (fillEl) fillEl.style.width = `${ratio * 100}%`;
+      if (thumbEl) thumbEl.style.left = `${ratio * 100}%`;
+      if (timeCurrentEl) timeCurrentEl.textContent = formatTime(newPos);
+
+      if (tooltipEl) {
+        tooltipEl.style.left = `${ratio * 100}%`;
+        const jumpText = deltaMs > 0 ? `+${stepMs / 1000}s (${formatTime(newPos)})` : `-${stepMs / 1000}s (${formatTime(newPos)})`;
+        tooltipEl.textContent = jumpText;
+      }
+
+      if (isIsland) {
+        showIslandHud({
+          icon: deltaMs > 0 ? "⏩" : "⏪",
+          text: deltaMs > 0 ? `+${stepMs / 1000}s` : `-${stepMs / 1000}s`,
+          percent: ratio * 100,
+          showBar: true
+        });
+      }
+    }, { passive: false });
+
+    // Double-click to quick jump ±10s
+    trackEl.addEventListener("dblclick", (e) => {
+      if (trackDuration <= 0 || settings.progressBarSeek === false) return;
+      e.preventDefault();
+      e.stopPropagation();
+
+      const ratio = getRatio(e);
+      const deltaMs = ratio >= 0.5 ? 10000 : -10000;
+      const targetPos = Math.max(0, Math.min(trackDuration, (currentProgress || 0) + deltaMs));
+
+      seekPlayback(targetPos);
+
+      if (isIsland) {
+        showIslandHud({
+          icon: deltaMs > 0 ? "⏩" : "⏪",
+          text: deltaMs > 0 ? "+10s" : "-10s",
+          percent: (targetPos / trackDuration) * 100,
+          showBar: true
+        });
+      }
     });
   }
+
+  attachScrubberController({
+    trackEl: document.getElementById("island-progress-track"),
+    fillEl: document.getElementById("island-progress-fill"),
+    thumbEl: document.getElementById("island-progress-thumb"),
+    hoverEl: document.getElementById("island-progress-hover"),
+    tooltipEl: document.getElementById("island-progress-tooltip"),
+    timeCurrentEl: document.getElementById("island-time-current"),
+    isIsland: true
+  });
 
   if (window.electronAPI && typeof window.electronAPI.onDynamicIslandModeChanged === 'function') {
     window.electronAPI.onDynamicIslandModeChanged((enabled) => {
@@ -3976,6 +4163,24 @@ function adjustIslandVolume(deltaPercent) {
       if (isIslandSleeping) {
         wakeDynamicIsland();
       }
+    });
+  }
+
+  const checkProgressBarSeek = document.getElementById("check-progress-bar-seek");
+  if (checkProgressBarSeek) {
+    checkProgressBarSeek.checked = settings.progressBarSeek !== false;
+    checkProgressBarSeek.addEventListener("change", (e) => {
+      settings.progressBarSeek = e.target.checked;
+      saveLocalSettings();
+    });
+  }
+
+  const checkProgressWheelSeek = document.getElementById("check-progress-wheel-seek");
+  if (checkProgressWheelSeek) {
+    checkProgressWheelSeek.checked = settings.progressWheelSeek !== false;
+    checkProgressWheelSeek.addEventListener("change", (e) => {
+      settings.progressWheelSeek = e.target.checked;
+      saveLocalSettings();
     });
   }
 
@@ -5088,26 +5293,16 @@ function adjustIslandVolume(deltaPercent) {
     btnSyncLyrics.addEventListener("click", resyncPlayback);
   }
 
-  // Progress Bar Seek Listener (click-to-seek)
-  const progressBarBg = document.querySelector(".progress-bar-bg");
-  if (progressBarBg) {
-    progressBarBg.addEventListener("click", (e) => {
-      if (!config || trackDuration <= 0) return;
-      const rect = progressBarBg.getBoundingClientRect();
-      const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-      const seekMs = Math.round(ratio * trackDuration);
-      if (config.localMode) {
-        lastPollProgress = seekMs;
-        lastPollTimestamp = Date.now();
-      } else if (config.access_token) {
-        fetch('https://api.spotify.com/v1/me/player/seek?position_ms=' + seekMs, {
-          method: 'PUT',
-          headers: { 'Authorization': 'Bearer ' + config.access_token }
-        }).catch(err => console.error("Seek error:", err));
-      }
-      setTimeout(pollSpotifyPlayback, 200);
-    });
-  }
+  // Main Player Progress Bar & Scrubber
+  attachScrubberController({
+    trackEl: document.getElementById("main-progress-track") || document.querySelector(".progress-bar-bg"),
+    fillEl: document.getElementById("widget-progress-fill"),
+    thumbEl: document.getElementById("main-progress-thumb"),
+    hoverEl: document.getElementById("main-progress-hover"),
+    tooltipEl: document.getElementById("main-progress-tooltip"),
+    timeCurrentEl: document.getElementById("widget-time-current"),
+    isIsland: false
+  });
 
   // Keyboard Shortcuts for Sync Nudging & Reload
   document.addEventListener("keydown", (e) => {
@@ -8335,15 +8530,22 @@ function updatePlayhead() {
     if (config) {
       const fillPercent = trackDuration > 0 ? (currentProgress / trackDuration) * 100 : 0;
       
-      // Throttle progress bar visual updates (only update if changed significantly)
-      if (Math.abs((window._lastFillPercent || 0) - fillPercent) > 0.1) {
-        widgetProgressFill.style.width = `${fillPercent}%`;
-        window._lastFillPercent = fillPercent;
-      }
+      if (!isScrubbingMainProgress) {
+        // Throttle progress bar visual updates (only update if changed significantly)
+        if (Math.abs((window._lastFillPercent || 0) - fillPercent) > 0.1) {
+          widgetProgressFill.style.width = `${fillPercent}%`;
+          window._lastFillPercent = fillPercent;
+        }
 
-      const timeStr = formatTime(currentProgress);
-      if (widgetTimeCurrent.textContent !== timeStr) {
-        widgetTimeCurrent.textContent = timeStr;
+        const mainThumb = document.getElementById("main-progress-thumb");
+        if (mainThumb) {
+          mainThumb.style.left = `${fillPercent}%`;
+        }
+
+        const timeStr = formatTime(currentProgress);
+        if (widgetTimeCurrent.textContent !== timeStr) {
+          widgetTimeCurrent.textContent = timeStr;
+        }
       }
 
       if (settings.taskbarMode && tbProgress) {

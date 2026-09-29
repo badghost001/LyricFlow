@@ -952,8 +952,28 @@ body:not(.is-playing) .island-wave-visualizer.is-fallback .wave-bar {
   transition: height 0.2s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
-.island-progress-track:hover {
-  height: 5px;
+.island-progress-track:hover,
+.island-progress-track.is-scrubbing {
+  height: 6px;
+}
+
+.island-progress-hover {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 0%;
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: 99px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  z-index: 1;
+}
+
+.island-progress-track:hover .island-progress-hover,
+.island-progress-track.is-scrubbing .island-progress-hover {
+  opacity: 1;
 }
 
 .island-progress-fill {
@@ -963,6 +983,12 @@ body:not(.is-playing) .island-wave-visualizer.is-fallback .wave-bar {
   border-radius: 99px;
   box-shadow: 0 0 6px rgba(255, 255, 255, 0.65);
   transition: width 0.12s linear;
+  position: relative;
+  z-index: 2;
+}
+
+.island-progress-track.is-scrubbing .island-progress-fill {
+  transition: none !important;
 }
 
 .island-progress-thumb {
@@ -977,10 +1003,41 @@ body:not(.is-playing) .island-wave-visualizer.is-fallback .wave-bar {
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
   transition: transform 0.18s cubic-bezier(0.32, 0.72, 0, 1);
   pointer-events: none;
+  z-index: 3;
 }
 
-.island-progress-track:hover .island-progress-thumb {
+.island-progress-track:hover .island-progress-thumb,
+.island-progress-track.is-scrubbing .island-progress-thumb {
   transform: translate(-50%, -50%) scale(1);
+}
+
+.island-progress-tooltip {
+  position: absolute;
+  bottom: calc(100% + 7px);
+  left: 0%;
+  transform: translateX(-50%) scale(0.85);
+  background: rgba(18, 18, 22, 0.94);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  padding: 2px 7px;
+  border-radius: 5px;
+  font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease, transform 0.15s cubic-bezier(0.32, 0.72, 0, 1);
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  z-index: 100;
+}
+
+.island-progress-track:hover .island-progress-tooltip,
+.island-progress-track.is-scrubbing .island-progress-tooltip {
+  opacity: 1;
+  transform: translateX(-50%) scale(1);
 }
 
 /* Playback Control Buttons (Previous, Play/Pause, Next) */

@@ -170,9 +170,11 @@
           <!-- iOS Now Playing Scrubber with Time Labels -->
           <div class="island-scrubber-container">
             <span class="island-scrubber-time" id="island-time-current">0:00</span>
-            <div class="island-progress-track" id="island-progress-track">
+            <div class="island-progress-track" id="island-progress-track" title="Click or drag to seek ahead">
+              <div class="island-progress-hover" id="island-progress-hover"></div>
               <div class="island-progress-fill" id="island-progress-fill"></div>
               <div class="island-progress-thumb" id="island-progress-thumb"></div>
+              <div class="island-progress-tooltip" id="island-progress-tooltip">0:00</div>
             </div>
             <span class="island-scrubber-time" id="island-time-remaining">-0:00</span>
           </div>
@@ -586,8 +588,11 @@
               <span id="widget-playcount" class="playcount-text" style="display: none; font-size: 10px; color: rgba(255,255,255,0.5); margin-top: 2px;"></span>
             </div>
             <div class="progress-bar-container">
-              <div class="progress-bar-bg">
+              <div class="progress-bar-bg" id="main-progress-track" title="Click or drag to seek ahead">
+                <div class="progress-bar-hover" id="main-progress-hover"></div>
                 <div class="progress-bar-fill" id="widget-progress-fill"></div>
+                <div class="progress-bar-thumb" id="main-progress-thumb"></div>
+                <div class="progress-tooltip" id="main-progress-tooltip">0:00</div>
               </div>
               <div class="progress-time">
                 <span id="widget-time-current">0:00</span>
@@ -1242,6 +1247,26 @@
                   <option value="300000">5 Minutes</option>
                   <option value="0">Never (Always Visible)</option>
                 </select>
+              </div>
+            <div class="settings-group">
+              <h4>Playback &amp; Scrubber</h4>
+              <div class="setting-row" style="margin-top: 6px;">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Click or drag on the progress bar to seek ahead or rewind on the playing track">
+                  <span>Progress Bar Seeking &amp; Scrubbing</span>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-progress-bar-seek" checked />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+              </div>
+              <div class="setting-row" style="margin-top: 6px;">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Scroll mouse wheel over the progress bar to seek ahead (+5s) or rewind (-5s)">
+                  <span>Mouse Wheel Seeking on Progress Bar</span>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-progress-wheel-seek" checked />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
               </div>
             </div>
 
