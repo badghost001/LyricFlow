@@ -289,6 +289,7 @@
     onDynamicIslandModeChanged: (cb) => safeListen('dynamic-island-mode-changed', (payload) => cb(payload)),
     onAudioSpectrum: (cb) => safeListen('audio-visualizer-bands', (payload) => cb(payload)),
     onIslandGhostMode: (cb) => safeListen('island-ghost-mode', (payload) => cb(payload)),
+    toggleDynamicIslandGhost: () => safeInvoke('cmd_toggle_dynamic_island_ghost', {}, null),
   };
 
   // Taskbar window bridge polyfill

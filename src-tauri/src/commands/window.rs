@@ -44,6 +44,30 @@ pub fn update_taskbar_lyric_bounds(rect: LyricBounds) -> Result<(), String> {
 
 static ISLAND_BOUNDS: OnceLock<Mutex<Option<LyricBounds>>> = OnceLock::new();
 static ISLAND_GEOMETRY: OnceLock<Mutex<(i32, i32, f64)>> = OnceLock::new();
+static DYNAMIC_ISLAND_GHOST_ACTIVE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static DYNAMIC_ISLAND_GHOST_ENTERED_AT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+pub fn toggle_dynamic_island_ghost() {
+    let current = DYNAMIC_ISLAND_GHOST_ACTIVE.load(std::sync::atomic::Ordering::SeqCst);
+    set_dynamic_island_ghost(!current);
+}
+
+pub fn set_dynamic_island_ghost(enable: bool) {
+    DYNAMIC_ISLAND_GHOST_ACTIVE.store(enable, std::sync::atomic::Ordering::SeqCst);
+    if enable {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0);
+        DYNAMIC_ISLAND_GHOST_ENTERED_AT.store(now, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
+#[tauri::command]
+pub fn cmd_toggle_dynamic_island_ghost() -> Result<bool, String> {
+    toggle_dynamic_island_ghost();
+    Ok(DYNAMIC_ISLAND_GHOST_ACTIVE.load(std::sync::atomic::Ordering::SeqCst))
+}
 
 fn get_island_bounds() -> &'static Mutex<Option<LyricBounds>> {
     ISLAND_BOUNDS.get_or_init(|| Mutex::new(None))
@@ -1050,12 +1074,13 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
                 .name("dynamic-island-hit-test".to_string())
                 .spawn(move || {
                     use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
-                    use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_MENU};
+                    use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_OEM_3};
                     use windows::Win32::Foundation::POINT;
                     use tauri::Emitter;
 
                     let mut current_clickthrough = false;
                     let mut current_ghost_mode = false;
+                    let mut last_tilde_state = false;
                     let mut last_pt = POINT { x: -9999, y: -9999 };
                     let mut last_bounds_id: (i32, i32, i32, i32) = (-1, -1, -1, -1);
 
@@ -1066,23 +1091,17 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
                             break;
                         }
 
-                        // Real-time global Alt key detection (VK_MENU) for Ghost Passthrough mode
-                        let is_alt_down = (unsafe { GetAsyncKeyState(VK_MENU.0 as i32) } as u16 & 0x8000) != 0;
-                        if is_alt_down != current_ghost_mode {
-                            current_ghost_mode = is_alt_down;
-                            let _ = win_clone.emit("island-ghost-mode", is_alt_down);
+                        // Real-time tap of ` (Tilde / Backtick, VK_OEM_3)
+                        let is_tilde_down = (unsafe { GetAsyncKeyState(VK_OEM_3.0 as i32) } as u16 & 0x8000) != 0;
+                        if is_tilde_down && !last_tilde_state {
+                            toggle_dynamic_island_ghost();
                         }
+                        last_tilde_state = is_tilde_down;
 
                         let mut pt = POINT::default();
                         if unsafe { GetCursorPos(&mut pt) }.is_ok() {
                             let bounds_opt = get_island_bounds().lock().ok().and_then(|g| *g);
                             let cur_bounds_id = bounds_opt.map(|b| (b.x, b.y, b.width, b.height)).unwrap_or((0, 0, 0, 0));
-
-                            if pt.x == last_pt.x && pt.y == last_pt.y && cur_bounds_id == last_bounds_id && !is_alt_down && !current_ghost_mode {
-                                continue;
-                            }
-                            last_pt = pt;
-                            last_bounds_id = cur_bounds_id;
 
                             let (win_x, win_y, scale) = get_island_geometry().lock().ok().map(|g| *g).unwrap_or((0, 0, 1.0));
 
@@ -1102,8 +1121,34 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
                                 false
                             };
 
-                            // In Ghost Passthrough mode (Alt is held), all cursor events pass through to windows beneath
-                            let should_clickthrough = is_alt_down || !is_over_island;
+                            // Auto-restore ghost mode when cursor leaves island area
+                            let is_ghost = DYNAMIC_ISLAND_GHOST_ACTIVE.load(Ordering::SeqCst);
+                            if is_ghost {
+                                let now = std::time::SystemTime::now()
+                                    .duration_since(std::time::UNIX_EPOCH)
+                                    .map(|d| d.as_millis() as u64)
+                                    .unwrap_or(0);
+                                let entered_at = DYNAMIC_ISLAND_GHOST_ENTERED_AT.load(Ordering::SeqCst);
+                                // If cursor moves away after 600ms grace period OR after 8s safety timeout, auto-restore
+                                if now.saturating_sub(entered_at) > 600 && (!is_over_island || now.saturating_sub(entered_at) > 8000) {
+                                    set_dynamic_island_ghost(false);
+                                }
+                            }
+
+                            let is_ghost_now = DYNAMIC_ISLAND_GHOST_ACTIVE.load(Ordering::SeqCst);
+                            if is_ghost_now != current_ghost_mode {
+                                current_ghost_mode = is_ghost_now;
+                                let _ = win_clone.emit("island-ghost-mode", is_ghost_now);
+                            }
+
+                            if pt.x == last_pt.x && pt.y == last_pt.y && cur_bounds_id == last_bounds_id && !is_ghost_now && !current_ghost_mode {
+                                continue;
+                            }
+                            last_pt = pt;
+                            last_bounds_id = cur_bounds_id;
+
+                            // In Ghost Passthrough mode (Tap to Ghost), all cursor events pass through to windows beneath
+                            let should_clickthrough = is_ghost_now || !is_over_island;
                             if should_clickthrough != current_clickthrough {
                                 current_clickthrough = should_clickthrough;
                                 let _ = win_clone.set_ignore_cursor_events(should_clickthrough);
@@ -1111,6 +1156,7 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
                         }
                     }
 
+                    set_dynamic_island_ghost(false);
                     let _ = win_clone.set_ignore_cursor_events(false);
                     let _ = win_clone.emit("island-ghost-mode", false);
                 })

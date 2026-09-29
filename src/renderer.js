@@ -8448,22 +8448,21 @@ window.addEventListener('resize', () => {
   }
 });
 
-// Alt key Ghost Passthrough mode (local responsiveness when window has focus)
+// Tap to Ghost Passthrough mode: press ` (Tilde) or Ctrl+Shift+G to toggle
 window.addEventListener('keydown', (e) => {
-  if (e.key === 'Alt' && isDynamicIslandMode) {
-    toggleIslandGhostMode(true);
-  }
-});
-
-window.addEventListener('keyup', (e) => {
-  if (e.key === 'Alt') {
-    toggleIslandGhostMode(false);
+  if (isDynamicIslandMode) {
+    if (e.key === '`' || (e.ctrlKey && e.shiftKey && e.key.toUpperCase() === 'G')) {
+      if (window.electronAPI && typeof window.electronAPI.toggleDynamicIslandGhost === 'function') {
+        window.electronAPI.toggleDynamicIslandGhost();
+      } else {
+        toggleIslandGhostMode(!document.body.classList.contains('island-ghost-mode'));
+      }
+    }
   }
 });
 
 window.addEventListener('blur', () => {
   document.body.classList.add('window-blurred');
-  toggleIslandGhostMode(false);
 });
 
 window.addEventListener('focus', () => {

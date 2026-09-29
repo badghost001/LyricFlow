@@ -76,6 +76,8 @@ pub fn run() {
 
                         } else if text.contains("shift") && text.contains("keys") {
                             let _ = app.emit("share-active-lyric", ());
+                        } else if text.contains("shift") && text.contains("keyg") {
+                            commands::window::toggle_dynamic_island_ghost();
                         } else if text.contains("shift") && text.contains("arrowleft") {
                             let _ = app.emit("nudge-overlay", serde_json::json!({ "dx": -2, "dy": 0 }));
                         } else if text.contains("shift") && text.contains("arrowright") {
@@ -121,10 +123,9 @@ pub fn run() {
             log_to_file("[LyricFlow] Registering shortcuts...");
             // Register Global Shortcuts
             let shortcuts = [
-
-
                 "ctrl+shift+c",
                 "ctrl+shift+s",
+                "ctrl+shift+g",
                 "ctrl+shift+left",
                 "ctrl+shift+right",
                 "ctrl+shift+up",
@@ -428,6 +429,7 @@ pub fn run() {
             window::set_dynamic_island_mode,
             window::is_dynamic_island_mode,
             window::update_island_bounds,
+            window::cmd_toggle_dynamic_island_ghost,
             window::set_wallpaper_mode,
             window::start_wallpaper_edit,
             window::end_wallpaper_edit,

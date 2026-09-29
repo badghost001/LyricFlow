@@ -85,23 +85,44 @@ function runIslandGhostModeTests() {
     assert.strictEqual(classes.has('island-ghost-mode'), false, 'Blur must immediately reset ghost mode');
   });
 
-  // Test 5: Hit-testing state machine: Alt key forces should_clickthrough regardless of cursor position
-  test('5. Alt key forces should_clickthrough = true even when cursor is over the island', () => {
-    function computeClickthrough(isAltDown, isOverIsland) {
-      return isAltDown || !isOverIsland;
+  // Test 5: Tap-to-Ghost state machine: tap turns ghost mode ON with zero keys held, auto-restores when mouse leaves
+  test('5. Tap-to-Ghost state machine turns ghost mode ON with zero keys held and auto-restores on mouse leave', () => {
+    let isGhost = false;
+    let enteredAt = 0;
+
+    function tapGhost(time) {
+      isGhost = !isGhost;
+      if (isGhost) enteredAt = time;
     }
 
-    // Cursor is over island, Alt is NOT pressed -> must NOT click through (island is interactive)
-    assert.strictEqual(computeClickthrough(false, true), false);
+    function computeState(currentTime, isOverIsland) {
+      if (isGhost) {
+        // Auto-restore when cursor leaves island area after 600ms grace period or 8s timeout
+        if (currentTime - enteredAt > 600 && (!isOverIsland || currentTime - enteredAt > 8000)) {
+          isGhost = false;
+        }
+      }
+      const shouldClickthrough = isGhost || !isOverIsland;
+      return { isGhost, shouldClickthrough };
+    }
 
-    // Cursor is over island, Alt IS pressed -> MUST click through (Ghost Passthrough)
-    assert.strictEqual(computeClickthrough(true, true), true);
+    // Initial state: cursor over island -> not ghosted, interactive (not clickthrough)
+    let state = computeState(1000, true);
+    assert.strictEqual(state.isGhost, false);
+    assert.strictEqual(state.shouldClickthrough, false);
 
-    // Cursor is outside island, Alt is NOT pressed -> MUST click through (transparent canvas)
-    assert.strictEqual(computeClickthrough(false, false), true);
+    // User taps to ghost (e.g. ` or Ctrl+Shift+G)
+    tapGhost(1000);
+    assert.strictEqual(isGhost, true, 'Tapping must turn Ghost Mode ON');
 
-    // Cursor is outside island, Alt IS pressed -> MUST click through
-    assert.strictEqual(computeClickthrough(true, false), true);
+    // While ghost mode is ON, user clicks tab with ZERO keys held -> clicks pass directly through!
+    state = computeState(1100, true);
+    assert.strictEqual(state.isGhost, true);
+    assert.strictEqual(state.shouldClickthrough, true, 'Ghost mode must enable clickthrough with zero keys held');
+
+    // User moves mouse away after clicking tab -> cursor is now outside island (!isOverIsland)
+    state = computeState(2000, false);
+    assert.strictEqual(state.isGhost, false, 'Ghost mode must auto-restore when cursor leaves island area');
   });
 
   // Test 6: CSS file defines .island-ghost-mode with required styling
