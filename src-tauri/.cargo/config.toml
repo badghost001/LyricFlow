@@ -1,5 +1,11 @@
-[build]
-target-dir = "Z:/cargo-target/lyricflow"
+[registries.crates-io]
+protocol = "sparse"
+
+[net]
+retry = 5
+
+[http]
+timeout = 120
 
 [env]
 RUST_MIN_STACK = "16777216"
