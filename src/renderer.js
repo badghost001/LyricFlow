@@ -1461,6 +1461,15 @@ async function toggleDynamicIslandMode(forceState) {
     } catch (err) {
       console.warn("[DynamicIsland] Error updating lyric on toggle:", err);
     }
+    if (!settings.ghostModeTipShown) {
+      settings.ghostModeTipShown = true;
+      if (typeof saveLocalSettings === 'function') saveLocalSettings();
+      setTimeout(() => {
+        if (typeof showToast === 'function') {
+          showToast("Tip: Tap ` (Tilde) or Ctrl+Shift+G to click tabs behind the island", 4500);
+        }
+      }, 1000);
+    }
   } else {
     lastPushedBounds = { x: -1, y: -1, width: -1, height: -1 };
     if (fluidMeshGradientInstance && (settings.bgStyle || 'fluid') === 'fluid' && !settings.taskbarMode) {
@@ -1477,6 +1486,9 @@ async function toggleDynamicIslandMode(forceState) {
 function toggleIslandGhostMode(enable) {
   const isGhost = Boolean(enable) && isDynamicIslandMode;
   document.body.classList.toggle('island-ghost-mode', isGhost);
+  if (isGhost && typeof showIslandHud === 'function') {
+    showIslandHud({ icon: "👻", text: "Ghost Mode", showBar: false });
+  }
 }
 
 function initDOMElements() {
@@ -3816,6 +3828,17 @@ function setupUIHandlers() {
     islandBtnTranslate.addEventListener("click", (e) => {
       e.stopPropagation();
       cycleIslandTranslationMode();
+    });
+  }
+  const islandBtnGhost = document.getElementById("island-btn-ghost");
+  if (islandBtnGhost) {
+    islandBtnGhost.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (window.electronAPI && typeof window.electronAPI.toggleDynamicIslandGhost === 'function') {
+        window.electronAPI.toggleDynamicIslandGhost();
+      } else {
+        toggleIslandGhostMode(!document.body.classList.contains('island-ghost-mode'));
+      }
     });
   }
   const dynamicIslandEl = document.getElementById("dynamic-island");

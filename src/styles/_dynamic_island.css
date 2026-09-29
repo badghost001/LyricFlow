@@ -870,13 +870,22 @@ body:not(.is-playing) .island-wave-visualizer.is-fallback .wave-bar {
 }
 
 #dynamic-island .island-top-actions #island-btn-translate,
+#dynamic-island .island-top-actions #island-btn-ghost,
 #dynamic-island .island-top-actions #island-btn-expand {
   display: none !important;
 }
 
 #dynamic-island:hover .island-top-actions #island-btn-translate,
+#dynamic-island:hover .island-top-actions #island-btn-ghost,
 #dynamic-island:hover .island-top-actions #island-btn-expand {
   display: flex !important;
+}
+
+.island-btn.island-btn-ghost {
+  width: 22px;
+  height: 22px;
+  color: rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .island-btn.island-btn-translate {
