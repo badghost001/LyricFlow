@@ -386,6 +386,9 @@ function setVisualizerBarCount(count) {
   const widthMap = { 4: '340px', 6: '355px', 8: '370px' };
   const compactWidth = widthMap[c] || '340px';
   document.documentElement.style.setProperty('--island-compact-width', compactWidth);
+  const pausedWidthMap = { 4: '210px', 6: '220px', 8: '230px' };
+  const pausedWidth = pausedWidthMap[c] || '210px';
+  document.documentElement.style.setProperty('--island-paused-width', pausedWidth);
   setTimeout(pushDynamicIslandBounds, 50);
 }
 
@@ -520,6 +523,12 @@ function updateMarqueeOverflow(container, textElement, speedPxPerSec = 28) {
 function syncDynamicIslandState() {
   const isPlayingActive = Boolean(isPlaying);
   document.body.classList.toggle('is-playing', isPlayingActive);
+  document.body.classList.toggle('app-paused', !isPlayingActive);
+
+  const dynamicIslandEl = document.getElementById("dynamic-island");
+  if (dynamicIslandEl) {
+    dynamicIslandEl.classList.toggle('island-paused', !isPlayingActive);
+  }
 
   const islandPlayIcon = document.getElementById("island-icon-play");
   const islandPauseIcon = document.getElementById("island-icon-pause");
@@ -555,6 +564,25 @@ function syncDynamicIslandState() {
   if (islandArtist) {
     islandArtist.textContent = trackArtist;
     updateMarqueeOverflow(document.getElementById("island-artist-wrapper"), islandArtist);
+  }
+
+  const islandPausedTitle = document.getElementById("island-paused-title");
+  if (islandPausedTitle) {
+    islandPausedTitle.textContent = trackTitle;
+    updateMarqueeOverflow(document.getElementById("island-paused-title-wrapper"), islandPausedTitle);
+  }
+
+  // Dismiss satellite translation island immediately when music stops/pauses
+  if (!isPlayingActive) {
+    const satIsland = document.getElementById("dynamic-island-translation");
+    const satBridge = document.getElementById("island-bridge");
+    if (satIsland && satIsland.style.display !== 'none') {
+      lastSatelliteActiveState = false;
+      document.body.classList.remove('has-satellite-active');
+      satIsland.style.display = 'none';
+      if (satBridge) satBridge.style.display = 'none';
+      pushDynamicIslandBounds();
+    }
   }
 
   const fill = document.getElementById("island-progress-fill");
@@ -917,12 +945,13 @@ function updateDynamicIslandLyric(targetIndex, lineData, syncProgress, isInstrum
     curSubText.toLowerCase() !== curOrigText.toLowerCase()
   );
 
-  // 3. Docking rule: MUST have line translation!
+  // 3. Docking rule: MUST have line translation and music actively playing!
   const shouldSatelliteBeDocked = Boolean(
     isSatelliteEnabled &&
     trackHasTranslation &&
     lineHasTranslation &&
-    !isIslandSleeping
+    !isIslandSleeping &&
+    isPlaying
   );
 
   const subText = lineHasTranslation ? curSubText : '';
@@ -3610,8 +3639,10 @@ function setupUIHandlers() {
         pushDynamicIslandBounds();
         const titleEl = document.getElementById("island-track-title");
         const artistEl = document.getElementById("island-track-artist");
+        const pausedTitleEl = document.getElementById("island-paused-title");
         if (titleEl) updateMarqueeOverflow(document.getElementById("island-title-wrapper"), titleEl);
         if (artistEl) updateMarqueeOverflow(document.getElementById("island-artist-wrapper"), artistEl);
+        if (pausedTitleEl) updateMarqueeOverflow(document.getElementById("island-paused-title-wrapper"), pausedTitleEl);
       });
       ro.observe(dynamicIslandEl);
     }
@@ -4689,6 +4720,9 @@ function setupUIHandlers() {
         document.body.classList.toggle('is-playing', true);
         document.body.classList.toggle('app-paused', false);
         syncDynamicIslandState();
+        if (isDynamicIslandMode) {
+          startDynamicIslandBoundsTracking(450);
+        }
         if (typeof checkVisualizerFallback === 'function') {
           checkVisualizerFallback();
         }
@@ -4709,6 +4743,9 @@ function setupUIHandlers() {
         document.body.classList.toggle('is-playing', false);
         document.body.classList.toggle('app-paused', true);
         syncDynamicIslandState();
+        if (isDynamicIslandMode) {
+          startDynamicIslandBoundsTracking(450);
+        }
         if (typeof checkVisualizerFallback === 'function') {
           checkVisualizerFallback();
         }
@@ -6208,6 +6245,9 @@ async function handlePlaybackData(data) {
     if (isIslandSleeping) {
       wakeDynamicIsland();
     }
+  }
+  if (wasPlaying !== isCurrentlyPlaying && isDynamicIslandMode) {
+    startDynamicIslandBoundsTracking(450);
   }
   document.body.classList.toggle('is-playing', isCurrentlyPlaying);
   document.body.classList.toggle('app-paused', !isCurrentlyPlaying);

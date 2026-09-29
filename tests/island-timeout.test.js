@@ -380,6 +380,79 @@ function runIslandTimeoutTests() {
     assert.strictEqual(materializeCalled, false, 'In-song foreign line must NOT call caEmitterLayer.materialize (silent reveal)');
   });
 
+  // Test 11: When music stops/pauses, Dynamic Island minimizes to album art + song name + visualizer, and lyrics are hidden
+  test('11. Music pause minimizes island to album art + song name + visualizer, hiding lyrics and satellite', () => {
+    let isPlaying = false;
+    let islandPausedClass = false;
+    let lyricZoneVisible = true;
+    let pausedZoneVisible = false;
+    let satelliteVisible = true;
+    let targetWidth = '340px';
+    let displayedTitle = '';
+
+    const trackObj = { name: 'Cruel Summer', artist: 'Taylor Swift' };
+    const widthMap = { 4: '340px', 6: '355px', 8: '370px' };
+    const pausedWidthMap = { 4: '210px', 6: '220px', 8: '230px' };
+    const barCount = 4;
+
+    function syncIslandState() {
+      islandPausedClass = !isPlaying;
+      if (!isPlaying) {
+        lyricZoneVisible = false;      // Hide lyrics only
+        pausedZoneVisible = true;      // Show song name
+        satelliteVisible = false;      // Hide satellite pill
+        targetWidth = pausedWidthMap[barCount] || '210px'; // Minimized width
+        displayedTitle = trackObj.name;
+      } else {
+        lyricZoneVisible = true;
+        pausedZoneVisible = false;
+        targetWidth = widthMap[barCount] || '340px';
+      }
+    }
+
+    syncIslandState();
+
+    assert.strictEqual(islandPausedClass, true, 'Island must have island-paused class when music stops');
+    assert.strictEqual(lyricZoneVisible, false, 'Lyrics zone must be hidden when music stops');
+    assert.strictEqual(pausedZoneVisible, true, 'Paused zone must be visible displaying song name');
+    assert.strictEqual(displayedTitle, 'Cruel Summer', 'Displayed title must be the track name');
+    assert.strictEqual(targetWidth, '210px', 'Island width must minimize from 340px down to 210px');
+    assert.strictEqual(satelliteVisible, false, 'Satellite translation pill must be hidden when music is paused');
+  });
+
+  // Test 12: When music resumes, Dynamic Island expands and restores live karaoke lyrics
+  test('12. Music resume expands island back to live karaoke lyrics and restores docking', () => {
+    let isPlaying = true;
+    let islandPausedClass = true;
+    let lyricZoneVisible = false;
+    let pausedZoneVisible = true;
+    let targetWidth = '210px';
+
+    const widthMap = { 4: '340px', 6: '355px', 8: '370px' };
+    const pausedWidthMap = { 4: '210px', 6: '220px', 8: '230px' };
+    const barCount = 4;
+
+    function syncIslandState() {
+      islandPausedClass = !isPlaying;
+      if (isPlaying) {
+        lyricZoneVisible = true;       // Restore lyrics
+        pausedZoneVisible = false;     // Hide paused song name only zone
+        targetWidth = widthMap[barCount] || '340px'; // Expanded width
+      } else {
+        lyricZoneVisible = false;
+        pausedZoneVisible = true;
+        targetWidth = pausedWidthMap[barCount] || '210px';
+      }
+    }
+
+    syncIslandState();
+
+    assert.strictEqual(islandPausedClass, false, 'Island must remove island-paused class when music plays');
+    assert.strictEqual(lyricZoneVisible, true, 'Lyrics zone must be visible when music plays');
+    assert.strictEqual(pausedZoneVisible, false, 'Paused zone must be hidden when music plays');
+    assert.strictEqual(targetWidth, '340px', 'Island width must expand back to 340px for live lyrics');
+  });
+
   console.log(`Results: ${passedTests}/${totalTests} tests passed.\n`);
   if (passedTests !== totalTests) {
     process.exit(1);

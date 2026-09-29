@@ -107,6 +107,19 @@ body.mode-dynamic-island #dynamic-island.island-mode-stacked {
 }
 
 /* ==========================================================
+   PAUSED MINIMIZED STATE (Album Art + Song Name + Visualizer)
+   When music is stopped/paused:
+   - Island minimises from 340px down to 210px
+   - Lyrics zone is hidden completely
+   - Paused zone displays just the song name
+========================================================== */
+body.mode-dynamic-island:not(.is-playing) #dynamic-island:not(:hover),
+body.mode-dynamic-island.app-paused #dynamic-island:not(:hover),
+body.mode-dynamic-island #dynamic-island.island-paused:not(:hover) {
+  width: var(--island-paused-width, 210px);
+}
+
+/* ==========================================================
    HOVER EXPANSION: THE OPENED NOW PLAYING CARD
    - Opens smoothly to 410px × 122px strictly on hover
    - Shows Song Name + Artist Name + 44px Album Art + Scrubber + Controls
@@ -371,6 +384,74 @@ body:not(.is-playing) .island-art-halo {
 .island-idle-title {
   color: #ffffff;
   font-weight: 600;
+}
+
+/* ==========================================================
+   PAUSED ZONE: SONG NAME ONLY (LYRICS HIDDEN)
+   When music is paused/stopped:
+   - Hide live karaoke lyrics completely
+   - Display only album art + song name + visualizer
+========================================================== */
+body.mode-dynamic-island:not(.is-playing) .island-lyric-zone,
+body.mode-dynamic-island.app-paused .island-lyric-zone,
+#dynamic-island.island-paused .island-lyric-zone {
+  display: none !important;
+}
+
+.island-paused-zone {
+  display: none;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: flex-start;
+  overflow: hidden;
+  position: relative;
+  mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 10px), transparent 100%);
+  -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 10px), transparent 100%);
+  cursor: default !important;
+}
+
+body.mode-dynamic-island:not(.is-playing) .island-paused-zone,
+body.mode-dynamic-island.app-paused .island-paused-zone,
+#dynamic-island.island-paused .island-paused-zone {
+  display: flex !important;
+  animation: islandFadeIn 0.28s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+body.mode-dynamic-island.is-playing .island-lyric-zone {
+  animation: islandFadeIn 0.28s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+.island-paused-title-wrapper {
+  width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.island-paused-title {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Outfit", "Inter", sans-serif;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #ffffff;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  display: inline-block;
+  line-height: 1.25;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+@keyframes islandFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 /* ==========================================================
