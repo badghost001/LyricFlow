@@ -1551,7 +1551,7 @@ function initDOMElements() {
   widgetTimeCurrent = document.getElementById("widget-time-current");
   widgetTimeDuration = document.getElementById("widget-time-duration");
 
-  const playbackWidget = document.getElementById("playback-widget");
+  playbackWidget = document.getElementById("playback-widget");
   if (playbackWidget) {
     playbackWidget.addEventListener("wheel", (e) => {
       // Allow progress scrubber track to handle its own wheel seeking
