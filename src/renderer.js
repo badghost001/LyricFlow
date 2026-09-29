@@ -1513,14 +1513,22 @@ function initDOMElements() {
       const maxY = Math.max(firstLineCenterY, lastLineCenterY) + 60;
       const minY = Math.min(firstLineCenterY, lastLineCenterY) - 60;
 
-      // Extract current translation
+      // Extract current translation (supports both translate3d and translateY)
       const currentTransform = lyricsContainer.style.transform;
-      const match = currentTransform.match(/translateY\((.+?)px\)/);
-      const currentY = match ? parseFloat(match[1]) : firstLineCenterY;
+      const match = currentTransform ? currentTransform.match(/translate(?:3d\(0,\s*|Y\()(-?[\d.]+)px/) : null;
+      let currentY;
+      if (match) {
+        currentY = parseFloat(match[1]);
+      } else if (activeLineIndex >= 0 && cachedLineMetrics && cachedLineMetrics[activeLineIndex]) {
+        const m = cachedLineMetrics[activeLineIndex];
+        currentY = Math.round((viewportHeight / 2) - m.top - (m.height / 2));
+      } else {
+        currentY = firstLineCenterY;
+      }
       const delta = -e.deltaY;
 
       const clampedY = Math.max(minY, Math.min(maxY, currentY + delta));
-      lyricsContainer.style.transform = `translateY(${clampedY}px)`;
+      lyricsContainer.style.transform = `translate3d(0, ${clampedY}px, 0)`;
 
       // Clear any previous auto-resync timeout and reset for 7 seconds
       if (userScrollTimeout) clearTimeout(userScrollTimeout);
@@ -1543,17 +1551,20 @@ function initDOMElements() {
   widgetTimeCurrent = document.getElementById("widget-time-current");
   widgetTimeDuration = document.getElementById("widget-time-duration");
 
-  const mainArtContainer = document.querySelector(".widget-art-container");
-  if (mainArtContainer) {
-    mainArtContainer.title = "Scroll to adjust volume, middle-click to mute";
-    mainArtContainer.addEventListener("wheel", (e) => {
+  const playbackWidget = document.getElementById("playback-widget");
+  if (playbackWidget) {
+    playbackWidget.title = "Scroll to adjust volume, middle-click to mute";
+    playbackWidget.addEventListener("wheel", (e) => {
+      // Allow progress scrubber track to handle its own wheel seeking
+      if (e.target.closest("#main-progress-track") || e.target.closest(".progress-bar-bg")) return;
       e.preventDefault();
       const delta = e.deltaY < 0 ? 5 : -5;
       adjustIslandVolume(delta, true);
     }, { passive: false });
 
-    mainArtContainer.addEventListener("auxclick", (e) => {
+    playbackWidget.addEventListener("auxclick", (e) => {
       if (e.button !== 1) return;
+      if (e.target.closest("#main-progress-track") || e.target.closest(".progress-bar-bg")) return;
       e.preventDefault();
       toggleAppMute();
     });
@@ -3939,9 +3950,6 @@ function toggleAppMute() {
     dynamicIslandEl.addEventListener("wheel", (e) => {
       if (!isDynamicIslandMode) return;
       if (settings.islandWheelGestures === false) return;
-
-      // Don't intercept if wheeling inside the expanded stage or meta
-      if (e.target.closest(".island-stage") || e.target.closest(".island-track-meta")) return;
 
       e.preventDefault();
 
@@ -8432,6 +8440,15 @@ window.addEventListener('resize', () => {
 window.addEventListener('blur', () => {
   document.body.classList.add('window-blurred');
 });
+
+// Alt + Wheel anywhere in main window to quickly adjust master volume
+window.addEventListener('wheel', (e) => {
+  if (e.altKey && !isDynamicIslandMode) {
+    e.preventDefault();
+    const delta = e.deltaY < 0 ? 5 : -5;
+    adjustIslandVolume(delta, true);
+  }
+}, { passive: false });
 
 window.addEventListener('focus', () => {
   document.body.classList.remove('window-blurred');

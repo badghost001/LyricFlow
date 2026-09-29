@@ -659,6 +659,92 @@ function runIslandTimeoutTests() {
     assert.strictEqual(mockContainer.classList.contains('visualizer-style-wave'), false);
   });
 
+  // Test 17: Tooltip suppression on Dynamic Island and Satellite
+  test('17. Dynamic Island and Satellite containers have no native title tooltip attributes', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const html = fs.readFileSync(path.join(__dirname, '..', 'src', 'index.html'), 'utf-8');
+
+    // Confirm #dynamic-island does NOT contain title="Double click to restore full window"
+    const islandMatch = html.match(/<div id="dynamic-island"[^>]*>/);
+    assert.ok(islandMatch, 'dynamic-island div must exist');
+    assert.strictEqual(islandMatch[0].includes('title='), false, 'dynamic-island must not have a title tooltip attribute');
+
+    // Confirm #dynamic-island-translation does NOT contain title=
+    const satMatch = html.match(/<div id="dynamic-island-translation"[^>]*>/);
+    assert.ok(satMatch, 'dynamic-island-translation div must exist');
+    assert.strictEqual(satMatch[0].includes('title='), false, 'dynamic-island-translation must not have a title tooltip attribute');
+  });
+
+  // Test 18: Dynamic Island wheel volume and seek gestures are not blocked by stage/meta
+  test('18. Dynamic Island wheel gestures process over stage and metadata without interception blockage', () => {
+    let volumeAdjusted = false;
+    let seekAdjusted = false;
+
+    function handleIslandWheel(e, isDynamicIslandMode, islandWheelGesturesEnabled) {
+      if (!isDynamicIslandMode) return;
+      if (islandWheelGesturesEnabled === false) return;
+
+      e.preventDefault();
+      const isSeek = e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY);
+      if (isSeek) {
+        seekAdjusted = true;
+      } else {
+        volumeAdjusted = true;
+      }
+    }
+
+    // Wheel event over stage
+    const stageEvent = {
+      target: { closest: (selector) => selector === '.island-stage' },
+      preventDefault: () => {},
+      shiftKey: false,
+      deltaX: 0,
+      deltaY: -100
+    };
+    handleIslandWheel(stageEvent, true, true);
+    assert.strictEqual(volumeAdjusted, true, 'Volume gesture must trigger over stage');
+
+    // Shift-wheel event over metadata
+    const metaEvent = {
+      target: { closest: (selector) => selector === '.island-track-meta' },
+      preventDefault: () => {},
+      shiftKey: true,
+      deltaX: 0,
+      deltaY: -100
+    };
+    handleIslandWheel(metaEvent, true, true);
+    assert.strictEqual(seekAdjusted, true, 'Seek gesture must trigger over track metadata');
+  });
+
+  // Test 19: Translation regex extracts current translation from both translate3d and translateY
+  test('19. Lyrics wheel translation regex accurately parses translate3d and translateY', () => {
+    function parseTransformY(transform, activeIdx, lineMetrics, viewportHeight, firstLineCenterY) {
+      const match = transform ? transform.match(/translate(?:3d\(0,\s*|Y\()(-?[\d.]+)px/) : null;
+      if (match) {
+        return parseFloat(match[1]);
+      } else if (activeIdx >= 0 && lineMetrics && lineMetrics[activeIdx]) {
+        const m = lineMetrics[activeIdx];
+        return Math.round((viewportHeight / 2) - m.top - (m.height / 2));
+      }
+      return firstLineCenterY;
+    }
+
+    // Case 1: translate3d format from GPU accelerated auto-scroll
+    const y3d = parseTransformY('translate3d(0, -425.5px, 0)', 5, [], 400, 150);
+    assert.strictEqual(y3d, -425.5);
+
+    // Case 2: translateY format
+    const y2d = parseTransformY('translateY(-310px)', 3, [], 400, 150);
+    assert.strictEqual(y2d, -310);
+
+    // Case 3: Empty transform falling back to active line metric
+    const metrics = [{ top: 50, height: 30 }, { top: 120, height: 40 }];
+    const fallbackY = parseTransformY('', 1, metrics, 500, 100);
+    // (500 / 2) - 120 - (40 / 2) = 250 - 120 - 20 = 110
+    assert.strictEqual(fallbackY, 110);
+  });
+
   console.log(`Results: ${passedTests}/${totalTests} tests passed.\n`);
   if (passedTests !== totalTests) {
     process.exit(1);

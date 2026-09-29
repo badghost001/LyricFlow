@@ -365,38 +365,38 @@ impl MediaSessionBackend for WindowsSmtcBackend {
     }
 
     fn trigger_control(&self, action: &str, position_ms: u64) {
-        #[cfg(target_os = "windows")]
-        extern "system" {
-            fn keybd_event(b_vk: u8, b_scan: u8, dw_flags: u32, dw_extra_info: usize);
-        }
-
         match action {
+
             "volume-up" => {
                 #[cfg(target_os = "windows")]
-                unsafe {
-                    keybd_event(0xAF, 0, 1, 0); // VK_VOLUME_UP down
-                    keybd_event(0xAF, 0, 1 | 2, 0); // VK_VOLUME_UP up
+                {
+                    let _ = if position_ms > 0 {
+                        set_windows_master_volume(position_ms.min(100) as f32)
+                    } else {
+                        step_windows_master_volume(true)
+                    };
                 }
                 return;
             }
             "volume-down" => {
                 #[cfg(target_os = "windows")]
-                unsafe {
-                    keybd_event(0xAE, 0, 1, 0); // VK_VOLUME_DOWN down
-                    keybd_event(0xAE, 0, 1 | 2, 0); // VK_VOLUME_DOWN up
+                {
+                    let _ = if position_ms > 0 {
+                        set_windows_master_volume(position_ms.min(100) as f32)
+                    } else {
+                        step_windows_master_volume(false)
+                    };
                 }
                 return;
             }
             "volume-mute" | "mute" | "toggle-mute" => {
                 #[cfg(target_os = "windows")]
-                unsafe {
-                    keybd_event(0xAD, 0, 1, 0); // VK_VOLUME_MUTE down
-                    keybd_event(0xAD, 0, 1 | 2, 0); // VK_VOLUME_MUTE up
+                {
+                    let _ = toggle_windows_mute();
                 }
                 return;
             }
             "volume" | "set-volume" => {
-                // If a specific volume level (0..100) is requested
                 #[cfg(target_os = "windows")]
                 {
                     let target_percent = position_ms.min(100) as f32;
@@ -425,11 +425,10 @@ impl MediaSessionBackend for WindowsSmtcBackend {
 }
 
 #[cfg(target_os = "windows")]
-fn set_windows_master_volume(percent: f32) -> Result<(), String> {
+fn get_audio_endpoint_volume() -> Result<windows::Win32::Media::Audio::Endpoints::IAudioEndpointVolume, String> {
     unsafe {
         let _ = windows::Win32::System::Com::CoInitializeEx(None, windows::Win32::System::Com::COINIT_MULTITHREADED);
         use windows::Win32::Media::Audio::*;
-        use windows::Win32::Media::Audio::Endpoints::*;
         use windows::Win32::System::Com::*;
 
         let enumerator: IMMDeviceEnumerator = CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)
@@ -437,14 +436,45 @@ fn set_windows_master_volume(percent: f32) -> Result<(), String> {
         let device = enumerator.GetDefaultAudioEndpoint(eRender, eMultimedia)
             .or_else(|_| enumerator.GetDefaultAudioEndpoint(eRender, eConsole))
             .map_err(|e| e.to_string())?;
-        let endpoint_vol: IAudioEndpointVolume = device.Activate(CLSCTX_ALL, None)
-            .map_err(|e| e.to_string())?;
+        device.Activate(CLSCTX_ALL, None)
+            .map_err(|e| e.to_string())
+    }
+}
 
+#[cfg(target_os = "windows")]
+fn set_windows_master_volume(percent: f32) -> Result<(), String> {
+    unsafe {
+        let endpoint_vol = get_audio_endpoint_volume()?;
         let scalar = (percent / 100.0).clamp(0.0, 1.0);
         let _ = endpoint_vol.SetMasterVolumeLevelScalar(scalar, std::ptr::null());
         if scalar > 0.0 {
             let _ = endpoint_vol.SetMute(false, std::ptr::null());
         }
+        Ok(())
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn step_windows_master_volume(increase: bool) -> Result<(), String> {
+    unsafe {
+        let endpoint_vol = get_audio_endpoint_volume()?;
+        if increase {
+            let _ = endpoint_vol.VolumeStepUp(std::ptr::null());
+            let _ = endpoint_vol.SetMute(false, std::ptr::null());
+        } else {
+            let _ = endpoint_vol.VolumeStepDown(std::ptr::null());
+        }
+        Ok(())
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn toggle_windows_mute() -> Result<(), String> {
+    unsafe {
+        let endpoint_vol = get_audio_endpoint_volume()?;
+        let is_muted = endpoint_vol.GetMute().map(|b| b.as_bool()).unwrap_or(false);
+        let new_state = !is_muted;
+        let _ = endpoint_vol.SetMute(new_state, std::ptr::null());
         Ok(())
     }
 }
