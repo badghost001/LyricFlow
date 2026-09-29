@@ -117,7 +117,7 @@
 ### Settings & Aesthetics Studio
 *Deep personalization: OLED themes, dynamic album accents, custom fonts, line spacing, and inactivity sleep timers.*
 <br/>
-<img src="assets/screenshots/settings-panel.png" alt="LyricFlow Settings Panel" width="950" />
+<img src="assets/screenshots/settings-panel-v1.4.0.png" alt="LyricFlow Settings Panel" width="950" />
 
 </div>
 
