@@ -1,4 +1,5 @@
 #[cfg(target_os = "windows")]
+mod imp {
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -391,13 +392,20 @@ unsafe fn init_wasapi_capture() -> Option<(IAudioClient, IAudioCaptureClient, u1
     let capture_client: IAudioCaptureClient = client.GetService().ok()?;
     Some((client, capture_client, channels, bits_per_sample, is_float))
 }
+}
+
+#[cfg(target_os = "windows")]
+pub use imp::*;
 
 #[cfg(not(target_os = "windows"))]
 pub struct AudioVisualizer;
 
 #[cfg(not(target_os = "windows"))]
 impl AudioVisualizer {
-    pub fn new() -> Self { Self }
-    pub fn start(&self, _app: AppHandle) {}
+    pub fn new() -> Self {
+        AudioVisualizer
+    }
+    pub fn start(&self, _app: tauri::AppHandle) {}
     pub fn stop(&self) {}
 }
+

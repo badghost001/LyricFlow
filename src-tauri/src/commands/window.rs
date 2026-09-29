@@ -189,7 +189,7 @@ pub async fn set_taskbar_mode(app: AppHandle, enabled: bool, _from_tray: Option<
             }
             None => {
                 crate::log_to_file("[LyricFlow Command] Building taskbar window dynamically...");
-                match tauri::WebviewWindowBuilder::new(
+                let tb_builder = tauri::WebviewWindowBuilder::new(
                     &app,
                     "taskbar",
                     tauri::WebviewUrl::App("taskbar.html".into()),
@@ -201,8 +201,9 @@ pub async fn set_taskbar_mode(app: AppHandle, enabled: bool, _from_tray: Option<
                 .always_on_top(true)
                 .shadow(false)
                 .skip_taskbar(true)
-                .resizable(false)
-                .build()
+                .resizable(false);
+
+                match tb_builder.build()
                 {
                     Ok(w) => w,
                     Err(e) => {
@@ -487,7 +488,7 @@ pub async fn set_edge_glow(app: AppHandle, enabled: bool, color: Option<String>)
             Some(w) => w,
             None => {
                 crate::log_to_file("[LyricFlow Command] Building edge-glow window dynamically...");
-                tauri::WebviewWindowBuilder::new(
+                let eg_builder = tauri::WebviewWindowBuilder::new(
                     &app,
                     "edge-glow",
                     tauri::WebviewUrl::App("edge_glow.html".into()),
@@ -499,8 +500,9 @@ pub async fn set_edge_glow(app: AppHandle, enabled: bool, color: Option<String>)
                 .transparent(true)
                 .always_on_top(true)
                 .shadow(false)
-                .skip_taskbar(true)
-                .build()
+                .skip_taskbar(true);
+
+                eg_builder.build()
                 .map_err(|e| format!("[LyricFlow Command] Failed to create 'edge-glow' window: {}", e))?
             }
         };
