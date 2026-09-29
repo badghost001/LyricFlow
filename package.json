@@ -1,6 +1,6 @@
 {
   "name": "lyricflow",
-  "version": "1.4.0",
+  "version": "1.40.2",
   "description": "LyricFlow",
   "main": "main.js",
   "type": "commonjs",
