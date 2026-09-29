@@ -1553,7 +1553,6 @@ function initDOMElements() {
 
   const playbackWidget = document.getElementById("playback-widget");
   if (playbackWidget) {
-    playbackWidget.title = "Scroll to adjust volume, middle-click to mute";
     playbackWidget.addEventListener("wheel", (e) => {
       // Allow progress scrubber track to handle its own wheel seeking
       if (e.target.closest("#main-progress-track") || e.target.closest(".progress-bar-bg")) return;
@@ -8440,15 +8439,6 @@ window.addEventListener('resize', () => {
 window.addEventListener('blur', () => {
   document.body.classList.add('window-blurred');
 });
-
-// Alt + Wheel anywhere in main window to quickly adjust master volume
-window.addEventListener('wheel', (e) => {
-  if (e.altKey && !isDynamicIslandMode) {
-    e.preventDefault();
-    const delta = e.deltaY < 0 ? 5 : -5;
-    adjustIslandVolume(delta, true);
-  }
-}, { passive: false });
 
 window.addEventListener('focus', () => {
   document.body.classList.remove('window-blurred');

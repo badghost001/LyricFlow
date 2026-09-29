@@ -436,7 +436,7 @@ fn get_audio_endpoint_volume() -> Result<windows::Win32::Media::Audio::Endpoints
         let device = enumerator.GetDefaultAudioEndpoint(eRender, eMultimedia)
             .or_else(|_| enumerator.GetDefaultAudioEndpoint(eRender, eConsole))
             .map_err(|e| e.to_string())?;
-        device.Activate(CLSCTX_ALL, None)
+        device.Activate(CLSCTX_INPROC_SERVER, None)
             .map_err(|e| e.to_string())
     }
 }
