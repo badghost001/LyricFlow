@@ -1050,9 +1050,12 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
                 .name("dynamic-island-hit-test".to_string())
                 .spawn(move || {
                     use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
+                    use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_MENU};
                     use windows::Win32::Foundation::POINT;
+                    use tauri::Emitter;
 
                     let mut current_clickthrough = false;
+                    let mut current_ghost_mode = false;
                     let mut last_pt = POINT { x: -9999, y: -9999 };
                     let mut last_bounds_id: (i32, i32, i32, i32) = (-1, -1, -1, -1);
 
@@ -1063,12 +1066,19 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
                             break;
                         }
 
+                        // Real-time global Alt key detection (VK_MENU) for Ghost Passthrough mode
+                        let is_alt_down = (unsafe { GetAsyncKeyState(VK_MENU.0 as i32) } as u16 & 0x8000) != 0;
+                        if is_alt_down != current_ghost_mode {
+                            current_ghost_mode = is_alt_down;
+                            let _ = win_clone.emit("island-ghost-mode", is_alt_down);
+                        }
+
                         let mut pt = POINT::default();
                         if unsafe { GetCursorPos(&mut pt) }.is_ok() {
                             let bounds_opt = get_island_bounds().lock().ok().and_then(|g| *g);
                             let cur_bounds_id = bounds_opt.map(|b| (b.x, b.y, b.width, b.height)).unwrap_or((0, 0, 0, 0));
 
-                            if pt.x == last_pt.x && pt.y == last_pt.y && cur_bounds_id == last_bounds_id {
+                            if pt.x == last_pt.x && pt.y == last_pt.y && cur_bounds_id == last_bounds_id && !is_alt_down && !current_ghost_mode {
                                 continue;
                             }
                             last_pt = pt;
@@ -1092,7 +1102,8 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
                                 false
                             };
 
-                            let should_clickthrough = !is_over_island;
+                            // In Ghost Passthrough mode (Alt is held), all cursor events pass through to windows beneath
+                            let should_clickthrough = is_alt_down || !is_over_island;
                             if should_clickthrough != current_clickthrough {
                                 current_clickthrough = should_clickthrough;
                                 let _ = win_clone.set_ignore_cursor_events(should_clickthrough);
@@ -1101,6 +1112,7 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
                     }
 
                     let _ = win_clone.set_ignore_cursor_events(false);
+                    let _ = win_clone.emit("island-ghost-mode", false);
                 })
                 .expect("Failed to spawn dynamic island hit test thread");
         }
@@ -1110,6 +1122,7 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
         }
         DYNAMIC_ISLAND_ACTIVE.store(false, Ordering::SeqCst);
         let _ = window.set_ignore_cursor_events(false);
+        let _ = window.emit("island-ghost-mode", false);
 
         let saved_pos = SAVED_ISLAND_MAIN_POS.get_or_init(|| Mutex::new(None)).lock().ok().and_then(|mut g| g.take());
         let saved_size = SAVED_ISLAND_MAIN_SIZE.get_or_init(|| Mutex::new(None)).lock().ok().and_then(|mut g| g.take());

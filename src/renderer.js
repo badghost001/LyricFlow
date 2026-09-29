@@ -1468,9 +1468,15 @@ async function toggleDynamicIslandMode(forceState) {
     }
     isIslandSleeping = false;
     document.body.classList.remove('island-sleeping');
+    document.body.classList.remove('island-ghost-mode');
     const pri = document.getElementById("dynamic-island");
     if (pri) pri.style.display = '';
   }
+}
+
+function toggleIslandGhostMode(enable) {
+  const isGhost = Boolean(enable) && isDynamicIslandMode;
+  document.body.classList.toggle('island-ghost-mode', isGhost);
 }
 
 function initDOMElements() {
@@ -4183,6 +4189,12 @@ function toggleAppMute() {
           startDynamicIslandBoundsTracking(500);
         }, 60);
       }
+    });
+  }
+
+  if (window.electronAPI && typeof window.electronAPI.onIslandGhostMode === 'function') {
+    window.electronAPI.onIslandGhostMode((enabled) => {
+      toggleIslandGhostMode(enabled);
     });
   }
 
@@ -8436,8 +8448,22 @@ window.addEventListener('resize', () => {
   }
 });
 
+// Alt key Ghost Passthrough mode (local responsiveness when window has focus)
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Alt' && isDynamicIslandMode) {
+    toggleIslandGhostMode(true);
+  }
+});
+
+window.addEventListener('keyup', (e) => {
+  if (e.key === 'Alt') {
+    toggleIslandGhostMode(false);
+  }
+});
+
 window.addEventListener('blur', () => {
   document.body.classList.add('window-blurred');
+  toggleIslandGhostMode(false);
 });
 
 window.addEventListener('focus', () => {

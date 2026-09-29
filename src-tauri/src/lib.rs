@@ -414,6 +414,7 @@ pub fn run() {
 
 
             window::set_always_on_top,
+            window::set_click_through,
             window::minimize_app,
             window::copy_to_clipboard,
             window::close_app,

@@ -288,6 +288,7 @@
     onTbOffsetSaved: (cb) => safeListen('tb-offset-saved', (payload) => cb(payload)),
     onDynamicIslandModeChanged: (cb) => safeListen('dynamic-island-mode-changed', (payload) => cb(payload)),
     onAudioSpectrum: (cb) => safeListen('audio-visualizer-bands', (payload) => cb(payload)),
+    onIslandGhostMode: (cb) => safeListen('island-ghost-mode', (payload) => cb(payload)),
   };
 
   // Taskbar window bridge polyfill

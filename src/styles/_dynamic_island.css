@@ -1559,3 +1559,28 @@ body.mode-dynamic-island.island-sleeping .island-bridge {
   background: linear-gradient(180deg, #ffffff 0%, rgba(255, 255, 255, 0.45) 100%);
   box-shadow: 0 0 4px rgba(255, 255, 255, 0.4);
 }
+
+/* ==========================================================
+   GHOST PASSTHROUGH MODE (Hold Alt to interact behind island)
+   Fades primary capsule, satellite island, bridge, and canvas
+   to a smooth 16% silhouette with non-interactive click-through.
+========================================================== */
+body.mode-dynamic-island.island-ghost-mode #dynamic-island,
+body.mode-dynamic-island.island-ghost-mode #dynamic-island-translation {
+  opacity: 0.16 !important;
+  pointer-events: none !important;
+  transform: scale(0.97) !important;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.28) !important;
+  transition: opacity 0.14s cubic-bezier(0.16, 1, 0.3, 1), transform 0.14s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+body.mode-dynamic-island.island-ghost-mode #island-bridge {
+  opacity: 0 !important;
+  transition: opacity 0.14s ease !important;
+}
+
+body.mode-dynamic-island.island-ghost-mode .island-ca-emitter-canvas {
+  opacity: 0 !important;
+  transition: opacity 0.14s ease !important;
+}
+
