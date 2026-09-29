@@ -124,6 +124,9 @@ let settings = {
   dynamicIslandMode: false,
   dynamicIslandPosition: 'top-center',
   islandVisualizerBars: 4,
+  islandVisualizerStyle: 'bars',
+  islandVocalCountdown: true,
+  islandWheelGestures: true,
   islandTranslationMode: 'bilingual',
   islandInactivityTimeout: 30000
 };
@@ -372,6 +375,57 @@ function startDynamicIslandBoundsTracking(durationMs = 450) {
   islandBoundsAnimFrame = requestAnimationFrame(track);
 }
 
+let currentIslandVolumePercent = 70;
+let lastIslandMuteVolume = 70;
+let isIslandMuted = false;
+let islandHudTimeout = null;
+let islandHudLeavingTimeout = null;
+
+function applyIslandVisualizerStyle(style) {
+  const s = style || settings.islandVisualizerStyle || 'bars';
+  settings.islandVisualizerStyle = s;
+  const islandWave = document.getElementById("island-wave");
+  if (islandWave) {
+    islandWave.classList.remove('visualizer-style-dots', 'visualizer-style-wave', 'visualizer-style-bars');
+    if (s === 'dots') islandWave.classList.add('visualizer-style-dots');
+    else if (s === 'wave') islandWave.classList.add('visualizer-style-wave');
+    else islandWave.classList.add('visualizer-style-bars');
+  }
+}
+
+function showIslandHud({ icon, text, percent, showBar = true }) {
+  const overlay = document.getElementById("island-hud-overlay");
+  const iconEl = document.getElementById("island-hud-icon");
+  const textEl = document.getElementById("island-hud-text");
+  const barBg = document.getElementById("island-hud-bar-bg");
+  const barFill = document.getElementById("island-hud-bar-fill");
+
+  if (!overlay || !iconEl || !textEl) return;
+
+  if (islandHudTimeout) clearTimeout(islandHudTimeout);
+  if (islandHudLeavingTimeout) clearTimeout(islandHudLeavingTimeout);
+
+  overlay.classList.remove("is-leaving");
+  overlay.style.display = "flex";
+
+  iconEl.textContent = icon || "🔊";
+  textEl.textContent = text || "";
+  if (barBg && barFill) {
+    barBg.style.display = showBar ? "block" : "none";
+    if (typeof percent === "number") {
+      barFill.style.width = `${Math.min(100, Math.max(0, percent))}%`;
+    }
+  }
+
+  islandHudTimeout = setTimeout(() => {
+    overlay.classList.add("is-leaving");
+    islandHudLeavingTimeout = setTimeout(() => {
+      overlay.style.display = "none";
+      overlay.classList.remove("is-leaving");
+    }, 200);
+  }, 1200);
+}
+
 function setVisualizerBarCount(count) {
   const c = parseInt(count, 10) || 4;
   settings.islandVisualizerBars = c;
@@ -379,6 +433,7 @@ function setVisualizerBarCount(count) {
   if (islandWave) {
     islandWave.innerHTML = Array.from({ length: c }, (_, i) => `<span class="wave-bar bar-${i + 1}"></span>`).join("");
     lastSpectrumBars = islandWave.querySelectorAll(".wave-bar");
+    applyIslandVisualizerStyle();
     if (typeof checkVisualizerFallback === 'function') {
       checkVisualizerFallback();
     }
@@ -416,8 +471,9 @@ function checkVisualizerFallback() {
       islandWave.classList.remove("is-fallback");
     }
     const bars = lastSpectrumBars || islandWave.querySelectorAll(".wave-bar");
+    const visStyle = settings.islandVisualizerStyle || 'bars';
     bars.forEach(bar => {
-      bar.style.transform = 'scaleY(0.16)';
+      bar.style.transform = visStyle === 'dots' ? 'scale(0.8) translateY(0px)' : 'scaleY(0.16)';
     });
     return;
   }
@@ -456,8 +512,9 @@ if (window.electronAPI && typeof window.electronAPI.onAudioSpectrum === 'functio
       if (islandWave.classList.contains("is-fallback")) {
         islandWave.classList.remove("is-fallback");
       }
+      const visStyle = settings.islandVisualizerStyle || 'bars';
       bars.forEach(bar => {
-        bar.style.transform = 'scaleY(0.16)';
+        bar.style.transform = visStyle === 'dots' ? 'scale(0.8) translateY(0px)' : 'scaleY(0.16)';
       });
       return;
     }
@@ -496,10 +553,17 @@ if (window.electronAPI && typeof window.electronAPI.onAudioSpectrum === 'functio
       values = bands.slice(0, barCount);
     }
 
+    const visStyle = settings.islandVisualizerStyle || 'bars';
     for (let i = 0; i < bars.length; i++) {
       const raw = values[i] != null ? values[i] : 0;
-      const clamped = Math.min(1.0, Math.max(0.16, 0.16 + raw * 0.84));
-      bars[i].style.transform = `scaleY(${clamped.toFixed(2)})`;
+      if (visStyle === 'dots') {
+        const dotScale = (0.75 + raw * 0.95).toFixed(2);
+        const dotY = (-raw * 5.0).toFixed(1);
+        bars[i].style.transform = `scale(${dotScale}) translateY(${dotY}px)`;
+      } else {
+        const clamped = Math.min(1.0, Math.max(0.16, 0.16 + raw * 0.84));
+        bars[i].style.transform = `scaleY(${clamped.toFixed(2)})`;
+      }
     }
   });
 }
@@ -633,7 +697,8 @@ function getDynamicIslandSyncData(syncProgress) {
 
   // 1. Song intro / prelude before first vocal line starts (with 800ms anticipation)
   if (syncProgress < firstLineStart - 800) {
-    return { lineIndex: -1, lineData: null, isInstrumental: false };
+    const countdownMs = Math.max(0, firstLineStart - syncProgress);
+    return { lineIndex: -1, lineData: null, isInstrumental: false, countdownMs };
   }
 
   function getLineTiming(line, next) {
@@ -684,10 +749,11 @@ function getDynamicIslandSyncData(syncProgress) {
   const isFarFromNext = (curTiming.nextStart - syncProgress) > 2200;
 
   if (isPastLine && isFarFromNext && idx < lyrics.length - 1) {
-    return { lineIndex: -2, lineData: null, isInstrumental: true };
+    const countdownMs = Math.max(0, curTiming.nextStart - syncProgress);
+    return { lineIndex: -2, lineData: null, isInstrumental: true, countdownMs };
   }
 
-  return { lineIndex: idx, lineData: curLine, isInstrumental: false };
+  return { lineIndex: idx, lineData: curLine, isInstrumental: false, countdownMs: 0 };
 }
 
 let lastPlaybackActivityMs = Date.now();
@@ -890,7 +956,7 @@ function dismissIslandSatellitePrompt(enableSatellite) {
   setTimeout(pushDynamicIslandBounds, 60);
 }
 
-function updateDynamicIslandLyric(targetIndex, lineData, syncProgress, isInstrumental = false) {
+function updateDynamicIslandLyric(targetIndex, lineData, syncProgress, isInstrumental = false, countdownMs = 0) {
   if (isIslandSleeping) return;
   if (isPlaying) {
     lastPlaybackActivityMs = Date.now();
@@ -1030,11 +1096,21 @@ function updateDynamicIslandLyric(targetIndex, lineData, syncProgress, isInstrum
     if (islandSubline) islandSubline.style.display = 'none';
 
     const isBreak = isInstrumental || targetIndex === -2;
-    const idleHtml = isBreak
-      ? `<span class="island-idle-text"><span class="island-idle-title">${escapeHTML(trackTitle)}</span> • <span class="island-instrumental-dots">♪ ♪ ♪</span></span>`
-      : `<span class="island-idle-text"><span class="island-idle-title">${escapeHTML(trackTitle)}</span>${trackArtist ? ` • ${escapeHTML(trackArtist)}` : ''}</span>`;
+    const showCountdown = countdownMs >= 1500 && settings.islandVocalCountdown !== false;
+    const countdownSec = showCountdown ? Math.ceil(countdownMs / 1000) : 0;
 
-    if (islandLine.dataset.lineIndex !== String(targetIndex)) {
+    let idleHtml;
+    if (showCountdown && countdownSec > 0) {
+      idleHtml = `<span class="island-idle-text"><span class="island-countdown-pill"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> ${isBreak ? 'Next in' : 'Vocals in'} ${countdownSec}s</span> • <span class="island-idle-title">${escapeHTML(trackTitle)}</span></span>`;
+    } else if (isBreak) {
+      idleHtml = `<span class="island-idle-text"><span class="island-idle-title">${escapeHTML(trackTitle)}</span> • <span class="island-instrumental-dots">♪ ♪ ♪</span></span>`;
+    } else {
+      idleHtml = `<span class="island-idle-text"><span class="island-idle-title">${escapeHTML(trackTitle)}</span>${trackArtist ? ` • ${escapeHTML(trackArtist)}` : ''}</span>`;
+    }
+
+    const stateKey = `${targetIndex}:${showCountdown ? countdownSec : 0}`;
+    if (islandLine.dataset.stateKey !== stateKey) {
+      islandLine.dataset.stateKey = stateKey;
       islandLine.dataset.lineIndex = String(targetIndex);
       islandLine.dataset.subText = "";
       islandLine.dataset.transMode = transMode;
@@ -1045,7 +1121,9 @@ function updateDynamicIslandLyric(targetIndex, lineData, syncProgress, isInstrum
       lastIslandActiveWordSpan = null;
     }
     if (islandExpLyric) {
-      islandExpLyric.textContent = isBreak ? `${trackTitle} • Instrumental` : trackTitle;
+      islandExpLyric.textContent = showCountdown
+        ? `${trackTitle} • ${isBreak ? 'Next in' : 'Vocals in'} ${countdownSec}s`
+        : (isBreak ? `${trackTitle} • Instrumental` : trackTitle);
     }
     return;
   }
@@ -1305,6 +1383,7 @@ async function toggleDynamicIslandMode(forceState) {
     if (fluidMeshGradientInstance) {
       fluidMeshGradientInstance.stop();
     }
+    applyIslandVisualizerStyle(settings.islandVisualizerStyle || 'bars');
     lastPlaybackActivityMs = Date.now();
     if (isIslandSleeping) {
       wakeDynamicIsland();
@@ -1316,7 +1395,7 @@ async function toggleDynamicIslandMode(forceState) {
     try {
       const syncProgress = currentProgress + (settings.syncOffsetMs || 0);
       const islandSync = getDynamicIslandSyncData(syncProgress);
-      updateDynamicIslandLyric(islandSync.lineIndex, islandSync.lineData, syncProgress, islandSync.isInstrumental);
+      updateDynamicIslandLyric(islandSync.lineIndex, islandSync.lineData, syncProgress, islandSync.isInstrumental, islandSync.countdownMs);
     } catch (err) {
       console.warn("[DynamicIsland] Error updating lyric on toggle:", err);
     }
@@ -2354,9 +2433,22 @@ function applyVisualSettings(fromTray = false, skipIPC = false) {
     });
   }
 
-  // Dynamic Island Visualizer Bars & Dock Position
+  // Dynamic Island Visualizer Bars, Style & Dock Position
   setVisualizerBarCount(settings.islandVisualizerBars || 4);
+  applyIslandVisualizerStyle(settings.islandVisualizerStyle || 'bars');
   applyDynamicIslandDockClass(settings.dynamicIslandPosition);
+  const selectIslandStyleInit = document.getElementById("select-island-visualizer-style");
+  if (selectIslandStyleInit) {
+    selectIslandStyleInit.value = settings.islandVisualizerStyle || 'bars';
+  }
+  const checkIslandCountdownInit = document.getElementById("check-island-vocal-countdown");
+  if (checkIslandCountdownInit) {
+    checkIslandCountdownInit.checked = settings.islandVocalCountdown !== false;
+  }
+  const checkIslandWheelInit = document.getElementById("check-island-wheel-gestures");
+  if (checkIslandWheelInit) {
+    checkIslandWheelInit.checked = settings.islandWheelGestures !== false;
+  }
   const selectIslandTransInit = document.getElementById("select-island-translation");
   if (selectIslandTransInit) {
     selectIslandTransInit.value = settings.islandTranslationMode || 'bilingual';
@@ -3647,9 +3739,106 @@ function setupUIHandlers() {
       ro.observe(dynamicIslandEl);
     }
 
+function seekPlayback(targetMs) {
+  if (trackDuration <= 0) return;
+  const seekMs = Math.max(0, Math.min(trackDuration, Math.round(targetMs)));
+  currentProgress = seekMs;
+  lastPollProgress = seekMs;
+  lastPollTimestamp = Date.now();
+
+  if (window.electronAPI && window.electronAPI.triggerLocalPlaybackControl) {
+    window.electronAPI.triggerLocalPlaybackControl("seek", seekMs);
+  }
+  if (config && config.access_token && !config.localMode) {
+    fetch('https://api.spotify.com/v1/me/player/seek?position_ms=' + seekMs, {
+      method: 'PUT',
+      headers: { 'Authorization': 'Bearer ' + config.access_token }
+    }).catch(err => console.warn("Seek error:", err));
+  }
+}
+
+function adjustIslandVolume(deltaPercent) {
+  currentIslandVolumePercent = Math.max(0, Math.min(100, currentIslandVolumePercent + deltaPercent));
+  isIslandMuted = currentIslandVolumePercent === 0;
+
+  let volIcon = "🔊";
+  if (currentIslandVolumePercent === 0) volIcon = "🔇";
+  else if (currentIslandVolumePercent < 35) volIcon = "🔈";
+  else if (currentIslandVolumePercent < 70) volIcon = "🔉";
+
+  if (config && config.access_token && !config.localMode) {
+    fetch(`https://api.spotify.com/v1/me/player/volume?volume_percent=${currentIslandVolumePercent}`, {
+      method: 'PUT',
+      headers: { "Authorization": `Bearer ${config.access_token}` }
+    }).catch(() => {});
+  }
+
+  showIslandHud({
+    icon: volIcon,
+    text: `${currentIslandVolumePercent}%`,
+    percent: currentIslandVolumePercent,
+    showBar: true
+  });
+}
+
     dynamicIslandEl.addEventListener("dblclick", (e) => {
       if (!e.target.closest('.island-btn')) {
         toggleDynamicIslandMode(false);
+      }
+    });
+
+    // Mouse Wheel Gestures: Volume (Vertical) & Seek (Shift + Vertical / Horizontal)
+    dynamicIslandEl.addEventListener("wheel", (e) => {
+      if (!isDynamicIslandMode) return;
+      if (settings.islandWheelGestures === false) return;
+
+      // Don't intercept if wheeling inside the expanded stage or meta
+      if (e.target.closest(".island-stage") || e.target.closest(".island-track-meta")) return;
+
+      e.preventDefault();
+
+      const isSeek = e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY);
+
+      if (isSeek) {
+        // Seek ±5 seconds
+        const deltaMs = (e.shiftKey ? (e.deltaY < 0 ? -5000 : 5000) : (e.deltaX < 0 ? -5000 : 5000));
+        const newPos = Math.max(0, Math.min(trackDuration || 0, (currentProgress || 0) + deltaMs));
+        seekPlayback(newPos);
+
+        const jumpText = deltaMs > 0 ? `+5s (${formatTime(newPos)})` : `-5s (${formatTime(newPos)})`;
+        const jumpIcon = deltaMs > 0 ? "⏩" : "⏪";
+        showIslandHud({
+          icon: jumpIcon,
+          text: jumpText,
+          percent: trackDuration > 0 ? (newPos / trackDuration) * 100 : 0,
+          showBar: true
+        });
+      } else {
+        // Volume ±5%
+        const deltaVol = e.deltaY < 0 ? 5 : -5;
+        adjustIslandVolume(deltaVol);
+      }
+    }, { passive: false });
+
+    // Middle Click to Toggle Mute / Unmute
+    dynamicIslandEl.addEventListener("auxclick", (e) => {
+      if (e.button !== 1 || !isDynamicIslandMode) return;
+      e.preventDefault();
+      if (isIslandMuted) {
+        currentIslandVolumePercent = lastIslandMuteVolume || 50;
+        isIslandMuted = false;
+        showIslandHud({ icon: "🔊", text: `${currentIslandVolumePercent}%`, percent: currentIslandVolumePercent, showBar: true });
+      } else {
+        lastIslandMuteVolume = currentIslandVolumePercent;
+        currentIslandVolumePercent = 0;
+        isIslandMuted = true;
+        showIslandHud({ icon: "🔇", text: "Muted", percent: 0, showBar: true });
+      }
+      if (config && config.access_token && !config.localMode) {
+        fetch(`https://api.spotify.com/v1/me/player/volume?volume_percent=${currentIslandVolumePercent}`, {
+          method: 'PUT',
+          headers: { "Authorization": `Bearer ${config.access_token}` }
+        }).catch(() => {});
       }
     });
   }
@@ -3662,15 +3851,7 @@ function setupUIHandlers() {
       const rect = islandProgressTrack.getBoundingClientRect();
       const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
       const seekMs = Math.round(ratio * trackDuration);
-      if (config.localMode) {
-        lastPollProgress = seekMs;
-        lastPollTimestamp = Date.now();
-      } else if (config.access_token) {
-        fetch('https://api.spotify.com/v1/me/player/seek?position_ms=' + seekMs, {
-          method: 'PUT',
-          headers: { 'Authorization': 'Bearer ' + config.access_token }
-        }).catch(err => console.error("Seek error:", err));
-      }
+      seekPlayback(seekMs);
     });
   }
 
@@ -3722,6 +3903,35 @@ function setupUIHandlers() {
     selectIslandVisualizerBars.addEventListener("change", (e) => {
       const bars = parseInt(e.target.value, 10) || 4;
       setVisualizerBarCount(bars);
+      saveLocalSettings();
+    });
+  }
+
+  const selectIslandVisualizerStyle = document.getElementById("select-island-visualizer-style");
+  if (selectIslandVisualizerStyle) {
+    selectIslandVisualizerStyle.value = settings.islandVisualizerStyle || 'bars';
+    selectIslandVisualizerStyle.addEventListener("change", (e) => {
+      settings.islandVisualizerStyle = e.target.value;
+      applyIslandVisualizerStyle(settings.islandVisualizerStyle);
+      saveLocalSettings();
+    });
+  }
+
+  const checkIslandVocalCountdown = document.getElementById("check-island-vocal-countdown");
+  if (checkIslandVocalCountdown) {
+    checkIslandVocalCountdown.checked = settings.islandVocalCountdown !== false;
+    checkIslandVocalCountdown.addEventListener("change", (e) => {
+      settings.islandVocalCountdown = e.target.checked;
+      saveLocalSettings();
+      syncDynamicIslandState();
+    });
+  }
+
+  const checkIslandWheelGestures = document.getElementById("check-island-wheel-gestures");
+  if (checkIslandWheelGestures) {
+    checkIslandWheelGestures.checked = settings.islandWheelGestures !== false;
+    checkIslandWheelGestures.addEventListener("change", (e) => {
+      settings.islandWheelGestures = e.target.checked;
       saveLocalSettings();
     });
   }
@@ -8238,7 +8448,7 @@ function updatePlayhead() {
         try {
           if (!isIslandSleeping) {
             const islandSync = getDynamicIslandSyncData(syncProgress);
-            updateDynamicIslandLyric(islandSync.lineIndex, islandSync.lineData, syncProgress, islandSync.isInstrumental);
+            updateDynamicIslandLyric(islandSync.lineIndex, islandSync.lineData, syncProgress, islandSync.isInstrumental, islandSync.countdownMs);
           }
         } catch (err) {
           console.warn("[DynamicIsland] Error updating lyric line:", err);

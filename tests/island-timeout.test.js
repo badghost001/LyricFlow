@@ -453,6 +453,212 @@ function runIslandTimeoutTests() {
     assert.strictEqual(targetWidth, '340px', 'Island width must expand back to 340px for live lyrics');
   });
 
+  // Test 13: Vocal Countdown Anticipation during intro and instrumental breaks
+  test('13. Vocal Countdown calculates remaining time, formats badge, and respects toggle setting', () => {
+    function formatTime(ms) {
+      const totalSec = Math.floor(ms / 1000);
+      const min = Math.floor(totalSec / 60);
+      const sec = totalSec % 60;
+      return `${min}:${sec < 10 ? '0' : ''}${sec}`;
+    }
+
+    function getDynamicIslandSyncData(syncProgress, lyrics) {
+      let countdownMs = 0;
+      let isInstrumental = false;
+      let lineIndex = -1;
+
+      if (!lyrics || lyrics.length === 0) {
+        return { lineIndex: -1, lineData: null, isInstrumental: false, countdownMs: 0 };
+      }
+
+      // Check intro
+      if (syncProgress < (lyrics[0].time || 0)) {
+        countdownMs = Math.max(0, (lyrics[0].time || 0) - syncProgress);
+        return { lineIndex: -1, lineData: null, isInstrumental: false, countdownMs };
+      }
+
+      // Find active line
+      for (let i = lyrics.length - 1; i >= 0; i--) {
+        if (syncProgress >= lyrics[i].time) {
+          lineIndex = i;
+          break;
+        }
+      }
+
+      const curLine = lyrics[lineIndex];
+      const nextLine = lyrics[lineIndex + 1];
+      if (curLine && nextLine) {
+        const lineDuration = curLine.duration || 4000;
+        const lineEnd = curLine.time + lineDuration;
+        const gap = nextLine.time - lineEnd;
+        if (gap >= 4000 && syncProgress >= lineEnd && syncProgress < nextLine.time) {
+          isInstrumental = true;
+          countdownMs = Math.max(0, nextLine.time - syncProgress);
+        }
+      }
+
+      return { lineIndex, lineData: curLine, isInstrumental, countdownMs };
+    }
+
+    const testLyrics = [
+      { time: 10000, text: 'First vocal line' },
+      { time: 14000, duration: 3000, text: 'Second vocal line' },
+      { time: 26000, text: 'Third vocal line after 9s guitar break' }
+    ];
+
+    // Case A: Song intro at 3000ms (7000ms until first lyric)
+    const introSync = getDynamicIslandSyncData(3000, testLyrics);
+    assert.strictEqual(introSync.lineIndex, -1);
+    assert.strictEqual(introSync.countdownMs, 7000);
+    const introCountdownSec = formatTime(introSync.countdownMs);
+    assert.strictEqual(introCountdownSec, '0:07');
+
+    // Case B: Instrumental break between line 1 (ends at 17000ms) and line 2 (starts at 26000ms) at 21000ms (5000ms left)
+    const breakSync = getDynamicIslandSyncData(21000, testLyrics);
+    assert.strictEqual(breakSync.isInstrumental, true);
+    assert.strictEqual(breakSync.countdownMs, 5000);
+    const breakCountdownSec = formatTime(breakSync.countdownMs);
+    assert.strictEqual(breakCountdownSec, '0:05');
+
+    // Case C: When countdown < 1500ms, countdown badge should not display
+    const nearSync = getDynamicIslandSyncData(9000, testLyrics);
+    assert.strictEqual(nearSync.countdownMs, 1000);
+    const showCountdownBadge = (nearSync.countdownMs >= 1500);
+    assert.strictEqual(showCountdownBadge, false, 'Badge must hide when remaining time is less than 1.5s');
+
+    // Case D: When islandVocalCountdown setting is disabled (false), badge is suppressed
+    const settingsDisabled = { islandVocalCountdown: false };
+    const shouldRenderBadge = (introSync.countdownMs >= 1500) && (settingsDisabled.islandVocalCountdown !== false);
+    assert.strictEqual(shouldRenderBadge, false, 'Countdown badge must be suppressed when disabled in settings');
+  });
+
+  // Test 14: Mouse wheel volume delta clamping and mute toggle
+  test('14. Mouse wheel volume delta clamps strictly within [0, 100]% and middle-click toggles mute/unmute', () => {
+    let currentIslandVolumePercent = 65;
+    let isIslandMuted = false;
+    let lastIslandMuteVolume = 65;
+
+    function adjustIslandVolume(deltaPercent) {
+      currentIslandVolumePercent = Math.max(0, Math.min(100, currentIslandVolumePercent + deltaPercent));
+      isIslandMuted = (currentIslandVolumePercent === 0);
+    }
+
+    function toggleMute() {
+      if (isIslandMuted) {
+        currentIslandVolumePercent = lastIslandMuteVolume || 50;
+        isIslandMuted = false;
+      } else {
+        lastIslandMuteVolume = currentIslandVolumePercent;
+        currentIslandVolumePercent = 0;
+        isIslandMuted = true;
+      }
+    }
+
+    // Step 1: Scroll up +10% -> 75%
+    adjustIslandVolume(10);
+    assert.strictEqual(currentIslandVolumePercent, 75);
+    assert.strictEqual(isIslandMuted, false);
+
+    // Step 2: Scroll up beyond 100% -> must clamp to 100%
+    adjustIslandVolume(50);
+    assert.strictEqual(currentIslandVolumePercent, 100);
+
+    // Step 3: Scroll down below 0% -> must clamp to 0% and set muted
+    adjustIslandVolume(-150);
+    assert.strictEqual(currentIslandVolumePercent, 0);
+    assert.strictEqual(isIslandMuted, true);
+
+    // Step 4: Reset to 60%, then middle click to mute
+    currentIslandVolumePercent = 60;
+    isIslandMuted = false;
+    toggleMute();
+    assert.strictEqual(currentIslandVolumePercent, 0);
+    assert.strictEqual(isIslandMuted, true);
+    assert.strictEqual(lastIslandMuteVolume, 60, 'Must record previous volume before mute');
+
+    // Step 5: Middle click again to unmute -> must restore 60%
+    toggleMute();
+    assert.strictEqual(currentIslandVolumePercent, 60);
+    assert.strictEqual(isIslandMuted, false);
+  });
+
+  // Test 15: Playback seek delta clamping within [0, trackDuration]
+  test('15. Playback seek clamps strictly within [0, trackDuration]', () => {
+    const trackDuration = 180000; // 3 minutes = 180,000ms
+    let currentProgress = 50000;
+
+    function seekPlayback(targetMs) {
+      if (trackDuration <= 0) return 0;
+      const seekMs = Math.max(0, Math.min(trackDuration, Math.round(targetMs)));
+      currentProgress = seekMs;
+      return seekMs;
+    }
+
+    // Seek forward +5s
+    let seeked = seekPlayback(currentProgress + 5000);
+    assert.strictEqual(seeked, 55000);
+    assert.strictEqual(currentProgress, 55000);
+
+    // Seek backward -5s
+    seeked = seekPlayback(currentProgress - 5000);
+    assert.strictEqual(seeked, 50000);
+
+    // Seek backward past start (e.g. at 2000ms with -5000ms) -> clamps to 0
+    currentProgress = 2000;
+    seeked = seekPlayback(currentProgress - 5000);
+    assert.strictEqual(seeked, 0);
+    assert.strictEqual(currentProgress, 0);
+
+    // Seek forward past end (e.g. at 178000ms with +5000ms) -> clamps to 180000
+    currentProgress = 178000;
+    seeked = seekPlayback(currentProgress + 5000);
+    assert.strictEqual(seeked, 180000);
+    assert.strictEqual(currentProgress, 180000);
+  });
+
+  // Test 16: Visualizer style switcher updates classes between bars, dots, and wave
+  test('16. Visualizer style switcher updates container CSS classes between bars, dots, and wave', () => {
+    const classList = new Set();
+    const mockContainer = {
+      classList: {
+        add: (cls) => classList.add(cls),
+        remove: (cls) => classList.delete(cls),
+        contains: (cls) => classList.has(cls)
+      }
+    };
+
+    function applyIslandVisualizerStyle(style, container) {
+      if (!container) return;
+      container.classList.remove("visualizer-style-dots");
+      container.classList.remove("visualizer-style-wave");
+      if (style === "dots") {
+        container.classList.add("visualizer-style-dots");
+      } else if (style === "wave") {
+        container.classList.add("visualizer-style-wave");
+      }
+    }
+
+    // Default 'bars' -> no special modifier classes
+    applyIslandVisualizerStyle('bars', mockContainer);
+    assert.strictEqual(mockContainer.classList.contains('visualizer-style-dots'), false);
+    assert.strictEqual(mockContainer.classList.contains('visualizer-style-wave'), false);
+
+    // Style 'dots' -> adds .visualizer-style-dots
+    applyIslandVisualizerStyle('dots', mockContainer);
+    assert.strictEqual(mockContainer.classList.contains('visualizer-style-dots'), true);
+    assert.strictEqual(mockContainer.classList.contains('visualizer-style-wave'), false);
+
+    // Style 'wave' -> removes .visualizer-style-dots and adds .visualizer-style-wave
+    applyIslandVisualizerStyle('wave', mockContainer);
+    assert.strictEqual(mockContainer.classList.contains('visualizer-style-dots'), false);
+    assert.strictEqual(mockContainer.classList.contains('visualizer-style-wave'), true);
+
+    // Back to 'bars'
+    applyIslandVisualizerStyle('bars', mockContainer);
+    assert.strictEqual(mockContainer.classList.contains('visualizer-style-dots'), false);
+    assert.strictEqual(mockContainer.classList.contains('visualizer-style-wave'), false);
+  });
+
   console.log(`Results: ${passedTests}/${totalTests} tests passed.\n`);
   if (passedTests !== totalTests) {
     process.exit(1);

@@ -191,6 +191,17 @@
             </button>
           </div>
         </div>
+
+        <!-- Micro-HUD Overlay (Volume & Seek Gestures) -->
+        <div id="island-hud-overlay" class="island-hud-overlay" style="display: none;">
+          <div class="island-hud-pill">
+            <span class="island-hud-icon" id="island-hud-icon">🔊</span>
+            <span class="island-hud-text" id="island-hud-text">65%</span>
+            <div class="island-hud-bar-bg" id="island-hud-bar-bg">
+              <div class="island-hud-bar-fill" id="island-hud-bar-fill" style="width: 65%;"></div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Magnetic Optical Bridge between Primary Island and Satellite Translation Island -->
@@ -1176,6 +1187,32 @@
                   <option value="6">6 Bars (Balanced - 355px Pill)</option>
                   <option value="8">8 Bars (Full Spectrum - 370px Pill)</option>
                 </select>
+              </div>
+              <div class="setting-row" style="margin-top: 6px;">
+                <label for="select-island-visualizer-style">Visualizer Style</label>
+                <select id="select-island-visualizer-style">
+                  <option value="bars" selected>Classic EQ Bars</option>
+                  <option value="dots">Jelly Frequency Dots</option>
+                  <option value="wave">Fluid Waveform</option>
+                </select>
+              </div>
+              <div class="setting-row" style="margin-top: 6px;">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Show a vocal countdown badge (e.g. 'Vocals in 0:08') during song intros and instrumental breaks">
+                  <span>Vocal Countdown Timer</span>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-island-vocal-countdown" checked />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+              </div>
+              <div class="setting-row" style="margin-top: 6px;">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Scroll mouse wheel over Dynamic Island to adjust volume, or Shift+Scroll to seek ±5s">
+                  <span>Mouse Wheel Volume & Seek Gestures</span>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-island-wheel-gestures" checked />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
               </div>
               <div class="setting-row" style="margin-top: 6px;">
                 <label for="select-island-translation">Translation Display Mode</label>
