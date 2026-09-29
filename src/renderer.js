@@ -152,6 +152,8 @@ let hasMovedTb = false;
 let lastTbContentWidth = 0;
 let isScrubbingMainProgress = false;
 let isScrubbingIslandProgress = false;
+let lastUserSeekTimestamp = 0;
+let lastUserSeekTargetMs = 0;
 
 function onTaskbarDragMove(e) {
   // No-op: drag movement is handled by main process cursor polling
@@ -1204,42 +1206,83 @@ function updateDynamicIslandLyric(targetIndex, lineData, syncProgress, isInstrum
         islandLine._cachedWordSpans = null;
       }
     }
+
+    if (islandLine._cachedWordSpans && islandLine._cachedWordSpans.length > 0) {
+      islandLine._cachedWordOffsets = Array.from(islandLine._cachedWordSpans).map(s => {
+        const left = s.offsetLeft || 0;
+        const width = s.offsetWidth || 0;
+        return {
+          offsetLeft: left,
+          offsetWidth: width,
+          center: left + (width / 2)
+        };
+      });
+    } else {
+      islandLine._cachedWordOffsets = null;
+    }
+    islandLine._cachedScrollWidth = islandLine.scrollWidth || 0;
+    islandLine._lastActiveWordIdx = -2;
+
     currentIslandOffset = 0;
     islandLine.style.transform = 'translateX(0px)';
   }
 
   // 6. Word-by-Word Karaoke State Update
   let activeWordSpan = null;
+  let activeWordOffset = null;
   if (hasWords && islandLine._cachedWordSpans && islandLine._cachedWordSpans.length > 0) {
     const spans = islandLine._cachedWordSpans;
     const words = lineData.words;
     const wordsCount = words.length;
 
+    let currentActiveIdx = -1;
     for (let wi = 0; wi < wordsCount; wi++) {
       const w = words[wi];
       const wStart = (w.start != null ? w.start * 1000 : w.timeMs) || 0;
       const nextW = words[wi + 1];
       const nextWStart = nextW ? ((nextW.start != null ? nextW.start * 1000 : nextW.timeMs) || (wStart + 500)) : Infinity;
 
-      const span = spans[wi];
-      if (!span) continue;
-
-      if (syncProgress < wStart) {
-        span.classList.remove('lyric-word-active', 'lyric-word-completed', 'lyric-word-passed');
-        span.classList.add('lyric-word-upcoming');
-      } else if (syncProgress >= wStart && syncProgress < nextWStart) {
-        span.classList.remove('lyric-word-upcoming', 'lyric-word-completed', 'lyric-word-passed');
-        span.classList.add('lyric-word-active');
-        activeWordSpan = span;
-        lastIslandActiveWordSpan = span;
-      } else {
-        span.classList.remove('lyric-word-active', 'lyric-word-upcoming');
-        span.classList.add('lyric-word-completed', 'lyric-word-passed');
+      if (syncProgress >= wStart && syncProgress < nextWStart) {
+        currentActiveIdx = wi;
+        break;
       }
     }
 
-    if (!activeWordSpan && lastIslandActiveWordSpan) {
+    // Only mutate DOM if the active word index actually changed
+    if (islandLine._lastActiveWordIdx !== currentActiveIdx) {
+      islandLine._lastActiveWordIdx = currentActiveIdx;
+      for (let wi = 0; wi < wordsCount; wi++) {
+        const span = spans[wi];
+        if (!span) continue;
+        if (currentActiveIdx === -1) {
+          const w = words[wi];
+          const wStart = (w.start != null ? w.start * 1000 : w.timeMs) || 0;
+          if (syncProgress < wStart) {
+            span.className = 'lyric-word lyric-word-upcoming';
+          } else {
+            span.className = 'lyric-word lyric-word-completed lyric-word-passed';
+          }
+        } else if (wi < currentActiveIdx) {
+          span.className = 'lyric-word lyric-word-completed lyric-word-passed';
+        } else if (wi === currentActiveIdx) {
+          span.className = 'lyric-word lyric-word-active';
+        } else {
+          span.className = 'lyric-word lyric-word-upcoming';
+        }
+      }
+    }
+
+    if (currentActiveIdx >= 0) {
+      activeWordSpan = spans[currentActiveIdx];
+      lastIslandActiveWordSpan = activeWordSpan;
+      if (islandLine._cachedWordOffsets && islandLine._cachedWordOffsets[currentActiveIdx]) {
+        activeWordOffset = islandLine._cachedWordOffsets[currentActiveIdx];
+      }
+    } else if (lastIslandActiveWordSpan) {
       activeWordSpan = lastIslandActiveWordSpan;
+      if (islandLine._cachedWordOffsets && islandLine._cachedWordOffsets.length > 0) {
+        activeWordOffset = islandLine._cachedWordOffsets[islandLine._cachedWordOffsets.length - 1];
+      }
     }
   }
 
@@ -1247,14 +1290,19 @@ function updateDynamicIslandLyric(targetIndex, lineData, syncProgress, isInstrum
   const islandZone = document.getElementById("island-lyric-zone") || islandLine.parentElement;
   if (islandZone) {
     const zoneWidth = islandZone.clientWidth || 250;
-    const contentWidth = islandLine.scrollWidth || zoneWidth;
+    const contentWidth = islandLine._cachedScrollWidth || islandLine.scrollWidth || zoneWidth;
 
     if (contentWidth > zoneWidth + 4) {
       const maxScroll = -(contentWidth - zoneWidth);
       let targetOffset = 0;
 
-      if (activeWordSpan) {
-        const spanCenter = activeWordSpan.offsetLeft + (activeWordSpan.offsetWidth / 2);
+      if (activeWordOffset) {
+        const spanCenter = activeWordOffset.center;
+        const anchorX = zoneWidth * 0.38;
+        const rawOffset = anchorX - spanCenter;
+        targetOffset = Math.min(0, Math.max(maxScroll, rawOffset));
+      } else if (activeWordSpan) {
+        const spanCenter = (activeWordSpan.offsetLeft || 0) + ((activeWordSpan.offsetWidth || 0) / 2);
         const anchorX = zoneWidth * 0.38;
         const rawOffset = anchorX - spanCenter;
         targetOffset = Math.min(0, Math.max(maxScroll, rawOffset));
@@ -1298,13 +1346,19 @@ function updateDynamicIslandLyric(targetIndex, lineData, syncProgress, isInstrum
       }
       islandLine.style.transform = `translateX(${currentIslandOffset.toFixed(2)}px)`;
 
-      islandZone.style.maskImage = 'linear-gradient(90deg, #000 0%, #000 calc(100% - 16px), transparent 100%)';
-      islandZone.style.webkitMaskImage = 'linear-gradient(90deg, #000 0%, #000 calc(100% - 16px), transparent 100%)';
+      if (!islandZone._hasMask) {
+        islandZone.style.maskImage = 'linear-gradient(90deg, #000 0%, #000 calc(100% - 16px), transparent 100%)';
+        islandZone.style.webkitMaskImage = 'linear-gradient(90deg, #000 0%, #000 calc(100% - 16px), transparent 100%)';
+        islandZone._hasMask = true;
+      }
     } else {
       currentIslandOffset = 0;
       islandLine.style.transform = 'translateX(0px)';
-      islandZone.style.maskImage = 'none';
-      islandZone.style.webkitMaskImage = 'none';
+      if (islandZone._hasMask) {
+        islandZone.style.maskImage = 'none';
+        islandZone.style.webkitMaskImage = 'none';
+        islandZone._hasMask = false;
+      }
     }
   }
 }
@@ -3758,9 +3812,12 @@ function setupUIHandlers() {
 function seekPlayback(targetMs) {
   if (trackDuration <= 0) return;
   const seekMs = Math.max(0, Math.min(trackDuration, Math.round(targetMs)));
+  const now = Date.now();
+  lastUserSeekTimestamp = now;
+  lastUserSeekTargetMs = seekMs;
   currentProgress = seekMs;
   lastPollProgress = seekMs;
-  lastPollTimestamp = Date.now();
+  lastPollTimestamp = now;
 
   if (window.electronAPI && window.electronAPI.triggerLocalPlaybackControl) {
     window.electronAPI.triggerLocalPlaybackControl("seek", seekMs);
@@ -6600,46 +6657,53 @@ async function handlePlaybackData(data) {
   // the slider from snapping back to the start.
   const isZeroReset = progressMs === 0 && isPlaying && !isNewTrack;
 
-  if (isNewTrack && !isZeroReset) {
-    // New song: snap immediately to the API timestamp
-    lastPollProgress = progressMs;
-    lastPollTimestamp = now;
-    currentProgress = progressMs;
-    window._candidateRate = null;
-    window._candidateRateHits = 0;
-  } else if (!isZeroReset && isCurrentlyPlaying) {
-    if (!isPlaying) {
-      // Transition from paused -> playing: cleanly reset clock reference to prevent forward elapsed time jump
-      const resumePos = (typeof progressMs === 'number' && progressMs > 0 && Math.abs(progressMs - currentProgress) > 2500)
-        ? progressMs
-        : currentProgress;
-      lastPollProgress = resumePos;
-      currentProgress = resumePos;
+  if (!isScrubbingMainProgress && !isScrubbingIslandProgress) {
+    if (isNewTrack && !isZeroReset) {
+      // New song: snap immediately to the API timestamp
+      lastPollProgress = progressMs;
       lastPollTimestamp = now;
-    } else {
-      const drift = currentProgress - progressMs;
-      const absDrift = Math.abs(drift);
-
-      if (absDrift > 2500) {
-        // Hard seek / scrub detected — snap immediately
-        lastPollProgress = progressMs;
+      currentProgress = progressMs;
+      window._candidateRate = null;
+      window._candidateRateHits = 0;
+    } else if (!isZeroReset && isCurrentlyPlaying) {
+      if (!isPlaying) {
+        // Transition from paused -> playing: cleanly reset clock reference to prevent forward elapsed time jump
+        const resumePos = (typeof progressMs === 'number' && progressMs > 0 && Math.abs(progressMs - currentProgress) > 2500)
+          ? progressMs
+          : currentProgress;
+        lastPollProgress = resumePos;
+        currentProgress = resumePos;
         lastPollTimestamp = now;
-        currentProgress = progressMs;
-      } else if (absDrift > 300) {
-        // Smooth clock slewing: gently adjust the clock reference by 15% of the drift
-        // Shifting lastPollTimestamp by (drift * 0.15) pulls the clock into alignment
-        // over several polls without ANY visible sudden jerk, stutter, or backward snap!
-        lastPollTimestamp += (drift * 0.15);
       } else {
-        // Within normal polling jitter (0-300ms):
-        // Keep internal high-precision 60/144 FPS RAF clock running 100% undisturbed!
+        const isRecentSeek = (now - lastUserSeekTimestamp) < 1200;
+        if (isRecentSeek && Math.abs(progressMs - lastUserSeekTargetMs) > 1500) {
+          // Drop stale pre-seek poll from SMTC / Spotify to prevent snap-back rubber-banding!
+        } else {
+          const drift = currentProgress - progressMs;
+          const absDrift = Math.abs(drift);
+
+          if (absDrift > 2500) {
+            // Hard seek / scrub detected — snap immediately
+            lastPollProgress = progressMs;
+            lastPollTimestamp = now;
+            currentProgress = progressMs;
+          } else if (absDrift > 300) {
+            // Smooth clock slewing: gently adjust the clock reference without backward time jumps
+            const adjustment = drift * 0.12;
+            lastPollProgress = currentProgress - adjustment;
+            lastPollTimestamp = now;
+          } else {
+            // Within normal polling jitter (0-300ms):
+            // Keep internal high-precision 60/144 FPS RAF clock running 100% undisturbed!
+          }
+        }
       }
-    }
-  } else if (!isZeroReset && !isCurrentlyPlaying) {
-    // Song is PAUSED: freeze currentProgress exactly where it is right now.
-    if (isPlaying) {
-      lastPollProgress = currentProgress;
-      lastPollTimestamp = now;
+    } else if (!isZeroReset && !isCurrentlyPlaying) {
+      // Song is PAUSED: freeze currentProgress exactly where it is right now.
+      if (isPlaying) {
+        lastPollProgress = currentProgress;
+        lastPollTimestamp = now;
+      }
     }
   }
 
@@ -8215,15 +8279,7 @@ function renderLyrics() {
       clickTimer = setTimeout(() => {
         clickTimer = null;
         const timeMs = line.timeMs;
-        if (config.localMode) {
-          lastPollProgress = timeMs;
-          lastPollTimestamp = Date.now();
-        } else {
-          fetch('https://api.spotify.com/v1/me/player/seek?position_ms=' + timeMs, {
-            method: 'PUT',
-            headers: { 'Authorization': 'Bearer ' + config.access_token }
-          }).catch(err => console.error("Failed to seek:", err));
-        }
+        seekPlayback(timeMs);
         userScrolling = false;
         if (userScrollTimeout) { clearTimeout(userScrollTimeout); userScrollTimeout = null; }
         hideResyncButton();
@@ -8244,15 +8300,7 @@ function renderLyrics() {
         saveLocalSettings();
       } else if (action === "rewind") {
         const timeMs = Math.max(0, line.timeMs - 10000);
-        if (config.localMode) {
-          lastPollProgress = timeMs;
-          lastPollTimestamp = Date.now();
-        } else {
-          fetch('https://api.spotify.com/v1/me/player/seek?position_ms=' + timeMs, {
-            method: 'PUT',
-            headers: { 'Authorization': 'Bearer ' + config.access_token }
-          }).catch(err => console.error("Failed to seek (rewind):", err));
-        }
+        seekPlayback(timeMs);
         setTimeout(pollSpotifyPlayback, 300);
       }
     });
@@ -8417,7 +8465,7 @@ function scrollLyrics(index) {
 
     // Compute exact center position
     const translateY = Math.round((viewportHeight / 2) - offsetTop - (height / 2));
-    lyricsContainer.style.transform = `translateY(${translateY}px)`;
+    lyricsContainer.style.transform = `translate3d(0, ${translateY}px, 0)`;
   } else {
     hideLiveMeaningPill();
   }
@@ -8522,6 +8570,13 @@ function updatePlayhead() {
       currentProgress = lastPollProgress;
     }
 
+    const isRecentSeek = (Date.now() - lastUserSeekTimestamp) < 1200;
+    if (isPlaying && !isRecentSeek && previousProgress > 0 && currentProgress < previousProgress) {
+      // Enforce strict monotonic progression during active playback:
+      // prevents micro backward time-travel caused by network clock slew or polling jitter
+      currentProgress = previousProgress;
+    }
+
     if (currentProgress > trackDuration) {
       currentProgress = trackDuration;
     }
@@ -8613,13 +8668,17 @@ function updatePlayhead() {
               }
 
               if (wordStates && wordStates.length === wordSpans.length) {
-                wordSpans.forEach((span, wi) => {
-                  const st = wordStates[wi] || 'upcoming';
-                  span.classList.toggle('lyric-word-completed', st === 'completed');
-                  span.classList.toggle('lyric-word-passed', st === 'completed');
-                  span.classList.toggle('lyric-word-active', st === 'active');
-                  span.classList.toggle('lyric-word-upcoming', st === 'upcoming');
-                });
+                const statesKey = wordStates.join(',');
+                if (activeEl._lastWordStates !== statesKey) {
+                  activeEl._lastWordStates = statesKey;
+                  wordSpans.forEach((span, wi) => {
+                    const st = wordStates[wi] || 'upcoming';
+                    span.classList.toggle('lyric-word-completed', st === 'completed');
+                    span.classList.toggle('lyric-word-passed', st === 'completed');
+                    span.classList.toggle('lyric-word-active', st === 'active');
+                    span.classList.toggle('lyric-word-upcoming', st === 'upcoming');
+                  });
+                }
               } else {
                 let activeWordIdx = -1;
                 for (let i = 0; i < lineData.words.length; i++) {
@@ -8700,15 +8759,20 @@ function updatePlayhead() {
                 tbWordStates = engine.getLineWordStates(activeIndex, syncProgress / 1000);
               }
 
-              if (tbWordStates && tbWordStates.length === wordSpans.length) {
-                wordSpans.forEach((span, wi) => {
-                  const st = tbWordStates[wi] || 'upcoming';
-                  span.classList.toggle('lyric-word-completed', st === 'completed');
-                  span.classList.toggle('lyric-word-passed', st === 'completed');
-                  span.classList.toggle('lyric-word-active', st === 'active');
-                  span.classList.toggle('lyric-word-upcoming', st === 'upcoming');
-                });
-                sendTaskbarLyric(tbLyricLine.textContent, false, tbLyricLine.innerHTML);
+              const tbSpans = tbLyricLine._cachedWordSpans;
+              if (tbWordStates && tbSpans && tbWordStates.length === tbSpans.length) {
+                const tbKey = tbWordStates.join(',');
+                if (tbLyricLine._lastTbStates !== tbKey) {
+                  tbLyricLine._lastTbStates = tbKey;
+                  tbSpans.forEach((span, wi) => {
+                    const st = tbWordStates[wi] || 'upcoming';
+                    span.classList.toggle('lyric-word-completed', st === 'completed');
+                    span.classList.toggle('lyric-word-passed', st === 'completed');
+                    span.classList.toggle('lyric-word-active', st === 'active');
+                    span.classList.toggle('lyric-word-upcoming', st === 'upcoming');
+                  });
+                  sendTaskbarLyric(tbLyricLine.textContent, false, tbLyricLine.innerHTML);
+                }
               } else {
                 let activeWordIdx = -1;
                 for (let i = 0; i < lineData.words.length; i++) {
@@ -8721,12 +8785,14 @@ function updatePlayhead() {
 
                 if (tbLyricLine.dataset.activeTbWord !== String(activeWordIdx)) {
                   tbLyricLine.dataset.activeTbWord = activeWordIdx;
-                  wordSpans.forEach((span, wi) => {
-                    span.classList.toggle('lyric-word-completed', wi < activeWordIdx);
-                    span.classList.toggle('lyric-word-passed', wi < activeWordIdx);
-                    span.classList.toggle('lyric-word-active', wi === activeWordIdx);
-                    span.classList.toggle('lyric-word-upcoming', wi > activeWordIdx);
-                  });
+                  if (tbSpans) {
+                    tbSpans.forEach((span, wi) => {
+                      span.classList.toggle('lyric-word-completed', wi < activeWordIdx);
+                      span.classList.toggle('lyric-word-passed', wi < activeWordIdx);
+                      span.classList.toggle('lyric-word-active', wi === activeWordIdx);
+                      span.classList.toggle('lyric-word-upcoming', wi > activeWordIdx);
+                    });
+                  }
                   sendTaskbarLyric(tbLyricLine.textContent, false, tbLyricLine.innerHTML);
                 }
               }

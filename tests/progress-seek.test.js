@@ -203,6 +203,113 @@ function runProgressSeekTests() {
     assert.strictEqual(formatTooltipText(60000, 60000), '1:00');
   });
 
+  // Test 8: Seek Lockout Window Prevents Stale Poll Snap-Back (Rubber-Banding)
+  test('8. Seek lockout window drops stale pre-seek polls and prevents rubber-banding', () => {
+    let currentProgress = 10000;
+    let lastPollProgress = 10000;
+    let lastUserSeekTimestamp = 0;
+    let lastUserSeekTargetMs = 0;
+
+    function simulateUserSeek(targetMs, now) {
+      lastUserSeekTimestamp = now;
+      lastUserSeekTargetMs = targetMs;
+      currentProgress = targetMs;
+      lastPollProgress = targetMs;
+    }
+
+    function simulateSyncPlaybackState(progressMs, now) {
+      const isRecentSeek = (now - lastUserSeekTimestamp) < 1200;
+      if (isRecentSeek && Math.abs(progressMs - lastUserSeekTargetMs) > 1500) {
+        // Drop stale poll
+        return false;
+      }
+      const drift = currentProgress - progressMs;
+      if (Math.abs(drift) > 2500) {
+        lastPollProgress = progressMs;
+        currentProgress = progressMs;
+      } else if (Math.abs(drift) > 300) {
+        lastPollProgress = currentProgress - (drift * 0.12);
+      }
+      return true;
+    }
+
+    const t0 = 1000000;
+    // User seeks from 10s to 50s
+    simulateUserSeek(50000, t0);
+    assert.strictEqual(currentProgress, 50000);
+
+    // 150ms later, a stale poll from Spotify/SMTC arrives reporting old 10.2s position
+    const t1 = t0 + 150;
+    const acceptedStale = simulateSyncPlaybackState(10200, t1);
+    assert.strictEqual(acceptedStale, false, 'Stale pre-seek poll must be dropped');
+    assert.strictEqual(currentProgress, 50000, 'Current progress must NOT snap back to old position');
+
+    // 600ms later, an updated poll arrives reporting 50.6s (within 1500ms of seek target)
+    const t2 = t0 + 600;
+    const acceptedFresh = simulateSyncPlaybackState(50600, t2);
+    assert.strictEqual(acceptedFresh, true, 'Fresh post-seek poll must be accepted');
+
+    // 1500ms later (after lockout expires), normal seek detection resumes
+    const t3 = t0 + 1500;
+    simulateSyncPlaybackState(20000, t3);
+    assert.strictEqual(currentProgress, 20000, 'After lockout window expires, hard seeks are accepted');
+  });
+
+  // Test 9: Strict Monotonic Progression Clamping
+  test('9. Strict monotonic progression clamp guarantees zero backward time-travel during playback', () => {
+    let isPlaying = true;
+    let lastUserSeekTimestamp = 0;
+
+    function computePlayheadProgress(previousProgress, rawComputedProgress, now) {
+      let progress = rawComputedProgress;
+      const isRecentSeek = (now - lastUserSeekTimestamp) < 1200;
+      if (isPlaying && !isRecentSeek && previousProgress > 0 && progress < previousProgress) {
+        progress = previousProgress;
+      }
+      return progress;
+    }
+
+    const now = 2000000;
+    // Case 1: Monotonic normal forward advance (10000 -> 10016)
+    assert.strictEqual(computePlayheadProgress(10000, 10016, now), 10016);
+
+    // Case 2: Jitter / clock slew attempts to travel backwards (10016 -> 9980)
+    assert.strictEqual(
+      computePlayheadProgress(10016, 9980, now),
+      10016,
+      'Progress must never travel backwards during active playback without seek'
+    );
+
+    // Case 3: Intentional user seek backwards (lastUserSeekTimestamp within 1200ms)
+    lastUserSeekTimestamp = now - 100;
+    assert.strictEqual(
+      computePlayheadProgress(10016, 2000, now),
+      2000,
+      'Intentional user rewind must immediately be respected'
+    );
+  });
+
+  // Test 10: Smooth Clock Slewing
+  test('10. Smooth clock slewing gently corrects drift without sudden backward jumps', () => {
+    let currentProgress = 30000;
+    let lastPollProgress = 30000;
+
+    function applyClockSlewing(progressMs) {
+      const drift = currentProgress - progressMs;
+      const absDrift = Math.abs(drift);
+      if (absDrift > 300 && absDrift <= 2500) {
+        const adjustment = drift * 0.12;
+        lastPollProgress = currentProgress - adjustment;
+      }
+    }
+
+    // Local clock is 500ms ahead of API (currentProgress = 30000, progressMs = 29500)
+    applyClockSlewing(29500);
+    // Adjustment is 500 * 0.12 = 60ms; reference gently adjusted to 29940ms
+    assert.strictEqual(lastPollProgress, 29940);
+    assert.ok(lastPollProgress >= 29500 && lastPollProgress <= 30000);
+  });
+
   console.log(`Results: ${passedTests}/${totalTests} tests passed.\n`);
   if (passedTests !== totalTests) {
     process.exit(1);
