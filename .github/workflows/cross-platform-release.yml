@@ -22,7 +22,7 @@ jobs:
         include:
           - platform: 'windows-latest'
             name: 'windows'
-            args: ''
+            args: '--bundles nsis'
           - platform: 'ubuntu-22.04'
             name: 'linux'
             args: ''

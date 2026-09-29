@@ -1,6 +1,6 @@
 [package]
 name = "lyricflow"
-version = "1.40.3"
+version = "1.40.4"
 description = "LyricFlow - Dynamic Desktop Lyrics Overlay"
 authors = ["badghost"]
 edition = "2021"

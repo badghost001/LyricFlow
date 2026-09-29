@@ -151,7 +151,12 @@ pub async fn copy_to_clipboard(text: String) -> Result<(), String> {
 #[tauri::command]
 pub async fn check_for_updates(app: AppHandle) -> Result<Option<String>, String> {
     use tauri_plugin_updater::UpdaterExt;
-    if let Ok(updater) = app.updater() {
+    #[cfg(windows)]
+    let updater_res = app.updater_builder().target("windows-x86_64-nsis").build();
+    #[cfg(not(windows))]
+    let updater_res = app.updater();
+
+    if let Ok(updater) = updater_res {
         if let Ok(Some(update)) = updater.check().await {
             return Ok(Some(update.version));
         }

@@ -164,6 +164,7 @@ function onTaskbarDragEnd() {
 }
 let userScrolling = false;
 let userScrollTimeout = null;
+let manualLyricScrollY = null;
 let clickThroughState = null;
 
 function setClickThroughCached(enable) {
@@ -687,9 +688,19 @@ function syncDynamicIslandState() {
 
 let currentIslandOffset = 0;
 let lastIslandActiveWordSpan = null;
+let islandNowPlayingBufferUntil = 0;
 
 function getDynamicIslandSyncData(syncProgress) {
+  // 1. Now Playing 3-second intro buffer on song start / track change
+  if (Date.now() < islandNowPlayingBufferUntil) {
+    return { lineIndex: -4, lineData: null, isNowPlayingBuffer: true, isInstrumental: false, countdownMs: 0 };
+  }
+
   if (!lyrics || lyrics.length === 0) {
+    // Check if near end of song even without lyrics
+    if (trackDuration > 0 && (trackDuration - syncProgress) <= 12000 && (trackDuration - syncProgress) > 500) {
+      return { lineIndex: -3, lineData: null, isInstrumental: false, isSongEnd: true, countdownMs: Math.max(0, trackDuration - syncProgress) };
+    }
     return { lineIndex: -1, lineData: null, isInstrumental: false };
   }
 
@@ -703,7 +714,7 @@ function getDynamicIslandSyncData(syncProgress) {
     ? firstLine.timeMs
     : ((firstLine.start != null) ? firstLine.start * 1000 : 0);
 
-  // 1. Song intro / prelude before first vocal line starts (with 800ms anticipation)
+  // 2. Song intro / prelude before first vocal line starts (with 800ms anticipation)
   if (syncProgress < firstLineStart - 800) {
     const countdownMs = Math.max(0, firstLineStart - syncProgress);
     return { lineIndex: -1, lineData: null, isInstrumental: false, countdownMs };
@@ -737,7 +748,7 @@ function getDynamicIslandSyncData(syncProgress) {
     return { start, end, nextStart };
   }
 
-  // 2. Find matching line index with 700ms lead-in for smooth anticipation
+  // 3. Find matching line index with 700ms lead-in for smooth anticipation
   let idx = 0;
   for (let i = 0; i < lyrics.length; i++) {
     const timing = getLineTiming(lyrics[i], lyrics[i + 1]);
@@ -751,14 +762,27 @@ function getDynamicIslandSyncData(syncProgress) {
   const curLine = lyrics[idx];
   const curTiming = getLineTiming(curLine, lyrics[idx + 1]);
 
-  // 3. Check for instrumental break between lines (> 3.0s total silence)
-  // Allow a graceful 1.4s dwell after line ends for user to finish reading
-  const isPastLine = syncProgress > curTiming.end + 1400;
-  const isFarFromNext = (curTiming.nextStart - syncProgress) > 2200;
+  // 4. Outro / End-of-song detection: last line passed or final 12s of track
+  const isLastLine = idx === lyrics.length - 1;
+  const isPastLastLine = isLastLine && (syncProgress > curTiming.end + 1200);
+  const isNearTrackEnd = (trackDuration > 0 && (trackDuration - syncProgress) <= 12000 && syncProgress > curTiming.end);
 
-  if (isPastLine && isFarFromNext && idx < lyrics.length - 1) {
-    const countdownMs = Math.max(0, curTiming.nextStart - syncProgress);
-    return { lineIndex: -2, lineData: null, isInstrumental: true, countdownMs };
+  if ((isPastLastLine || isNearTrackEnd) && trackDuration > 0 && (trackDuration - syncProgress) > 500) {
+    const outroCountdownMs = Math.max(0, trackDuration - syncProgress);
+    return { lineIndex: -3, lineData: null, isInstrumental: false, isSongEnd: true, countdownMs: outroCountdownMs };
+  }
+
+  // 5. Check for instrumental break between lines
+  // Allow a graceful 1.2s dwell after line ends for user to finish reading
+  const isPastLine = syncProgress > curTiming.end + 1200;
+
+  if (isPastLine && idx < lyrics.length - 1) {
+    const msUntilNext = curTiming.nextStart - syncProgress;
+    // Stay in break state until next line lead-in (600ms before next line starts).
+    // Never resurrect the dead curLine during the break!
+    if (msUntilNext > 600) {
+      return { lineIndex: -2, lineData: null, isInstrumental: true, countdownMs: Math.max(0, msUntilNext) };
+    }
   }
 
   return { lineIndex: idx, lineData: curLine, isInstrumental: false, countdownMs: 0 };
@@ -1100,25 +1124,48 @@ function updateDynamicIslandLyric(targetIndex, lineData, syncProgress, isInstrum
     }
   }
 
-  // 2. Idle, Intro, or Instrumental Break
+  // 2. Idle, Intro, Instrumental Break, Outro, or Now Playing Buffer
   if (!lineData || targetIndex < 0) {
     if (dynamicIslandEl) dynamicIslandEl.classList.remove('island-mode-stacked');
     if (islandSubline) islandSubline.style.display = 'none';
 
+    const isNowPlayingBuffer = targetIndex === -4;
+    const isOutro = targetIndex === -3;
     const isBreak = isInstrumental || targetIndex === -2;
-    const showCountdown = countdownMs >= 1500 && settings.islandVocalCountdown !== false;
-    const countdownSec = showCountdown ? Math.ceil(countdownMs / 1000) : 0;
 
     let idleHtml;
-    if (showCountdown && countdownSec > 0) {
-      idleHtml = `<span class="island-idle-text"><span class="island-countdown-pill"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> ${isBreak ? 'Next in' : 'Vocals in'} ${countdownSec}s</span> • <span class="island-idle-title">${escapeHTML(trackTitle)}</span></span>`;
-    } else if (isBreak) {
-      idleHtml = `<span class="island-idle-text"><span class="island-idle-title">${escapeHTML(trackTitle)}</span> • <span class="island-instrumental-dots">♪ ♪ ♪</span></span>`;
+    let expText;
+
+    if (isNowPlayingBuffer) {
+      idleHtml = `<span class="island-idle-text"><span class="island-idle-title">${escapeHTML(trackTitle)}</span>${trackArtist ? ` • <span class="island-track-artist">${escapeHTML(trackArtist)}</span>` : ''}</span>`;
+      expText = trackArtist ? `${trackTitle} • ${trackArtist}` : trackTitle;
+    } else if (isOutro) {
+      const showCountdown = countdownMs >= 1000;
+      const countdownSec = showCountdown ? Math.ceil(countdownMs / 1000) : 0;
+      if (showCountdown && countdownSec > 0) {
+        idleHtml = `<span class="island-idle-text"><span class="island-countdown-pill island-nextup-pill"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" x2="19" y1="5" y2="19"/></svg> Next up in ${countdownSec}s</span> • <span class="island-idle-title">${escapeHTML(trackTitle)}</span></span>`;
+        expText = `${trackTitle} • Next up in ${countdownSec}s`;
+      } else {
+        idleHtml = `<span class="island-idle-text"><span class="island-idle-title">${escapeHTML(trackTitle)}</span>${trackArtist ? ` • ${escapeHTML(trackArtist)}` : ''}</span>`;
+        expText = trackTitle;
+      }
     } else {
-      idleHtml = `<span class="island-idle-text"><span class="island-idle-title">${escapeHTML(trackTitle)}</span>${trackArtist ? ` • ${escapeHTML(trackArtist)}` : ''}</span>`;
+      const showCountdown = countdownMs >= 1500 && settings.islandVocalCountdown !== false;
+      const countdownSec = showCountdown ? Math.ceil(countdownMs / 1000) : 0;
+
+      if (showCountdown && countdownSec > 0) {
+        idleHtml = `<span class="island-idle-text"><span class="island-countdown-pill island-vocal-pill"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg> Vocals in ${countdownSec}s</span> • <span class="island-idle-title">${escapeHTML(trackTitle)}</span></span>`;
+        expText = `${trackTitle} • Vocals in ${countdownSec}s`;
+      } else if (isBreak) {
+        idleHtml = `<span class="island-idle-text"><span class="island-idle-title">${escapeHTML(trackTitle)}</span> • <span class="island-instrumental-dots">♪ ♪ ♪</span></span>`;
+        expText = `${trackTitle} • Instrumental`;
+      } else {
+        idleHtml = `<span class="island-idle-text"><span class="island-idle-title">${escapeHTML(trackTitle)}</span>${trackArtist ? ` • ${escapeHTML(trackArtist)}` : ''}</span>`;
+        expText = trackTitle;
+      }
     }
 
-    const stateKey = `${targetIndex}:${showCountdown ? countdownSec : 0}`;
+    const stateKey = `${targetIndex}:${countdownMs > 0 ? Math.ceil(countdownMs / 1000) : 0}`;
     if (islandLine.dataset.stateKey !== stateKey) {
       islandLine.dataset.stateKey = stateKey;
       islandLine.dataset.lineIndex = String(targetIndex);
@@ -1131,9 +1178,7 @@ function updateDynamicIslandLyric(targetIndex, lineData, syncProgress, isInstrum
       lastIslandActiveWordSpan = null;
     }
     if (islandExpLyric) {
-      islandExpLyric.textContent = showCountdown
-        ? `${trackTitle} • ${isBreak ? 'Next in' : 'Vocals in'} ${countdownSec}s`
-        : (isBreak ? `${trackTitle} • Instrumental` : trackTitle);
+      islandExpLyric.textContent = expText;
     }
     return;
   }
@@ -1504,7 +1549,7 @@ function initDOMElements() {
   lyricsViewport = document.getElementById("lyrics-viewport");
   lyricsContainer = document.getElementById("lyrics-container");
 
-  // Manual scroll detection: when user scrolls with mousewheel, pause auto-scroll within bounded range
+  // Manual scroll detection: when user scrolls with mousewheel or drags, pause auto-scroll within bounded range
   if (lyricsViewport) {
     lyricsViewport.addEventListener('wheel', (e) => {
       if (settings.taskbarMode || settings.compactMode) return;
@@ -1531,33 +1576,114 @@ function initDOMElements() {
       const maxY = Math.max(firstLineCenterY, lastLineCenterY) + 60;
       const minY = Math.min(firstLineCenterY, lastLineCenterY) - 60;
 
-      // Extract current translation (supports both translate3d and translateY)
-      const currentTransform = lyricsContainer.style.transform;
-      const match = currentTransform ? currentTransform.match(/translate(?:3d\(0,\s*|Y\()(-?[\d.]+)px/) : null;
+      // Extract current translation (supports both translate3d and translateY, with 0 or 0px)
       let currentY;
-      if (match) {
-        currentY = parseFloat(match[1]);
-      } else if (activeLineIndex >= 0 && cachedLineMetrics && cachedLineMetrics[activeLineIndex]) {
-        const m = cachedLineMetrics[activeLineIndex];
-        currentY = Math.round((viewportHeight / 2) - m.top - (m.height / 2));
+      if (manualLyricScrollY !== null) {
+        currentY = manualLyricScrollY;
       } else {
-        currentY = firstLineCenterY;
+        const currentTransform = lyricsContainer.style.transform;
+        const match = currentTransform ? currentTransform.match(/translate(?:3d\(0(?:px)?,\s*|Y\()(-?[\d.]+)px/) : null;
+        if (match) {
+          currentY = parseFloat(match[1]);
+        } else if (activeLineIndex >= 0 && cachedLineMetrics && cachedLineMetrics[activeLineIndex]) {
+          const m = cachedLineMetrics[activeLineIndex];
+          currentY = Math.round((viewportHeight / 2) - m.top - (m.height / 2));
+        } else {
+          currentY = firstLineCenterY;
+        }
       }
       const delta = -e.deltaY;
 
-      const clampedY = Math.max(minY, Math.min(maxY, currentY + delta));
-      lyricsContainer.style.transform = `translate3d(0, ${clampedY}px, 0)`;
+      manualLyricScrollY = Math.max(minY, Math.min(maxY, currentY + delta));
+      lyricsContainer.style.transform = `translate3d(0, ${manualLyricScrollY}px, 0)`;
 
       // Clear any previous auto-resync timeout and reset for 7 seconds
       if (userScrollTimeout) clearTimeout(userScrollTimeout);
       userScrollTimeout = setTimeout(() => {
         userScrolling = false;
+        manualLyricScrollY = null;
         hideResyncButton();
         const idx = activeLineIndex;
         activeLineIndex = -1;
         scrollLyrics(idx);
       }, 7000);
     }, { passive: true });
+
+    // Pointer Drag-to-Scroll support on lyrics viewport
+    let isPointerDraggingLyrics = false;
+    let pointerDragStartY = 0;
+    let pointerDragStartScrollY = 0;
+
+    lyricsViewport.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      if (e.target.closest('button, input, select, a, .share-line-chip, #btn-resync-lyrics')) return;
+      if (settings.taskbarMode || settings.compactMode || lyrics.length === 0) return;
+
+      isPointerDraggingLyrics = true;
+      pointerDragStartY = e.clientY;
+
+      if (manualLyricScrollY !== null) {
+        pointerDragStartScrollY = manualLyricScrollY;
+      } else {
+        const viewportHeight = cachedViewportHeight || (lyricsViewport ? lyricsViewport.clientHeight : 300);
+        if (activeLineIndex >= 0 && cachedLineMetrics && cachedLineMetrics[activeLineIndex]) {
+          const m = cachedLineMetrics[activeLineIndex];
+          pointerDragStartScrollY = Math.round((viewportHeight / 2) - m.top - (m.height / 2));
+        } else {
+          const currentTransform = lyricsContainer.style.transform;
+          const match = currentTransform ? currentTransform.match(/translate(?:3d\(0(?:px)?,\s*|Y\()(-?[\d.]+)px/) : null;
+          pointerDragStartScrollY = match ? parseFloat(match[1]) : 0;
+        }
+      }
+
+      try { lyricsViewport.setPointerCapture(e.pointerId); } catch (_) {}
+    });
+
+    lyricsViewport.addEventListener('pointermove', (e) => {
+      if (!isPointerDraggingLyrics) return;
+      const delta = e.clientY - pointerDragStartY;
+      if (Math.abs(delta) > 3) {
+        userScrolling = true;
+        showResyncButton();
+
+        if (!cachedLineMetrics || cachedLineMetrics.length === 0) {
+          measureLyricMetrics();
+        }
+        const count = cachedLineMetrics ? cachedLineMetrics.length : 0;
+        if (count === 0) return;
+
+        const viewportHeight = cachedViewportHeight || (lyricsViewport ? lyricsViewport.clientHeight : 300);
+        const firstMetric = cachedLineMetrics[0];
+        const lastMetric = cachedLineMetrics[count - 1];
+        const firstLineCenterY = (viewportHeight / 2) - firstMetric.top - (firstMetric.height / 2);
+        const lastLineCenterY = (viewportHeight / 2) - lastMetric.top - (lastMetric.height / 2);
+        const maxY = Math.max(firstLineCenterY, lastLineCenterY) + 60;
+        const minY = Math.min(firstLineCenterY, lastLineCenterY) - 60;
+
+        const targetY = pointerDragStartScrollY + delta;
+        manualLyricScrollY = Math.max(minY, Math.min(maxY, targetY));
+        lyricsContainer.style.transform = `translate3d(0, ${manualLyricScrollY}px, 0)`;
+
+        if (userScrollTimeout) clearTimeout(userScrollTimeout);
+        userScrollTimeout = setTimeout(() => {
+          userScrolling = false;
+          manualLyricScrollY = null;
+          hideResyncButton();
+          const idx = activeLineIndex;
+          activeLineIndex = -1;
+          scrollLyrics(idx);
+        }, 7000);
+      }
+    });
+
+    const stopPointerDrag = (e) => {
+      if (isPointerDraggingLyrics) {
+        isPointerDraggingLyrics = false;
+        try { lyricsViewport.releasePointerCapture(e.pointerId); } catch (_) {}
+      }
+    };
+    lyricsViewport.addEventListener('pointerup', stopPointerDrag);
+    lyricsViewport.addEventListener('pointercancel', stopPointerDrag);
   }
 
   widgetAlbumArt = document.getElementById("widget-album-art");
@@ -5015,7 +5141,7 @@ function toggleAppMute() {
 
     if (!e.target || typeof e.target.closest !== 'function') return;
 
-    const isOverInteractive = e.target.closest('button, input, select, .hud-header, .playback-widget, .settings-panel, a, label, .drag-handle, .lyrics-empty-state');
+    const isOverInteractive = e.target.closest('button, input, select, .hud-header, .playback-widget, .settings-panel, a, label, .drag-handle, .lyrics-empty-state, .modal, .share-modal, #share-card-modal, #genius-modal, .lyrics-view, #lyrics-viewport, #lyrics-container, .lyric-line');
     if (isOverInteractive) {
       setClickThroughCached(false);
     }
@@ -6907,6 +7033,8 @@ async function handlePlaybackData(data) {
   // 3. Check if song changed
   if (isSongChanged) {
     currentTrackId = track.id;
+    islandNowPlayingBufferUntil = Date.now() + 3000;
+    manualLyricScrollY = null;
 
     // Load per-song offset
     if (!settings.trackOffsets) settings.trackOffsets = {};
@@ -8256,6 +8384,14 @@ function showGeniusModal(fragment, text) {
   const textEl = document.getElementById('genius-annotation-text');
   if (!modal || !fragEl || !textEl) return;
 
+  // Wake from auto-hide, restore opacity and ensure click reception
+  cancelAutoHide();
+  setClickThroughCached(false);
+  if (isDynamicIslandMode) {
+    window._returnToIslandAfterGenius = true;
+    toggleDynamicIslandMode(false);
+  }
+
   fragEl.textContent = fragment ? `"${fragment}"` : '';
 
   textEl.innerHTML = '';
@@ -8278,6 +8414,11 @@ function hideGeniusModal() {
   const modal = document.getElementById('genius-modal');
   if (modal) {
     modal.classList.remove('show');
+  }
+  updateAutoHideState();
+  if (window._returnToIslandAfterGenius) {
+    window._returnToIslandAfterGenius = false;
+    toggleDynamicIslandMode(true);
   }
 }
 
@@ -8309,6 +8450,7 @@ function renderLyrics() {
     cachedLineMetrics = [];
     activeLineIndex = -1;
     userScrolling = false;
+    manualLyricScrollY = null;
     hideResyncButton();
     updateTimingStatus(-1);
     const btnHide = document.getElementById("btn-hide-lyrics");
@@ -8322,6 +8464,7 @@ function renderLyrics() {
   document.body.classList.toggle("wbw-active", settings.wordByWord && hasAnyWordTiming);
 
   lyricsContainer.innerHTML = "";
+  manualLyricScrollY = null;
   const frag = document.createDocumentFragment();
   cachedLineEls = [];
   lyrics.forEach((line, index) => {
@@ -8386,6 +8529,7 @@ function renderLyrics() {
         const timeMs = line.timeMs;
         seekPlayback(timeMs);
         userScrolling = false;
+        manualLyricScrollY = null;
         if (userScrollTimeout) { clearTimeout(userScrollTimeout); userScrollTimeout = null; }
         hideResyncButton();
         scrollLyrics(index);
@@ -8593,6 +8737,7 @@ function scrollLyrics(index) {
 // Global resync playback function: resets user scrolling, hides all sync buttons, and snaps to active line
 function resyncPlayback() {
   userScrolling = false;
+  manualLyricScrollY = null;
   if (userScrollTimeout) {
     clearTimeout(userScrollTimeout);
     userScrollTimeout = null;

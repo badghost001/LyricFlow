@@ -1524,6 +1524,17 @@ body.mode-dynamic-island.island-sleeping .island-bridge {
   line-height: 1.2;
 }
 
+.island-countdown-pill.island-vocal-pill {
+  color: var(--accent-bright, #38bdf8);
+}
+
+.island-countdown-pill.island-nextup-pill {
+  color: #c084fc;
+  background: rgba(192, 132, 252, 0.16);
+  border-color: rgba(192, 132, 252, 0.35);
+  animation: islandNextUpGlow 1.8s ease-in-out infinite alternate;
+}
+
 .island-countdown-pill svg {
   display: inline-block;
   vertical-align: middle;
@@ -1537,6 +1548,17 @@ body.mode-dynamic-island.island-sleeping .island-bridge {
   100% {
     box-shadow: 0 0 8px rgba(56, 189, 248, 0.6);
     border-color: rgba(56, 189, 248, 0.6);
+  }
+}
+
+@keyframes islandNextUpGlow {
+  0% {
+    box-shadow: 0 0 4px rgba(192, 132, 252, 0.25);
+    border-color: rgba(192, 132, 252, 0.35);
+  }
+  100% {
+    box-shadow: 0 0 10px rgba(192, 132, 252, 0.65);
+    border-color: rgba(192, 132, 252, 0.7);
   }
 }
 

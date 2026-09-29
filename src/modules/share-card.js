@@ -47,6 +47,20 @@
       return;
     }
 
+    // Wake from auto-hide, restore opacity and ensure click reception
+    if (typeof cancelAutoHide === 'function') {
+      cancelAutoHide();
+    }
+    if (typeof setClickThroughCached === 'function') {
+      setClickThroughCached(false);
+    }
+    if (typeof isDynamicIslandMode !== 'undefined' && isDynamicIslandMode) {
+      window._returnToIslandAfterShare = true;
+      if (typeof toggleDynamicIslandMode === 'function') {
+        toggleDynamicIslandMode(false);
+      }
+    }
+
     // Determine current track details
     const trackObj = (typeof currentPlayingTrackObj !== 'undefined' && currentPlayingTrackObj) ? currentPlayingTrackObj : null;
     const widgetTrack = document.getElementById("widget-track-name");
@@ -148,12 +162,20 @@
       modal.classList.remove("is-open");
     }
 
+    if (typeof updateAutoHideState === 'function') {
+      updateAutoHideState();
+    }
+
     // If user opened share modal while in Dynamic Island mode, restore island docking
     if (window._returnToIslandAfterShare) {
       window._returnToIslandAfterShare = false;
-      const dockPos = (typeof settings !== 'undefined' && settings.dynamicIslandPosition) ? settings.dynamicIslandPosition : 'top-center';
-      if (window.electronAPI && typeof window.electronAPI.setDynamicIslandMode === 'function') {
-        window.electronAPI.setDynamicIslandMode(true, dockPos);
+      if (typeof toggleDynamicIslandMode === 'function') {
+        toggleDynamicIslandMode(true);
+      } else {
+        const dockPos = (typeof settings !== 'undefined' && settings.dynamicIslandPosition) ? settings.dynamicIslandPosition : 'top-center';
+        if (window.electronAPI && typeof window.electronAPI.setDynamicIslandMode === 'function') {
+          window.electronAPI.setDynamicIslandMode(true, dockPos);
+        }
       }
     }
   }

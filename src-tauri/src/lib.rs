@@ -149,15 +149,46 @@ pub fn run() {
             tauri::async_runtime::spawn(async move {
                 use tauri_plugin_updater::UpdaterExt;
                 tokio::time::sleep(std::time::Duration::from_secs(15)).await;
-                if let Ok(updater) = updater_handle.updater() {
-                    if let Ok(Some(update)) = updater.check().await {
-                        let _ = updater_handle.emit("show-toast", format!("Downloading LyricFlow update v{}...", update.version));
-                        let mut downloaded = 0;
-                        if let Ok(_) = update.download_and_install(|chunk_len, _| {
-                            downloaded += chunk_len;
-                        }, || {}).await {
-                            let _ = updater_handle.emit("update-downloaded", ());
+                log_to_file("[LyricFlow] Background updater checking for updates...");
+
+                #[cfg(windows)]
+                let updater_res = updater_handle.updater_builder().target("windows-x86_64-nsis").build();
+                #[cfg(not(windows))]
+                let updater_res = updater_handle.updater();
+
+                match updater_res {
+                    Ok(updater) => {
+                        match updater.check().await {
+                            Ok(Some(update)) => {
+                                log_to_file(&format!("[LyricFlow] Update available: v{}", update.version));
+                                let _ = updater_handle.emit("show-toast", format!("Downloading LyricFlow update v{}...", update.version));
+                                let mut downloaded = 0;
+                                match update.download_and_install(|chunk_len, _| {
+                                    downloaded += chunk_len;
+                                }, || {
+                                    log_to_file("[LyricFlow] Download complete, launching NSIS installer...");
+                                }).await {
+                                    Ok(_) => {
+                                        log_to_file("[LyricFlow] Update installer launched successfully.");
+                                        let _ = updater_handle.emit("update-downloaded", ());
+                                    }
+                                    Err(e) => {
+                                        let err_msg = format!("Update installation failed: {}", e);
+                                        log_to_file(&format!("[LyricFlow] {}", err_msg));
+                                        let _ = updater_handle.emit("show-toast", err_msg);
+                                    }
+                                }
+                            }
+                            Ok(None) => {
+                                log_to_file("[LyricFlow] No updates available (already on latest).");
+                            }
+                            Err(e) => {
+                                log_to_file(&format!("[LyricFlow] Update check failed: {}", e));
+                            }
                         }
+                    }
+                    Err(e) => {
+                        log_to_file(&format!("[LyricFlow] Failed to build updater: {}", e));
                     }
                 }
             });
