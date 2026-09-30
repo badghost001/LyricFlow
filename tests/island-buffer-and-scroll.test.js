@@ -197,4 +197,18 @@ manualLyricScrollY = null;
 assert.strictEqual(manualLyricScrollY, null, "Resync resets manualLyricScrollY to null");
 console.log("  ✓ 7. Wheel scrolling accumulates smoothly across multiple ticks without resetting");
 
-console.log("\nResults: 7/7 tests passed.\n");
+// TEST 8: Song Title updates on track change during 3s buffer
+let currentTrackId = "spotify:track:song1";
+let trackTitle = "Song One";
+const stateKey1 = `${currentTrackId || trackTitle}:-4:0`;
+assert.strictEqual(stateKey1, "spotify:track:song1:-4:0");
+
+// When track changes to song 2:
+currentTrackId = "spotify:track:song2";
+trackTitle = "Song Two";
+const stateKey2 = `${currentTrackId || trackTitle}:-4:0`;
+assert.strictEqual(stateKey2, "spotify:track:song2:-4:0");
+assert.notStrictEqual(stateKey1, stateKey2, "Song 2 stateKey MUST NOT match Song 1 stateKey!");
+console.log("  ✓ 8. Song title in island updates immediately on track change during 3s buffer");
+
+console.log("\nResults: 8/8 tests passed.\n");

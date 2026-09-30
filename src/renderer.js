@@ -625,8 +625,10 @@ function syncDynamicIslandState() {
   const islandTitle = document.getElementById("island-track-title");
   const islandArtist = document.getElementById("island-track-artist");
   const trackObj = (typeof currentPlayingTrackObj !== 'undefined' && currentPlayingTrackObj) ? currentPlayingTrackObj : null;
-  const trackTitle = (trackObj && trackObj.name) || (widgetTrackName && widgetTrackName.textContent ? widgetTrackName.textContent : 'LyricFlow');
-  const trackArtist = (trackObj && trackObj.artist) || (widgetArtistName && widgetArtistName.textContent ? widgetArtistName.textContent : (isPlaying ? 'Playing...' : 'Waiting for music...'));
+  const trackTitle = (trackObj && trackObj.name) || (widgetTrackName && widgetTrackName.textContent ? widgetTrackName.textContent.trim() : 'LyricFlow');
+  const trackArtist = (trackObj && trackObj.artists && trackObj.artists.length > 0)
+    ? trackObj.artists.map(a => a.name).join(", ")
+    : ((trackObj && trackObj.artist) || (widgetArtistName && widgetArtistName.textContent ? widgetArtistName.textContent.trim() : (isPlaying ? 'Playing...' : 'Waiting for music...')));
 
   if (islandTitle) {
     islandTitle.textContent = trackTitle;
@@ -1067,8 +1069,10 @@ function updateDynamicIslandLyric(targetIndex, lineData, syncProgress, isInstrum
   }
 
   const trackObj = (typeof currentPlayingTrackObj !== 'undefined' && currentPlayingTrackObj) ? currentPlayingTrackObj : null;
-  const trackTitle = (trackObj && trackObj.name) || (widgetTrackName && widgetTrackName.textContent ? widgetTrackName.textContent : 'LyricFlow');
-  const trackArtist = (trackObj && trackObj.artists && trackObj.artists[0]?.name) || (widgetArtistName && widgetArtistName.textContent ? widgetArtistName.textContent : '');
+  const trackTitle = (trackObj && trackObj.name) || (widgetTrackName && widgetTrackName.textContent ? widgetTrackName.textContent.trim() : 'LyricFlow');
+  const trackArtist = (trackObj && trackObj.artists && trackObj.artists.length > 0)
+    ? trackObj.artists.map(a => a.name).join(", ")
+    : ((trackObj && trackObj.artist) || (widgetArtistName && widgetArtistName.textContent ? widgetArtistName.textContent.trim() : ''));
 
   const islandTitle = document.getElementById("island-track-title");
   const islandArtist = document.getElementById("island-track-artist");
@@ -1165,7 +1169,7 @@ function updateDynamicIslandLyric(targetIndex, lineData, syncProgress, isInstrum
       }
     }
 
-    const stateKey = `${targetIndex}:${countdownMs > 0 ? Math.ceil(countdownMs / 1000) : 0}`;
+    const stateKey = `${currentTrackId || trackTitle}:${targetIndex}:${countdownMs > 0 ? Math.ceil(countdownMs / 1000) : 0}`;
     if (islandLine.dataset.stateKey !== stateKey) {
       islandLine.dataset.stateKey = stateKey;
       islandLine.dataset.lineIndex = String(targetIndex);
@@ -1212,6 +1216,7 @@ function updateDynamicIslandLyric(targetIndex, lineData, syncProgress, isInstrum
 
   // 6. Line or Translation Changed: Re-render DOM
   if (needsRerender) {
+    islandLine.dataset.stateKey = "";
     islandLine.dataset.lineIndex = String(targetIndex);
     islandLine.dataset.subText = subText;
     islandLine.dataset.transMode = transMode;
@@ -7035,6 +7040,20 @@ async function handlePlaybackData(data) {
     currentTrackId = track.id;
     islandNowPlayingBufferUntil = Date.now() + 3000;
     manualLyricScrollY = null;
+
+    const islandLine = document.getElementById("island-lyric-line");
+    if (islandLine) {
+      islandLine.dataset.stateKey = "";
+      islandLine.dataset.lineIndex = "-4";
+    }
+
+    try {
+      syncDynamicIslandState();
+      const islandSync = getDynamicIslandSyncData(currentProgress);
+      updateDynamicIslandLyric(islandSync.lineIndex, islandSync.lineData, currentProgress, islandSync.isInstrumental, islandSync.countdownMs);
+    } catch (err) {
+      console.warn("[DynamicIsland] Error on song change update:", err);
+    }
 
     // Load per-song offset
     if (!settings.trackOffsets) settings.trackOffsets = {};
