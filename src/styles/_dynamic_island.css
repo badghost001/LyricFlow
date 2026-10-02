@@ -272,9 +272,9 @@ body:not(.is-playing) .island-art-halo {
   justify-content: center;
   overflow: hidden;
   position: relative;
-  /* 100% opaque on left, subtle fade only on right before visualizer */
-  mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 14px), transparent 100%);
-  -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 14px), transparent 100%);
+  /* Dynamically managed by JS based on actual text scroll state so trailing characters are never shadowed */
+  mask-image: none;
+  -webkit-mask-image: none;
   cursor: default !important;
 }
 
@@ -290,6 +290,7 @@ body:not(.is-playing) .island-art-halo {
   align-items: center;
   gap: 0px;
   will-change: transform;
+  padding-right: 8px; /* Clear safety margin so trailing characters never collide with boundary */
   /* Removed transform transition so high-framerate JS damping provides zero-latency sync */
   transition: opacity 0.2s ease;
   pointer-events: none;
@@ -794,71 +795,21 @@ body.mode-dynamic-island #dynamic-island-translation.island-materializing {
   background: #ffffff;
   box-shadow: 0 0 4px rgba(255, 255, 255, 0.4);
   transform-origin: bottom center;
-  transform: scaleY(0.16);
-  transition: transform 0.04s cubic-bezier(0.1, 0.9, 0.2, 1), opacity 0.2s ease;
+  transform: scaleY(0.14);
+  /* Snappy 25ms ease-out transition reacts in direct lockstep with real audio beats */
+  transition: transform 0.025s ease-out, opacity 0.2s ease;
   will-change: transform;
 }
 
-/* Harmonic Apple Music Fallback Animation (active when audio capture is silent or unavailable) */
+/* Authentic resting baseline when audio capture is silent or quiescent (no fake cartoon sine waves) */
 .island-wave-visualizer.is-fallback .wave-bar {
-  transition: opacity 0.2s ease;
-}
-
-.island-wave-visualizer.is-fallback .wave-bar.bar-1 {
-  animation: appleEqBar1 1.2s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
-}
-.island-wave-visualizer.is-fallback .wave-bar.bar-2 {
-  animation: appleEqBar2 1.2s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
-}
-.island-wave-visualizer.is-fallback .wave-bar.bar-3 {
-  animation: appleEqBar3 1.2s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
-}
-.island-wave-visualizer.is-fallback .wave-bar.bar-4 {
-  animation: appleEqBar4 1.2s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
-}
-.island-wave-visualizer.is-fallback .wave-bar.bar-5 {
-  animation: appleEqBar2 1.35s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite 0.15s;
-}
-.island-wave-visualizer.is-fallback .wave-bar.bar-6 {
-  animation: appleEqBar3 1.15s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite 0.3s;
-}
-.island-wave-visualizer.is-fallback .wave-bar.bar-7 {
-  animation: appleEqBar1 1.25s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite 0.2s;
-}
-.island-wave-visualizer.is-fallback .wave-bar.bar-8 {
-  animation: appleEqBar4 1.10s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite 0.4s;
-}
-
-@keyframes appleEqBar1 {
-  0%, 100% { transform: scaleY(0.28); opacity: 0.75; }
-  25% { transform: scaleY(0.85); opacity: 1; }
-  50% { transform: scaleY(0.42); opacity: 0.8; }
-  75% { transform: scaleY(0.95); opacity: 1; }
-}
-
-@keyframes appleEqBar2 {
-  0%, 100% { transform: scaleY(0.92); opacity: 1; }
-  30% { transform: scaleY(0.35); opacity: 0.75; }
-  60% { transform: scaleY(1.0); opacity: 1; }
-  85% { transform: scaleY(0.48); opacity: 0.85; }
-}
-
-@keyframes appleEqBar3 {
-  0%, 100% { transform: scaleY(0.40); opacity: 0.8; }
-  20% { transform: scaleY(0.95); opacity: 1; }
-  55% { transform: scaleY(0.28); opacity: 0.7; }
-  80% { transform: scaleY(0.82); opacity: 1; }
-}
-
-@keyframes appleEqBar4 {
-  0%, 100% { transform: scaleY(0.22); opacity: 0.65; }
-  35% { transform: scaleY(0.70); opacity: 0.95; }
-  65% { transform: scaleY(0.35); opacity: 0.75; }
-  90% { transform: scaleY(0.60); opacity: 0.9; }
+  transform: scaleY(0.14);
+  opacity: 0.55;
+  transition: transform 0.18s ease-out, opacity 0.25s ease;
 }
 
 body:not(.is-playing) .wave-bar {
-  transform: scaleY(0.16);
+  transform: scaleY(0.14) !important;
   opacity: 0.35;
   box-shadow: none;
   animation: none !important;
@@ -866,7 +817,7 @@ body:not(.is-playing) .wave-bar {
 
 body:not(.is-playing) .island-wave-visualizer.is-fallback .wave-bar {
   animation: none !important;
-  transform: scaleY(0.16) !important;
+  transform: scaleY(0.14) !important;
 }
 
 #dynamic-island .island-top-actions #island-btn-translate,
@@ -1592,17 +1543,19 @@ body.mode-dynamic-island.island-sleeping .island-bridge {
 }
 
 /* ==========================================================
-   GHOST PASSTHROUGH MODE (Hold Alt to interact behind island)
+   GHOST PASSTHROUGH MODE (Hover & Press ` or Ctrl+Shift+G)
    Fades primary capsule, satellite island, bridge, and canvas
-   to a smooth 16% silhouette with non-interactive click-through.
+   to a minimalist 16% silhouette with non-interactive click-through.
 ========================================================== */
 body.mode-dynamic-island.island-ghost-mode #dynamic-island,
 body.mode-dynamic-island.island-ghost-mode #dynamic-island-translation {
   opacity: 0.16 !important;
   pointer-events: none !important;
-  transform: scale(0.97) !important;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.28) !important;
-  transition: opacity 0.14s cubic-bezier(0.16, 1, 0.3, 1), transform 0.14s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  transform: scale(0.98) !important;
+  backdrop-filter: blur(2px) !important;
+  -webkit-backdrop-filter: blur(2px) !important;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.20), 0 4px 16px rgba(0, 0, 0, 0.25) !important;
+  transition: opacity 0.18s cubic-bezier(0.16, 1, 0.3, 1), transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s ease !important;
 }
 
 body.mode-dynamic-island.island-ghost-mode #island-bridge {
@@ -1611,6 +1564,12 @@ body.mode-dynamic-island.island-ghost-mode #island-bridge {
 }
 
 body.mode-dynamic-island.island-ghost-mode .island-ca-emitter-canvas {
+  opacity: 0 !important;
+  transition: opacity 0.14s ease !important;
+}
+
+body.mode-dynamic-island.island-ghost-mode .island-wave-visualizer,
+body.mode-dynamic-island.island-ghost-mode .island-top-actions {
   opacity: 0 !important;
   transition: opacity 0.14s ease !important;
 }

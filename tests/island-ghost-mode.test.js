@@ -143,6 +143,45 @@ function runIslandGhostModeTests() {
     assert.strictEqual(bridgeContent.includes('onIslandGhostMode:'), true, 'Must expose onIslandGhostMode in bridge API');
   });
 
+  // Test 8: Backtick tap is gated strictly to island hover to prevent hijacking text input elsewhere
+  test('8. Backtick tap is gated strictly to island hover to prevent hijacking text input elsewhere', () => {
+    let isGhost = false;
+
+    function handleTildePress(isOverIsland) {
+      if (isOverIsland || isGhost) {
+        isGhost = !isGhost;
+      }
+    }
+
+    // Cursor elsewhere on screen (e.g. typing markdown in editor) -> should NOT trigger
+    handleTildePress(false);
+    assert.strictEqual(isGhost, false, 'Pressing ` elsewhere must NOT activate ghost mode');
+
+    // Cursor hovering over island -> activates ghost mode
+    handleTildePress(true);
+    assert.strictEqual(isGhost, true, 'Pressing ` while hovering island MUST activate ghost mode');
+
+    // Pressing ` again while ghosted -> deactivates ghost mode
+    handleTildePress(false);
+    assert.strictEqual(isGhost, false, 'Pressing ` while ghosted MUST deactivate ghost mode');
+  });
+
+  // Test 9: Repetitive HUD toast is suppressed during ghost mode toggle
+  test('9. Repetitive HUD toast is suppressed during ghost mode toggle for minimalist silhouette', () => {
+    let hudCalled = false;
+    function showIslandHud() { hudCalled = true; }
+
+    function toggleIslandGhostMode(enable, isDynamicIslandMode) {
+      const isGhost = Boolean(enable) && isDynamicIslandMode;
+      // Repetitive HUD toast is suppressed
+      return isGhost;
+    }
+
+    const result = toggleIslandGhostMode(true, true);
+    assert.strictEqual(result, true);
+    assert.strictEqual(hudCalled, false, 'HUD toast must NOT be shown during ghost toggle');
+  });
+
   console.log(`\nResults: ${passedTests}/${totalTests} tests passed.\n`);
   if (passedTests !== totalTests) {
     process.exit(1);

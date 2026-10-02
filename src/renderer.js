@@ -480,33 +480,41 @@ function checkVisualizerFallback() {
     const bars = lastSpectrumBars || islandWave.querySelectorAll(".wave-bar");
     const visStyle = settings.islandVisualizerStyle || 'bars';
     bars.forEach(bar => {
-      bar.style.transform = visStyle === 'dots' ? 'scale(0.8) translateY(0px)' : 'scaleY(0.16)';
+      bar.style.transform = visStyle === 'dots' ? 'scale(0.8) translateY(0px)' : 'scaleY(0.14)';
     });
     return;
   }
 
-  // Audio is actively playing; check if real loopback spectrum was received in the last 350ms
+  // Audio is actively playing; decay bars smoothly toward authentic resting baseline during quiet interludes
   const msSinceEnergy = Date.now() - lastAudioEnergyTimestamp;
-  if (msSinceEnergy > 350) {
-    if (!islandWave.classList.contains("is-fallback")) {
-      islandWave.classList.add("is-fallback");
-      const bars = lastSpectrumBars || islandWave.querySelectorAll(".wave-bar");
-      bars.forEach(bar => {
-        bar.style.transform = '';
-      });
-    }
+  if (msSinceEnergy > 260) {
+    const bars = lastSpectrumBars || islandWave.querySelectorAll(".wave-bar");
+    const visStyle = settings.islandVisualizerStyle || 'bars';
+    bars.forEach(bar => {
+      if (visStyle === 'dots') {
+        bar.style.transform = 'scale(0.8) translateY(0px)';
+      } else {
+        bar.style.transform = 'scaleY(0.14)';
+      }
+    });
   }
 }
 
-// Low-overhead watchdog ensuring the visualizer never stays dead/frozen during playback
-setInterval(checkVisualizerFallback, 250);
+// Low-overhead watchdog ensuring bars smoothly settle to resting baseline during quiet passages
+setInterval(checkVisualizerFallback, 140);
 
-// Audio-Reactive Spectrum Equalizer Listener
+// Audio-Reactive Spectrum Equalizer Listener (Real Windows Loopback WASAPI Data)
+let hasLoggedSpectrumTelemetry = false;
 if (window.electronAPI && typeof window.electronAPI.onAudioSpectrum === 'function') {
   window.electronAPI.onAudioSpectrum((bands) => {
     if (!Array.isArray(bands) || bands.length === 0) return;
     const islandWave = document.getElementById("island-wave");
     if (!islandWave) return;
+
+    if (!hasLoggedSpectrumTelemetry) {
+      hasLoggedSpectrumTelemetry = true;
+      console.log('[LF-SPECTRUM] Live WASAPI audio spectrum active. Sample bands:', JSON.stringify(bands.map(b => Number(b.toFixed(3)))));
+    }
 
     if (!lastSpectrumBars || lastSpectrumBars.length !== (settings.islandVisualizerBars || 4)) {
       lastSpectrumBars = islandWave.querySelectorAll(".wave-bar");
@@ -521,13 +529,13 @@ if (window.electronAPI && typeof window.electronAPI.onAudioSpectrum === 'functio
       }
       const visStyle = settings.islandVisualizerStyle || 'bars';
       bars.forEach(bar => {
-        bar.style.transform = visStyle === 'dots' ? 'scale(0.8) translateY(0px)' : 'scaleY(0.16)';
+        bar.style.transform = visStyle === 'dots' ? 'scale(0.8) translateY(0px)' : 'scaleY(0.14)';
       });
       return;
     }
 
-    // Check if bands contain real non-zero audio energy (> 0.015)
-    const hasEnergy = bands.some(b => typeof b === 'number' && b > 0.015);
+    // Check if bands contain non-zero audio energy (> 0.002 noise floor)
+    const hasEnergy = bands.some(b => typeof b === 'number' && b > 0.002);
     if (!hasEnergy) {
       checkVisualizerFallback();
       return;
@@ -541,35 +549,42 @@ if (window.electronAPI && typeof window.electronAPI.onAudioSpectrum === 'functio
     const barCount = bars.length;
     let values = [];
     if (barCount === 4) {
-      values = [
-        Math.max(bands[0] || 0, bands[1] || 0),
-        Math.max(bands[2] || 0, bands[3] || 0),
-        Math.max(bands[4] || 0, bands[5] || 0),
-        Math.max(bands[6] || 0, bands[7] || 0)
-      ];
+      // 4-Bar Equalizer:
+      // Bar 0: Sub-bass & Kick transients (30 - 180 Hz)
+      // Bar 1: Bass & Low-Mids / Snares (180 - 750 Hz)
+      // Bar 2: Vocals & Mid-Presence (750 - 3500 Hz)
+      // Bar 3: Hi-hats, Cymbals & Air (3500 - 15000 Hz)
+      const b0 = Math.max(bands[0] || 0, bands[1] || 0) * 1.05;
+      const b1 = Math.max(bands[2] || 0, bands[3] || 0) * 1.22;
+      const b2 = Math.max(bands[4] || 0, bands[5] || 0) * 1.42;
+      const b3 = Math.max(bands[6] || 0, bands[7] || 0) * 1.75;
+      values = [b0, b1, b2, b3];
     } else if (barCount === 6) {
       values = [
-        bands[0] || 0,
-        bands[1] || 0,
-        ((bands[2] || 0) + (bands[3] || 0)) * 0.5,
-        bands[4] || 0,
-        bands[5] || 0,
-        Math.max(bands[6] || 0, bands[7] || 0)
+        (bands[0] || 0) * 1.05,
+        (bands[1] || 0) * 1.12,
+        (((bands[2] || 0) + (bands[3] || 0)) * 0.5) * 1.25,
+        (bands[4] || 0) * 1.38,
+        (bands[5] || 0) * 1.55,
+        Math.max(bands[6] || 0, bands[7] || 0) * 1.80
       ];
     } else {
-      values = bands.slice(0, barCount);
+      values = bands.slice(0, barCount).map((b, idx) => b * (1.0 + idx * 0.12));
     }
 
     const visStyle = settings.islandVisualizerStyle || 'bars';
     for (let i = 0; i < bars.length; i++) {
-      const raw = values[i] != null ? values[i] : 0;
+      let raw = values[i] != null ? values[i] : 0;
+      // Perceptual dynamic expansion: power 0.72 brings out quiet vocal/hi-hat details
+      raw = Math.min(1.0, Math.pow(Math.max(0, raw), 0.72));
+
       if (visStyle === 'dots') {
         const dotScale = (0.75 + raw * 0.95).toFixed(2);
         const dotY = (-raw * 5.0).toFixed(1);
         bars[i].style.transform = `scale(${dotScale}) translateY(${dotY}px)`;
       } else {
-        const clamped = Math.min(1.0, Math.max(0.16, 0.16 + raw * 0.84));
-        bars[i].style.transform = `scaleY(${clamped.toFixed(2)})`;
+        const clamped = Math.min(1.0, Math.max(0.14, 0.14 + raw * 0.86));
+        bars[i].style.transform = `scaleY(${clamped.toFixed(3)})`;
       }
     }
   });
@@ -610,7 +625,9 @@ function syncDynamicIslandState() {
 
   const islandArtImg = document.getElementById("island-art-img");
   if (islandArtImg) {
-    const artUrl = currentStaticAlbumArtUrl || (widgetAlbumArt && widgetAlbumArt.src ? widgetAlbumArt.src : '');
+    const artUrl = (widgetAlbumArt && widgetAlbumArt.src && widgetAlbumArt.style.display !== 'none')
+      ? widgetAlbumArt.src
+      : (currentStaticAlbumArtUrl || (widgetAlbumArt && widgetAlbumArt.src ? widgetAlbumArt.src : ''));
     if (artUrl && islandArtImg.src !== artUrl) {
       islandArtImg.src = artUrl;
     }
@@ -716,8 +733,8 @@ function getDynamicIslandSyncData(syncProgress) {
     ? firstLine.timeMs
     : ((firstLine.start != null) ? firstLine.start * 1000 : 0);
 
-  // 2. Song intro / prelude before first vocal line starts (with 800ms anticipation)
-  if (syncProgress < firstLineStart - 800) {
+  // 2. Song intro / prelude before first vocal line starts (exact 0ms real-time sync)
+  if (syncProgress < firstLineStart) {
     const countdownMs = Math.max(0, firstLineStart - syncProgress);
     return { lineIndex: -1, lineData: null, isInstrumental: false, countdownMs };
   }
@@ -727,34 +744,42 @@ function getDynamicIslandSyncData(syncProgress) {
       ? line.timeMs
       : ((line.start != null) ? line.start * 1000 : 0);
 
+    const nextStart = next
+      ? ((next.timeMs != null && !isNaN(next.timeMs)) ? next.timeMs : ((next.start != null) ? next.start * 1000 : Infinity))
+      : Infinity;
+
     let end = 0;
     if (line.words && line.words.length > 0) {
       const lastW = line.words[line.words.length - 1];
       const lwStart = (lastW.start != null ? lastW.start * 1000 : lastW.timeMs) || start;
-      end = (lastW.end != null && lastW.end > 0)
+      const lwEnd = (lastW.end != null && lastW.end > 0)
         ? (lastW.end * 1000)
-        : (lwStart + 450);
+        : (lastW.duration ? lwStart + lastW.duration : (lwStart + 450));
+      end = Math.max(lwEnd, lwStart + 450);
     } else if (line.end != null && line.end > 0) {
       end = line.end * 1000;
     } else if (line.duration && line.duration > 0) {
       end = start + line.duration;
     } else {
-      const textLen = (line.text || '').length;
-      end = start + Math.max(2500, Math.min(8000, textLen * 140));
+      // Natural vocal duration for line-synced lyrics:
+      // If gap to next line is reasonable (< 7s), line stays active for the phrase
+      if (isFinite(nextStart) && nextStart > start) {
+        const gap = nextStart - start;
+        end = gap >= 7000 ? start + Math.min(gap - 2500, Math.max(3500, (line.text || '').length * 150)) : nextStart;
+      } else {
+        const textLen = (line.text || '').length;
+        end = start + Math.max(3000, Math.min(10000, textLen * 160));
+      }
     }
-
-    const nextStart = next
-      ? ((next.timeMs != null && !isNaN(next.timeMs)) ? next.timeMs : ((next.start != null) ? next.start * 1000 : Infinity))
-      : Infinity;
 
     return { start, end, nextStart };
   }
 
-  // 3. Find matching line index with 700ms lead-in for smooth anticipation
+  // 3. Find matching line index with frame-accurate real-time synchrony (0ms offset)
   let idx = 0;
   for (let i = 0; i < lyrics.length; i++) {
     const timing = getLineTiming(lyrics[i], lyrics[i + 1]);
-    if (syncProgress >= timing.start - 700) {
+    if (syncProgress >= timing.start) {
       idx = i;
     } else {
       break;
@@ -774,15 +799,17 @@ function getDynamicIslandSyncData(syncProgress) {
     return { lineIndex: -3, lineData: null, isInstrumental: false, isSongEnd: true, countdownMs: outroCountdownMs };
   }
 
-  // 5. Check for instrumental break between lines
-  // Allow a graceful 1.2s dwell after line ends for user to finish reading
+  // 5. Genuine Instrumental Break Detection:
+  // Only trigger break if gap to next line is significant (>= 6.5s) AND there are at least 2.5s of instrumental silence after line dwell
   const isPastLine = syncProgress > curTiming.end + 1200;
 
-  if (isPastLine && idx < lyrics.length - 1) {
+  if (isPastLine && idx < lyrics.length - 1 && isFinite(curTiming.nextStart)) {
+    const totalGap = curTiming.nextStart - curTiming.start;
+    const breakDuration = curTiming.nextStart - (curTiming.end + 1200);
     const msUntilNext = curTiming.nextStart - syncProgress;
-    // Stay in break state until next line lead-in (600ms before next line starts).
-    // Never resurrect the dead curLine during the break!
-    if (msUntilNext > 600) {
+    // Only show instrumental break if it's a real musical interlude (>= 6.5s gap and >= 2.5s silence)
+    // and stay in break until the next line starts (msUntilNext > 0)
+    if (totalGap >= 6500 && breakDuration >= 2500 && msUntilNext > 0) {
       return { lineIndex: -2, lineData: null, isInstrumental: true, countdownMs: Math.max(0, msUntilNext) };
     }
   }
@@ -1285,16 +1312,29 @@ function updateDynamicIslandLyric(targetIndex, lineData, syncProgress, isInstrum
     const words = lineData.words;
     const wordsCount = words.length;
 
-    let currentActiveIdx = -1;
-    for (let wi = 0; wi < wordsCount; wi++) {
-      const w = words[wi];
-      const wStart = (w.start != null ? w.start * 1000 : w.timeMs) || 0;
-      const nextW = words[wi + 1];
-      const nextWStart = nextW ? ((nextW.start != null ? nextW.start * 1000 : nextW.timeMs) || (wStart + 500)) : Infinity;
+    const engine = window.LyricsService?.instance?.engine;
+    let engineWordStates = null;
+    if (engine && engine.hasLyrics() && targetIndex >= 0) {
+      engineWordStates = engine.getLineWordStates(targetIndex, syncProgress / 1000);
+    }
 
-      if (syncProgress >= wStart && syncProgress < nextWStart) {
-        currentActiveIdx = wi;
-        break;
+    let currentActiveIdx = -1;
+    if (engineWordStates && engineWordStates.length === wordsCount) {
+      currentActiveIdx = engineWordStates.indexOf('active');
+    } else {
+      for (let wi = 0; wi < wordsCount; wi++) {
+        const w = words[wi];
+        const wStart = (w.start != null ? w.start * 1000 : w.timeMs) || 0;
+        const nextW = words[wi + 1];
+        const nextWStart = nextW ? ((nextW.start != null ? nextW.start * 1000 : nextW.timeMs) || (wStart + 500)) : Infinity;
+        const wEnd = (w.end != null && w.end > 0)
+          ? (w.end * 1000)
+          : (w.duration ? wStart + w.duration : nextWStart);
+
+        if (syncProgress >= wStart && syncProgress <= wEnd) {
+          currentActiveIdx = wi;
+          break;
+        }
       }
     }
 
@@ -1304,7 +1344,12 @@ function updateDynamicIslandLyric(targetIndex, lineData, syncProgress, isInstrum
       for (let wi = 0; wi < wordsCount; wi++) {
         const span = spans[wi];
         if (!span) continue;
-        if (currentActiveIdx === -1) {
+        if (engineWordStates && engineWordStates[wi]) {
+          const st = engineWordStates[wi];
+          span.className = st === 'completed'
+            ? 'lyric-word lyric-word-completed lyric-word-passed'
+            : (st === 'active' ? 'lyric-word lyric-word-active' : 'lyric-word lyric-word-upcoming');
+        } else if (currentActiveIdx === -1) {
           const w = words[wi];
           const wStart = (w.start != null ? w.start * 1000 : w.timeMs) || 0;
           if (syncProgress < wStart) {
@@ -1343,7 +1388,10 @@ function updateDynamicIslandLyric(targetIndex, lineData, syncProgress, isInstrum
     const contentWidth = islandLine._cachedScrollWidth || islandLine.scrollWidth || zoneWidth;
 
     if (contentWidth > zoneWidth + 4) {
-      const maxScroll = -(contentWidth - zoneWidth);
+      // 28px clearance buffer ensures trailing characters are completely visible and never shadowed by container edges
+      const END_CLEARANCE = 28;
+      const scrollableDistance = (contentWidth - zoneWidth) + END_CLEARANCE;
+      const maxScroll = -scrollableDistance;
       let targetOffset = 0;
 
       if (activeWordOffset) {
@@ -1367,25 +1415,27 @@ function updateDynamicIslandLyric(targetIndex, lineData, syncProgress, isInstrum
           : 0;
 
         const textLen = (lineData.text || '').length;
-        const estimatedVocalDur = Math.max(2500, Math.min(8000, textLen * 140));
-        const maxGap = nextLineTime > lineStartTime ? (nextLineTime - lineStartTime) : estimatedVocalDur;
+        const estimatedVocalDur = Math.max(3000, Math.min(10000, textLen * 160));
+        const naturalDur = (nextLineTime > lineStartTime && (nextLineTime - lineStartTime) <= 12000)
+          ? (nextLineTime - lineStartTime)
+          : estimatedVocalDur;
         const effectiveDur = (lineData.duration && lineData.duration > 0)
           ? lineData.duration
-          : Math.min(maxGap, estimatedVocalDur);
+          : naturalDur;
 
         const elapsed = syncProgress - lineStartTime;
         const progressFrac = Math.min(1, Math.max(0, elapsed / Math.max(1000, effectiveDur)));
 
         let scrollRatio = 0;
-        if (progressFrac <= 0.15) {
+        if (progressFrac <= 0.08) {
           scrollRatio = 0;
-        } else if (progressFrac >= 0.85) {
+        } else if (progressFrac >= 0.92) {
           scrollRatio = 1;
         } else {
-          const t = (progressFrac - 0.15) / 0.70;
+          const t = (progressFrac - 0.08) / 0.84;
           scrollRatio = 0.5 - 0.5 * Math.cos(t * Math.PI);
         }
-        targetOffset = -scrollRatio * (contentWidth - zoneWidth);
+        targetOffset = -scrollRatio * scrollableDistance;
         targetOffset = Math.min(0, Math.max(maxScroll, targetOffset));
       }
 
@@ -1396,18 +1446,30 @@ function updateDynamicIslandLyric(targetIndex, lineData, syncProgress, isInstrum
       }
       islandLine.style.transform = `translateX(${currentIslandOffset.toFixed(2)}px)`;
 
-      if (!islandZone._hasMask) {
-        islandZone.style.maskImage = 'linear-gradient(90deg, #000 0%, #000 calc(100% - 16px), transparent 100%)';
-        islandZone.style.webkitMaskImage = 'linear-gradient(90deg, #000 0%, #000 calc(100% - 16px), transparent 100%)';
-        islandZone._hasMask = true;
+      // Dynamic edge mask:
+      // Start (offset >= -4): fade only right edge since start is flush
+      // Middle: soft fade on both left and right edges
+      // End (offset <= maxScroll + END_CLEARANCE): fade LEFT ONLY, do NOT shadow trailing characters at end!
+      let desiredMask = '';
+      if (currentIslandOffset >= -4) {
+        desiredMask = 'linear-gradient(90deg, #000 0%, #000 calc(100% - 16px), transparent 100%)';
+      } else if (currentIslandOffset <= maxScroll + END_CLEARANCE) {
+        desiredMask = 'linear-gradient(90deg, transparent 0%, #000 14px, #000 100%)';
+      } else {
+        desiredMask = 'linear-gradient(90deg, transparent 0%, #000 14px, #000 calc(100% - 16px), transparent 100%)';
+      }
+      if (islandZone._currentMask !== desiredMask) {
+        islandZone.style.maskImage = desiredMask;
+        islandZone.style.webkitMaskImage = desiredMask;
+        islandZone._currentMask = desiredMask;
       }
     } else {
       currentIslandOffset = 0;
       islandLine.style.transform = 'translateX(0px)';
-      if (islandZone._hasMask) {
+      if (islandZone._currentMask !== 'none') {
         islandZone.style.maskImage = 'none';
         islandZone.style.webkitMaskImage = 'none';
-        islandZone._hasMask = false;
+        islandZone._currentMask = 'none';
       }
     }
   }
@@ -1516,7 +1578,7 @@ async function toggleDynamicIslandMode(forceState) {
       if (typeof saveLocalSettings === 'function') saveLocalSettings();
       setTimeout(() => {
         if (typeof showToast === 'function') {
-          showToast("Tip: Tap ` (Tilde) or Ctrl+Shift+G to click tabs behind the island", 4500);
+          showToast("Tip: Hover & tap ` (Tilde) or Ctrl+Shift+G to click tabs behind the island", 4500);
         }
       }, 1000);
     }
@@ -1533,12 +1595,12 @@ async function toggleDynamicIslandMode(forceState) {
   }
 }
 
+let isMouseOverDynamicIsland = false;
+
 function toggleIslandGhostMode(enable) {
   const isGhost = Boolean(enable) && isDynamicIslandMode;
   document.body.classList.toggle('island-ghost-mode', isGhost);
-  if (isGhost && typeof showIslandHud === 'function') {
-    showIslandHud({ icon: "👻", text: "Ghost Mode", showBar: false });
-  }
+  // Repetitive HUD toast suppressed for clean, distraction-free ghosting
 }
 
 function initDOMElements() {
@@ -1700,6 +1762,16 @@ function initDOMElements() {
   widgetTimeCurrent = document.getElementById("widget-time-current");
   widgetTimeDuration = document.getElementById("widget-time-duration");
 
+  const widgetTrackWrap = document.getElementById("widget-track-name-wrapper");
+  if (widgetTrackWrap && window.ResizeObserver) {
+    const ro = new ResizeObserver(() => {
+      if (typeof widgetTrackName !== 'undefined' && widgetTrackName) {
+        updateMarqueeOverflow(widgetTrackWrap, widgetTrackName);
+      }
+    });
+    ro.observe(widgetTrackWrap);
+  }
+
   playbackWidget = document.getElementById("playback-widget");
   if (playbackWidget) {
     playbackWidget.addEventListener("wheel", (e) => {
@@ -1727,6 +1799,28 @@ function initDOMElements() {
           ? `-${formatTime(Math.max(0, trackDuration - (currentProgress || 0)))}`
           : formatTime(trackDuration);
       }
+    });
+  }
+
+  // Click on Album Art to Enlarge Lightbox Modal
+  const artContainer = document.querySelector(".widget-art-container");
+  if (artContainer) {
+    artContainer.title = "Click to enlarge album artwork";
+    artContainer.addEventListener("click", (e) => {
+      e.stopPropagation();
+      showAlbumArtModal();
+    });
+  }
+
+  const artModalClose = document.getElementById("album-art-modal-close");
+  const artModalBackdrop = document.getElementById("album-art-modal-backdrop");
+  const artModalDialog = document.querySelector(".album-art-modal-dialog");
+
+  if (artModalClose) artModalClose.addEventListener("click", hideAlbumArtModal);
+  if (artModalBackdrop) artModalBackdrop.addEventListener("click", hideAlbumArtModal);
+  if (artModalDialog) {
+    artModalDialog.addEventListener("click", (e) => {
+      e.stopPropagation();
     });
   }
 
@@ -2280,6 +2374,10 @@ function setAnimatedAlbumArt(animatedInfo, fallbackStaticUrl = null) {
       if (widgetArtFallback) widgetArtFallback.style.display = 'flex';
       setWallpaperAlbumArt(null);
     }
+    const artModal = document.getElementById("album-art-modal");
+    if (artModal && artModal.classList.contains("show")) {
+      showAlbumArtModal();
+    }
     return;
   }
 
@@ -2376,6 +2474,10 @@ function setAnimatedAlbumArt(animatedInfo, fallbackStaticUrl = null) {
       wallpaperAlbumBg.style.display = 'block';
       wallpaperAlbumBg.classList.add('has-art');
     }
+  }
+  const artModal = document.getElementById("album-art-modal");
+  if (artModal && artModal.classList.contains("show")) {
+    showAlbumArtModal();
   }
 }
 
@@ -3975,6 +4077,7 @@ function setupUIHandlers() {
   const dynamicIslandEl = document.getElementById("dynamic-island");
   if (dynamicIslandEl) {
     dynamicIslandEl.addEventListener("mouseenter", () => {
+      isMouseOverDynamicIsland = true;
       wakeDynamicIsland();
       startDynamicIslandBoundsTracking(450);
       const titleEl = document.getElementById("island-track-title");
@@ -3986,6 +4089,7 @@ function setupUIHandlers() {
       lastPlaybackActivityMs = Date.now();
     });
     dynamicIslandEl.addEventListener("mouseleave", () => {
+      isMouseOverDynamicIsland = false;
       startDynamicIslandBoundsTracking(450);
     });
     dynamicIslandEl.addEventListener("transitionstart", () => {
@@ -4493,6 +4597,7 @@ function toggleAppMute() {
   const dynamicIslandTranslationEl = document.getElementById("dynamic-island-translation");
   if (dynamicIslandTranslationEl) {
     dynamicIslandTranslationEl.addEventListener("mouseenter", () => {
+      isMouseOverDynamicIsland = true;
       wakeDynamicIsland();
       startDynamicIslandBoundsTracking(450);
       const satText = document.getElementById("island-satellite-text");
@@ -4503,6 +4608,7 @@ function toggleAppMute() {
       lastPlaybackActivityMs = Date.now();
     });
     dynamicIslandTranslationEl.addEventListener("mouseleave", () => {
+      isMouseOverDynamicIsland = false;
       startDynamicIslandBoundsTracking(450);
     });
     dynamicIslandTranslationEl.addEventListener("transitionstart", () => {
@@ -5640,8 +5746,14 @@ function toggleAppMute() {
         closeSearch();
       }
     }
-    if (e.key === 'Escape' && searchOverlay.style.display !== "none") {
-      closeSearch();
+    if (e.key === 'Escape') {
+      if (searchOverlay.style.display !== "none") {
+        closeSearch();
+      }
+      const artModal = document.getElementById("album-art-modal");
+      if (artModal && artModal.classList.contains("show")) {
+        hideAlbumArtModal();
+      }
     }
   });
 
@@ -6517,7 +6629,13 @@ function handleEmptyPlayback() {
 
   // Standby Playback Widget
   widgetTrackName.textContent = "Ready to Flow";
+  widgetTrackName.title = "";
   widgetArtistName.textContent = "Waiting for music...";
+  widgetArtistName.title = "";
+  const idleTrackWrap = document.getElementById("widget-track-name-wrapper");
+  if (idleTrackWrap) {
+    updateMarqueeOverflow(idleTrackWrap, widgetTrackName);
+  }
   if (wallpaperTrackTitle) wallpaperTrackTitle.textContent = "Ready to Flow";
   if (wallpaperTrackArtist) wallpaperTrackArtist.textContent = "Waiting for music...";
   setWallpaperAlbumArt(null);
@@ -6866,11 +6984,13 @@ async function handlePlaybackData(data) {
     if (dt >= 600 && dt <= 4000 && dp > 0 && dp < 12000) {
       const measuredRate = dp / dt;
       const candidates = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
-      const matched = candidates.find(c => Math.abs(measuredRate - c) <= 0.16);
+      // Use tight tolerance (0.08) to avoid false matches due to polling network jitter
+      const matched = candidates.find(c => Math.abs(measuredRate - c) <= 0.08);
       if (matched && (!data.playback_rate || data.playback_rate === 1.0)) {
         if (matched === window._candidateRate) {
           window._candidateRateHits = (window._candidateRateHits || 0) + 1;
-          if (window._candidateRateHits >= 2 && window._currentPlaybackRate !== matched) {
+          const requiredHits = (matched === 1.0) ? 2 : 5;
+          if (window._candidateRateHits >= requiredHits && window._currentPlaybackRate !== matched) {
             window._currentPlaybackRate = matched;
           }
         } else {
@@ -7004,10 +7124,17 @@ async function handlePlaybackData(data) {
   if (track.id !== lastProcessedTrackId) {
     lastProcessedTrackId = track.id;
     widgetTrackName.textContent = track.name;
+    widgetTrackName.title = track.name;
     const artistText = track.artists.map(a => a.name).join(", ");
     widgetArtistName.textContent = artistText;
+    widgetArtistName.title = artistText;
     if (wallpaperTrackTitle) wallpaperTrackTitle.textContent = track.name;
     if (wallpaperTrackArtist) wallpaperTrackArtist.textContent = artistText;
+
+    const trackWrap = document.getElementById("widget-track-name-wrapper");
+    if (trackWrap) {
+      updateMarqueeOverflow(trackWrap, widgetTrackName);
+    }
   }
 
   // 2. Only update Album Art & Animated Art when song or art URL changes
@@ -7025,6 +7152,11 @@ async function handlePlaybackData(data) {
       setWallpaperAlbumArt(null);
     }
     updateAnimatedAlbumArt(track, albumArtUrl);
+  }
+
+  const artModal = document.getElementById("album-art-modal");
+  if (artModal && artModal.classList.contains("show")) {
+    showAlbumArtModal();
   }
 
   try {
@@ -7158,6 +7290,10 @@ async function handlePlaybackData(data) {
           updateDynamicArtColor(artUrl);
           currentStaticAlbumArtUrl = artUrl;
           updateAnimatedAlbumArt(track, artUrl);
+          const artModal = document.getElementById("album-art-modal");
+          if (artModal && artModal.classList.contains("show")) {
+            showAlbumArtModal();
+          }
         }
       });
     } else {
@@ -8074,23 +8210,23 @@ function updateTimingStatus(level, sourceName = "", candidateInfo = "") {
   const text = badge.querySelector(".status-text") || badge;
 
   badge.className = "timing-status-badge";
+  const extraInfo = [candidateInfo, sourceName].filter(Boolean).join(" · ");
+  const tooltipSuffix = extraInfo ? ` (${extraInfo})` : "";
 
   if (level === 3) {
     badge.classList.add("word-synced");
-    const label = candidateInfo ? `Word Timing (${candidateInfo})` : "Word Timing";
-    text.textContent = label;
-    badge.title = `High-Fidelity Word Timing (Synced)${sourceName ? ` from ${sourceName}` : ''}. Click to find alternative lyrics (Ctrl+R).`;
+    text.textContent = "Word Timing";
+    badge.title = `High-Fidelity Word Timing (Synced)${tooltipSuffix}. Click to find alternative lyrics (Ctrl+R).`;
     badge.style.display = "inline-flex";
   } else if (level === 2) {
     badge.classList.add("line-synced");
-    const label = candidateInfo ? `Line Sync (${candidateInfo})` : "Line Sync";
-    text.textContent = label;
-    badge.title = `Line-Synced Lyrics${sourceName ? ` from ${sourceName}` : ''}. Click to find alternative lyrics (Ctrl+R).`;
+    text.textContent = "Line Sync";
+    badge.title = `Line-Synced Lyrics${tooltipSuffix}. Click to find alternative lyrics (Ctrl+R).`;
     badge.style.display = "inline-flex";
   } else if (level === 1) {
     badge.classList.add("plain");
     text.textContent = "Plain Text";
-    badge.title = "Plain Text Lyrics (No Sync). Click to find alternative lyrics (Ctrl+R).";
+    badge.title = `Plain Text Lyrics (No Sync)${tooltipSuffix}. Click to find alternative lyrics (Ctrl+R).`;
     badge.style.display = "inline-flex";
   } else if (level === -1 || level === 'none') {
     badge.classList.add("none");
@@ -8102,6 +8238,12 @@ function updateTimingStatus(level, sourceName = "", candidateInfo = "") {
     text.textContent = "Checking...";
     badge.title = "Searching lyrics database...";
     badge.style.display = "inline-flex";
+  }
+
+  // Refresh marquee on track name since badge visibility/width changes available space
+  const trackWrap = document.getElementById("widget-track-name-wrapper");
+  if (trackWrap && typeof widgetTrackName !== 'undefined' && widgetTrackName) {
+    updateMarqueeOverflow(trackWrap, widgetTrackName);
   }
 }
 
@@ -8441,6 +8583,74 @@ function hideGeniusModal() {
   }
 }
 
+function showAlbumArtModal() {
+  const modal = document.getElementById('album-art-modal');
+  const imgEl = document.getElementById('album-art-modal-img');
+  const vidEl = document.getElementById('album-art-modal-video');
+  const titleEl = document.getElementById('album-art-modal-title');
+  const artistEl = document.getElementById('album-art-modal-artist');
+  if (!modal || !imgEl) return;
+
+  const isVideoActive = widgetAlbumArtVideo && widgetAlbumArtVideo.style.display !== 'none' && widgetAlbumArtVideo.src;
+  // Always strictly prioritize the exact artwork currently visible in the minimized widget thumbnail
+  const visibleArt = (widgetAlbumArt && widgetAlbumArt.src && widgetAlbumArt.style.display !== 'none')
+    ? widgetAlbumArt.src
+    : (currentStaticAlbumArtUrl || (widgetAlbumArt && widgetAlbumArt.src ? widgetAlbumArt.src : ''));
+
+  if (isVideoActive && vidEl) {
+    if (vidEl.src !== widgetAlbumArtVideo.src) {
+      vidEl.src = widgetAlbumArtVideo.src;
+    }
+    vidEl.style.display = 'block';
+    vidEl.play().catch(() => {});
+    imgEl.style.display = 'none';
+  } else if (visibleArt && !visibleArt.includes('data:image/svg+xml')) {
+    if (imgEl.src !== visibleArt) {
+      imgEl.src = visibleArt;
+    }
+    imgEl.style.display = 'block';
+    if (vidEl) {
+      vidEl.pause();
+      vidEl.style.display = 'none';
+    }
+  } else {
+    return;
+  }
+
+  const trackName = (widgetTrackName && widgetTrackName.textContent !== "Not Playing")
+    ? widgetTrackName.textContent
+    : (currentTrackName || "Unknown Track");
+  const artistName = (widgetArtistName && widgetArtistName.textContent !== "Spotify")
+    ? widgetArtistName.textContent
+    : (currentArtistName || "Unknown Artist");
+
+  if (titleEl) titleEl.textContent = trackName;
+  if (artistEl) artistEl.textContent = artistName;
+
+  cancelAutoHide();
+  setClickThroughCached(false);
+
+  modal.style.display = 'flex';
+  void modal.offsetWidth;
+  modal.classList.add('show');
+}
+
+function hideAlbumArtModal() {
+  const modal = document.getElementById('album-art-modal');
+  const vidEl = document.getElementById('album-art-modal-video');
+  if (!modal) return;
+  modal.classList.remove('show');
+  if (vidEl) {
+    vidEl.pause();
+  }
+  updateAutoHideState();
+  setTimeout(() => {
+    if (!modal.classList.contains('show')) {
+      modal.style.display = 'none';
+    }
+  }, 280);
+}
+
 // Render lyrics to DOM
 function renderLyrics() {
   if (lyrics.length === 0) {
@@ -8632,22 +8842,33 @@ window.addEventListener('resize', () => {
     activeLineIndex = -1;
     scrollLyrics(idx);
   }
+  const trackWrap = document.getElementById("widget-track-name-wrapper");
+  if (trackWrap && typeof widgetTrackName !== 'undefined' && widgetTrackName) {
+    updateMarqueeOverflow(trackWrap, widgetTrackName);
+  }
 });
 
-// Tap to Ghost Passthrough mode: press ` (Tilde) or Ctrl+Shift+G to toggle
+// Tap to Ghost Passthrough mode: hover + ` (Tilde) or Ctrl+Shift+G to toggle
 window.addEventListener('keydown', (e) => {
   if (isDynamicIslandMode) {
-    if (e.key === '`' || (e.ctrlKey && e.shiftKey && e.key.toUpperCase() === 'G')) {
+    if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable)) {
+      return;
+    }
+    const isTilde = e.key === '`' || e.code === 'Backquote';
+    const isCombo = e.ctrlKey && e.shiftKey && e.key.toUpperCase() === 'G';
+    const isGhostActive = document.body.classList.contains('island-ghost-mode');
+    if (isCombo || (isTilde && (isMouseOverDynamicIsland || isGhostActive))) {
       if (window.electronAPI && typeof window.electronAPI.toggleDynamicIslandGhost === 'function') {
         window.electronAPI.toggleDynamicIslandGhost();
       } else {
-        toggleIslandGhostMode(!document.body.classList.contains('island-ghost-mode'));
+        toggleIslandGhostMode(!isGhostActive);
       }
     }
   }
 });
 
 window.addEventListener('blur', () => {
+  isMouseOverDynamicIsland = false;
   document.body.classList.add('window-blurred');
 });
 
@@ -9577,6 +9798,11 @@ window.onLastfmArtFound = function(artUrl) {
       saveArtToCache(currentTrackId, artUrl);
     }
     updateDynamicArtColor(artUrl);
+    currentStaticAlbumArtUrl = artUrl;
+    const artModal = document.getElementById("album-art-modal");
+    if (artModal && artModal.classList.contains("show")) {
+      showAlbumArtModal();
+    }
   }
 };
 

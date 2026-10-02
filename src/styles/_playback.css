@@ -46,6 +46,7 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  cursor: pointer;
   box-shadow:
     0 6px 20px rgba(0, 0, 0, 0.45),
     0 0 24px rgba(var(--accent-primary-rgb, 29, 185, 84), 0.38),
@@ -117,19 +118,47 @@
 
 .track-details {
   display: flex;
-  align-items: baseline;
-  gap: 8px;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  max-width: 100%;
   overflow: hidden;
+}
+
+.track-header-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+.track-name-wrapper {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  position: relative;
+  mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 10px), transparent 100%);
+  -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 10px), transparent 100%);
 }
 
 .track-name {
   font-size: 13px;
   font-weight: 600;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 55%;
   letter-spacing: -0.01em;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.track-name.is-overflowing {
+  text-overflow: clip;
+  display: inline-block !important;
+  will-change: transform;
+  animation: appleMarqueeScroll var(--marquee-dur, 6s) cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite alternate;
 }
 
 [data-theme="light"] .track-name {
@@ -156,6 +185,7 @@
   -webkit-app-region: no-drag !important;
   white-space: nowrap;
   user-select: none;
+  flex-shrink: 0;
 }
 
 [data-theme="light"] .timing-status-badge {
@@ -229,6 +259,7 @@
   padding: 0;
   transition: all 0.2s ease;
   -webkit-app-region: no-drag !important;
+  flex-shrink: 0;
 }
 
 .btn-hide-lyrics:hover {
@@ -243,7 +274,7 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 35%;
+  max-width: 100%;
 }
 
 [data-theme="light"] .artist-name {
@@ -528,4 +559,126 @@
 @keyframes spinCycle {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
+}
+
+/* ==========================================================
+   Album Art Lightbox Modal
+   ========================================================== */
+.album-art-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.album-art-modal.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.album-art-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(8, 8, 14, 0.76);
+  backdrop-filter: blur(28px) saturate(190%) contrast(105%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%) contrast(105%);
+  cursor: pointer;
+}
+
+.album-art-modal-dialog {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  transform: scale(0.9) translateY(12px);
+  transition: transform 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+  max-width: 90vw;
+  max-height: 90vh;
+  user-select: none;
+}
+
+.album-art-modal.show .album-art-modal-dialog {
+  transform: scale(1) translateY(0);
+}
+
+.album-art-modal-close-btn {
+  position: absolute;
+  top: -14px;
+  right: -14px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 10;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.album-art-modal-close-btn:hover {
+  background: rgba(255, 255, 255, 0.24);
+  transform: scale(1.1) rotate(90deg);
+}
+
+.album-art-modal-media-wrapper {
+  width: min(380px, 78vw);
+  height: min(380px, 78vw);
+  border-radius: 22px;
+  overflow: hidden;
+  position: relative;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow:
+    0 24px 70px -10px rgba(0, 0, 0, 0.75),
+    0 0 60px -8px var(--highlight-glow, rgba(var(--accent-primary-rgb, 29, 185, 84), 0.4)),
+    inset 0 1.5px 0.5px rgba(255, 255, 255, 0.35);
+}
+
+.album-art-modal-img,
+.album-art-modal-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.album-art-modal-info {
+  text-align: center;
+  max-width: min(380px, 78vw);
+  overflow: hidden;
+}
+
+.album-art-modal-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.015em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.6);
+}
+
+.album-art-modal-artist {
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.75);
+  margin-top: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }

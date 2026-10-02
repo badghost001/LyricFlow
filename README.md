@@ -142,13 +142,39 @@
 
 ## 📦 Installation
 
-Download the latest version from the **[Releases](https://github.com/badghost001/LyricFlow/releases/latest)** page:
+### ⚡ Fast Install (Recommended for Windows)
 
-### 🪟 Windows
-- **NSIS Setup Installer (Recommended):** [`LyricFlow_1.4.0_x64-setup.exe`](https://github.com/badghost001/LyricFlow/releases/download/v1.4.0/LyricFlow_1.4.0_x64-setup.exe)
+The easiest way to install or update LyricFlow without browser security warnings is directly through **PowerShell** or **Windows Terminal**:
+
+```powershell
+irm https://raw.githubusercontent.com/badghost001/LyricFlow/main/install.ps1 | iex
+```
+
+> **What this does:** Fetches the latest release, installs it silently to your user profile, creates Start Menu & Desktop shortcuts, and auto-launches the app. Run the same command anytime to update!
+
+---
+
+### 🪟 Windows Package Manager (`winget`)
+
+```powershell
+winget install badghost.LyricFlow
+```
+
+---
+
+### 💾 Manual Direct Downloads
+
+Download the latest release directly from the **[Releases](https://github.com/badghost001/LyricFlow/releases/latest)** page:
+
+#### 🪟 Windows
+- **NSIS Setup Installer:** [`LyricFlow_x64-setup.exe`](https://github.com/badghost001/LyricFlow/releases/latest)
   - Installs for current user, creates Start Menu and Desktop shortcuts, supports seamless auto-update.
-- **Windows MSI Package:** [`LyricFlow_1.4.0_x64_en-US.msi`](https://github.com/badghost001/LyricFlow/releases/download/v1.4.0/LyricFlow_1.4.0_x64_en-US.msi)
-  - Standard Windows Installer package suitable for automated or enterprise deployment.
+- **Windows MSI Package:** [`LyricFlow_x64_en-US.msi`](https://github.com/badghost001/LyricFlow/releases/latest)
+  - Standard Windows Installer package.
+
+> 🛡️ **Note on Windows SmartScreen:**  
+> If you download the `.exe` directly in your browser and Windows displays *"Windows protected your PC"*, simply click **"More info"** ➔ **"Run anyway"**.  
+> This standard Defender dialog appears for all new independent software without expensive $400/year enterprise certificates. LyricFlow is 100% clean, safe, and privacy-focused.
 
 ### 🍏 macOS
 - **Universal DMG Installer:** [`LyricFlow_1.4.0_universal.dmg`](https://github.com/badghost001/LyricFlow/releases/download/v1.4.0/LyricFlow_1.4.0_universal.dmg)

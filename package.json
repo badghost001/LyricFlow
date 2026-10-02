@@ -1,12 +1,12 @@
 {
   "name": "lyricflow",
-  "version": "1.40.5",
+  "version": "1.40.6",
   "description": "LyricFlow",
   "main": "main.js",
   "type": "commonjs",
   "scripts": {
     "start": "electron . --no-sandbox",
-    "test": "node -c src/renderer.js src/tauri-bridge.js src/modules/*.js && node tests/lyrics-plus.test.js && node tests/translation.test.js && node tests/island-timeout.test.js && node tests/share-card.test.js && node tests/color-extraction.test.js && node tests/progress-seek.test.js && node tests/island-ghost-mode.test.js && node tests/island-buffer-and-scroll.test.js",
+    "test": "node -c src/renderer.js src/tauri-bridge.js src/modules/*.js && node tests/lyrics-plus.test.js && node tests/translation.test.js && node tests/island-timeout.test.js && node tests/share-card.test.js && node tests/color-extraction.test.js && node tests/progress-seek.test.js && node tests/island-ghost-mode.test.js && node tests/island-buffer-and-scroll.test.js && node tests/playback-widget-layout.test.js && node tests/album-art-modal.test.js",
     "build:win": "electron-builder --win",
     "publish": "electron-builder --win -p always",
     "tauri": "tauri",

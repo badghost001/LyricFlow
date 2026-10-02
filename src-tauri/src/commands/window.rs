@@ -1096,13 +1096,6 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
                             break;
                         }
 
-                        // Real-time tap of ` (Tilde / Backtick, VK_OEM_3)
-                        let is_tilde_down = (unsafe { GetAsyncKeyState(VK_OEM_3.0 as i32) } as u16 & 0x8000) != 0;
-                        if is_tilde_down && !last_tilde_state {
-                            toggle_dynamic_island_ghost();
-                        }
-                        last_tilde_state = is_tilde_down;
-
                         let mut pt = POINT::default();
                         if unsafe { GetCursorPos(&mut pt) }.is_ok() {
                             let bounds_opt = get_island_bounds().lock().ok().and_then(|g| *g);
@@ -1125,6 +1118,19 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
                             } else {
                                 false
                             };
+
+                            // Real-time tap of ` (Tilde / Backtick, VK_OEM_3):
+                            // Strictly gated so it ONLY triggers when the cursor is hovering directly over the island,
+                            // or when already in ghost mode (to toggle it back off).
+                            // This guarantees typing backticks in code, markdown, or chat anywhere else is never hijacked.
+                            let is_tilde_down = (unsafe { GetAsyncKeyState(VK_OEM_3.0 as i32) } as u16 & 0x8000) != 0;
+                            if is_tilde_down && !last_tilde_state {
+                                let is_ghost_active = DYNAMIC_ISLAND_GHOST_ACTIVE.load(Ordering::SeqCst);
+                                if is_over_island || is_ghost_active {
+                                    toggle_dynamic_island_ghost();
+                                }
+                            }
+                            last_tilde_state = is_tilde_down;
 
                             // Auto-restore ghost mode when cursor leaves island area
                             let is_ghost = DYNAMIC_ISLAND_GHOST_ACTIVE.load(Ordering::SeqCst);

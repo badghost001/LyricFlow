@@ -1,0 +1,35 @@
+# Created with LyricFlow Winget Generator
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.6.0.schema.json
+
+PackageIdentifier: badghost.LyricFlow
+PackageVersion: 1.40.5
+PackageLocale: en-US
+Publisher: badghost
+PublisherUrl: https://github.com/badghost001
+PublisherSupportUrl: https://github.com/badghost001/LyricFlow/issues
+PackageName: LyricFlow
+PackageUrl: https://github.com/badghost001/LyricFlow
+License: Proprietary
+LicenseUrl: https://github.com/badghost001/LyricFlow/blob/main/LICENSE
+Copyright: Copyright (c) 2026 badghost
+ShortDescription: A breathtaking, ultra-lightweight desktop lyrics overlay with real-time synchronization, Dynamic Island, and adaptive ambient aesthetics.
+Description: |-
+  LyricFlow is a modern, ultra-lightweight lyrics overlay and Dynamic Island for Windows.
+  Features include:
+  - Apple-style Dynamic Island with real-time audio visualizer
+  - Real-time bilingual translation satellite
+  - Syllable-by-syllable karaoke timing and word-level glow
+  - Sub-30MB RAM usage powered by native Rust (Tauri v2)
+  - Windows Taskbar dock mode and ambient wallpaper mode
+Moniker: lyricflow
+Tags:
+  - lyrics
+  - spotify
+  - apple-music
+  - dynamic-island
+  - karaoke
+  - music
+  - overlay
+ReleaseNotesUrl: https://github.com/badghost001/LyricFlow/releases/tag/v1.40.5
+ManifestType: defaultLocale
+ManifestVersion: 1.6.0

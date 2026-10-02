@@ -1,0 +1,21 @@
+# Created with LyricFlow Winget Generator
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.6.0.schema.json
+
+PackageIdentifier: badghost.LyricFlow
+PackageVersion: 1.40.5
+InstallerType: nullsoft
+Scope: user
+InstallModes:
+  - silent
+  - interactive
+InstallerSwitches:
+  Silent: /S
+  SilentWithProgress: /S
+UpgradeBehavior: install
+ReleaseDate: 2026-09-30
+Installers:
+  - Architecture: x64
+    InstallerUrl: https://github.com/badghost001/LyricFlow/releases/download/v1.40.5/LyricFlow_1.40.5_x64-setup.exe
+    InstallerSha256: 91939772BA816E38D29E6E62C15631E6C8085298D6EA98E948FAB9C15D7D9165
+ManifestType: installer
+ManifestVersion: 1.6.0
