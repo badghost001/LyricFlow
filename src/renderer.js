@@ -1690,6 +1690,10 @@ function sleepDynamicIsland() {
 
 function wakeDynamicIsland() {
   lastPlaybackActivityMs = Date.now();
+  const wasSleeping = isIslandSleeping || document.body.classList.contains("island-sleeping");
+  if (!wasSleeping) {
+    return;
+  }
   isIslandSleeping = false;
   lastSatelliteActiveState = false;
   document.body.classList.remove("island-sleeping");
