@@ -52,11 +52,28 @@ pub fn show_now_playing_notification(app: AppHandle, track: serde_json::Value) -
 
 #[tauri::command]
 pub async fn open_external(url: String) -> Result<(), String> {
-    if !url.starts_with("http://") && !url.starts_with("https://") && !url.starts_with("spotify:") {
-        return Err("Invalid URL scheme".to_string());
+    let trimmed = url.trim();
+    if trimmed.is_empty() || trimmed.contains('\0') || trimmed.contains('\r') || trimmed.contains('\n') {
+        return Err("Invalid URL".to_string());
     }
 
-    open::that(&url).map_err(|e| e.to_string())?;
+    if trimmed.starts_with("spotify:") {
+        // Spotify URIs only allow safe identifier characters
+        if trimmed.chars().all(|c| c.is_alphanumeric() || c == ':' || c == '/' || c == '?' || c == '=' || c == '&' || c == '_' || c == '-') {
+            open::that(trimmed).map_err(|e| e.to_string())?;
+            return Ok(());
+        } else {
+            return Err("Invalid characters in Spotify URI".to_string());
+        }
+    }
+
+    let parsed = reqwest::Url::parse(trimmed).map_err(|e| format!("Invalid URL: {e}"))?;
+    let scheme = parsed.scheme();
+    if scheme != "https" && scheme != "http" {
+        return Err("Only HTTP, HTTPS, and Spotify schemes are allowed".to_string());
+    }
+
+    open::that(parsed.as_str()).map_err(|e| e.to_string())?;
     Ok(())
 }
 

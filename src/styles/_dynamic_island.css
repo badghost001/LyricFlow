@@ -680,11 +680,27 @@ body.mode-dynamic-island.has-satellite-active .island-bridge {
   animation: satelliteLiquidPinchSplit 0.38s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-body.mode-dynamic-island.has-satellite-active .dynamic-island-translation,
+body.mode-dynamic-island.has-satellite-active:not(.app-paused):not(.is-idle).is-playing .dynamic-island-translation,
 body.mode-dynamic-island #dynamic-island-translation.island-vaporizing,
 body.mode-dynamic-island #dynamic-island-translation.island-materializing,
 .dynamic-island-translation.satellite-fusing {
   display: flex !important;
+}
+
+body.mode-dynamic-island.app-paused .dynamic-island-translation,
+body.mode-dynamic-island:not(.is-playing) .dynamic-island-translation,
+body.mode-dynamic-island.is-idle .dynamic-island-translation,
+body.mode-dynamic-island.app-paused .island-bridge,
+body.mode-dynamic-island:not(.is-playing) .island-bridge,
+body.mode-dynamic-island.is-idle .island-bridge {
+  display: none !important;
+  pointer-events: none !important;
+}
+
+body.mode-dynamic-island.app-paused #island-lyric-subline,
+body.mode-dynamic-island:not(.is-playing) #island-lyric-subline,
+body.mode-dynamic-island.is-idle #island-lyric-subline {
+  display: none !important;
 }
 
 .dynamic-island-translation.satellite-fusing {

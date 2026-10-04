@@ -297,7 +297,7 @@ pub async fn select_animated_art_file() -> Result<Option<String>, String> {
 
 #[tauri::command]
 pub async fn read_file_data_url(path: String) -> Result<String, String> {
-    if path.is_empty() {
+    if path.trim().is_empty() {
         return Err("Empty path".to_string());
     }
     tokio::task::spawn_blocking(move || {
@@ -306,16 +306,28 @@ pub async fn read_file_data_url(path: String) -> Result<String, String> {
         if !p.exists() {
             return Err(format!("File does not exist: {}", clean_path));
         }
+        if !p.is_file() {
+            return Err("Specified path is not a file".to_string());
+        }
         let ext = p.extension().and_then(|s| s.to_str()).unwrap_or("").to_lowercase();
         let mime = match ext.as_str() {
             "gif" => "image/gif",
             "png" => "image/png",
             "jpg" | "jpeg" => "image/jpeg",
             "webp" => "image/webp",
+            "bmp" => "image/bmp",
+            "svg" => "image/svg+xml",
             "mp4" => "video/mp4",
             "webm" => "video/webm",
-            _ => "application/octet-stream",
+            _ => return Err(format!("Unsupported file extension '.{}': only image and video files are supported", ext)),
         };
+
+        // DoS mitigation: restrict file size to 100MB max
+        let meta = std::fs::metadata(&clean_path).map_err(|e| format!("Failed to read file metadata: {e}"))?;
+        if meta.len() > 100 * 1024 * 1024 {
+            return Err("File exceeds maximum allowed size of 100MB".to_string());
+        }
+
         let bytes = std::fs::read(&clean_path).map_err(|e| format!("Failed to read file: {}", e))?;
         let b64 = crate::models::base64_encode(&bytes);
         Ok(format!("data:{};base64,{}", mime, b64))

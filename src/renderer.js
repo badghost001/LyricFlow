@@ -802,6 +802,23 @@ function syncDynamicIslandState() {
   // Dismiss satellite translation island immediately when music stops/pauses
   if (!isPlayingActive) {
     hideSatelliteIsland(false);
+    hideDuetCapsule(false);
+    const satIsland = document.getElementById("dynamic-island-translation");
+    if (satIsland) satIsland.style.display = 'none';
+    const satBridge = document.getElementById("island-bridge");
+    if (satBridge) satBridge.style.display = 'none';
+    const satText = document.getElementById("island-satellite-text");
+    if (satText) satText.textContent = '';
+    document.body.classList.remove('has-satellite-active');
+
+    if (dynamicIslandEl && dynamicIslandEl.classList.contains('island-mode-stacked')) {
+      dynamicIslandEl.classList.remove('island-mode-stacked');
+    }
+    const islandSubline = document.getElementById("island-lyric-subline");
+    if (islandSubline) {
+      islandSubline.style.display = 'none';
+      islandSubline.textContent = '';
+    }
   }
 
   if (!isScrubbingIslandProgress) {
@@ -1817,16 +1834,19 @@ function updateDynamicIslandLyric(targetIndex, lineData, syncProgress, isInstrum
     curSubText.toLowerCase() !== curOrigText.toLowerCase()
   );
 
-  // 3. Docking rule: MUST have line translation!
+  const isPlayingActive = Boolean(isPlaying);
+
+  // 3. Docking rule: MUST have line translation AND music must be actively playing!
   const shouldSatelliteBeDocked = Boolean(
+    isPlayingActive &&
     isSatelliteEnabled &&
     trackHasTranslation &&
     lineHasTranslation &&
     !isIslandSleeping
   );
 
-  const subText = lineHasTranslation ? curSubText : '';
-  const hasTrans = Boolean(subText && transMode !== 'none');
+  const subText = (isPlayingActive && lineHasTranslation) ? curSubText : '';
+  const hasTrans = Boolean(isPlayingActive && subText && transMode !== 'none');
 
   if (btnTranslate) {
     const shouldBeActive = transMode !== 'none';
@@ -2990,8 +3010,12 @@ async function bootstrapApp() {
     // Check if launched silently via Windows startup (--startup)
     let isStartupMode = false;
     try {
-      if (window.electronAPI && typeof window.electronAPI.invoke === 'function') {
-        isStartupMode = await window.electronAPI.invoke('get_is_startup');
+      if (window.electronAPI) {
+        if (typeof window.electronAPI.getIsStartup === 'function') {
+          isStartupMode = await window.electronAPI.getIsStartup();
+        } else if (typeof window.electronAPI.invoke === 'function') {
+          isStartupMode = await window.electronAPI.invoke('get_is_startup');
+        }
       }
     } catch (e) {}
 
@@ -7941,6 +7965,30 @@ function handleEmptyPlayback() {
     sendTaskbarLyric("");
   }
   handleTaskbarPauseAutoHide(true);
+
+  hideSatelliteIsland(false);
+  hideDuetCapsule(false);
+  const satIsland = document.getElementById("dynamic-island-translation");
+  if (satIsland) {
+    satIsland.style.display = 'none';
+    satIsland.classList.remove('island-vaporizing', 'island-materializing', 'satellite-fusing');
+  }
+  const satBridge = document.getElementById("island-bridge");
+  if (satBridge) satBridge.style.display = 'none';
+  const satText = document.getElementById("island-satellite-text");
+  if (satText) satText.textContent = '';
+  document.body.classList.remove('has-satellite-active');
+
+  const dynIsland = document.getElementById("dynamic-island");
+  if (dynIsland) dynIsland.classList.remove('island-mode-stacked');
+  const subline = document.getElementById("island-lyric-subline");
+  if (subline) {
+    subline.style.display = 'none';
+    subline.textContent = '';
+  }
+  syncDynamicIslandState();
+  pushDynamicIslandBounds();
+
   updateAutoHideState();
 }
 

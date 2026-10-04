@@ -214,6 +214,28 @@ document.addEventListener('mouseleave', () => {
   }
 });
 
+function sanitizeTaskbarHtml(rawHtml) {
+  if (!rawHtml || typeof rawHtml !== 'string') return '';
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(rawHtml, 'text/html');
+    const dangerous = doc.querySelectorAll('script, iframe, object, embed, style, link, meta, base');
+    dangerous.forEach(el => el.remove());
+    const allElements = doc.body.querySelectorAll('*');
+    allElements.forEach(el => {
+      const attrs = Array.from(el.attributes);
+      for (const attr of attrs) {
+        if (attr.name.startsWith('on') || attr.name === 'src' || attr.name === 'href') {
+          el.removeAttribute(attr.name);
+        }
+      }
+    });
+    return doc.body.innerHTML;
+  } catch (_) {
+    return '';
+  }
+}
+
 // ── IPC: lyrics + progress ─────────────────────────────────────────────────
 function handleTaskbarData(data) {
   if (!data) return;
@@ -228,7 +250,7 @@ function handleTaskbarData(data) {
   }
 
   if (data.html !== undefined && data.html) {
-    lyricEl.innerHTML = data.html;
+    lyricEl.innerHTML = sanitizeTaskbarHtml(data.html);
     if (data.hidden !== true) {
       lyricEl.classList.remove('tb-hidden');
       progressEl.classList.remove('tb-hidden');

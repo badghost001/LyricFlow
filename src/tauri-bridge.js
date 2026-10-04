@@ -177,16 +177,25 @@
   }
 
   window.electronAPI = {
+    invoke: (cmd, args = {}) => safeInvoke(cmd, args, null),
+    getIsStartup: () => safeInvoke('get_is_startup', {}, false),
     loadConfig: () => safeInvoke('load_config', {}, null),
     saveConfig: (config) => safeInvoke('save_config', { config }, true),
     resetConfig: () => safeInvoke('reset_config', {}, null),
     setClickThrough: (ignore) => safeInvoke('set_click_through', { ignore }, null),
     syncTaskbarLayout: (layout) => safeEmit('sync-taskbar-layout', layout),
-    setAlwaysOnTop: (alwaysOnTop) => safeInvoke('set_always_on_top', { alwaysOnTop }, null),
+    setAlwaysOnTop: (alwaysOnTop) => safeInvoke('set_always_on_top', { alwaysOnTop, always_on_top: alwaysOnTop }, null),
     setEdgeGlow: (enabled, color) => safeInvoke('set_edge_glow', { enabled, color }, null),
     refreshToken: () => safeInvoke('refresh_token', {}, null),
     startOAuthServer: (clientId, codeVerifier, codeChallenge) =>
-      safeInvoke('start_oauth_server', { clientId, codeVerifier, codeChallenge }, null),
+      safeInvoke('start_oauth_server', {
+        clientId,
+        client_id: clientId,
+        codeVerifier,
+        code_verifier: codeVerifier,
+        codeChallenge,
+        code_challenge: codeChallenge
+      }, null),
     closeApp: () => safeInvoke('close_app', {}, null),
     minimizeApp: () => safeInvoke('minimize_app', {}, null),
     showMainWindow: () => safeInvoke('show_main_window', {}, null),
@@ -195,12 +204,19 @@
     lastfmApi: (method, params = {}, apiKey = '', apiSecret = '', sessionKey = '') =>
       safeInvoke('lastfm_api', { data: { method, params, apiKey, apiSecret, sessionKey } }, null),
     getTaskbarColor: () => safeInvoke('get_taskbar_color', {}, { theme: 'dark', color: '#ffffff', accentColor: '#1DB954' }),
-    setTaskbarMode: (enabled, fromTray = false) => safeInvoke('set_taskbar_mode', { enabled, fromTray }, null),
-    setDynamicIslandMode: (enabled, dockPos = 'top-center') => safeInvoke('set_dynamic_island_mode', { enabled, dockPos, dock_pos: dockPos }, null),
+    setTaskbarMode: (enabled, fromTray = false) =>
+      safeInvoke('set_taskbar_mode', { enabled, fromTray, from_tray: fromTray }, null),
+    setDynamicIslandMode: (enabled, dockPos = 'top-center') =>
+      safeInvoke('set_dynamic_island_mode', { enabled, dockPos, dock_pos: dockPos }, null),
     isDynamicIslandMode: () => safeInvoke('is_dynamic_island_mode', {}, false),
     updateIslandBounds: (rect) => safeInvoke('update_island_bounds', { rect }, null),
     getAvailableMonitors: () => safeInvoke('get_available_monitors', {}, []),
-    setWallpaperMode: (enabled, monitorTarget = null) => safeInvoke('set_wallpaper_mode', { enabled, monitorTarget: monitorTarget ? String(monitorTarget) : null }, null),
+    setWallpaperMode: (enabled, monitorTarget = null) =>
+      safeInvoke('set_wallpaper_mode', {
+        enabled,
+        monitorTarget: monitorTarget ? String(monitorTarget) : null,
+        monitor_target: monitorTarget ? String(monitorTarget) : null
+      }, null),
     syncTaskbarModeState: (isTaskbarMode) => safeEmit('sync-taskbar-mode-state', isTaskbarMode),
     syncTaskbarConfig: (config) => safeInvoke('sync_taskbar_config', { config }, null),
     startTaskbarDrag: (data) => safeEmit('start-taskbar-drag', data),
@@ -211,7 +227,7 @@
     updateNextUpPlaycount: () => {},
     getLocalPlayback: () => safeInvoke('get_local_playback', {}, null),
     triggerLocalPlaybackControl: (action, position = 0) =>
-      safeInvoke('trigger_playback_control', { action, positionMs: position }, false),
+      safeInvoke('trigger_playback_control', { action, positionMs: position, position_ms: position }, false),
     selectBackgroundFile: () => safeInvoke('select_background_file', {}, null),
     selectAnimatedArtFile: () => safeInvoke('select_animated_art_file', {}, null),
     convertFileSrc: (filePath) => {
@@ -231,30 +247,53 @@
     readFileDataUrl: (path) => safeInvoke('read_file_data_url', { path }, null),
     fetchImageDataUrl: (url) => safeInvoke('fetch_image_data_url', { url }, null),
     fetchTrackArtwork: (track, artist, album = null) => safeInvoke('fetch_track_artwork', { track, artist, album }, null),
-    fetchSpotifyCanvas: (trackId, token) => safeInvoke('fetch_spotify_canvas', { trackId, token }, null),
-    searchMusicGif: (trackName, artistName) => safeInvoke('search_music_gif', { trackName, artistName }, null),
+    fetchSpotifyCanvas: (trackId, token) => safeInvoke('fetch_spotify_canvas', { trackId, track_id: trackId, token }, null),
+    searchMusicGif: (trackName, artistName) =>
+      safeInvoke('search_music_gif', { trackName, track_name: trackName, artistName, artist_name: artistName }, null),
     setFullscreenLyrics: (enabled) => safeInvoke('set_fullscreen_lyrics', { enabled }, null),
     getAutoLaunch: () => safeInvoke('get_auto_launch', {}, false),
     setAutoLaunch: (enabled) => safeInvoke('set_auto_launch', { enabled }, false),
     getDesktopWallpaper: () => safeInvoke('get_desktop_wallpaper', {}, null),
     loginViaWeb: () => safeInvoke('login_via_web', {}, null),
-    getAccessToken: (spDc) => safeInvoke('get_access_token', { spDc }, null),
+    getAccessToken: (spDc) => safeInvoke('get_access_token', { spDc, sp_dc: spDc }, null),
     logout: () => safeInvoke('reset_config', {}, null),
-    openExternal: (url) => safeInvoke('open_external', { url }, null),
-    lastfmApi: (method, params, apiKey, apiSecret, sessionKey) =>
-      safeInvoke('lastfm_api', { data: { method, params, apiKey, apiSecret, sessionKey } }, null),
     getGeniusFact: (artist, track) => safeInvoke('get_genius_fact', { artist, track }, null),
     getGeniusAnnotations: (artist, track) => safeInvoke('get_genius_annotations', { artist, track }, []),
-    fetchGeniusFact: (trackName, artistName) => safeInvoke('fetch_genius_fact', { trackName, artistName }, null),
-    fetchGeniusLyrics: (trackName, artistName) => safeInvoke('fetch_genius_lyrics', { trackName, artistName }, null),
-    fetchSpotifyLyrics: (trackId, token) => safeInvoke('fetch_spotify_lyrics', { trackId, token }, null),
-    fetchNetEaseLyrics: (trackName, artistName) => safeInvoke('fetch_netease_lyrics', { trackName, artistName }, null),
+    fetchGeniusFact: (trackName, artistName) =>
+      safeInvoke('fetch_genius_fact', { trackName, track_name: trackName, artistName, artist_name: artistName }, null),
+    fetchGeniusLyrics: (trackName, artistName) =>
+      safeInvoke('fetch_genius_lyrics', { trackName, track_name: trackName, artistName, artist_name: artistName }, null),
+    fetchSpotifyLyrics: (trackId, token) => safeInvoke('fetch_spotify_lyrics', { trackId, track_id: trackId, token }, null),
+    fetchNetEaseLyrics: (trackName, artistName) =>
+      safeInvoke('fetch_netease_lyrics', { trackName, track_name: trackName, artistName, artist_name: artistName }, null),
     searchSyncedLyrics: (trackName, artistName, durationMs, options) =>
-      safeInvoke('search_synced_lyrics', { trackName, artistName, durationMs, options }, null),
+      safeInvoke('search_synced_lyrics', {
+        trackName,
+        track_name: trackName,
+        artistName,
+        artist_name: artistName,
+        durationMs,
+        duration_ms: durationMs,
+        options
+      }, null),
     getLyricsCandidates: (trackName, artistName, durationMs, options) =>
-      safeInvoke('get_lyrics_candidates', { trackName, artistName, durationMs, options }, []),
+      safeInvoke('get_lyrics_candidates', {
+        trackName,
+        track_name: trackName,
+        artistName,
+        artist_name: artistName,
+        durationMs,
+        duration_ms: durationMs,
+        options
+      }, []),
     translateText: (text, targetLang, skipLang) =>
-      safeInvoke('translate_text', { text, targetLang, skipLang }, { text: null, src: 'error' }),
+      safeInvoke('translate_text', {
+        text,
+        targetLang,
+        target_lang: targetLang,
+        skipLang,
+        skip_lang: skipLang
+      }, { text: null, src: 'error' }),
     fetchMusicNews: (query) => safeInvoke('fetch_music_news', { query }, ''),
 
     // Event Listeners
@@ -311,7 +350,7 @@
       safeEmit('tb-offset-saved', x);
     },
     openApp: () => safeInvoke('set_taskbar_mode', { enabled: false }),
-    togglePlayPause: () => safeInvoke('trigger_playback_control', { action: 'play-pause', positionMs: 0 }, false),
+    togglePlayPause: () => safeInvoke('trigger_playback_control', { action: 'play-pause', positionMs: 0, position_ms: 0 }, false),
     onUpdateLyric: (cb) => safeListen('update-taskbar-lyric', (data) => cb(data)),
     onSyncConfig: (cb) => safeListen('sync-taskbar-config', (cfg) => cb(cfg)),
     updateLyricBounds: (rect) => safeInvoke('update_taskbar_lyric_bounds', { rect }),
