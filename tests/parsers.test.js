@@ -314,6 +314,33 @@ function runParserTests() {
     assert.strictEqual(res[1].text, 'the time');
   });
 
+  // Test 9a: parseYRC glues standalone punctuation tokens to preceding word
+  test('9a. parseYRC glues standalone punctuation tokens to preceding word and absorbs duration', () => {
+    const rawYrc = `[1000,2000](1000,500,0)No(1500,200,0), (1700,500,0)I (2200,600,0)can't`;
+    const res = parseYRC(rawYrc);
+    assert.strictEqual(res.length, 1);
+    assert.strictEqual(res[0].words.length, 3);
+    assert.strictEqual(res[0].words[0].text, 'No, ');
+    assert.strictEqual(res[0].words[0].timeMs, 1000);
+    assert.strictEqual(res[0].words[0].duration, 700);
+    assert.strictEqual(res[0].words[0].endMs, 1700);
+    assert.strictEqual(res[0].words[1].text, 'I ');
+    assert.strictEqual(res[0].words[2].text, "can't");
+  });
+
+  // Test 9b: parseLRC glues standalone punctuation tokens in enhanced LRC to preceding word
+  test('9b. parseLRC glues standalone punctuation tokens in enhanced LRC to preceding word', () => {
+    const rawLrc = `[00:10.00] <00:10.00>No <00:10.50>, <00:10.80>I <00:11.20>can't`;
+    const res = parseLRC(rawLrc);
+    assert.strictEqual(res.length, 1);
+    assert.strictEqual(res[0].words.length, 3);
+    assert.strictEqual(res[0].words[0].text, 'No,');
+    assert.strictEqual(res[0].words[0].timeMs, 10000);
+    assert.strictEqual(res[0].words[0].endMs, 10800);
+    assert.strictEqual(res[0].words[1].text, 'I');
+    assert.strictEqual(res[0].words[2].text, "can't");
+  });
+
   console.log(`\nResults: ${passedTests}/${totalTests} tests passed.\n`);
   if (passedTests !== totalTests) {
     process.exit(1);

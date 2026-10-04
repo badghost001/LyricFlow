@@ -89,7 +89,11 @@ function parseLRC(lrcText) {
           const totalMs = (min * 60 + sec) * 1000 + ms;
           const text = (tokenMatch[6] || "").trim();
           if (text) {
-            words.push({ text, timeMs: totalMs });
+            if (words.length > 0 && /^[,.!?;:’”'»\)}\]…~～、。，．！？–—"']+$/.test(text)) {
+              words[words.length - 1].text += text;
+            } else {
+              words.push({ text, timeMs: totalMs });
+            }
           }
         }
       } else if (/<(\d{1,2}):(\d{2})/.test(afterLineTags)) {
@@ -282,12 +286,19 @@ function parseYRC(yrcText) {
       const wDur = parseInt(wordMatch[2], 10);
       const text = wordMatch[3] || '';
       if (text) {
-        words.push({
-          text,
-          timeMs: wStart,
-          endMs: wStart + wDur,
-          duration: wDur
-        });
+        if (words.length > 0 && /^[,.!?;:’”'»\)}\]…~～、。，．！？–—"']+$/.test(text.trim())) {
+          const prev = words[words.length - 1];
+          prev.text = prev.text.trimEnd() + text;
+          prev.endMs = Math.max(prev.endMs || 0, wStart + wDur);
+          prev.duration = prev.endMs - prev.timeMs;
+        } else {
+          words.push({
+            text,
+            timeMs: wStart,
+            endMs: wStart + wDur,
+            duration: wDur
+          });
+        }
       }
     }
 

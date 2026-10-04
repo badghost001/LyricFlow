@@ -9968,37 +9968,150 @@ function setLyricWordProgress(span, progress) {
   span.style.setProperty('--word-progress', value);
 }
 
+/**
+ * Reconciles word-by-word timing tokens with line text and typography rules:
+ * 1. Attaches punctuation from lineText to words if omitted by timing providers.
+ * 2. Merges standalone punctuation tokens into adjacent words (Kinsoku Shori).
+ * 3. Eliminates unwanted spaces before commas, periods, colons, closing brackets/quotes.
+ * 4. Ensures appropriate spacing after commas and punctuation in Latin text.
+ */
+function reconcileTimedWords(words, lineText) {
+  if (!Array.isArray(words) || words.length === 0) return [];
+  const cleanLine = typeof lineText === 'string' ? lineText.trim() : '';
+
+  let tokens = words.map(w => ({
+    ...w,
+    text: String(w?.text ?? w ?? '')
+  }));
+
+  const CLOSING_PUNCT = /^[,.!?;:’”'»\)}\]…~～、。，．！？–—"']+$/;
+  const OPENING_PUNCT = /^[“‘«\(\{\[「『"']+$/;
+
+  // Step 1: Merge orphan punctuation tokens (Kinsoku Shori)
+  const merged = [];
+  for (let i = 0; i < tokens.length; i++) {
+    const cur = tokens[i];
+    const curText = cur.text.trim();
+
+    if (!curText) continue;
+
+    // A. If token is pure closing punctuation, glue onto previous token
+    if (merged.length > 0 && CLOSING_PUNCT.test(curText)) {
+      const prev = merged[merged.length - 1];
+      prev.text = prev.text.trimEnd() + curText;
+      if (cur.endMs != null) prev.endMs = Math.max(prev.endMs || 0, cur.endMs);
+      if (cur.duration != null && prev.duration != null) prev.duration += cur.duration;
+      continue;
+    }
+
+    // B. If token is pure opening punctuation, prepend to next token
+    if (OPENING_PUNCT.test(curText) && i + 1 < tokens.length) {
+      tokens[i + 1].text = curText + tokens[i + 1].text.trimStart();
+      tokens[i + 1].timeMs = Math.min(tokens[i + 1].timeMs || cur.timeMs, cur.timeMs || tokens[i + 1].timeMs);
+      continue;
+    }
+
+    merged.push(cur);
+  }
+
+  if (merged.length === 0) return [];
+
+  // Step 2: Reconcile with lineText to restore missing punctuation
+  if (cleanLine) {
+    let lineIdx = 0;
+    for (let i = 0; i < merged.length; i++) {
+      const cur = merged[i];
+      const curBare = cur.text.replace(/^[^a-zA-Z0-9\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f]+/, '')
+                              .replace(/[^a-zA-Z0-9\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f]+$/, '');
+      const searchTarget = curBare || cur.text.trim();
+      if (!searchTarget) continue;
+
+      const found = cleanLine.indexOf(searchTarget, lineIdx);
+      if (found !== -1) {
+        if (found > lineIdx) {
+          const between = cleanLine.substring(lineIdx, found).trim();
+          if (between && /^[“‘«\(\{\[「『"']+$/.test(between)) {
+            if (!cur.text.startsWith(between)) {
+              cur.text = between + cur.text;
+            }
+          }
+        }
+
+        const afterWordIdx = found + searchTarget.length;
+        lineIdx = afterWordIdx;
+
+        let punctEnd = lineIdx;
+        while (punctEnd < cleanLine.length && /[,.!?;:’”'»\)}\]…~～、。，．！？–—"']/.test(cleanLine[punctEnd])) {
+          punctEnd++;
+        }
+
+        if (punctEnd > lineIdx) {
+          const punct = cleanLine.substring(lineIdx, punctEnd);
+          if (!cur.text.trimEnd().endsWith(punct)) {
+            cur.text = cur.text.trimEnd() + punct;
+          }
+          lineIdx = punctEnd;
+        }
+      }
+    }
+  }
+
+  return merged;
+}
+
 function needsTimedWordSpace(words, wordIndex, lineText, searchState) {
   if (wordIndex >= words.length - 1) return false;
   const word = String(words[wordIndex]?.text ?? words[wordIndex] ?? '');
   const nextWord = String(words[wordIndex + 1]?.text ?? words[wordIndex + 1] ?? '');
 
-  if (/\s$/.test(word) || /^\s/.test(nextWord)) return true;
-
-  const needle = word.trim();
-  const found = needle && lineText ? lineText.indexOf(needle, searchState.position) : -1;
-  if (found >= 0) {
-    searchState.position = found + needle.length;
-    if (/\s/.test(lineText[searchState.position] || '')) {
-      while (/\s/.test(lineText[searchState.position] || '')) searchState.position++;
-      return true;
-    }
-  }
-
-  // Fallback for adjacent tokens when lineText has no spaces or token was not found
   const curTrim = word.trim();
   const nextTrim = nextWord.trim();
   if (!curTrim || !nextTrim) return false;
 
-  // After punctuation like comma, period, exclamation, question mark: always space
-  if (/[,.!?;:]$/.test(curTrim)) return true;
+  // RULE 1: NEVER insert a space BEFORE closing punctuation or commas!
+  if (/^[,.!?;:’”»\)}\]…~～、。，．！？–—]/.test(nextTrim)) {
+    return false;
+  }
 
-  // Between alphanumeric Latin characters unless next is contraction ('t, 's, 'm, 're, 've, 'll, 'd)
+  // RULE 2: NEVER insert a space after opening punctuation!
+  if (/[“‘«\(\{\[「『]$/.test(curTrim)) {
+    return false;
+  }
+
+  // RULE 3: NEVER insert a space before contractions ('t, 's, 'm, 're, 've, 'll, 'd)
+  if (/^['’](t|s|m|re|ve|ll|d)\b/i.test(nextTrim)) {
+    return false;
+  }
+
+  // RULE 4: Align with ground-truth lineText if available
+  const needle = curTrim;
+  const found = needle && lineText ? lineText.indexOf(needle, searchState.position) : -1;
+  if (found >= 0) {
+    searchState.position = found + needle.length;
+    while (/[,.!?;:’”'»\)}\]…~～、。，．！？–—"']/.test(lineText[searchState.position] || '')) {
+      searchState.position++;
+    }
+    if (/\s/.test(lineText[searchState.position] || '')) {
+      while (/\s/.test(lineText[searchState.position] || '')) searchState.position++;
+      return true;
+    }
+    // lineText is present and explicitly has NO space here: these are syllables of the same word or CJK
+    return false;
+  }
+
+  // RULE 5: If word has explicit trailing space or nextWord has explicit leading space
+  if (/\s$/.test(word) || /^\s/.test(nextWord)) return true;
+
+  // RULE 6: Always space after punctuation when followed by alphanumeric
+  if (/[,.!?;:]$/.test(curTrim) && /^[a-zA-Z0-9]/.test(nextTrim)) {
+    return true;
+  }
+
+  // RULE 7: Between alphanumeric Latin characters
   const curEndsAlphaNum = /[a-zA-Z0-9]$/.test(curTrim);
   const nextStartsAlphaNum = /^[a-zA-Z0-9]/.test(nextTrim);
-  const nextIsContraction = /^['’](t|s|m|re|ve|ll|d)\b/i.test(nextTrim);
 
-  if (curEndsAlphaNum && nextStartsAlphaNum && !nextIsContraction) {
+  if (curEndsAlphaNum && nextStartsAlphaNum) {
     return true;
   }
 
@@ -10006,26 +10119,28 @@ function needsTimedWordSpace(words, wordIndex, lineText, searchState) {
 }
 
 function appendTimedWordSpans(container, words, lineText, className, dataName) {
+  const reconciled = reconcileTimedWords(words, lineText);
   const searchState = { position: 0 };
-  words.forEach((word, index) => {
+  reconciled.forEach((word, index) => {
     const rawText = String(word?.text ?? word ?? '');
     const span = document.createElement('span');
     span.className = className;
     span.textContent = rawText.trim();
     if (dataName) span.dataset[dataName] = index;
     container.appendChild(span);
-    if (index < words.length - 1 && needsTimedWordSpace(words, index, lineText || '', searchState)) {
+    if (index < reconciled.length - 1 && needsTimedWordSpace(reconciled, index, lineText || '', searchState)) {
       container.appendChild(document.createTextNode(' '));
     }
   });
 }
 
 function timedWordSpansHtml(words, lineText) {
+  const reconciled = reconcileTimedWords(words, lineText);
   const searchState = { position: 0 };
-  return words.map((word, index) => {
+  return reconciled.map((word, index) => {
     const text = String(word?.text ?? word ?? '');
     const span = `<span class="lyric-word" data-word-idx="${index}">${escapeHTML(text.trim())}</span>`;
-    return span + (index < words.length - 1 && needsTimedWordSpace(words, index, lineText || '', searchState) ? ' ' : '');
+    return span + (index < reconciled.length - 1 && needsTimedWordSpace(reconciled, index, lineText || '', searchState) ? ' ' : '');
   }).join('');
 }
 
@@ -10086,7 +10201,7 @@ function renderLyrics() {
     const hasRealWordTiming = line.words && line.words.length > 0;
 
     if ((settings.wordByWord !== false) && hasRealWordTiming) {
-      // Need to preserve the actual word timing data instead of just extracting strings
+      line.words = reconcileTimedWords(line.words, lineText);
       const wordList = line.words;
       appendTimedWordSpans(el, wordList, lineText, 'lyric-word lyric-word-upcoming', 'wordIndex');
     } else {

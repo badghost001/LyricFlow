@@ -210,7 +210,7 @@ pub fn parse_yrc_to_enhanced_lrc_and_lines(yrc: &str, lrc_ref: Option<&str>) -> 
         let remainder = &line[close_bracket_idx + 1..];
 
         // 2. Parse syllable tokens: (word_start, word_duration, flag)word_text
-        let mut words = Vec::new();
+        let mut words: Vec<WordTiming> = Vec::new();
         let mut line_text = String::new();
         let mut curr = remainder;
 
@@ -238,11 +238,24 @@ pub fn parse_yrc_to_enhanced_lrc_and_lines(yrc: &str, lrc_ref: Option<&str>) -> 
             let word_str = &after_close[..next_open_idx];
 
             if !word_str.is_empty() {
-                words.push(WordTiming {
-                    text: word_str.to_string(),
-                    time_ms: w_start_ms,
-                    duration_ms: Some(w_dur_ms),
-                });
+                let trimmed_word = word_str.trim();
+                let is_pure_closing_punct = !trimmed_word.is_empty()
+                    && trimmed_word.chars().all(|c| ",.!?;:’”'»)}]-~～、。，．！？–—\"'".contains(c));
+
+                if is_pure_closing_punct && !words.is_empty() {
+                    let last_idx = words.len() - 1;
+                    let prev_text = words[last_idx].text.trim_end().to_string();
+                    words[last_idx].text = format!("{}{}", prev_text, word_str);
+                    if let Some(dur) = words[last_idx].duration_ms {
+                        words[last_idx].duration_ms = Some(dur + w_dur_ms);
+                    }
+                } else {
+                    words.push(WordTiming {
+                        text: word_str.to_string(),
+                        time_ms: w_start_ms,
+                        duration_ms: Some(w_dur_ms),
+                    });
+                }
                 line_text.push_str(word_str);
             }
 
@@ -689,5 +702,20 @@ mod tests {
         assert!(filtered.contains("[00:15.20]The way she came into the place"));
         assert!(filtered.contains("[00:18.50]I knew right then and there"));
     }
+
+    #[test]
+    fn test_parse_yrc_glues_orphan_punctuation() {
+        let yrc = "[1000,2000](1000,500,0)Hello(1500,200,0),(1700,500,0)world";
+        let (_, lines) = parse_yrc_to_enhanced_lrc_and_lines(yrc, None).unwrap();
+        assert_eq!(lines.len(), 1);
+        assert_eq!(lines[0].text, "Hello, world");
+        let words = &lines[0].words;
+        assert_eq!(words.len(), 2);
+        assert_eq!(words[0].text, "Hello, ");
+        assert_eq!(words[0].time_ms, 1000);
+        assert_eq!(words[0].duration_ms, Some(700));
+        assert_eq!(words[1].text, "world");
+    }
 }
+
 
