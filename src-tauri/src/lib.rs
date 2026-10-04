@@ -73,9 +73,16 @@ pub fn run() {
                         let text = format!("{:?}", shortcut).to_lowercase();
                         if text.contains("shift") && text.contains("keyc") {
                             let _ = app.emit("copy-active-lyric", ());
-
                         } else if text.contains("shift") && text.contains("keys") {
                             let _ = app.emit("share-active-lyric", ());
+                        } else if text.contains("shift") && text.contains("keyd") {
+                            let _ = app.emit("toggle-dynamic-island-shortcut", ());
+                        } else if text.contains("shift") && text.contains("keyw") {
+                            let _ = app.emit("toggle-wallpaper-mode-shortcut", ());
+                        } else if text.contains("shift") && text.contains("keyb") {
+                            let _ = app.emit("toggle-taskbar-mode-shortcut", ());
+                        } else if text.contains("shift") && text.contains("keyl") {
+                            let _ = app.emit("toggle-click-through-shortcut", ());
                         } else if text.contains("shift") && text.contains("keyg") {
                             commands::window::toggle_dynamic_island_ghost();
                         } else if text.contains("shift") && text.contains("arrowleft") {
@@ -125,6 +132,10 @@ pub fn run() {
             let shortcuts = [
                 "ctrl+shift+c",
                 "ctrl+shift+s",
+                "ctrl+shift+d",
+                "ctrl+shift+w",
+                "ctrl+shift+b",
+                "ctrl+shift+l",
                 "ctrl+shift+g",
                 "ctrl+shift+left",
                 "ctrl+shift+right",
@@ -194,11 +205,14 @@ pub fn run() {
             });
 
             log_to_file("[LyricFlow] Building system tray...");
-            // Build System Tray (Matches Electron menu-builder.js layout exactly)
+            // Build System Tray
             let title_item = MenuItem::with_id(app, "title", "LyricFlow", false, None::<&str>)?;
             let sep1 = PredefinedMenuItem::separator(app)?;
-            let show_item = MenuItem::with_id(app, "show_main", "Open App", true, None::<&str>)?;
-            let taskbar_item = MenuItem::with_id(app, "taskbar", "Toggle Taskbar Mode", true, None::<&str>)?;
+            let show_item = MenuItem::with_id(app, "show_main", "Open Overlay App", true, None::<&str>)?;
+            let island_item = MenuItem::with_id(app, "island", "Toggle Dynamic Island (Ctrl+Shift+D)", true, None::<&str>)?;
+            let wallpaper_item = MenuItem::with_id(app, "wallpaper", "Toggle Wallpaper Mode (Ctrl+Shift+W)", true, None::<&str>)?;
+            let taskbar_item = MenuItem::with_id(app, "taskbar", "Toggle Taskbar Mode (Ctrl+Shift+B)", true, None::<&str>)?;
+            let share_item = MenuItem::with_id(app, "share", "Share Lyric Card (Ctrl+Shift+S)", true, None::<&str>)?;
             let sep2 = PredefinedMenuItem::separator(app)?;
             let play_item = MenuItem::with_id(app, "play", "Play / Pause", true, None::<&str>)?;
             let next_item = MenuItem::with_id(app, "next", "Next Song", true, None::<&str>)?;
@@ -213,7 +227,10 @@ pub fn run() {
                     &title_item,
                     &sep1,
                     &show_item,
+                    &island_item,
+                    &wallpaper_item,
                     &taskbar_item,
+                    &share_item,
                     &sep2,
                     &play_item,
                     &next_item,
@@ -254,25 +271,17 @@ pub fn run() {
                                 let _ = w.set_focus();
                             }
                         }
-                        "toggle" => {
-                            if let Some(w) = app.get_webview_window("main") {
-                                let is_minimized = w.is_minimized().unwrap_or(false);
-                                let is_visible = w.is_visible().unwrap_or(false);
-                                if is_minimized {
-                                    let _ = w.unminimize();
-                                    let _ = w.show();
-                                    let _ = w.set_focus();
-                                } else if is_visible {
-                                    let _ = w.hide();
-                                } else {
-                                    let _ = w.show();
-                                    let _ = w.unminimize();
-                                    let _ = w.set_focus();
-                                }
-                            }
+                        "island" => {
+                            let _ = app.emit("toggle-dynamic-island-shortcut", ());
+                        }
+                        "wallpaper" => {
+                            let _ = app.emit("toggle-wallpaper-mode-shortcut", ());
                         }
                         "taskbar" => {
-                            let _ = app.emit("toggle-taskbar-mode-tray", ());
+                            let _ = app.emit("toggle-taskbar-mode-shortcut", ());
+                        }
+                        "share" => {
+                            let _ = app.emit("share-active-lyric", ());
                         }
                         "play" => {
                             let _ = app.emit("tray-playback-control", "play-pause");
@@ -448,6 +457,7 @@ pub fn run() {
             window::set_always_on_top,
             window::set_click_through,
             window::minimize_app,
+            window::reset_window_size,
             window::copy_to_clipboard,
             window::close_app,
             window::get_is_startup,

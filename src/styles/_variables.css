@@ -2,6 +2,7 @@
 :root,
 [data-theme="dark"] {
   --font-size: 22px;
+  --app-font: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --text-align: center;
   --line-spacing: 11px;

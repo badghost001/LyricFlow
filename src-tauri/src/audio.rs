@@ -91,6 +91,124 @@ fn cooley_tukey_fft(re: &mut [f32; FFT_SIZE], im: &mut [f32; FFT_SIZE]) {
 }
 
 #[cfg(target_os = "windows")]
+struct WasapiSession {
+    client: IAudioClient,
+    capture_client: IAudioCaptureClient,
+    channels: u16,
+    bits_per_sample: u16,
+    is_float: bool,
+    sample_rate: u32,
+    device_id: String,
+}
+
+#[cfg(target_os = "windows")]
+const BAND_CUTOFFS_HZ: [f32; NUM_BANDS + 1] = [
+    30.0,
+    85.0,
+    180.0,
+    360.0,
+    750.0,
+    1600.0,
+    3500.0,
+    7500.0,
+    15000.0,
+];
+
+#[cfg(target_os = "windows")]
+fn compute_band_ranges(sample_rate: u32) -> [(usize, usize); NUM_BANDS] {
+    let sr = (sample_rate as f32).max(8000.0);
+    let nyquist = sr / 2.0;
+    let mut bin_cutoffs = [0usize; NUM_BANDS + 1];
+    for (i, &f) in BAND_CUTOFFS_HZ.iter().enumerate() {
+        let f_clamped = f.min(nyquist);
+        let bin = ((f_clamped / sr) * (FFT_SIZE as f32)).round() as usize;
+        bin_cutoffs[i] = bin.clamp(1, FFT_SIZE / 2);
+    }
+
+    let mut ranges = [(0usize, 0usize); NUM_BANDS];
+    for i in 0..NUM_BANDS {
+        let start = bin_cutoffs[i];
+        let end = bin_cutoffs[i + 1].max(start + 1);
+        ranges[i] = (start, end);
+    }
+    ranges
+}
+
+#[cfg(target_os = "windows")]
+unsafe fn get_default_device_id(enumerator: &IMMDeviceEnumerator) -> Option<String> {
+    let device = enumerator
+        .GetDefaultAudioEndpoint(eRender, eMultimedia)
+        .or_else(|_| enumerator.GetDefaultAudioEndpoint(eRender, eConsole))
+        .ok()?;
+    let id_pwstr = device.GetId().ok()?;
+    let id_str = id_pwstr.to_string().ok();
+    CoTaskMemFree(Some(id_pwstr.0 as *const _ as *const std::ffi::c_void));
+    id_str
+}
+
+#[cfg(target_os = "windows")]
+unsafe fn init_wasapi_capture(enumerator: &IMMDeviceEnumerator) -> Option<WasapiSession> {
+    let device = enumerator
+        .GetDefaultAudioEndpoint(eRender, eMultimedia)
+        .or_else(|_| enumerator.GetDefaultAudioEndpoint(eRender, eConsole))
+        .ok()?;
+
+    let device_id = match device.GetId() {
+        Ok(id_pwstr) => {
+            let s = id_pwstr.to_string().unwrap_or_default();
+            CoTaskMemFree(Some(id_pwstr.0 as *const _ as *const std::ffi::c_void));
+            s
+        }
+        Err(_) => String::new(),
+    };
+
+    let client: IAudioClient = device.Activate(CLSCTX_ALL, None).ok()?;
+    let pwfx = client.GetMixFormat().ok()?;
+
+    let wf = *pwfx;
+    let channels = wf.nChannels;
+    let bits_per_sample = wf.wBitsPerSample;
+    let sample_rate = wf.nSamplesPerSec;
+
+    if channels == 0 || bits_per_sample == 0 || sample_rate == 0 {
+        CoTaskMemFree(Some(pwfx as *const _ as *const std::ffi::c_void));
+        return None;
+    }
+
+    let is_float = wf.wFormatTag == 3 // WAVE_FORMAT_IEEE_FLOAT
+        || (wf.wFormatTag == 0xFFFE && {
+            let ext = &*(pwfx as *const WAVEFORMATEXTENSIBLE);
+            ext.SubFormat.data1 == 3
+        });
+
+    let hr = client.Initialize(
+        AUDCLNT_SHAREMODE_SHARED,
+        AUDCLNT_STREAMFLAGS_LOOPBACK,
+        2000000, // 200ms buffer in 100ns units
+        0,
+        pwfx,
+        None,
+    );
+
+    CoTaskMemFree(Some(pwfx as *const _ as *const std::ffi::c_void));
+
+    if hr.is_err() {
+        return None;
+    }
+
+    let capture_client: IAudioCaptureClient = client.GetService().ok()?;
+    Some(WasapiSession {
+        client,
+        capture_client,
+        channels,
+        bits_per_sample,
+        is_float,
+        sample_rate,
+        device_id,
+    })
+}
+
+#[cfg(target_os = "windows")]
 fn run_capture_loop(app: AppHandle, running: Arc<AtomicBool>) {
     unsafe {
         let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
@@ -104,26 +222,6 @@ fn run_capture_loop(app: AppHandle, running: Arc<AtomicBool>) {
         hann_window[i] = 0.5 * (1.0 - (2.0 * std::f32::consts::PI * (i as f32) / (FFT_SIZE as f32 - 1.0)).cos());
     }
 
-    // Band frequencies (roughly logarithmic):
-    // 0: 30 - 80 Hz     (Bins 1..2)
-    // 1: 80 - 180 Hz    (Bins 2..4)
-    // 2: 180 - 350 Hz   (Bins 4..8)
-    // 3: 350 - 750 Hz   (Bins 8..16)
-    // 4: 750 - 1600 Hz  (Bins 16..34)
-    // 5: 1600 - 3500 Hz (Bins 34..75)
-    // 6: 3500 - 7500 Hz (Bins 75..160)
-    // 7: 7500 - 15000 Hz(Bins 160..320)
-    let band_ranges: [(usize, usize); NUM_BANDS] = [
-        (1, 2),
-        (2, 4),
-        (4, 8),
-        (8, 16),
-        (16, 34),
-        (34, 75),
-        (75, 160),
-        (160, 320),
-    ];
-
     // Equal loudness / perceptual compensation curve across 8 bands
     // High frequencies have naturally much lower energy in music, so they need logarithmic tilt
     let band_tilts = [1.2f32, 1.0, 1.8, 2.8, 4.2, 6.5, 10.0, 15.0];
@@ -133,32 +231,58 @@ fn run_capture_loop(app: AppHandle, running: Arc<AtomicBool>) {
     let mut was_already_all_zero = false;
     let mut last_emit = Instant::now();
 
+    let mut enumerator: Option<IMMDeviceEnumerator> = unsafe {
+        CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL).ok()
+    };
+
     while running.load(Ordering::Relaxed) {
-        let capture_session = unsafe { init_wasapi_capture() };
-        let (client, capture_client, channels, bits_per_sample, is_float) = match capture_session {
-            Some(s) => s,
+        if enumerator.is_none() {
+            enumerator = unsafe { CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL).ok() };
+        }
+
+        let enumerator_ref = match enumerator.as_ref() {
+            Some(e) => e,
             None => {
                 std::thread::sleep(Duration::from_millis(1000));
                 continue;
             }
         };
 
-        let start_res = unsafe { client.Start() };
+        let session = match unsafe { init_wasapi_capture(enumerator_ref) } {
+            Some(s) => s,
+            None => {
+                // If init fails, device may be transitioning or audio service restarted
+                std::thread::sleep(Duration::from_millis(300));
+                enumerator = None;
+                continue;
+            }
+        };
+
+        let start_res = unsafe { session.client.Start() };
         if start_res.is_err() {
             unsafe {
-                let _ = client.Stop();
+                let _ = session.client.Stop();
             }
-            std::thread::sleep(Duration::from_millis(500));
+            std::thread::sleep(Duration::from_millis(300));
             continue;
         }
 
+        let band_ranges = compute_band_ranges(session.sample_rate);
+        let current_device_id = session.device_id.clone();
+        let mut last_device_check = Instant::now();
+        let mut should_reconnect = false;
+
         while running.load(Ordering::Relaxed) {
-            let mut packet_size = match unsafe { capture_client.GetNextPacketSize() } {
+            let mut packet_size = match unsafe { session.capture_client.GetNextPacketSize() } {
                 Ok(sz) => sz,
-                Err(_) => break, // Device disconnected or changed
+                Err(_) => {
+                    should_reconnect = true;
+                    break;
+                }
             };
 
             let mut had_audio_in_turn = false;
+            let mut capture_error = false;
 
             while packet_size > 0 {
                 let mut data_ptr: *mut u8 = std::ptr::null_mut();
@@ -166,7 +290,7 @@ fn run_capture_loop(app: AppHandle, running: Arc<AtomicBool>) {
                 let mut flags = 0u32;
 
                 let hr = unsafe {
-                    capture_client.GetBuffer(
+                    session.capture_client.GetBuffer(
                         &mut data_ptr,
                         &mut num_frames_read,
                         &mut flags,
@@ -176,6 +300,8 @@ fn run_capture_loop(app: AppHandle, running: Arc<AtomicBool>) {
                 };
 
                 if hr.is_err() {
+                    // Do NOT call ReleaseBuffer if GetBuffer failed (MSDN specification)
+                    capture_error = true;
                     break;
                 }
 
@@ -183,11 +309,10 @@ fn run_capture_loop(app: AppHandle, running: Arc<AtomicBool>) {
 
                 if !is_silent_buffer && !data_ptr.is_null() && num_frames_read > 0 {
                     had_audio_in_turn = true;
-                    // Extract mono samples
                     let frames = num_frames_read as usize;
-                    let ch = channels as usize;
+                    let ch = session.channels as usize;
 
-                    if is_float && bits_per_sample == 32 {
+                    if session.is_float && session.bits_per_sample == 32 {
                         let float_ptr = data_ptr as *const f32;
                         for f in 0..frames {
                             let mut sum = 0.0f32;
@@ -198,7 +323,7 @@ fn run_capture_loop(app: AppHandle, running: Arc<AtomicBool>) {
                             sample_ring[ring_idx] = mono;
                             ring_idx = (ring_idx + 1) % FFT_SIZE;
                         }
-                    } else if !is_float && bits_per_sample == 16 {
+                    } else if !session.is_float && session.bits_per_sample == 16 {
                         let i16_ptr = data_ptr as *const i16;
                         for f in 0..frames {
                             let mut sum = 0.0f32;
@@ -209,7 +334,7 @@ fn run_capture_loop(app: AppHandle, running: Arc<AtomicBool>) {
                             sample_ring[ring_idx] = mono;
                             ring_idx = (ring_idx + 1) % FFT_SIZE;
                         }
-                    } else if !is_float && bits_per_sample == 24 {
+                    } else if !session.is_float && session.bits_per_sample == 24 {
                         let u8_ptr = data_ptr;
                         for f in 0..frames {
                             let mut sum = 0.0f32;
@@ -225,7 +350,7 @@ fn run_capture_loop(app: AppHandle, running: Arc<AtomicBool>) {
                             sample_ring[ring_idx] = mono;
                             ring_idx = (ring_idx + 1) % FFT_SIZE;
                         }
-                    } else if !is_float && bits_per_sample == 32 {
+                    } else if !session.is_float && session.bits_per_sample == 32 {
                         let i32_ptr = data_ptr as *const i32;
                         for f in 0..frames {
                             let mut sum = 0.0f32;
@@ -239,11 +364,19 @@ fn run_capture_loop(app: AppHandle, running: Arc<AtomicBool>) {
                     }
                 }
 
-                let _ = unsafe { capture_client.ReleaseBuffer(num_frames_read) };
-                packet_size = match unsafe { capture_client.GetNextPacketSize() } {
+                let _ = unsafe { session.capture_client.ReleaseBuffer(num_frames_read) };
+                packet_size = match unsafe { session.capture_client.GetNextPacketSize() } {
                     Ok(sz) => sz,
-                    Err(_) => break,
+                    Err(_) => {
+                        capture_error = true;
+                        0
+                    }
                 };
+            }
+
+            if capture_error {
+                should_reconnect = true;
+                break;
             }
 
             if had_audio_in_turn {
@@ -252,7 +385,27 @@ fn run_capture_loop(app: AppHandle, running: Arc<AtomicBool>) {
                 consecutive_silence = consecutive_silence.saturating_add(1);
             }
 
+            // Check if default audio endpoint changed:
+            // Fast check (every 150ms) when quiet or switching, periodic check (every 800ms) during active playback.
             let now = Instant::now();
+            let check_interval = if consecutive_silence > 6 {
+                Duration::from_millis(150)
+            } else {
+                Duration::from_millis(800)
+            };
+
+            if now.duration_since(last_device_check) >= check_interval {
+                last_device_check = now;
+                if let Some(ref e) = enumerator {
+                    if let Some(new_id) = unsafe { get_default_device_id(e) } {
+                        if !current_device_id.is_empty() && new_id != current_device_id {
+                            should_reconnect = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
             if now.duration_since(last_emit) >= Duration::from_millis(22) {
                 last_emit = now;
 
@@ -274,7 +427,7 @@ fn run_capture_loop(app: AppHandle, running: Arc<AtomicBool>) {
                         }
                     }
                     if all_zero {
-                        std::thread::sleep(Duration::from_millis(150));
+                        std::thread::sleep(Duration::from_millis(100));
                     }
                 } else {
                     was_already_all_zero = false;
@@ -345,52 +498,16 @@ fn run_capture_loop(app: AppHandle, running: Arc<AtomicBool>) {
         }
 
         unsafe {
-            let _ = client.Stop();
+            let _ = session.client.Stop();
         }
-        std::thread::sleep(Duration::from_millis(200));
+
+        // Settling delay before reconnecting to let Windows audio engine finalize device route
+        if should_reconnect {
+            std::thread::sleep(Duration::from_millis(150));
+        } else {
+            std::thread::sleep(Duration::from_millis(50));
+        }
     }
-}
-
-#[cfg(target_os = "windows")]
-unsafe fn init_wasapi_capture() -> Option<(IAudioClient, IAudioCaptureClient, u16, u16, bool)> {
-    let enumerator: IMMDeviceEnumerator = CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL).ok()?;
-    let device = enumerator.GetDefaultAudioEndpoint(eRender, eMultimedia)
-        .or_else(|_| enumerator.GetDefaultAudioEndpoint(eRender, eConsole)).ok()?;
-    let client: IAudioClient = device.Activate(CLSCTX_ALL, None).ok()?;
-    let pwfx = client.GetMixFormat().ok()?;
-
-    let wf = *pwfx;
-    let channels = wf.nChannels;
-    let bits_per_sample = wf.wBitsPerSample;
-
-    if channels == 0 || bits_per_sample == 0 {
-        CoTaskMemFree(Some(pwfx as *const _ as *const std::ffi::c_void));
-        return None;
-    }
-
-    let is_float = wf.wFormatTag == 3 // WAVE_FORMAT_IEEE_FLOAT
-        || (wf.wFormatTag == 0xFFFE && {
-            let ext = &*(pwfx as *const WAVEFORMATEXTENSIBLE);
-            ext.SubFormat.data1 == 3
-        });
-
-    let hr = client.Initialize(
-        AUDCLNT_SHAREMODE_SHARED,
-        AUDCLNT_STREAMFLAGS_LOOPBACK,
-        2000000, // 200ms buffer in 100ns units
-        0,
-        pwfx,
-        None,
-    );
-
-    CoTaskMemFree(Some(pwfx as *const _ as *const std::ffi::c_void));
-
-    if hr.is_err() {
-        return None;
-    }
-
-    let capture_client: IAudioCaptureClient = client.GetService().ok()?;
-    Some((client, capture_client, channels, bits_per_sample, is_float))
 }
 }
 

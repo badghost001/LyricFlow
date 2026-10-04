@@ -26,10 +26,10 @@
     <!-- Google Fonts (Loaded Asynchronously to eliminate render-blocking delay, strict CSP compliant) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&family=Poppins:wght@300;400;500;600;700&family=Nunito:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Raleway:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap">
-    <link id="async-google-fonts" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&family=Poppins:wght@300;400;500;600;700&family=Nunito:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Raleway:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" media="print">
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&family=Poppins:wght@300;400;500;600;700&family=Nunito:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Raleway:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@400;700;900&display=swap">
+    <link id="async-google-fonts" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&family=Poppins:wght@300;400;500;600;700&family=Nunito:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Raleway:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet" media="print">
     <noscript>
-      <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&family=Poppins:wght@300;400;500;600;700&family=Nunito:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Raleway:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+      <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&family=Poppins:wght@300;400;500;600;700&family=Nunito:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Raleway:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet">
     </noscript>
     <script src="modules/utils.js" defer></script>
     <script src="modules/parsers.js" defer></script>
@@ -85,9 +85,27 @@
           <button id="btn-settings" title="Settings" class="hud-btn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
           </button>
+          <div class="hud-controls-divider"></div>
+          <button id="btn-wallpaper-mode" title="Wallpaper Desktop Mode (Ctrl+Shift+W)" class="hud-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="3" width="20" height="14" rx="2"/>
+              <line x1="8" y1="21" x2="16" y2="21"/>
+              <line x1="12" y1="17" x2="12" y2="21"/>
+              <path d="m5 13 4-4 4 4"/>
+              <circle cx="15" cy="8" r="1.5"/>
+            </svg>
+          </button>
+          <button id="btn-taskbar-mode" title="Taskbar Mode (Ctrl+Shift+B)" class="hud-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="4" width="20" height="16" rx="2"/>
+              <line x1="2" y1="15" x2="22" y2="15"/>
+              <line x1="6" y1="17.5" x2="10" y2="17.5"/>
+            </svg>
+          </button>
           <button id="btn-dynamic-island" title="Dynamic Island Mini Mode (Ctrl+Shift+D)" class="hud-btn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="10" rx="5" ry="5"/><circle cx="7" cy="12" r="1.5" fill="currentColor"/></svg>
           </button>
+          <div class="hud-controls-divider"></div>
           <button id="btn-minimize" title="Minimize Application" class="hud-btn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
           </button>
@@ -220,6 +238,17 @@
         </button>
         <div class="island-satellite-marquee-wrapper" id="island-satellite-marquee-wrapper">
           <span class="island-satellite-text" id="island-satellite-text"></span>
+        </div>
+      </div>
+
+      <!-- Magnetic Liquid Optical Bridge for Duet & Backing Vocals -->
+      <div id="island-duet-bridge" class="island-duet-bridge" style="display: none;"></div>
+
+      <!-- Magnetic Duet & Backing Vocal Liquid Capsule -->
+      <div id="island-duet-capsule" class="island-duet-capsule" style="display: none;">
+        <span class="island-duet-sparkle" title="Duet / Backing Vocal">✦</span>
+        <div class="island-duet-marquee-wrapper" id="island-duet-marquee-wrapper">
+          <span class="island-duet-text" id="island-duet-text"></span>
         </div>
       </div>
 
@@ -1123,6 +1152,15 @@
                   <option value="style3">Style 3 - Lyric Overlay</option>
                 </select>
               </div>
+              <div class="setting-row" style="margin-top: 8px;">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Audio-reactive beat bloom aura on active lyrics in sync with kick and sub-bass transients (Apple Music style)">
+                  <span>Pulsing Lyric Beat Bloom (Apple Style)</span>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-wallpaper-beat-bloom" checked />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+              </div>
               <div class="setting-row" id="setting-wallpaper-monitor-row" style="margin-top: 8px;">
                 <label for="select-wallpaper-monitor">Target Display</label>
                 <select id="select-wallpaper-monitor">
@@ -1240,6 +1278,33 @@
                   <span>Connected Satellite Translation Island</span>
                   <div class="toggle-switch">
                     <input type="checkbox" id="check-island-satellite" checked />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+              </div>
+              <div class="setting-row" style="margin-top: 6px;">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Enable dynamic silhouette morphing based on real-time music energy and duet vocal splits">
+                  <span>Dynamic Island Metamorphosis</span>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-island-metamorphosis" checked />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+              </div>
+              <div class="setting-row" style="margin-top: 6px;" id="row-island-duet-split">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Physically split Dynamic Island into dual liquid capsules during duets & backing vocals">
+                  <span>Duet & Backing Vocal Split-Cell</span>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-island-duet-split" checked />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+              </div>
+              <div class="setting-row" style="margin-top: 6px;" id="row-island-beat-bloom">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Silhouette & visualizer pulse with audio-reactive glow on heavy bass transients">
+                  <span>Pulsing Island Beat Bloom</span>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-island-beat-bloom" checked />
                     <span class="toggle-slider"></span>
                   </div>
                 </label>
@@ -1401,6 +1466,44 @@
                   </div>
                 </label>
               </div>
+              <div class="setting-row" style="margin-top: 6px;">
+                <label for="select-preferred-provider" style="font-size: 12.5px; color: rgba(255,255,255,0.85); display: flex; align-items: center; justify-content: space-between; width: 100%;">
+                  <span>Preferred Lyrics Provider</span>
+                  <select id="select-preferred-provider" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: #fff; border-radius: 6px; padding: 3px 8px; font-size: 12px; outline: none; cursor: pointer;">
+                    <option value="auto">Auto (Word-by-Word &gt; Line-Synced)</option>
+                    <option value="netease">NetEase Cloud Music (YRC / LRC)</option>
+                    <option value="lrclib">LRCLIB (Community LRC)</option>
+                    <option value="musixmatch">Musixmatch (RichSync)</option>
+                  </select>
+                </label>
+              </div>
+              <div class="setting-row" style="margin-top: 6px;">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Enable word-by-word karaoke highlight animations when syllable timings are available">
+                  <span>Word-by-Word Karaoke Mode</span>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-word-by-word" checked />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+              </div>
+              <div class="setting-row" style="margin-top: 6px;">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Enable word-by-word syllable synchronization for NetEase Cloud Music (YRC format)">
+                  <span>NetEase Word-by-Word (YRC)</span>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-netease-word-by-word" checked />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+              </div>
+              <div class="setting-row" style="margin-top: 6px;">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Hide non-lyric producer, composer, and writer credits from the lyrics view">
+                  <span>Filter Song Credits &amp; Metadata</span>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-filter-credits" checked />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+              </div>
               <div class="setting-row" style="margin-top: 10px;">
                 <button id="btn-rerun-setup" class="btn-secondary" style="width: 100%; padding: 8px 12px; font-size: 12px; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer;">
                   <span>✨ Run Setup Wizard Again</span>
@@ -1410,44 +1513,76 @@
 
             <div class="settings-group">
               <h4>Keyboard Shortcuts &amp; Gestures</h4>
-              <div class="shortcut-tip">
-                <div class="shortcut-row">
-                  <span class="shortcut-row-label">Move Overlay</span>
-                  <kbd class="kbd-badge navigation">Shift + Arrows</kbd>
+              <div class="shortcuts-grid">
+                <div class="shortcuts-category-card">
+                  <div class="shortcuts-category-title">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
+                    <span>Modes &amp; Overlays</span>
+                  </div>
+                  <div class="shortcut-row">
+                    <span class="shortcut-row-label">Dynamic Island</span>
+                    <kbd class="kbd-badge system">Ctrl + Shift + D</kbd>
+                  </div>
+                  <div class="shortcut-row">
+                    <span class="shortcut-row-label">Wallpaper Mode</span>
+                    <kbd class="kbd-badge system">Ctrl + Shift + W</kbd>
+                  </div>
+                  <div class="shortcut-row">
+                    <span class="shortcut-row-label">Taskbar Mode</span>
+                    <kbd class="kbd-badge system">Ctrl + Shift + B</kbd>
+                  </div>
+                  <div class="shortcut-row">
+                    <span class="shortcut-row-label">Click-Through Passthrough</span>
+                    <kbd class="kbd-badge system">Ctrl + Shift + L</kbd>
+                  </div>
+                  <div class="shortcut-row">
+                    <span class="shortcut-row-label">Ghost Mode (Click Behind Island)</span>
+                    <div style="display: flex; gap: 4px;">
+                      <kbd class="kbd-badge system">`</kbd>
+                      <kbd class="kbd-badge system">Ctrl + Shift + G</kbd>
+                    </div>
+                  </div>
                 </div>
-                <div class="shortcut-row">
-                  <span class="shortcut-row-label">Copy Active Lyric</span>
-                  <kbd class="kbd-badge system">Ctrl + Shift + C</kbd>
+
+                <div class="shortcuts-category-card">
+                  <div class="shortcuts-category-title">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path><polyline points="16 6 12 2 8 6"></polyline><line x1="12" y1="2" x2="12" y2="15"></line></svg>
+                    <span>Lyrics &amp; Sharing</span>
+                  </div>
+                  <div class="shortcut-row">
+                    <span class="shortcut-row-label">Share Card Studio</span>
+                    <kbd class="kbd-badge navigation">Ctrl + Shift + S</kbd>
+                  </div>
+                  <div class="shortcut-row">
+                    <span class="shortcut-row-label">Copy Active Lyric</span>
+                    <kbd class="kbd-badge navigation">Ctrl + Shift + C</kbd>
+                  </div>
+                  <div class="shortcut-row">
+                    <span class="shortcut-row-label">Search Lyrics</span>
+                    <kbd class="kbd-badge navigation">Ctrl + F</kbd>
+                  </div>
+                  <div class="shortcut-row">
+                    <span class="shortcut-row-label">Move Overlay Position</span>
+                    <kbd class="kbd-badge navigation">Shift + Arrows</kbd>
+                  </div>
                 </div>
-                <div class="shortcut-row">
-                  <span class="shortcut-row-label">Share Lyric Card</span>
-                  <kbd class="kbd-badge system">Ctrl + Shift + S</kbd>
-                </div>
-                <div class="shortcut-row">
-                  <span class="shortcut-row-label">Search Lyrics</span>
-                  <kbd class="kbd-badge navigation">Ctrl + F</kbd>
-                </div>
-                <div class="shortcut-row">
-                  <span class="shortcut-row-label">Play / Pause</span>
-                  <kbd class="kbd-badge playback">Ctrl + Alt + Space</kbd>
-                </div>
-                <div class="shortcut-row">
-                  <span class="shortcut-row-label">Next / Previous Song</span>
-                  <kbd class="kbd-badge playback">Ctrl + Alt + →/←</kbd>
-                </div>
-                <div class="shortcut-row">
-                  <span class="shortcut-row-label">Adjust Sync Offset</span>
-                  <kbd class="kbd-badge system">Alt + [ / ]</kbd>
-                </div>
-                <div class="shortcut-row">
-                  <span class="shortcut-row-label">Dynamic Island</span>
-                  <kbd class="kbd-badge system">Ctrl + Shift + D</kbd>
-                </div>
-                <div class="shortcut-row">
-                  <span class="shortcut-row-label">Ghost Mode (Click Behind Island)</span>
-                  <div style="display: flex; gap: 4px;">
-                    <kbd class="kbd-badge system">`</kbd>
-                    <kbd class="kbd-badge system">Ctrl + Shift + G</kbd>
+
+                <div class="shortcuts-category-card">
+                  <div class="shortcuts-category-title">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                    <span>Playback &amp; Sync</span>
+                  </div>
+                  <div class="shortcut-row">
+                    <span class="shortcut-row-label">Play / Pause</span>
+                    <kbd class="kbd-badge playback">Ctrl + Alt + Space</kbd>
+                  </div>
+                  <div class="shortcut-row">
+                    <span class="shortcut-row-label">Next / Previous Song</span>
+                    <kbd class="kbd-badge playback">Ctrl + Alt + →/←</kbd>
+                  </div>
+                  <div class="shortcut-row">
+                    <span class="shortcut-row-label">Adjust Sync Offset</span>
+                    <kbd class="kbd-badge playback">Alt + [ / ]</kbd>
                   </div>
                 </div>
               </div>
@@ -1515,15 +1650,26 @@
         <div class="share-modal-dialog">
           <div class="share-modal-header">
             <div class="share-modal-title">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
-                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
-              </svg>
-              <span>Share Lyric Card</span>
+              <div class="share-modal-icon-badge">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+                  <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                </svg>
+              </div>
+              <div class="share-title-text-group">
+                <span class="share-title-main">Share Card Studio</span>
+                <span class="share-title-sub">Luxury Lyric Posters &amp; Stories</span>
+              </div>
             </div>
-            <button id="share-modal-close" class="share-modal-close-btn" title="Close (Esc)">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            </button>
+            <div class="share-header-actions">
+              <div class="share-shortcut-pills" title="Studio Keyboard Shortcuts">
+                <span class="share-shortcut-pill"><kbd>Ctrl+C</kbd> Copy</span>
+                <span class="share-shortcut-pill"><kbd>Ctrl+S</kbd> Save</span>
+              </div>
+              <button id="share-modal-close" class="share-modal-close-btn" title="Close Studio (Esc)">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
           </div>
 
           <div class="share-modal-body">
@@ -1536,9 +1682,75 @@
 
             <!-- Right Controls Pane -->
             <div class="share-controls-pane">
-              <!-- Aspect Ratio Toggle -->
-              <div class="share-control-section">
-                <label class="share-control-label">Aspect Ratio</label>
+              <!-- Scrollable controls container -->
+              <div class="share-controls-scroll-area" id="share-controls-scroll-area">
+                <!-- Top-Level Editorial Design Selector -->
+                <div class="share-design-system-section">
+                <div class="share-presets-header">
+                  <span class="share-control-label">Editorial Presets</span>
+                  <span class="share-preset-active-indicator" id="share-preset-status">Design 1 Active</span>
+                </div>
+                <div class="share-presets-row">
+                  <!-- Design 1: Classic (Spotify / Apple Music Inspired Poster) -->
+                  <button type="button" class="share-preset-card active" data-design="classic" id="preset-card-classic" title="Design 1: Classic Spotify-inspired poster layout">
+                    <div class="share-preset-thumb-wrapper">
+                      <canvas class="share-preset-preview-canvas" id="preset-preview-classic" width="108" height="192"></canvas>
+                      <div class="share-preset-badge">Design 1</div>
+                    </div>
+                    <div class="share-preset-info">
+                      <span class="share-preset-title">Classic</span>
+                      <span class="share-preset-desc">Spotify-inspired poster</span>
+                    </div>
+                    <div class="share-preset-check">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    </div>
+                  </button>
+
+                  <!-- Design 2: Cinematic (Full-bleed Frosted Atmosphere) -->
+                  <button type="button" class="share-preset-card" data-design="cinematic" id="preset-card-cinematic" title="Design 2: Cinematic full-bleed frosted atmosphere">
+                    <div class="share-preset-thumb-wrapper">
+                      <canvas class="share-preset-preview-canvas" id="preset-preview-cinematic" width="108" height="192"></canvas>
+                      <div class="share-preset-badge">Design 2</div>
+                    </div>
+                    <div class="share-preset-info">
+                      <span class="share-preset-title">Cinematic</span>
+                      <span class="share-preset-desc">Frosted artwork canvas</span>
+                    </div>
+                    <div class="share-preset-check">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    </div>
+                  </button>
+                </div>
+
+                <!-- Custom Mode (Separate Customization Mode) -->
+                <div class="share-custom-mode-wrapper">
+                  <div class="share-custom-card" data-design="custom" id="preset-card-custom" role="button" tabindex="0" title="Custom Mode: Customize all aspects freely" aria-controls="share-custom-controls-drawer" aria-expanded="false">
+                    <div class="share-custom-card-content">
+                      <div class="share-custom-icon">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>
+                        </svg>
+                      </div>
+                      <div class="share-custom-text">
+                        <span class="share-custom-title">Custom</span>
+                        <span class="share-custom-desc">Customize everything</span>
+                      </div>
+                    </div>
+                    <div class="share-custom-arrow">
+                      <span class="share-custom-badge" id="share-custom-state-badge">Customize</span>
+                      <button type="button" class="share-custom-chevron-btn" id="share-custom-chevron-btn" aria-label="Toggle Custom controls" aria-expanded="false" aria-controls="share-custom-controls-drawer" title="Toggle Custom controls">
+                        <svg class="share-custom-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Granular Customization Controls Drawer -->
+              <div class="share-custom-controls-drawer" id="share-custom-controls-drawer">
+                <!-- Aspect Ratio Toggle -->
+                <div class="share-control-section">
+                  <label class="share-control-label">Aspect Ratio</label>
                 <div class="share-pill-selector" id="share-ratio-selector">
                   <button type="button" class="share-ratio-btn active" data-ratio="story" title="9:16 Vertical Story (IG, TikTok)">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="3"/></svg>
@@ -1548,7 +1760,7 @@
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
                     <span>Square</span>
                   </button>
-                  <button type="button" class="share-ratio-btn" data-ratio="portrait" title="4:5 Portrait (IG Feed & Threads)">
+                  <button type="button" class="share-ratio-btn" data-ratio="portrait" title="4:5 Portrait (IG Feed &amp; Threads)">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2.5"/></svg>
                     <span>Feed</span>
                   </button>
@@ -1574,6 +1786,18 @@
                   <button type="button" class="share-theme-card" data-theme="vinyl">
                     <div class="theme-swatch-thumb theme-vinyl-thumb"></div>
                     <span class="theme-name">Vinyl Record</span>
+                  </button>
+                  <button type="button" class="share-theme-card" data-theme="cassette">
+                    <div class="theme-swatch-thumb theme-cassette-thumb"></div>
+                    <span class="theme-name">Cassette Tape</span>
+                  </button>
+                  <button type="button" class="share-theme-card" data-theme="bloom">
+                    <div class="theme-swatch-thumb theme-bloom-thumb"></div>
+                    <span class="theme-name">Fluid Bloom</span>
+                  </button>
+                  <button type="button" class="share-theme-card" data-theme="sunset">
+                    <div class="theme-swatch-thumb theme-sunset-thumb"></div>
+                    <span class="theme-name">Sunset Glow</span>
                   </button>
                   <button type="button" class="share-theme-card" data-theme="glass">
                     <div class="theme-swatch-thumb theme-glass-thumb"></div>
@@ -1607,27 +1831,69 @@
                 </div>
               </div>
 
-              <!-- Typography & Card Options -->
+              <!-- Typography & Alignment -->
               <div class="share-control-section">
-                <label class="share-control-label">Typography & Elements</label>
+                <label class="share-control-label">Typography &amp; Layout</label>
                 <div class="share-pill-selector" id="share-font-selector">
                   <button type="button" class="share-font-btn active" data-font="sans">Modern</button>
                   <button type="button" class="share-font-btn" data-font="serif">Serif</button>
                   <button type="button" class="share-font-btn" data-font="mono">Mono</button>
                   <button type="button" class="share-font-btn" data-font="soft">Soft</button>
                 </div>
-                <div class="share-toggles-row">
-                  <label class="share-toggle-item">
-                    <input type="checkbox" id="share-toggle-watermark" checked />
-                    <span>Watermark</span>
+                <div class="share-sub-selectors-row">
+                  <div class="share-pill-selector share-align-selector" id="share-align-selector">
+                    <button type="button" class="share-align-btn" data-align="left" title="Left Align">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="17" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="17" y1="18" x2="3" y2="18"/></svg>
+                    </button>
+                    <button type="button" class="share-align-btn active" data-align="center" title="Center Align">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="10" x2="6" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="18" y1="18" x2="6" y2="18"/></svg>
+                    </button>
+                    <button type="button" class="share-align-btn" data-align="right" title="Right Align">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="21" y1="10" x2="7" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="21" y1="18" x2="7" y2="18"/></svg>
+                    </button>
+                  </div>
+                  <div class="share-pill-selector share-scale-selector" id="share-scale-selector">
+                    <button type="button" class="share-scale-btn" data-scale="compact" title="Compact Font Scale">S</button>
+                    <button type="button" class="share-scale-btn active" data-scale="normal" title="Standard Font Scale">M</button>
+                    <button type="button" class="share-scale-btn" data-scale="large" title="Large Font Scale">L</button>
+                    <button type="button" class="share-scale-btn" data-scale="heroic" title="Massive Punchline Scale">XL</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Card Elements & Options -->
+              <div class="share-control-section">
+                <label class="share-control-label">Card Elements</label>
+                <div class="share-toggles-grid">
+                  <label class="share-toggle-chip" title="Show Now Playing Progress Scrubber Bar">
+                    <input type="checkbox" id="share-toggle-scrubber" checked />
+                    <span class="share-chip-indicator"></span>
+                    <span class="share-chip-label">Scrubber</span>
                   </label>
-                  <label class="share-toggle-item">
-                    <input type="checkbox" id="share-toggle-timestamp" checked />
-                    <span>Timestamp</span>
-                  </label>
-                  <label class="share-toggle-item">
+                  <label class="share-toggle-chip" title="Show Album Artwork">
                     <input type="checkbox" id="share-toggle-art" checked />
-                    <span>Album Art</span>
+                    <span class="share-chip-indicator"></span>
+                    <span class="share-chip-label">Album Art</span>
+                  </label>
+                  <label class="share-toggle-chip" title="Show Starting Timestamp">
+                    <input type="checkbox" id="share-toggle-timestamp" checked />
+                    <span class="share-chip-indicator"></span>
+                    <span class="share-chip-label">Timestamp</span>
+                  </label>
+                  <label class="share-toggle-chip" title="Show Watermark Badge">
+                    <input type="checkbox" id="share-toggle-watermark" checked />
+                    <span class="share-chip-indicator"></span>
+                    <span class="share-chip-label">Watermark</span>
+                  </label>
+                  <label class="share-toggle-chip" title="Apply Analog Film Grain Texture">
+                    <input type="checkbox" id="share-toggle-grain" checked />
+                    <span class="share-chip-indicator"></span>
+                    <span class="share-chip-label">Film Grain</span>
+                  </label>
+                  <label class="share-toggle-chip" title="Export in Razor-Sharp 4K Ultra-HD">
+                    <input type="checkbox" id="share-toggle-2x" checked />
+                    <span class="share-chip-indicator"></span>
+                    <span class="share-chip-label">4K Ultra-HD</span>
                   </label>
                 </div>
               </div>
@@ -1635,25 +1901,32 @@
               <!-- Multi-line Lyric Selection with Search -->
               <div class="share-control-section">
                 <div class="share-section-header">
-                  <label class="share-control-label">Select Lines <span class="share-badge-hint" id="share-lines-count-badge">1 line</span></label>
-                  <span class="share-hint-text">Max 6 lines</span>
+                  <label class="share-control-label">Select Lines</label>
+                  <div class="share-section-meta">
+                    <span class="share-badge-hint" id="share-lines-count-badge">1 line</span>
+                    <span class="share-hint-text">Max 6 lines • ★ Star = Hero</span>
+                  </div>
                 </div>
                 <div class="share-search-bar">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                  <input type="text" id="share-line-search" placeholder="Filter lyrics..." autocomplete="off" />
+                  <input type="text" id="share-line-search" placeholder="Search lyrics..." autocomplete="off" />
                 </div>
                 <div class="share-line-picker" id="share-line-picker">
                   <!-- Populated dynamically with checkboxes/chips for full song lyrics -->
                 </div>
               </div>
+              <div class="share-custom-bottom-spacer" aria-hidden="true"></div>
+            </div>
+            <!-- End of Scrollable controls container -->
+          </div>
 
-              <!-- Actions: Copy PNG / Download PNG / Copy Text -->
-              <div class="share-modal-actions">
-                <button type="button" id="btn-share-copy-img" class="share-action-btn btn-primary-gradient" title="Copy Card PNG to Clipboard">
+          <!-- Actions: Copy PNG / Download PNG / Copy Text -->
+          <div class="share-modal-actions">
+                <button type="button" id="btn-share-copy-img" class="share-action-btn btn-primary-gradient" title="Copy Card PNG to Clipboard (Ctrl+C)">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                   <span id="share-copy-text">Copy Card</span>
                 </button>
-                <button type="button" id="btn-share-download-img" class="share-action-btn btn-secondary-glass" title="Download PNG Image">
+                <button type="button" id="btn-share-download-img" class="share-action-btn btn-secondary-glass" title="Download PNG Image (Ctrl+S)">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                   <span>Save Image</span>
                 </button>

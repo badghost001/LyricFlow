@@ -229,8 +229,9 @@ body.wallpaper-mode.wallpaper-style-2 .lyrics-view {
 }
 
 body.wallpaper-mode.wallpaper-style-2 #lyrics-container {
-  padding: 45vh 0 !important;
+  padding: 45vh 24px !important;
   width: 100% !important;
+  box-sizing: border-box !important;
 }
 
 body.wallpaper-mode.wallpaper-style-2 .lyric-line {
@@ -238,7 +239,7 @@ body.wallpaper-mode.wallpaper-style-2 .lyric-line {
   transform-origin: left center !important;
   font-size: clamp(32px, 3.5vw, 60px) !important;
   line-height: 1.35 !important;
-  padding: 18px 0 !important;
+  padding: 18px 8px !important;
   opacity: 0.45 !important;
   color: #ffffff !important;
   transition: opacity 0.4s ease, transform 0.4s ease, color 0.4s ease !important;
@@ -256,20 +257,35 @@ body.wallpaper-mode.wallpaper-style-2 .lyric-line.active {
 /* Override WBW highlight colors for Style 2 to keep it Apple Music themed (white) */
 body.wallpaper-mode.wallpaper-style-2.wbw-active .lyric-line.active .lyric-word.lyric-word-passed,
 body.wallpaper-mode.wallpaper-style-2.wbw-active .lyric-line.active .lyric-word.lyric-word-completed {
+  background: none;
+  -webkit-text-fill-color: initial;
   color: #ffffff !important;
   opacity: 0.6 !important;
+  filter: none;
 }
 
 body.wallpaper-mode.wallpaper-style-2.wbw-active .lyric-line.active .lyric-word.lyric-word-active {
-  color: #ffffff !important;
+  background: linear-gradient(
+    90deg,
+    #ffffff 0%,
+    #ffffff calc(var(--word-progress, 1) * 100%),
+    rgba(255, 255, 255, 0.4) calc(var(--word-progress, 1) * 100% + 4px),
+    rgba(255, 255, 255, 0.4) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
   opacity: 1 !important;
-  text-shadow: 0 4px 20px rgba(0, 0, 0, 0.5) !important;
-  transform: scale(1.05) translateY(-2px) !important;
+  transform: scale(1.05) translateY(-2px) translateZ(0) !important;
+  filter: drop-shadow(0 4px 16px rgba(0, 0, 0, 0.5));
 }
 
 body.wallpaper-mode.wallpaper-style-2.wbw-active .lyric-line.active .lyric-word.lyric-word-upcoming {
+  background: none;
+  -webkit-text-fill-color: initial;
   color: rgba(255, 255, 255, 0.4) !important;
   opacity: 0.4 !important;
+  filter: none;
 }
 
 /* Style 3: Transparent Customizable Lyric Overlay */
@@ -321,7 +337,8 @@ body.wallpaper-style-3 #lyrics-mask {
 }
 
 body.wallpaper-style-3 #lyrics-container {
-  padding: 40vh 0;
+  padding: 40vh 16px;
+  box-sizing: border-box;
 }
 
 body.wallpaper-style-3 .lyric-line {
@@ -363,6 +380,40 @@ body.wallpaper-mode.wbw-active .lyric-line.active .lyric-word.lyric-word-active 
 body.wallpaper-mode.wbw-active .lyric-line.active .lyric-word.lyric-word-upcoming {
   color: rgba(255, 255, 255, 0.6) !important;
   opacity: 0.35 !important;
+}
+
+/* ==========================================================
+   APPLE MUSIC STYLE LYRIC BEAT BLOOM (WALLPAPER MODE)
+   - Real-time sub-bass transients pulse active lyrics
+   - Luminous neon velvet aura with fluid breathing scale
+========================================================== */
+body.wallpaper-mode.has-beat-bloom .lyric-line.active,
+body.wallpaper-mode.wallpaper-style-1.has-beat-bloom .lyric-line.active,
+body.wallpaper-mode.wallpaper-style-2.has-beat-bloom .lyric-line.active,
+body.wallpaper-mode.wallpaper-style-3.has-beat-bloom .lyric-line.active,
+body.wallpaper-style-3.has-beat-bloom .lyric-line.active {
+  transform: scale(var(--wb-beat-scale, 1.045)) !important;
+  text-shadow:
+    0 0 var(--wb-bloom-glow, 16px) rgba(var(--art-color-1-rgb, 255, 255, 255), var(--wb-bloom-alpha, 0.75)),
+    0 0 calc(var(--wb-bloom-glow, 16px) * 1.8) rgba(var(--art-color-2-rgb, 56, 189, 248), calc(var(--wb-bloom-alpha, 0.75) * 0.7)),
+    0 2px 24px rgba(0, 0, 0, 0.85),
+    0 0 16px rgba(0, 0, 0, 0.95),
+    0 4px 30px rgba(0, 0, 0, 0.5) !important;
+  transition: transform 0.08s cubic-bezier(0.1, 0.9, 0.2, 1), text-shadow 0.12s ease-out !important;
+}
+
+body.wallpaper-mode .lyric-word.lyric-word-active {
+  transition: transform 0.18s cubic-bezier(0.175, 0.885, 0.32, 1.25), color 0.18s ease !important;
+}
+
+body.wallpaper-mode.has-beat-bloom.wbw-active .lyric-line.active .lyric-word.lyric-word-active,
+body.wallpaper-mode.wallpaper-style-2.has-beat-bloom.wbw-active .lyric-line.active .lyric-word.lyric-word-active {
+  transform: scale(calc(var(--wb-beat-scale, 1.05) * 1.03)) translateY(-2px) !important;
+  text-shadow:
+    0 0 var(--wb-bloom-glow, 18px) rgba(var(--art-color-1-rgb, 255, 255, 255), var(--wb-bloom-alpha, 0.85)),
+    0 0 calc(var(--wb-bloom-glow, 18px) * 2.2) rgba(var(--art-color-2-rgb, 56, 189, 248), calc(var(--wb-bloom-alpha, 0.85) * 0.85)),
+    0 4px 22px rgba(0, 0, 0, 0.9) !important;
+  transition: transform 0.08s cubic-bezier(0.1, 0.9, 0.2, 1), text-shadow 0.12s ease-out !important;
 }
 
 @media (max-width: 900px) {

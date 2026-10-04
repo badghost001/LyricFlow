@@ -118,10 +118,7 @@ pub async fn lastfm_api(data: serde_json::Value) -> Result<serde_json::Value, St
 
     params.push(("format".to_string(), "json".to_string()));
 
-    let client = reqwest::Client::builder()
-        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) LyricFlow/1.3.0")
-        .build()
-        .map_err(|e| e.to_string())?;
+    let client = get_shared_client();
 
     let res = if auth_required {
         client
@@ -670,101 +667,463 @@ pub async fn fetch_image_data_url(url: String) -> Result<String, String> {
     Ok(format!("data:{};base64,{}", content_type, b64))
 }
 
+struct CachedSpotifyToken {
+    token: String,
+    expires_at: std::time::Instant,
+}
+
+static SPOTIFY_TOKEN_CACHE: OnceLock<tokio::sync::RwLock<Option<CachedSpotifyToken>>> = OnceLock::new();
+
+fn get_spotify_token_cache() -> &'static tokio::sync::RwLock<Option<CachedSpotifyToken>> {
+    SPOTIFY_TOKEN_CACHE.get_or_init(|| tokio::sync::RwLock::new(None))
+}
+
+pub fn extract_primary_artist(artist: &str) -> String {
+    let mut s = artist.to_string();
+    let lower = s.to_lowercase();
+    for sep in &[" feat. ", " feat ", " ft. ", " ft ", " with ", " / ", " vs. ", " vs "] {
+        if let Some(pos) = lower.find(sep) {
+            s.truncate(pos);
+            break;
+        }
+    }
+    let primary = s.split(&[';', ',', '&'][..]).next().unwrap_or(artist).trim();
+    if primary.is_empty() {
+        artist.trim().to_string()
+    } else {
+        primary.to_string()
+    }
+}
+
+pub fn is_disqualified_cover(query: &str, candidate_text: &str) -> bool {
+    let q_lower = query.to_lowercase();
+    let c_lower = candidate_text.to_lowercase();
+    let blacklisted = [
+        "karaoke",
+        "tribute",
+        "originally performed by",
+        "in the style of",
+        "backing track",
+        "piano version",
+        "2 pianos version",
+        "piano cover",
+        "acoustic cover",
+        "instrumental",
+        "cover version",
+        " cover",
+        "(cover",
+        "[cover",
+    ];
+    for term in blacklisted {
+        if c_lower.contains(term) && !q_lower.contains(term) {
+            return true;
+        }
+    }
+    false
+}
+
+pub fn evaluate_candidate_match(req_title: &str, req_artist: &str, cand_title: &str, cand_artists: &[String]) -> (bool, f32) {
+    let combined_cand = format!("{} {}", cand_title, cand_artists.join(" "));
+    let combined_req = format!("{} {}", req_title, req_artist);
+    if is_disqualified_cover(&combined_req, &combined_cand) {
+        return (false, 0.0);
+    }
+
+    let title_score = crate::commands::lyrics::fuzzy::compute_similarity_score(req_title, cand_title);
+
+    let mut max_artist_score: f32 = 0.0;
+    for a in cand_artists {
+        let score = crate::commands::lyrics::fuzzy::compute_similarity_score(req_artist, a);
+        if score > max_artist_score {
+            max_artist_score = score;
+        }
+    }
+
+    let combined = (title_score * 0.5) + (max_artist_score * 0.5);
+    let passes = (combined >= 0.70 && max_artist_score >= 0.60) || (title_score >= 0.90 && max_artist_score >= 0.55);
+    (passes, combined)
+}
+
+async fn get_or_fetch_spotify_token(client: &reqwest::Client) -> Option<String> {
+    let cache = get_spotify_token_cache();
+    {
+        let read = cache.read().await;
+        if let Some(cached) = &*read {
+            if std::time::Instant::now() < cached.expires_at {
+                return Some(cached.token.clone());
+            }
+        }
+    }
+
+    let mut write = cache.write().await;
+    if let Some(cached) = &*write {
+        if std::time::Instant::now() < cached.expires_at {
+            return Some(cached.token.clone());
+        }
+    }
+
+    let (client_id, client_secret) = if let Ok(Some(cfg)) = crate::commands::config::load_config() {
+        let cid = cfg.get("spotify_client_id").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
+        let csec = cfg.get("spotify_client_secret").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
+        if !cid.is_empty() && !csec.is_empty() {
+            (cid, csec)
+        } else {
+            ("3f974573800a4ff5b325de9795b8e603".to_string(), "ff188d2860ff44baa57acc79c121a3b9".to_string())
+        }
+    } else {
+        ("3f974573800a4ff5b325de9795b8e603".to_string(), "ff188d2860ff44baa57acc79c121a3b9".to_string())
+    };
+
+    let auth_str = format!("{}:{}", client_id, client_secret);
+    let b64_auth = crate::models::base64_encode(auth_str.as_bytes());
+
+    let res = client.post("https://accounts.spotify.com/api/token")
+        .header("Authorization", format!("Basic {}", b64_auth))
+        .header("Content-Type", "application/x-www-form-urlencoded")
+        .body("grant_type=client_credentials")
+        .send()
+        .await
+        .ok()?;
+
+    if res.status().is_success() {
+        let json: serde_json::Value = res.json().await.ok()?;
+        if let Some(token) = json["access_token"].as_str() {
+            let expires_in_secs = json["expires_in"].as_u64().unwrap_or(3600);
+            let safe_duration = std::time::Duration::from_secs(expires_in_secs.saturating_sub(60).max(60));
+            let expires_at = std::time::Instant::now() + safe_duration;
+            *write = Some(CachedSpotifyToken {
+                token: token.to_string(),
+                expires_at,
+            });
+            return Some(token.to_string());
+        }
+    }
+    None
+}
+
+async fn search_spotify_art(
+    client: &reqwest::Client,
+    token: &str,
+    clean_t: &str,
+    primary_a: &str,
+    album_opt: Option<&str>,
+) -> Option<String> {
+    // 1. Search by track and artist
+    let track_query = format!("track:{} artist:{}", clean_t, primary_a);
+    let track_url = format!(
+        "https://api.spotify.com/v1/search?q={}&type=track&limit=5",
+        urlencoding::encode(&track_query)
+    );
+
+    if let Ok(res) = client.get(&track_url).header("Authorization", format!("Bearer {}", token)).send().await {
+        if res.status().is_success() {
+            if let Ok(json) = res.json::<serde_json::Value>().await {
+                if let Some(items) = json["tracks"]["items"].as_array() {
+                    let mut best_art: Option<(f32, String)> = None;
+                    for item in items {
+                        let cand_title = item["name"].as_str().unwrap_or("");
+                        let cand_artists: Vec<String> = item["artists"]
+                            .as_array()
+                            .map(|arr| {
+                                arr.iter()
+                                    .filter_map(|a| a["name"].as_str().map(|s| s.to_string()))
+                                    .collect()
+                            })
+                            .unwrap_or_default();
+
+                        let (passes, score) = evaluate_candidate_match(clean_t, primary_a, cand_title, &cand_artists);
+                        if passes {
+                            if let Some(images) = item["album"]["images"].as_array() {
+                                if let Some(first_img) = images.first() {
+                                    if let Some(url) = first_img["url"].as_str() {
+                                        if best_art.as_ref().map_or(true, |(best_score, _)| score > *best_score) {
+                                            best_art = Some((score, url.to_string()));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if let Some((_, url)) = best_art {
+                        return Some(url);
+                    }
+                }
+            }
+        }
+    }
+
+    // 2. Search by album if available
+    if let Some(album) = album_opt {
+        let clean_alb = crate::commands::lyrics::fuzzy::clean_title(album);
+        if !clean_alb.is_empty() {
+            let album_query = format!("album:{} artist:{}", clean_alb, primary_a);
+            let album_url = format!(
+                "https://api.spotify.com/v1/search?q={}&type=album&limit=5",
+                urlencoding::encode(&album_query)
+            );
+            if let Ok(res) = client.get(&album_url).header("Authorization", format!("Bearer {}", token)).send().await {
+                if res.status().is_success() {
+                    if let Ok(json) = res.json::<serde_json::Value>().await {
+                        if let Some(items) = json["albums"]["items"].as_array() {
+                            let mut best_art: Option<(f32, String)> = None;
+                            for item in items {
+                                let cand_title = item["name"].as_str().unwrap_or("");
+                                let cand_artists: Vec<String> = item["artists"]
+                                    .as_array()
+                                    .map(|arr| {
+                                        arr.iter()
+                                            .filter_map(|a| a["name"].as_str().map(|s| s.to_string()))
+                                            .collect()
+                                    })
+                                    .unwrap_or_default();
+
+                                let (passes, score) = evaluate_candidate_match(&clean_alb, primary_a, cand_title, &cand_artists);
+                                if passes {
+                                    if let Some(images) = item["images"].as_array() {
+                                        if let Some(first_img) = images.first() {
+                                            if let Some(url) = first_img["url"].as_str() {
+                                                if best_art.as_ref().map_or(true, |(best_score, _)| score > *best_score) {
+                                                    best_art = Some((score, url.to_string()));
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            if let Some((_, url)) = best_art {
+                                return Some(url);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 3. Loose query with track + artist
+    let loose_query = format!("{} {}", clean_t, primary_a);
+    let loose_url = format!(
+        "https://api.spotify.com/v1/search?q={}&type=track&limit=5",
+        urlencoding::encode(&loose_query)
+    );
+    if let Ok(res) = client.get(&loose_url).header("Authorization", format!("Bearer {}", token)).send().await {
+        if res.status().is_success() {
+            if let Ok(json) = res.json::<serde_json::Value>().await {
+                if let Some(items) = json["tracks"]["items"].as_array() {
+                    let mut best_art: Option<(f32, String)> = None;
+                    for item in items {
+                        let cand_title = item["name"].as_str().unwrap_or("");
+                        let cand_artists: Vec<String> = item["artists"]
+                            .as_array()
+                            .map(|arr| {
+                                arr.iter()
+                                    .filter_map(|a| a["name"].as_str().map(|s| s.to_string()))
+                                    .collect()
+                            })
+                            .unwrap_or_default();
+
+                        let (passes, score) = evaluate_candidate_match(clean_t, primary_a, cand_title, &cand_artists);
+                        if passes {
+                            if let Some(images) = item["album"]["images"].as_array() {
+                                if let Some(first_img) = images.first() {
+                                    if let Some(url) = first_img["url"].as_str() {
+                                        if best_art.as_ref().map_or(true, |(best_score, _)| score > *best_score) {
+                                            best_art = Some((score, url.to_string()));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if let Some((_, url)) = best_art {
+                        return Some(url);
+                    }
+                }
+            }
+        }
+    }
+
+    None
+}
+
+async fn search_itunes_art(
+    client: &reqwest::Client,
+    clean_t: &str,
+    primary_a: &str,
+) -> Option<String> {
+    let term = format!("{} {}", clean_t, primary_a);
+    let url = format!(
+        "https://itunes.apple.com/search?term={}&limit=5&entity=song",
+        urlencoding::encode(&term)
+    );
+    if let Ok(res) = client.get(&url).send().await {
+        if res.status().is_success() {
+            if let Ok(json) = res.json::<serde_json::Value>().await {
+                if let Some(results) = json["results"].as_array() {
+                    let mut best_art: Option<(f32, String)> = None;
+                    for item in results {
+                        let cand_title = item["trackName"].as_str().unwrap_or("");
+                        let cand_artist = item["artistName"].as_str().unwrap_or("");
+                        let cand_artists = vec![cand_artist.to_string()];
+
+                        let (passes, score) = evaluate_candidate_match(clean_t, primary_a, cand_title, &cand_artists);
+                        if passes {
+                            if let Some(raw_art) = item["artworkUrl100"].as_str().or_else(|| item["artworkUrl60"].as_str()) {
+                                let high_res = raw_art
+                                    .replace("100x100bb.jpg", "600x600bb.jpg")
+                                    .replace("60x60bb.jpg", "600x600bb.jpg");
+                                if best_art.as_ref().map_or(true, |(best_score, _)| score > *best_score) {
+                                    best_art = Some((score, high_res));
+                                }
+                            }
+                        }
+                    }
+                    if let Some((_, url)) = best_art {
+                        return Some(url);
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+async fn search_deezer_art(
+    client: &reqwest::Client,
+    clean_t: &str,
+    primary_a: &str,
+) -> Option<String> {
+    let term = format!("{} {}", clean_t, primary_a);
+    let url = format!(
+        "https://api.deezer.com/search?q={}&limit=5",
+        urlencoding::encode(&term)
+    );
+    if let Ok(res) = client.get(&url).send().await {
+        if res.status().is_success() {
+            if let Ok(json) = res.json::<serde_json::Value>().await {
+                if let Some(data) = json["data"].as_array() {
+                    let mut best_art: Option<(f32, String)> = None;
+                    for item in data {
+                        let cand_title = item["title"].as_str().unwrap_or("");
+                        let cand_artist = item["artist"]["name"].as_str().unwrap_or("");
+                        let cand_artists = vec![cand_artist.to_string()];
+
+                        let (passes, score) = evaluate_candidate_match(clean_t, primary_a, cand_title, &cand_artists);
+                        if passes {
+                            let album = &item["album"];
+                            if let Some(cover) = album["cover_xl"].as_str()
+                                .or_else(|| album["cover_big"].as_str())
+                                .or_else(|| album["cover_medium"].as_str())
+                            {
+                                if best_art.as_ref().map_or(true, |(best_score, _)| score > *best_score) {
+                                    best_art = Some((score, cover.to_string()));
+                                }
+                            }
+                        }
+                    }
+                    if let Some((_, url)) = best_art {
+                        return Some(url);
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+async fn search_netease_art(
+    client: &reqwest::Client,
+    clean_t: &str,
+    primary_a: &str,
+) -> Option<String> {
+    let query = format!("{} {}", clean_t, primary_a);
+    let url = format!(
+        "https://interface.music.163.com/api/search/get/web?csrf_token=&hlpretag=&hlposttag=&s={}&type=1&offset=0&total=true&limit=3",
+        urlencoding::encode(&query)
+    );
+    if let Ok(res) = client.get(&url)
+        .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+        .header("Referer", "https://music.163.com")
+        .header("X-Real-IP", "118.88.88.88")
+        .send()
+        .await
+    {
+        if res.status().is_success() {
+            if let Ok(json) = res.json::<serde_json::Value>().await {
+                if let Some(songs) = json["result"]["songs"].as_array() {
+                    let mut best_art: Option<(f32, String)> = None;
+                    for song in songs {
+                        let cand_title = song["name"].as_str().unwrap_or("");
+                        let cand_artists: Vec<String> = song["artists"]
+                            .as_array()
+                            .map(|arr| {
+                                arr.iter()
+                                    .filter_map(|a| a["name"].as_str().map(|s| s.to_string()))
+                                    .collect()
+                            })
+                            .unwrap_or_default();
+
+                        let (passes, score) = evaluate_candidate_match(clean_t, primary_a, cand_title, &cand_artists);
+                        if passes {
+                            if let Some(pic_url) = song["album"]["picUrl"].as_str() {
+                                if !pic_url.is_empty() {
+                                    if best_art.as_ref().map_or(true, |(best_score, _)| score > *best_score) {
+                                        best_art = Some((score, pic_url.to_string()));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if let Some((_, url)) = best_art {
+                        return Some(url);
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
 #[tauri::command]
-pub async fn fetch_track_artwork(track: String, artist: String) -> Result<Option<String>, String> {
+pub async fn fetch_track_artwork(track: String, artist: String, album: Option<String>) -> Result<Option<String>, String> {
     let clean_t = crate::commands::lyrics::fuzzy::clean_title(&track);
     let clean_a = crate::commands::lyrics::fuzzy::clean_artist(&artist);
+    let primary_a = extract_primary_artist(&clean_a);
+
     if clean_t.is_empty() {
         return Ok(None);
     }
 
     let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_millis(1800))
+        .timeout(std::time::Duration::from_millis(2500))
         .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
         .build()
         .unwrap_or_else(|_| reqwest::Client::new());
 
-    let itunes_term = format!("{} {}", clean_t, clean_a);
-    let itunes_url = format!(
-        "https://itunes.apple.com/search?term={}&limit=1&entity=song",
-        urlencoding::encode(&itunes_term)
-    );
-    let deezer_url = format!(
-        "https://api.deezer.com/search?q={}&limit=1",
-        urlencoding::encode(&itunes_term)
-    );
-
-    let client1 = client.clone();
-    let itunes_task = async move {
-        if let Ok(res) = client1.get(&itunes_url).send().await {
-            if res.status().is_success() {
-                if let Ok(json) = res.json::<serde_json::Value>().await {
-                    if let Some(results) = json["results"].as_array() {
-                        if let Some(first) = results.first() {
-                            if let Some(raw_art) = first["artworkUrl100"].as_str().or_else(|| first["artworkUrl60"].as_str()) {
-                                return Some(raw_art
-                                    .replace("100x100bb.jpg", "600x600bb.jpg")
-                                    .replace("60x60bb.jpg", "600x600bb.jpg"));
-                            }
-                        }
-                    }
-                }
-            }
+    // Tier 1: Spotify Web API (via client credentials, album-art flow)
+    if let Some(token) = get_or_fetch_spotify_token(&client).await {
+        if let Some(art) = search_spotify_art(&client, &token, &clean_t, &primary_a, album.as_deref()).await {
+            return Ok(Some(art));
         }
-        None
-    };
-
-    let client2 = client.clone();
-    let deezer_task = async move {
-        if let Ok(res) = client2.get(&deezer_url).send().await {
-            if res.status().is_success() {
-                if let Ok(json) = res.json::<serde_json::Value>().await {
-                    if let Some(data) = json["data"].as_array() {
-                        if let Some(first) = data.first() {
-                            let album = &first["album"];
-                            if let Some(cover) = album["cover_xl"].as_str()
-                                .or_else(|| album["cover_big"].as_str())
-                                .or_else(|| album["cover_medium"].as_str())
-                            {
-                                return Some(cover.to_string());
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        None
-    };
-
-    let (itunes_res, deezer_res) = tokio::join!(itunes_task, deezer_task);
-
-    if let Some(art) = itunes_res {
-        return Ok(Some(art));
     }
-    if let Some(art) = deezer_res {
+
+    // Tier 2: iTunes API (limit=5, scored candidates)
+    if let Some(art) = search_itunes_art(&client, &clean_t, &primary_a).await {
         return Ok(Some(art));
     }
 
-    // Fallback: Query iTunes with just track name if combined search failed
-    let track_only_url = format!(
-        "https://itunes.apple.com/search?term={}&limit=1&entity=song",
-        urlencoding::encode(&clean_t)
-    );
-    if let Ok(res) = client.get(&track_only_url).send().await {
-        if res.status().is_success() {
-            if let Ok(json) = res.json::<serde_json::Value>().await {
-                if let Some(results) = json["results"].as_array() {
-                    if let Some(first) = results.first() {
-                        if let Some(raw_art) = first["artworkUrl100"].as_str() {
-                            let high_res = raw_art.replace("100x100bb.jpg", "600x600bb.jpg");
-                            return Ok(Some(high_res));
-                        }
-                    }
-                }
-            }
-        }
+    // Tier 3: Deezer API (limit=5, scored candidates)
+    if let Some(art) = search_deezer_art(&client, &clean_t, &primary_a).await {
+        return Ok(Some(art));
     }
 
+    // Tier 4: NetEase Cloud Music (limit=3, scored candidates)
+    if let Some(art) = search_netease_art(&client, &clean_t, &primary_a).await {
+        return Ok(Some(art));
+    }
+
+    // If no candidate achieved >= 0.70 similarity across all tiers,
+    // return Ok(None) to preserve clean placeholder rather than showing the wrong artist!
     Ok(None)
 }
 
@@ -923,5 +1282,63 @@ pub async fn search_music_gif(track_name: String, artist_name: String) -> Result
 
     Ok(None)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_extract_primary_artist() {
+        assert_eq!(extract_primary_artist("The Weeknd, Daft Punk"), "The Weeknd");
+        assert_eq!(extract_primary_artist("Taylor Swift & Post Malone"), "Taylor Swift");
+        assert_eq!(extract_primary_artist("Ed Sheeran feat. Justin Bieber"), "Ed Sheeran");
+        assert_eq!(extract_primary_artist("Billie Eilish with Khalid"), "Billie Eilish");
+        assert_eq!(extract_primary_artist("YOASOBI"), "YOASOBI");
+    }
+
+    #[test]
+    fn test_is_disqualified_cover() {
+        // Query has no cover/tribute tag, candidate does -> disqualified
+        assert!(is_disqualified_cover("夜に駆ける YOASOBI", "YOASOBI - 夜に駆ける [2 pianos version] KayThePianist"));
+        assert!(is_disqualified_cover("Idol YOASOBI", "IDOL KARAOKE Original by YOASOBI"));
+        assert!(is_disqualified_cover("Shape of You Ed Sheeran", "Shape of You (Tribute Version)"));
+        assert!(is_disqualified_cover("Cruel Summer Taylor Swift", "Cruel Summer - Acoustic Piano Cover"));
+
+        // Query explicitly requests cover -> not disqualified
+        assert!(!is_disqualified_cover("Shape of You Piano Version", "Shape of You Piano Version"));
+    }
+
+    #[test]
+    fn test_evaluate_candidate_match() {
+        // Authentic match
+        let (passes, score) = evaluate_candidate_match(
+            "Blinding Lights",
+            "The Weeknd",
+            "Blinding Lights",
+            &["The Weeknd".to_string()]
+        );
+        assert!(passes);
+        assert!(score >= 0.95);
+
+        // Disqualified piano tribute
+        let (passes, _) = evaluate_candidate_match(
+            "夜に駆ける",
+            "YOASOBI",
+            "YOASOBI - 夜に駆ける [2 pianos version]",
+            &["KayThePianist".to_string()]
+        );
+        assert!(!passes);
+
+        // Completely wrong artist (same song name "Home")
+        let (passes, _) = evaluate_candidate_match(
+            "Home",
+            "Edward Sharpe & The Magnetic Zeros",
+            "Home",
+            &["Justin Bieber".to_string()]
+        );
+        assert!(!passes);
+    }
+}
+
 
 

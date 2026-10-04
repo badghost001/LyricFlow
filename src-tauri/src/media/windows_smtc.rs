@@ -11,6 +11,7 @@ use windows::Win32::System::Com::{CoInitializeEx, COINIT_MULTITHREADED};
 static CACHED_MANAGER: Mutex<Option<GlobalSystemMediaTransportControlsSessionManager>> = Mutex::new(None);
 static CACHED_TRACK: Mutex<Option<TrackMetadata>> = Mutex::new(None);
 static CACHED_THUMBNAIL: Mutex<Option<(String, String)>> = Mutex::new(None);
+static CONSECUTIVE_NO_SESSION_COUNT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 
 fn extract_thumbnail(props: &windows::Media::Control::GlobalSystemMediaTransportControlsSessionMediaProperties, title: &str, artist: &str) -> Option<String> {
     if title.is_empty() {
@@ -263,13 +264,22 @@ impl WindowsSmtcBackend {
 impl MediaSessionBackend for WindowsSmtcBackend {
     fn poll_playback(&self) -> Option<TrackMetadata> {
         let session = match Self::get_current_session() {
-            Some(s) => s,
+            Some(s) => {
+                CONSECUTIVE_NO_SESSION_COUNT.store(0, std::sync::atomic::Ordering::SeqCst);
+                s
+            }
             None => {
-                // If session is temporarily lost (e.g. Spotify pause/idle), maintain cached track with is_playing = false
+                let count = CONSECUTIVE_NO_SESSION_COUNT.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
                 let mut lock = CACHED_TRACK.lock().unwrap_or_else(|p| p.into_inner());
-                if let Some(ref mut track) = *lock {
-                    track.is_playing = false;
-                    return Some(track.clone());
+                // 10-second grace period (40 polls at 250ms): keep track cached with is_playing = false
+                if count <= 40 {
+                    if let Some(ref mut track) = *lock {
+                        track.is_playing = false;
+                        return Some(track.clone());
+                    }
+                } else {
+                    // Session permanently closed/exited: clear cached track so UI transitions to empty/idle state
+                    *lock = None;
                 }
                 return None;
             }

@@ -228,7 +228,7 @@ function runProgressSeekTests() {
         lastPollProgress = progressMs;
         currentProgress = progressMs;
       } else if (Math.abs(drift) > 300) {
-        lastPollProgress = currentProgress - (drift * 0.12);
+        lastPollProgress = currentProgress - (drift * 0.35);
       }
       return true;
     }
@@ -298,20 +298,30 @@ function runProgressSeekTests() {
       const drift = currentProgress - progressMs;
       const absDrift = Math.abs(drift);
       if (absDrift > 300 && absDrift <= 2500) {
-        const adjustment = drift * 0.12;
+        const adjustment = drift * 0.35;
         lastPollProgress = currentProgress - adjustment;
       }
     }
 
     // Local clock is 500ms ahead of API (currentProgress = 30000, progressMs = 29500)
     applyClockSlewing(29500);
-    // Adjustment is 500 * 0.12 = 60ms; reference gently adjusted to 29940ms
-    assert.strictEqual(lastPollProgress, 29940);
+    // Adjustment is 500 * 0.35 = 175ms; the correction remains bounded and gradual.
+    assert.strictEqual(lastPollProgress, 29825);
     assert.ok(lastPollProgress >= 29500 && lastPollProgress <= 30000);
   });
 
-  // Test 11: formatTime Edge Cases and Guards
-  test('11. formatTime safely guards against null, undefined, NaN, and negative values', () => {
+  test('11. A playback clock behind the source catches up faster each poll', () => {
+    const currentProgress = 30000;
+    const sourceProgress = 31000;
+    const drift = currentProgress - sourceProgress;
+    const adjustment = drift * 0.35;
+    const correctedBase = currentProgress - adjustment;
+    assert.strictEqual(correctedBase, 30350);
+    assert.ok(correctedBase > currentProgress && correctedBase < sourceProgress);
+  });
+
+  // Test 12: formatTime Edge Cases and Guards
+  test('12. formatTime safely guards against null, undefined, NaN, and negative values', () => {
     function formatTime(ms) {
       if (!ms || isNaN(ms) || ms <= 0) return '0:00';
       const totalSec = Math.floor(ms / 1000);
@@ -331,7 +341,7 @@ function runProgressSeekTests() {
   });
 
   // Test 12: Progress Bar Time Stamps Display & Remaining Time Formatting
-  test('12. Progress time display renders clean separator and supports remaining time toggle', () => {
+  test('13. Progress time display renders clean separator and supports remaining time toggle', () => {
     function formatTime(ms) {
       if (!ms || isNaN(ms) || ms <= 0) return '0:00';
       const totalSec = Math.floor(ms / 1000);

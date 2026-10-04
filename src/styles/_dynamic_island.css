@@ -10,6 +10,7 @@
 /* Hidden in standard overlay mode */
 #dynamic-island {
   display: none !important;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Outfit", "Inter", sans-serif;
 }
 
 /* Activated when body has .mode-dynamic-island */
@@ -53,6 +54,16 @@ body.mode-dynamic-island .app-container {
   overflow: visible !important;
   cursor: default !important;
   -webkit-app-region: none !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+body.mode-dynamic-island .app-container.auto-hide-faded,
+body.mode-dynamic-island.auto-hide-faded .app-container,
+body.mode-dynamic-island .app-container.auto-hide-collapsed {
+  opacity: 1 !important;
+  display: flex !important;
+  visibility: visible !important;
 }
 
 /* ==========================================================
@@ -66,6 +77,7 @@ body.mode-dynamic-island #dynamic-island {
   margin: 0 auto;
   margin-top: 0;
   top: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Outfit", "Inter", sans-serif !important;
   
   /* Compact Pill (Idle State) - dynamically responsive based on visualizer bars */
   width: var(--island-compact-width, 340px);
@@ -79,16 +91,21 @@ body.mode-dynamic-island #dynamic-island {
     inset 0 1px 0.5px rgba(255, 255, 255, 0.28),
     inset 0 -0.5px 0.5px rgba(255, 255, 255, 0.08),
     0 12px 28px -4px rgba(0, 0, 0, 0.75),
+    0 0 var(--island-bloom-radius, 0px) rgba(var(--art-color-1-rgb, 56, 189, 248), var(--island-bloom-alpha, 0)),
     0 0 0 1px rgba(0, 0, 0, 0.95);
     
   padding: 3px 10px;
   box-sizing: border-box;
   position: relative;
+  z-index: 1000 !important;
   overflow: hidden;
   user-select: none;
   pointer-events: auto !important;
   cursor: default !important;
   -webkit-app-region: none !important;
+  transform-origin: top center;
+  will-change: transform, opacity;
+  backface-visibility: hidden;
   
   /* Apple Fluid Spring Physics */
   transition:
@@ -290,6 +307,8 @@ body:not(.is-playing) .island-art-halo {
   align-items: center;
   gap: 0px;
   will-change: transform;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
   padding-right: 8px; /* Clear safety margin so trailing characters never collide with boundary */
   /* Removed transform transition so high-framerate JS damping provides zero-latency sync */
   transition: opacity 0.2s ease;
@@ -335,24 +354,38 @@ body:not(.is-playing) .island-art-halo {
 }
 
 .island-lyric-line .lyric-word.lyric-word-active {
-  color: #ffffff !important;
-  transform: scale(1.06) translateY(-0.5px);
-  text-shadow:
-    0 0 10px rgba(255, 255, 255, 0.95),
-    0 0 20px rgba(255, 255, 255, 0.55);
+  will-change: transform;
+  background: linear-gradient(
+    90deg,
+    #ffffff 0%,
+    #ffffff calc(var(--word-progress, 1) * 100%),
+    rgba(255, 255, 255, 0.42) calc(var(--word-progress, 1) * 100% + 3.5px),
+    rgba(255, 255, 255, 0.42) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  transform: scale(1.05) translateY(-0.5px) translateZ(0);
+  filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.7));
 }
 
 .island-lyric-line .lyric-word.lyric-word-completed,
 .island-lyric-line .lyric-word.lyric-word-passed {
-  color: rgba(255, 255, 255, 0.92);
-  transform: none;
-  text-shadow: none;
+  background: none !important;
+  -webkit-background-clip: border-box !important;
+  background-clip: border-box !important;
+  -webkit-text-fill-color: rgba(255, 255, 255, 0.95) !important;
+  color: #ffffff !important;
+  transform: none !important;
+  filter: none !important;
 }
 
 .island-lyric-line .lyric-word.lyric-word-upcoming {
+  background: none;
+  -webkit-text-fill-color: initial;
   color: rgba(255, 255, 255, 0.42);
   transform: none;
-  text-shadow: none;
+  filter: none;
 }
 
 .island-instrumental-dots {
@@ -562,6 +595,7 @@ body.mode-dynamic-island.is-playing .island-lyric-zone {
 /* ==========================================================
    MAGNETIC OPTICAL BRIDGE
    - Subtle vertical connecting neck linking primary and satellite islands
+   - Organic split-cell filament stretching & liquid collapse
 ========================================================== */
 .island-bridge {
   display: none;
@@ -574,16 +608,30 @@ body.mode-dynamic-island.is-playing .island-lyric-zone {
   pointer-events: none;
   z-index: 999;
   flex-shrink: 0;
-  transition: opacity 0.3s cubic-bezier(0.32, 0.72, 0, 1), transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+  transform-origin: top center;
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  transition: opacity 0.24s cubic-bezier(0.16, 1, 0.3, 1), transform 0.24s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 body.mode-dynamic-island.has-satellite-active .island-bridge {
   display: block !important;
+  animation: satelliteBridgeStretch 0.38s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.island-bridge.bridge-fusing {
+  display: block !important;
+  animation: satelliteBridgeCollapse 0.24s cubic-bezier(0.32, 0, 0.67, 0) forwards !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  margin: 0 auto !important;
+  transition: height 0.24s cubic-bezier(0.32, 0, 0.67, 0) !important;
 }
 
 /* ==========================================================
    CONNECTED SATELLITE TRANSLATION ISLAND
    - Dedicated Pitch-Black OLED Satellite Capsule
+   - Organic Cell Mitosis Split & Liquid Droplet Retraction
    - Zero Cut-Off, Continuous Marquee, Interactive Chip
    - Apple Fluid Spring Physics
 ========================================================== */
@@ -619,21 +667,110 @@ body.mode-dynamic-island.has-satellite-active .island-bridge {
   -webkit-app-region: none !important;
   z-index: 1000;
   flex-shrink: 0;
+  transform-origin: top center;
+  will-change: transform, opacity;
+  backface-visibility: hidden;
   
   /* Spring entry & resizing */
   transition:
     width 0.38s cubic-bezier(0.32, 0.72, 0, 1),
     height 0.38s cubic-bezier(0.32, 0.72, 0, 1),
-    transform 0.38s cubic-bezier(0.32, 0.72, 0, 1),
-    opacity 0.3s cubic-bezier(0.32, 0.72, 0, 1),
     border-color 0.3s ease,
     box-shadow 0.35s ease;
+  animation: satelliteLiquidPinchSplit 0.38s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 body.mode-dynamic-island.has-satellite-active .dynamic-island-translation,
 body.mode-dynamic-island #dynamic-island-translation.island-vaporizing,
-body.mode-dynamic-island #dynamic-island-translation.island-materializing {
+body.mode-dynamic-island #dynamic-island-translation.island-materializing,
+.dynamic-island-translation.satellite-fusing {
   display: flex !important;
+}
+
+.dynamic-island-translation.satellite-fusing {
+  animation: satelliteLiquidPinchFuse 0.24s cubic-bezier(0.32, 0, 0.67, 0) forwards !important;
+  max-height: 0 !important;
+  min-height: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  border-top-width: 0 !important;
+  border-bottom-width: 0 !important;
+  overflow: hidden !important;
+  transition:
+    max-height 0.24s cubic-bezier(0.32, 0, 0.67, 0),
+    min-height 0.24s cubic-bezier(0.32, 0, 0.67, 0),
+    padding 0.24s cubic-bezier(0.32, 0, 0.67, 0),
+    margin 0.24s cubic-bezier(0.32, 0, 0.67, 0),
+    border-width 0.24s cubic-bezier(0.32, 0, 0.67, 0) !important;
+}
+
+/* Satellite Bridge Neck Stretching (Liquid Mitosis) */
+@keyframes satelliteBridgeStretch {
+  0% {
+    opacity: 0;
+    transform: scaleX(2.5) scaleY(0.1);
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  40% {
+    opacity: 0.9;
+    transform: scaleX(1.4) scaleY(1.8);
+    background: rgba(255, 255, 255, 0.6);
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+    animation-timing-function: cubic-bezier(0.33, 1, 0.68, 1);
+  }
+  100% {
+    transform: scaleX(1) scaleY(1);
+    opacity: 0.24;
+  }
+}
+
+/* Satellite Bridge Neck Collapsing (Liquid Fusion) */
+@keyframes satelliteBridgeCollapse {
+  0% {
+    transform: scaleX(1) scaleY(1);
+    opacity: 0.6;
+    animation-timing-function: cubic-bezier(0.32, 0, 0.67, 0);
+  }
+  100% {
+    transform: scaleX(2) scaleY(0);
+    opacity: 0;
+  }
+}
+
+/* Satellite Translation Child Cell Emergence from Mother Cell */
+@keyframes satelliteLiquidPinchSplit {
+  0% {
+    opacity: 0;
+    transform: translateY(-22px) scale(0.65, 1.25);
+    box-shadow: 0 0 16px rgba(255, 255, 255, 0.4);
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  65% {
+    opacity: 1;
+    transform: translateY(2px) scale(1.03, 0.97);
+    box-shadow: 0 10px 24px -4px rgba(0, 0, 0, 0.75);
+    animation-timing-function: cubic-bezier(0.33, 1, 0.68, 1);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1, 1);
+    box-shadow: 0 10px 24px -4px rgba(0, 0, 0, 0.75);
+  }
+}
+
+/* Satellite Translation Child Cell Retraction into Mother Cell */
+@keyframes satelliteLiquidPinchFuse {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1, 1);
+    animation-timing-function: cubic-bezier(0.32, 0, 0.67, 0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-22px) scale(0.65, 0.85);
+  }
 }
 
 .dynamic-island-translation:hover {
@@ -722,7 +859,8 @@ body.mode-dynamic-island #dynamic-island-translation.island-materializing {
   text-shadow: 0 0 10px rgba(255, 255, 255, 0.22);
 }
 
-.satellite-text-swapping {
+.satellite-text-swapping,
+.duet-text-swapping {
   opacity: 0 !important;
   transform: translateY(-4px) scale(0.97) !important;
   transition: opacity 0.12s ease-out, transform 0.12s cubic-bezier(0.32, 0.72, 0, 1) !important;
@@ -732,7 +870,22 @@ body.mode-dynamic-island #dynamic-island-translation.island-materializing {
   animation: satelliteTextSlideIn 0.24s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+.duet-text-entering {
+  animation: duetTextSlideIn 0.24s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
 @keyframes satelliteTextSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes duetTextSlideIn {
   from {
     opacity: 0;
     transform: translateY(4px) scale(0.97);
@@ -757,6 +910,316 @@ body.mode-dynamic-island #dynamic-island-translation.island-materializing {
   80%, 100% {
     transform: translateX(var(--marquee-dist, -60px));
   }
+}
+
+/* ==========================================================
+   MAGNETIC DUET & BACKING VOCAL LIQUID CAPSULE (METAMORPHOSIS)
+   - Organic split-cell separation during duets & features
+   - Smooth liquid spring fusing when phrase completes
+========================================================== */
+.island-duet-bridge {
+  display: none;
+  width: 4px;
+  height: 6px;
+  background: rgba(var(--art-color-2-rgb, 56, 189, 248), 0.65);
+  border-radius: 99px;
+  margin: 0 auto;
+  box-shadow: 0 0 8px rgba(var(--art-color-2-rgb, 56, 189, 248), 0.75);
+  pointer-events: none;
+  z-index: 999;
+  flex-shrink: 0;
+  transform-origin: top center;
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  transition: opacity 0.24s cubic-bezier(0.16, 1, 0.3, 1), transform 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+body.mode-dynamic-island.has-duet-active .island-duet-bridge {
+  display: block !important;
+  animation: duetBridgeStretch 0.38s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.island-duet-bridge.bridge-fusing {
+  display: block !important;
+  animation: duetBridgeCollapse 0.24s cubic-bezier(0.32, 0, 0.67, 0) forwards !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  margin: 0 auto !important;
+  transition: height 0.24s cubic-bezier(0.32, 0, 0.67, 0) !important;
+}
+
+#dynamic-island.island-cell-pinching {
+  animation: mainCellBudding 0.38s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+}
+
+#dynamic-island.island-cell-absorbing {
+  animation: mainCellAbsorb 0.24s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+}
+
+.island-duet-capsule {
+  display: none !important;
+  align-items: center;
+  gap: 7px;
+  margin: 0 auto;
+  width: fit-content;
+  min-width: 180px;
+  max-width: 420px;
+  height: 28px;
+  border-radius: 999px;
+  background: #000000;
+  border: 1px solid rgba(var(--art-color-2-rgb, 56, 189, 248), 0.35);
+  box-shadow:
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.28),
+    0 10px 24px -4px rgba(0, 0, 0, 0.75),
+    0 0 16px rgba(var(--art-color-2-rgb, 56, 189, 248), 0.25);
+  padding: 2px 12px 2px 8px;
+  box-sizing: border-box;
+  position: relative;
+  overflow: hidden;
+  user-select: none;
+  pointer-events: auto !important;
+  z-index: 1000;
+  flex-shrink: 0;
+  transform-origin: top center;
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  transition:
+    width 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.3s ease,
+    box-shadow 0.35s ease;
+  animation: duetLiquidPinchSplit 0.38s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+body.mode-dynamic-island.has-duet-active .island-duet-capsule {
+  display: flex !important;
+}
+
+.island-duet-capsule.duet-fusing {
+  animation: duetLiquidPinchFuse 0.24s cubic-bezier(0.32, 0, 0.67, 0) forwards !important;
+  max-height: 0 !important;
+  min-height: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  border-top-width: 0 !important;
+  border-bottom-width: 0 !important;
+  overflow: hidden !important;
+  transition:
+    max-height 0.24s cubic-bezier(0.32, 0, 0.67, 0),
+    min-height 0.24s cubic-bezier(0.32, 0, 0.67, 0),
+    padding 0.24s cubic-bezier(0.32, 0, 0.67, 0),
+    margin 0.24s cubic-bezier(0.32, 0, 0.67, 0),
+    border-width 0.24s cubic-bezier(0.32, 0, 0.67, 0) !important;
+}
+
+/* Main cell pinching / budding reaction (Mother cell extrusion) */
+@keyframes mainCellBudding {
+  0% {
+    transform: translateY(0) scale(1, 1);
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  38% {
+    transform: translateY(2px) scale(0.98, 1.05);
+    box-shadow:
+      inset 0 1px 0.5px rgba(255, 255, 255, 0.35),
+      0 14px 32px rgba(0, 0, 0, 0.8),
+      0 6px 16px rgba(var(--art-color-2-rgb, 56, 189, 248), 0.45);
+    animation-timing-function: cubic-bezier(0.33, 1, 0.68, 1);
+  }
+  100% {
+    transform: translateY(0) scale(1, 1);
+  }
+}
+
+/* Main cell absorbing reaction (Mother cell catches returning droplet) */
+@keyframes mainCellAbsorb {
+  0% {
+    transform: scale(1, 1);
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  35% {
+    transform: translateY(1.5px) scale(1.025, 1.03);
+    box-shadow:
+      inset 0 1px 0.5px rgba(255, 255, 255, 0.45),
+      0 16px 36px rgba(0, 0, 0, 0.85),
+      0 0 24px rgba(var(--art-color-2-rgb, 56, 189, 248), 0.65);
+    animation-timing-function: cubic-bezier(0.33, 1, 0.68, 1);
+  }
+  100% {
+    transform: scale(1, 1);
+  }
+}
+
+/* Liquid Bridge Neck Stretching */
+@keyframes duetBridgeStretch {
+  0% {
+    opacity: 0;
+    transform: scaleX(2.5) scaleY(0.1);
+    background: rgba(var(--art-color-2-rgb, 56, 189, 248), 0.95);
+    box-shadow: 0 0 14px rgba(var(--art-color-2-rgb, 56, 189, 248), 1);
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  40% {
+    opacity: 0.9;
+    transform: scaleX(1.4) scaleY(1.8);
+    background: rgba(var(--art-color-2-rgb, 56, 189, 248), 0.85);
+    animation-timing-function: cubic-bezier(0.33, 1, 0.68, 1);
+  }
+  100% {
+    transform: scaleX(1) scaleY(1);
+    opacity: 0.65;
+  }
+}
+
+/* Liquid Bridge Neck Collapsing */
+@keyframes duetBridgeCollapse {
+  0% {
+    transform: scaleX(1) scaleY(1);
+    opacity: 0.8;
+    animation-timing-function: cubic-bezier(0.32, 0, 0.67, 0);
+  }
+  100% {
+    transform: scaleX(2) scaleY(0);
+    opacity: 0;
+  }
+}
+
+/* Duet Child Cell Emergence from Mother Cell */
+@keyframes duetLiquidPinchSplit {
+  0% {
+    opacity: 0;
+    transform: translateY(-22px) scale(0.65, 1.25);
+    box-shadow: 0 0 16px rgba(var(--art-color-2-rgb, 56, 189, 248), 0.7);
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  65% {
+    opacity: 1;
+    transform: translateY(2px) scale(1.03, 0.97);
+    box-shadow:
+      inset 0 1px 0.5px rgba(255, 255, 255, 0.28),
+      0 10px 24px -4px rgba(0, 0, 0, 0.75),
+      0 0 16px rgba(var(--art-color-2-rgb, 56, 189, 248), 0.25);
+    animation-timing-function: cubic-bezier(0.33, 1, 0.68, 1);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1, 1);
+    box-shadow:
+      inset 0 1px 0.5px rgba(255, 255, 255, 0.28),
+      0 10px 24px -4px rgba(0, 0, 0, 0.75),
+      0 0 16px rgba(var(--art-color-2-rgb, 56, 189, 248), 0.25);
+  }
+}
+
+/* Duet Child Cell Retraction into Mother Cell */
+@keyframes duetLiquidPinchFuse {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1, 1);
+    animation-timing-function: cubic-bezier(0.32, 0, 0.67, 0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-22px) scale(0.65, 0.85);
+  }
+}
+
+/* Backward compatibility aliases */
+@keyframes duetLiquidSplit {
+  0% { opacity: 0; transform: translateY(-8px) scale(0.85); }
+  65% { transform: translateY(2px) scale(1.02); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes duetLiquidFuse {
+  0% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-8px) scale(0.85); }
+}
+
+.island-duet-sparkle {
+  font-size: 10px;
+  color: var(--highlight-color, #38bdf8);
+  filter: drop-shadow(0 0 5px rgba(56, 189, 248, 0.8));
+  flex-shrink: 0;
+  animation: duetSparkle 2.5s ease-in-out infinite alternate;
+}
+
+@keyframes duetSparkle {
+  0% { transform: scale(0.9) rotate(-10deg); opacity: 0.8; }
+  100% { transform: scale(1.2) rotate(15deg); opacity: 1; }
+}
+
+.island-duet-marquee-wrapper {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  position: relative;
+  mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 10px), transparent 100%);
+  -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 10px), transparent 100%);
+}
+
+.island-duet-text {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Outfit", "Inter", sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  color: #ffffff;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  display: inline-block;
+  text-shadow: 0 0 10px rgba(56, 189, 248, 0.35);
+}
+
+/* ==========================================================
+   DYNAMIC ISLAND METAMORPHOSIS: AUDIO-ENERGY SILHOUETTES
+   - Real-time morphing responsive to WASAPI RMS and sub-bass
+========================================================== */
+
+/* State 1: Calm / Whisper (< 0.08 Energy) */
+body.mode-dynamic-island.island-morph-calm #dynamic-island {
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow:
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.18),
+    0 10px 24px -4px rgba(0, 0, 0, 0.65),
+    0 0 12px rgba(var(--art-color-1-rgb, 255, 255, 255), 0.08);
+  transition: all 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+body.mode-dynamic-island.island-morph-calm .island-wave-visualizer {
+  opacity: 0.65;
+  filter: saturate(0.85);
+}
+
+/* State 2: Groove / Verse (Standard balanced state) */
+body.mode-dynamic-island.island-morph-groove #dynamic-island {
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* State 3: Climax / Bass Drop (> 0.42 Energy or heavy sub-bass) */
+body.mode-dynamic-island.island-morph-climax #dynamic-island {
+  border-color: rgba(var(--art-color-1-rgb, 255, 255, 255), 0.45);
+  transform: scale(1.02);
+  transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.25s ease;
+}
+
+body.mode-dynamic-island.island-morph-climax .island-wave-visualizer .wave-bar {
+  filter: drop-shadow(0 0 6px rgba(var(--art-color-1-rgb, 29, 185, 84), 0.85));
+}
+
+body.mode-dynamic-island.island-morph-climax .island-art-tile {
+  box-shadow:
+    0 0 14px rgba(var(--art-color-1-rgb, 29, 185, 84), 0.55),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.3);
+}
+
+/* State 4: Instrumental Solo Break (Center visualizer expands) */
+body.mode-dynamic-island.island-morph-solo #dynamic-island {
+  border-color: rgba(var(--art-color-1-rgb, 56, 189, 248), 0.35);
+  box-shadow:
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.3),
+    0 12px 30px -4px rgba(0, 0, 0, 0.8),
+    0 0 20px rgba(var(--art-color-1-rgb, 56, 189, 248), 0.22);
 }
 
 /* ==========================================================
@@ -797,7 +1260,7 @@ body.mode-dynamic-island #dynamic-island-translation.island-materializing {
   transform-origin: bottom center;
   transform: scaleY(0.14);
   /* Snappy 25ms ease-out transition reacts in direct lockstep with real audio beats */
-  transition: transform 0.025s ease-out, opacity 0.2s ease;
+  transition: transform 0.025s ease-out, opacity 0.2s ease, border-radius 0.25s cubic-bezier(0.16, 1, 0.3, 1), background 0.25s ease;
   will-change: transform;
 }
 
@@ -1087,7 +1550,12 @@ body.island-dock-top-center #dynamic-island {
   top: 0 !important;
   bottom: auto !important;
 }
-body.island-dock-top-center #dynamic-island-translation {
+body.island-dock-top-center #dynamic-island-translation,
+body.island-dock-top-center #island-duet-capsule {
+  margin: 0 auto !important;
+}
+body.island-dock-top-center .island-bridge,
+body.island-dock-top-center .island-duet-bridge {
   margin: 0 auto !important;
 }
 
@@ -1107,9 +1575,20 @@ body.island-dock-top-left .island-bridge {
   margin-left: 28px !important;
   margin-right: auto !important;
 }
-body.island-dock-top-left #dynamic-island-translation {
+body.island-dock-top-left #dynamic-island-translation,
+body.island-dock-top-left #island-duet-capsule {
   margin-left: 0 !important;
   margin-right: auto !important;
+}
+body.island-dock-top-left .island-duet-bridge {
+  margin-left: 28px !important;
+  margin-right: auto !important;
+}
+
+body.island-dock-top-left #dynamic-island,
+body.island-dock-top-left #dynamic-island-translation,
+body.island-dock-top-left #island-duet-capsule {
+  transform-origin: top left !important;
 }
 
 /* Top Right: Anchored to right, full controls visible */
@@ -1124,13 +1603,20 @@ body.island-dock-top-right #dynamic-island {
   top: 0 !important;
   bottom: auto !important;
 }
-body.island-dock-top-right .island-bridge {
+body.island-dock-top-right .island-bridge,
+body.island-dock-top-right .island-duet-bridge {
   margin-right: 28px !important;
   margin-left: auto !important;
 }
-body.island-dock-top-right #dynamic-island-translation {
+body.island-dock-top-right #dynamic-island-translation,
+body.island-dock-top-right #island-duet-capsule {
   margin-right: 0 !important;
   margin-left: auto !important;
+}
+body.island-dock-top-right #dynamic-island,
+body.island-dock-top-right #dynamic-island-translation,
+body.island-dock-top-right #island-duet-capsule {
+  transform-origin: top right !important;
 }
 
 /* Above Taskbar (Bottom Center): Flush to taskbar & opens UPWARDS */
@@ -1166,6 +1652,163 @@ body.island-dock-bottom-center #dynamic-island-translation {
     inset 0 0.5px 0.5px rgba(255, 255, 255, 0.08),
     0 -10px 24px -4px rgba(0, 0, 0, 0.75),
     0 0 0 1px rgba(0, 0, 0, 0.95);
+}
+
+/* Inverted Mitosis & Corner Transform Origins */
+body.island-dock-bottom-center #dynamic-island,
+body.island-dock-bottom-center #dynamic-island-translation,
+body.island-dock-bottom-center #island-duet-capsule,
+body.island-dock-bottom-center .island-bridge,
+body.island-dock-bottom-center .island-duet-bridge {
+  transform-origin: bottom center !important;
+}
+
+body.island-dock-bottom-center #dynamic-island.island-cell-pinching {
+  animation: mainCellBuddingBottom 0.38s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+}
+
+body.island-dock-bottom-center #dynamic-island.island-cell-absorbing {
+  animation: mainCellAbsorbBottom 0.24s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+}
+
+body.island-dock-bottom-center #dynamic-island-translation {
+  animation: satelliteLiquidPinchSplitBottom 0.38s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+}
+
+body.island-dock-bottom-center #dynamic-island-translation.satellite-fusing {
+  animation: satelliteLiquidPinchFuseBottom 0.24s cubic-bezier(0.32, 0, 0.67, 0) forwards !important;
+  max-height: 0 !important;
+  min-height: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  border-top-width: 0 !important;
+  border-bottom-width: 0 !important;
+  overflow: hidden !important;
+}
+
+body.island-dock-bottom-center #island-duet-capsule {
+  animation: duetLiquidPinchSplitBottom 0.38s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+}
+
+body.island-dock-bottom-center #island-duet-capsule.duet-fusing {
+  animation: duetLiquidPinchFuseBottom 0.24s cubic-bezier(0.32, 0, 0.67, 0) forwards !important;
+  max-height: 0 !important;
+  min-height: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  border-top-width: 0 !important;
+  border-bottom-width: 0 !important;
+  overflow: hidden !important;
+}
+
+@keyframes mainCellBuddingBottom {
+  0% {
+    transform: translateY(0) scale(1, 1);
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  38% {
+    transform: translateY(-2px) scale(0.98, 1.05);
+    box-shadow:
+      inset 0 -1px 0.5px rgba(255, 255, 255, 0.35),
+      0 -14px 32px rgba(0, 0, 0, 0.8),
+      0 -6px 16px rgba(var(--art-color-2-rgb, 56, 189, 248), 0.45);
+    animation-timing-function: cubic-bezier(0.33, 1, 0.68, 1);
+  }
+  100% {
+    transform: translateY(0) scale(1, 1);
+  }
+}
+
+@keyframes mainCellAbsorbBottom {
+  0% {
+    transform: scale(1, 1);
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  35% {
+    transform: translateY(-1.5px) scale(1.025, 1.03);
+    box-shadow:
+      inset 0 -1px 0.5px rgba(255, 255, 255, 0.45),
+      0 -16px 36px rgba(0, 0, 0, 0.85),
+      0 0 24px rgba(var(--art-color-2-rgb, 56, 189, 248), 0.65);
+    animation-timing-function: cubic-bezier(0.33, 1, 0.68, 1);
+  }
+  100% {
+    transform: scale(1, 1);
+  }
+}
+
+@keyframes satelliteLiquidPinchSplitBottom {
+  0% {
+    opacity: 0;
+    transform: translateY(22px) scale(0.65, 1.25);
+    box-shadow: 0 0 16px rgba(255, 255, 255, 0.4);
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  65% {
+    opacity: 1;
+    transform: translateY(-2px) scale(1.03, 0.97);
+    box-shadow: 0 -10px 24px -4px rgba(0, 0, 0, 0.75);
+    animation-timing-function: cubic-bezier(0.33, 1, 0.68, 1);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1, 1);
+    box-shadow: 0 -10px 24px -4px rgba(0, 0, 0, 0.75);
+  }
+}
+
+@keyframes satelliteLiquidPinchFuseBottom {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1, 1);
+    animation-timing-function: cubic-bezier(0.32, 0, 0.67, 0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(22px) scale(0.65, 0.85);
+  }
+}
+
+@keyframes duetLiquidPinchSplitBottom {
+  0% {
+    opacity: 0;
+    transform: translateY(22px) scale(0.65, 1.25);
+    box-shadow: 0 0 16px rgba(var(--art-color-2-rgb, 56, 189, 248), 0.7);
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  65% {
+    opacity: 1;
+    transform: translateY(-2px) scale(1.03, 0.97);
+    box-shadow:
+      inset 0 -1px 0.5px rgba(255, 255, 255, 0.28),
+      0 -10px 24px -4px rgba(0, 0, 0, 0.75),
+      0 0 16px rgba(var(--art-color-2-rgb, 56, 189, 248), 0.25);
+    animation-timing-function: cubic-bezier(0.33, 1, 0.68, 1);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1, 1);
+    box-shadow:
+      inset 0 -1px 0.5px rgba(255, 255, 255, 0.28),
+      0 -10px 24px -4px rgba(0, 0, 0, 0.75),
+      0 0 16px rgba(var(--art-color-2-rgb, 56, 189, 248), 0.25);
+  }
+}
+
+@keyframes duetLiquidPinchFuseBottom {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1, 1);
+    animation-timing-function: cubic-bezier(0.32, 0, 0.67, 0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(22px) scale(0.65, 0.85);
+  }
 }
 
 /* ==========================================================
@@ -1342,11 +1985,13 @@ body.mode-dynamic-island.island-sleeping #dynamic-island {
   display: none !important;
   pointer-events: none !important;
 }
-body.mode-dynamic-island.island-sleeping #dynamic-island-translation {
+body.mode-dynamic-island.island-sleeping #dynamic-island-translation,
+body.mode-dynamic-island.island-sleeping #island-duet-capsule {
   display: none !important;
   pointer-events: none !important;
 }
-body.mode-dynamic-island.island-sleeping .island-bridge {
+body.mode-dynamic-island.island-sleeping .island-bridge,
+body.mode-dynamic-island.island-sleeping .island-duet-bridge {
   display: none !important;
   pointer-events: none !important;
 }
@@ -1548,17 +2193,19 @@ body.mode-dynamic-island.island-sleeping .island-bridge {
    to a minimalist 16% silhouette with non-interactive click-through.
 ========================================================== */
 body.mode-dynamic-island.island-ghost-mode #dynamic-island,
-body.mode-dynamic-island.island-ghost-mode #dynamic-island-translation {
+body.mode-dynamic-island.island-ghost-mode #dynamic-island-translation,
+body.mode-dynamic-island.island-ghost-mode #island-duet-capsule {
   opacity: 0.16 !important;
   pointer-events: none !important;
   transform: scale(0.98) !important;
   backdrop-filter: blur(2px) !important;
   -webkit-backdrop-filter: blur(2px) !important;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.20), 0 4px 16px rgba(0, 0, 0, 0.25) !important;
+  box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.35), 0 8px 24px rgba(0, 0, 0, 0.4) !important;
   transition: opacity 0.18s cubic-bezier(0.16, 1, 0.3, 1), transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s ease !important;
 }
 
-body.mode-dynamic-island.island-ghost-mode #island-bridge {
+body.mode-dynamic-island.island-ghost-mode #island-bridge,
+body.mode-dynamic-island.island-ghost-mode #island-duet-bridge {
   opacity: 0 !important;
   transition: opacity 0.14s ease !important;
 }
@@ -1573,4 +2220,3 @@ body.mode-dynamic-island.island-ghost-mode .island-top-actions {
   opacity: 0 !important;
   transition: opacity 0.14s ease !important;
 }
-

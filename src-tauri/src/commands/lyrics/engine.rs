@@ -18,7 +18,7 @@ pub async fn query_all_candidates(
     let clean_a = clean_artist(artist);
     let duration_sec = duration_ms / 1000;
 
-    // --- TIER 1: Simultaneous Multi Query (Cloudflare Proxy + LRCLIB + Musixmatch) ---
+    // --- TIER 1: Simultaneous Multi Query (Cloudflare Proxy + LRCLIB + Musixmatch + NetEase) ---
     let proxy_task = search_cloudflare_proxy(
         client,
         &clean_t,
@@ -33,8 +33,9 @@ pub async fn query_all_candidates(
         options.musixmatch_token.as_deref(),
     );
     let lrclib_task = search_lrclib(client, &clean_t, &clean_a, duration_sec);
+    let netease_task = search_netease(client, &clean_t, &clean_a, options.netease_word_by_word);
 
-    let (proxy_res, mxm_res, lrclib_res) = tokio::join!(proxy_task, mxm_task, lrclib_task);
+    let (proxy_res, mxm_res, lrclib_res, netease_res) = tokio::join!(proxy_task, mxm_task, lrclib_task, netease_task);
 
     let mut tier1_candidates: Vec<LyricsCandidate> = Vec::new();
     if let Some(proxy_cand) = proxy_res {
@@ -44,6 +45,7 @@ pub async fn query_all_candidates(
         tier1_candidates.push(mxm_cand);
     }
     tier1_candidates.extend(lrclib_res);
+    tier1_candidates.extend(netease_res);
 
     let has_tier1_synced = tier1_candidates
         .iter()
@@ -52,7 +54,7 @@ pub async fn query_all_candidates(
     // If Tier 1 found synced lyrics and this is the default primary lookup (candidate_index == 0),
     // return immediately without triggering Tier 2 network calls.
     if options.candidate_index == 0 && has_tier1_synced {
-        sort_lyrics_candidates(&mut tier1_candidates);
+        sort_lyrics_candidates(&mut tier1_candidates, &options.preferred_providers);
         label_candidates(&mut tier1_candidates);
         return tier1_candidates;
     }
@@ -87,11 +89,7 @@ pub async fn query_all_candidates(
         }
     }
 
-    // 2. NetEase Cloud Music (Line sync + translations)
-    let netease_res = search_netease(client, &clean_t, &clean_a).await;
-    tier2_candidates.extend(netease_res);
-
-    // 3. Genius plaintext fallback if still no synced candidates across Tier 1 + Tier 2
+    // 2. Genius plaintext fallback if still no synced candidates across Tier 1 + Tier 2
     let has_any_synced = has_tier1_synced
         || tier2_candidates.iter().any(|c| c.sync_type != SyncType::PlainText);
 
@@ -104,14 +102,24 @@ pub async fn query_all_candidates(
     let mut all_candidates = tier1_candidates;
     all_candidates.extend(tier2_candidates);
 
-    sort_lyrics_candidates(&mut all_candidates);
+    sort_lyrics_candidates(&mut all_candidates, &options.preferred_providers);
     label_candidates(&mut all_candidates);
 
     all_candidates
 }
 
-fn sort_lyrics_candidates(candidates: &mut [LyricsCandidate]) {
+fn sort_lyrics_candidates(candidates: &mut [LyricsCandidate], preferred_providers: &[String]) {
     candidates.sort_by_cached_key(|c| {
+        let pref_idx = if !preferred_providers.is_empty() {
+            let p_lower = c.provider.to_lowercase();
+            preferred_providers.iter().position(|p| {
+                let p_clean = p.to_lowercase();
+                p_lower.contains(&p_clean) || p_clean.contains(&p_lower)
+            }).unwrap_or(99)
+        } else {
+            99
+        };
+
         let type_rank = match (c.sync_type, c.provider.as_str()) {
             (SyncType::WordSynced, "Musixmatch") => 0,
             (SyncType::WordSynced, _) => 1,
@@ -120,12 +128,20 @@ fn sort_lyrics_candidates(candidates: &mut [LyricsCandidate]) {
             (SyncType::LineSynced, "LRCLIB") => 3,
             (SyncType::LineSynced, "LRCLIB (Proxy)") => 3,
             (SyncType::LineSynced, "Musixmatch") => 4,
-            (SyncType::LineSynced, _) => 5,
-            (SyncType::PlainText, _) => 6,
+            (SyncType::LineSynced, "NetEase") => 5,
+            (SyncType::LineSynced, _) => 6,
+            (SyncType::PlainText, _) => 7,
         };
         let score_val = if c.score.is_nan() { 0.0 } else { c.score.clamp(0.0, 1.0) };
         let score_rank = 10_000i32 - (score_val * 10_000.0) as i32;
-        (type_rank, score_rank)
+
+        let pref_group = if pref_idx < 99 && c.sync_type != SyncType::PlainText {
+            pref_idx
+        } else {
+            99
+        };
+
+        (pref_group, type_rank, score_rank)
     });
 }
 
@@ -333,11 +349,23 @@ mod tests {
             make_dummy_cand("Musixmatch", SyncType::WordSynced, 0.90),
             make_dummy_cand("NetEase", SyncType::LineSynced, 0.99),
         ];
-        sort_lyrics_candidates(&mut candidates);
+        sort_lyrics_candidates(&mut candidates, &[]);
         assert_eq!(candidates[0].provider, "Musixmatch");
         assert_eq!(candidates[0].sync_type, SyncType::WordSynced);
         assert_eq!(candidates[1].provider, "LRCLIB");
         assert_eq!(candidates[2].provider, "NetEase");
+    }
+
+    #[test]
+    fn test_netease_wordsync_priority_over_lrclib_linesync() {
+        let mut candidates = vec![
+            make_dummy_cand("LRCLIB", SyncType::LineSynced, 0.95),
+            make_dummy_cand("NetEase", SyncType::WordSynced, 0.90),
+        ];
+        sort_lyrics_candidates(&mut candidates, &[]);
+        assert_eq!(candidates[0].provider, "NetEase");
+        assert_eq!(candidates[0].sync_type, SyncType::WordSynced);
+        assert_eq!(candidates[1].provider, "LRCLIB");
     }
 
     #[test]
@@ -347,10 +375,22 @@ mod tests {
             make_dummy_cand("LRCLIB", SyncType::LineSynced, 0.90),
             make_dummy_cand("NetEase", SyncType::LineSynced, 0.99),
         ];
-        sort_lyrics_candidates(&mut candidates);
+        sort_lyrics_candidates(&mut candidates, &[]);
         assert_eq!(candidates[0].provider, "LRCLIB");
         assert_eq!(candidates[1].provider, "Musixmatch");
         assert_eq!(candidates[2].provider, "NetEase");
+    }
+
+    #[test]
+    fn test_preferred_provider_priority() {
+        let mut candidates = vec![
+            make_dummy_cand("LRCLIB", SyncType::LineSynced, 0.95),
+            make_dummy_cand("NetEase", SyncType::LineSynced, 0.90),
+        ];
+        let prefs = vec!["netease".to_string(), "lrclib".to_string()];
+        sort_lyrics_candidates(&mut candidates, &prefs);
+        assert_eq!(candidates[0].provider, "NetEase");
+        assert_eq!(candidates[1].provider, "LRCLIB");
     }
 
     #[test]
@@ -360,7 +400,7 @@ mod tests {
             make_dummy_cand("Musixmatch", SyncType::PlainText, 0.99),
             make_dummy_cand("NetEase", SyncType::LineSynced, 0.80),
         ];
-        sort_lyrics_candidates(&mut candidates);
+        sort_lyrics_candidates(&mut candidates, &[]);
         assert_eq!(candidates[0].provider, "NetEase");
         assert_eq!(candidates[0].sync_type, SyncType::LineSynced);
     }

@@ -12,22 +12,135 @@
  */
 
 (function () {
+  /**
+   * Top-Level Editorial Design Presets
+   * Classic (Design 1) & Cinematic (Design 2) with shared extensible architecture
+   */
+  const SHARE_CARD_PRESETS = {
+    classic: {
+      id: 'classic',
+      name: 'Design 1',
+      subtitle: 'Classic',
+      description: 'Editorial lyric poster',
+      format: 'story',
+      theme: 'classic',
+      fontFamily: 'sans',
+      textAlign: 'center',
+      fontScale: 'normal',
+      showAlbumArt: true,
+      showScrubber: true,
+      showGrain: true,
+      showWatermark: true,
+      showTimestamp: false
+    },
+    cinematic: {
+      id: 'cinematic',
+      name: 'Design 2',
+      subtitle: 'Cinematic',
+      description: 'Frosted artwork canvas',
+      format: 'story',
+      theme: 'cinematic',
+      fontFamily: 'sans',
+      textAlign: 'center',
+      fontScale: 'large',
+      showAlbumArt: true,
+      showScrubber: true,
+      showGrain: true,
+      showWatermark: true,
+      showTimestamp: false
+    },
+    custom: {
+      id: 'custom',
+      name: 'Custom',
+      subtitle: 'Custom Studio',
+      description: 'Customize everything'
+    }
+  };
+
   let shareState = {
+    designMode: 'classic',   // 'classic' (Design 1), 'cinematic' (Design 2), 'custom' (Custom Studio)
     format: 'story',         // 'story' (9:16), 'square' (1:1), 'portrait' (4:5), 'landscape' (16:9)
-    theme: 'mesh',           // 'mesh', 'obsidian', 'vinyl', 'glass', 'aurora', 'editorial', 'cyberpunk'
+    theme: 'classic',        // 'classic', 'cinematic', 'mesh', 'obsidian', 'vinyl', 'cassette', 'bloom', 'sunset', 'glass', 'aurora', 'editorial', 'cyberpunk'
     transMode: 'original',   // 'original', 'bilingual', 'translation'
     fontFamily: 'sans',      // 'sans', 'serif', 'mono', 'soft'
+    textAlign: 'center',     // 'left', 'center', 'right'
+    fontScale: 'normal',     // 'compact', 'normal', 'large', 'heroic'
+    heroIndex: null,         // index of line designated as hero punchline
     showWatermark: true,
-    showTimestamp: true,
+    showTimestamp: false,
     showAlbumArt: true,
+    showScrubber: true,      // Playback progress scrubber bar
+    showGrain: true,         // Analog film grain texture
+    export2x: true,          // 4K Ultra-HD 2x Retina export
     selectedIndices: [],
     albumImg: null,
     trackTitle: '',
     artistName: '',
+    currentProgressMs: 0,
+    trackDurationMs: 0,
     palette: ['#1DB954', '#8b5cf6', '#3b82f6', '#f43f5e'],
     cachedLyrics: [],
-    searchFilter: ''
+    searchFilter: '',
+    userPickedTheme: false
   };
+
+  /**
+   * Dedicated cache for user custom configuration.
+   * Preserves granular options across preset switches and drawer accordion toggles.
+   */
+  let savedCustomConfig = {
+    format: 'story',
+    theme: 'mesh',
+    transMode: 'original',
+    fontFamily: 'sans',
+    textAlign: 'center',
+    fontScale: 'normal',
+    showAlbumArt: true,
+    showScrubber: true,
+    showGrain: true,
+    showWatermark: true,
+    showTimestamp: false,
+    export2x: true
+  };
+
+  function syncSavedCustomConfigFromState() {
+    savedCustomConfig.format = shareState.format;
+    savedCustomConfig.theme = shareState.theme;
+    savedCustomConfig.transMode = shareState.transMode;
+    savedCustomConfig.fontFamily = shareState.fontFamily;
+    savedCustomConfig.textAlign = shareState.textAlign;
+    savedCustomConfig.fontScale = shareState.fontScale;
+    savedCustomConfig.showAlbumArt = shareState.showAlbumArt;
+    savedCustomConfig.showScrubber = shareState.showScrubber;
+    savedCustomConfig.showGrain = shareState.showGrain;
+    savedCustomConfig.showWatermark = shareState.showWatermark;
+    savedCustomConfig.showTimestamp = shareState.showTimestamp;
+    savedCustomConfig.export2x = shareState.export2x;
+  }
+
+  function restoreCustomConfigToState() {
+    shareState.format = savedCustomConfig.format;
+    shareState.theme = savedCustomConfig.theme;
+    shareState.transMode = savedCustomConfig.transMode;
+    shareState.fontFamily = savedCustomConfig.fontFamily;
+    shareState.textAlign = savedCustomConfig.textAlign;
+    shareState.fontScale = savedCustomConfig.fontScale;
+    shareState.showAlbumArt = savedCustomConfig.showAlbumArt;
+    shareState.showScrubber = savedCustomConfig.showScrubber;
+    shareState.showGrain = savedCustomConfig.showGrain;
+    shareState.showWatermark = savedCustomConfig.showWatermark;
+    shareState.showTimestamp = savedCustomConfig.showTimestamp;
+    shareState.export2x = savedCustomConfig.export2x;
+  }
+
+  function setDrawerAriaExpanded(isOpen) {
+    if (typeof document === 'undefined') return;
+    const strVal = isOpen ? "true" : "false";
+    const customCard = document.getElementById("preset-card-custom");
+    if (customCard) customCard.setAttribute("aria-expanded", strVal);
+    const chevronBtn = document.getElementById("share-custom-chevron-btn");
+    if (chevronBtn) chevronBtn.setAttribute("aria-expanded", strVal);
+  }
 
   /**
    * Opens the Interactive Share Preview Modal
@@ -61,7 +174,7 @@
       }
     }
 
-    // Determine current track details
+    // Determine current track details & playback timestamps
     const trackObj = (typeof currentPlayingTrackObj !== 'undefined' && currentPlayingTrackObj) ? currentPlayingTrackObj : null;
     const widgetTrack = document.getElementById("widget-track-name");
     const widgetArtist = document.getElementById("widget-artist-name");
@@ -71,6 +184,8 @@
     shareState.artistName = (trackObj && trackObj.artists && trackObj.artists[0]?.name) || (widgetArtist ? widgetArtist.textContent.trim() : "");
     shareState.cachedLyrics = currentLyrics;
     shareState.searchFilter = '';
+    shareState.currentProgressMs = (typeof currentProgress === 'number' && currentProgress >= 0) ? currentProgress : 0;
+    shareState.trackDurationMs = (typeof trackDuration === 'number' && trackDuration > 0) ? trackDuration : 0;
 
     // Clear search input if present
     const searchInput = document.getElementById("share-line-search");
@@ -83,8 +198,11 @@
           ? activeLineIndex
           : 0);
 
-    // Default select active line
+    // Default select active line and set as hero punchline
     shareState.selectedIndices = [curActive];
+    if (shareState.heroIndex === null && curActive >= 0) {
+      shareState.heroIndex = curActive;
+    }
 
     // Extract current palette from DOM CSS variables or defaults
     try {
@@ -135,6 +253,22 @@
 
     // Bind modal controls if not yet bound
     bindModalEventsOnce();
+
+    // Initialize active design preset or custom mode
+    if (shareState.designMode === 'classic') {
+      applyPreset('classic', false);
+    } else if (shareState.designMode === 'cinematic') {
+      applyPreset('cinematic', false);
+    } else {
+      restoreCustomConfigToState();
+      const controlsPane = document.querySelector(".share-controls-pane");
+      if (controlsPane) {
+        controlsPane.classList.add("drawer-open");
+      }
+      setDrawerAriaExpanded(true);
+      updateDesignSelectorUI();
+      syncCustomDrawerControlsFromState();
+    }
 
     // Render initial card
     if (document.fonts && document.fonts.ready) {
@@ -214,8 +348,9 @@
       }
 
       const isSelected = shareState.selectedIndices.includes(i);
+      const isHero = shareState.heroIndex === i;
       const chip = document.createElement("div");
-      chip.className = `share-line-chip ${isSelected ? 'selected' : ''}`;
+      chip.className = `share-line-chip ${isSelected ? 'selected' : ''} ${isHero ? 'is-hero' : ''}`;
       chip.dataset.index = String(i);
 
       const timeStr = formatLyricTimestamp(line.timeMs);
@@ -232,7 +367,33 @@
           <span class="share-line-text">${escapeHTML(mainText)}</span>
           ${subMarkup}
         </div>
+        <button type="button" class="share-line-hero-btn ${isHero ? 'active' : ''}" title="${isHero ? 'Punchline Active' : 'Make Punchline / Hero Line'}">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="${isHero ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+          </svg>
+        </button>
       `;
+
+      const heroBtn = chip.querySelector(".share-line-hero-btn");
+      if (heroBtn) {
+        heroBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          if (shareState.heroIndex === i) {
+            shareState.heroIndex = null;
+          } else {
+            shareState.heroIndex = i;
+            if (!shareState.selectedIndices.includes(i)) {
+              if (shareState.selectedIndices.length >= 6) {
+                shareState.selectedIndices.shift();
+              }
+              shareState.selectedIndices.push(i);
+              shareState.selectedIndices.sort((a, b) => a - b);
+            }
+          }
+          populateLinePicker(i);
+          renderModalCanvas();
+        });
+      }
 
       chip.addEventListener("click", () => {
         handleLineChipClick(i);
@@ -256,13 +417,18 @@
     if (sel.includes(index)) {
       if (sel.length > 1) {
         sel = sel.filter(idx => idx !== index);
+        if (shareState.heroIndex === index) {
+          shareState.heroIndex = sel[0] ?? null;
+        }
       }
     } else {
       if (sel.length >= 6) {
-        // Drop oldest or reset to new selection
         sel.shift();
       }
       sel.push(index);
+      if (shareState.heroIndex === null) {
+        shareState.heroIndex = index;
+      }
     }
 
     // Keep ascending order
@@ -287,10 +453,385 @@
     renderModalCanvas();
   }
 
+  /**
+   * Applies an editorial preset (Design 1 Classic or Design 2 Cinematic)
+   */
+  function applyPreset(presetId, shouldRender = true) {
+    if (presetId === 'custom') {
+      activateCustomMode(false);
+      if (shouldRender) {
+        renderModalCanvas();
+      }
+      return;
+    }
+
+    const preset = SHARE_CARD_PRESETS[presetId];
+    if (!preset) return;
+
+    // Snapshot custom configuration before switching away from custom mode
+    if (shareState.designMode === 'custom') {
+      syncSavedCustomConfigFromState();
+    }
+
+    shareState.designMode = presetId;
+    if (preset.theme) shareState.theme = preset.theme;
+    if (preset.format) shareState.format = preset.format;
+    if (preset.fontFamily) shareState.fontFamily = preset.fontFamily;
+    if (preset.textAlign) shareState.textAlign = preset.textAlign;
+    if (preset.fontScale) shareState.fontScale = preset.fontScale;
+    if (typeof preset.showAlbumArt === 'boolean') shareState.showAlbumArt = preset.showAlbumArt;
+    if (typeof preset.showScrubber === 'boolean') shareState.showScrubber = preset.showScrubber;
+    if (typeof preset.showGrain === 'boolean') shareState.showGrain = preset.showGrain;
+    if (typeof preset.showWatermark === 'boolean') shareState.showWatermark = preset.showWatermark;
+    if (typeof preset.showTimestamp === 'boolean') shareState.showTimestamp = preset.showTimestamp;
+
+    // Synchronize UI
+    syncCustomDrawerControlsFromState();
+
+    // Collapse drawer when selecting a preset and return scroll to top
+    if (typeof document !== 'undefined') {
+      const controlsPane = document.querySelector(".share-controls-pane");
+      if (controlsPane) controlsPane.classList.remove("drawer-open");
+      setDrawerAriaExpanded(false);
+      const scrollArea = document.getElementById("share-controls-scroll-area");
+      if (scrollArea) {
+        scrollArea.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+
+      updateDesignSelectorUI();
+      if (shouldRender) {
+        renderModalCanvas();
+      }
+    }
+  }
+
+  /**
+   * Activates Custom Mode and ensures the customization drawer is opened.
+   * Restores user's custom settings from savedCustomConfig if transitioning from another preset.
+   */
+  function activateCustomMode(shouldScroll = true) {
+    const wasAlreadyCustom = shareState.designMode === 'custom';
+    shareState.designMode = 'custom';
+
+    if (!wasAlreadyCustom) {
+      restoreCustomConfigToState();
+    }
+
+    if (typeof document === 'undefined') return;
+
+    const controlsPane = document.querySelector(".share-controls-pane");
+    const scrollArea = document.getElementById("share-controls-scroll-area") || controlsPane;
+    const drawer = document.getElementById("share-custom-controls-drawer");
+
+    if (controlsPane) {
+      controlsPane.classList.add("drawer-open");
+    }
+    setDrawerAriaExpanded(true);
+
+    syncCustomDrawerControlsFromState();
+    updateDesignSelectorUI();
+    renderModalCanvas();
+
+    if (shouldScroll && scrollArea && drawer) {
+      setTimeout(() => {
+        try {
+          const scrollAreaRect = scrollArea.getBoundingClientRect();
+          const drawerRect = drawer.getBoundingClientRect();
+          const relativeTop = (drawerRect.top - scrollAreaRect.top) + (scrollArea.scrollTop || 0);
+          scrollArea.scrollTo({
+            top: Math.max(0, relativeTop - 12),
+            behavior: 'smooth'
+          });
+        } catch (_) {
+          const drawerTop = drawer.offsetTop || 0;
+          scrollArea.scrollTo({
+            top: Math.max(0, drawerTop - 12),
+            behavior: 'smooth'
+          });
+        }
+      }, 35);
+    }
+  }
+
+  /**
+   * Toggles only the Custom controls drawer without switching active preset.
+   */
+  function toggleCustomDrawerOnly(shouldScroll = true) {
+    if (typeof document === 'undefined') return;
+
+    const controlsPane = document.querySelector(".share-controls-pane");
+    const scrollArea = document.getElementById("share-controls-scroll-area") || controlsPane;
+    const drawer = document.getElementById("share-custom-controls-drawer");
+    if (!controlsPane) return;
+
+    const isCurrentlyOpen = controlsPane.classList.contains("drawer-open");
+    const willOpen = !isCurrentlyOpen;
+    controlsPane.classList.toggle("drawer-open", willOpen);
+    setDrawerAriaExpanded(willOpen);
+
+    // If opening drawer while in custom mode, ensure state & controls sync
+    if (willOpen && shareState.designMode === 'custom') {
+      restoreCustomConfigToState();
+      syncCustomDrawerControlsFromState();
+    }
+
+    if (willOpen && shouldScroll && scrollArea && drawer) {
+      setTimeout(() => {
+        try {
+          const scrollAreaRect = scrollArea.getBoundingClientRect();
+          const drawerRect = drawer.getBoundingClientRect();
+          const relativeTop = (drawerRect.top - scrollAreaRect.top) + (scrollArea.scrollTop || 0);
+          scrollArea.scrollTo({
+            top: Math.max(0, relativeTop - 12),
+            behavior: 'smooth'
+          });
+        } catch (_) {
+          const drawerTop = drawer.offsetTop || 0;
+          scrollArea.scrollTo({
+            top: Math.max(0, drawerTop - 12),
+            behavior: 'smooth'
+          });
+        }
+      }, 35);
+    }
+  }
+
+  /**
+   * Toggles custom customization drawer, marks custom mode active,
+   * restores custom state if needed, and smoothly scrolls drawer into view.
+   */
+  function toggleCustomMode(forceOpen = null, shouldScroll = true) {
+    const wasAlreadyCustom = shareState.designMode === 'custom';
+    shareState.designMode = 'custom';
+    if (!wasAlreadyCustom) {
+      restoreCustomConfigToState();
+    }
+
+    if (typeof document === 'undefined') return;
+
+    const controlsPane = document.querySelector(".share-controls-pane");
+    const scrollArea = document.getElementById("share-controls-scroll-area") || controlsPane;
+    const drawer = document.getElementById("share-custom-controls-drawer");
+    if (!controlsPane) return;
+
+    const isCurrentlyOpen = controlsPane.classList.contains("drawer-open");
+    const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !isCurrentlyOpen;
+    controlsPane.classList.toggle("drawer-open", shouldOpen);
+    setDrawerAriaExpanded(shouldOpen);
+
+    syncCustomDrawerControlsFromState();
+    updateDesignSelectorUI();
+    renderModalCanvas();
+
+    if (shouldOpen && shouldScroll && scrollArea && drawer) {
+      setTimeout(() => {
+        try {
+          const scrollAreaRect = scrollArea.getBoundingClientRect();
+          const drawerRect = drawer.getBoundingClientRect();
+          const relativeTop = (drawerRect.top - scrollAreaRect.top) + (scrollArea.scrollTop || 0);
+          scrollArea.scrollTo({
+            top: Math.max(0, relativeTop - 12),
+            behavior: 'smooth'
+          });
+        } catch (_) {
+          const drawerTop = drawer.offsetTop || 0;
+          scrollArea.scrollTo({
+            top: Math.max(0, drawerTop - 12),
+            behavior: 'smooth'
+          });
+        }
+      }, 35);
+    }
+  }
+
+  /**
+   * Switches selection to Custom whenever user edits any granular parameter
+   */
+  function markCustomModeActive() {
+    if (shareState.designMode !== 'custom') {
+      shareState.designMode = 'custom';
+      updateDesignSelectorUI();
+    }
+  }
+
+  /**
+   * Updates visual selected state of Design 1, Design 2, and Custom cards in the UI
+   */
+  function updateDesignSelectorUI() {
+    if (typeof document === 'undefined') return;
+    const presetCards = document.querySelectorAll(".share-preset-card");
+    presetCards.forEach(c => {
+      c.classList.toggle("active", c.dataset.design === shareState.designMode);
+    });
+
+    const customCard = document.getElementById("preset-card-custom");
+    if (customCard) {
+      customCard.classList.toggle("active", shareState.designMode === 'custom');
+    }
+
+    const statusBadge = document.getElementById("share-preset-status");
+    if (statusBadge) {
+      if (shareState.designMode === 'classic') {
+        statusBadge.textContent = "Design 1 Active";
+      } else if (shareState.designMode === 'cinematic') {
+        statusBadge.textContent = "Design 2 Active";
+      } else {
+        statusBadge.textContent = "Custom Active";
+      }
+    }
+  }
+
+  /**
+   * Synchronizes granular drawer controls (buttons, checkboxes) to match shareState
+   */
+  function syncCustomDrawerControlsFromState() {
+    if (typeof document === 'undefined') return;
+    // Ratio
+    document.querySelectorAll(".share-ratio-btn").forEach(btn => {
+      btn.classList.toggle("active", btn.dataset.ratio === shareState.format);
+    });
+
+    // Theme
+    document.querySelectorAll(".share-theme-card").forEach(card => {
+      card.classList.toggle("active", card.dataset.theme === shareState.theme);
+    });
+
+    // Translation
+    document.querySelectorAll(".share-trans-btn").forEach(btn => {
+      btn.classList.toggle("active", btn.dataset.trans === shareState.transMode);
+    });
+
+    // Font
+    document.querySelectorAll(".share-font-btn").forEach(btn => {
+      btn.classList.toggle("active", btn.dataset.font === shareState.fontFamily);
+    });
+
+    // Alignment
+    document.querySelectorAll(".share-align-btn").forEach(btn => {
+      btn.classList.toggle("active", btn.dataset.align === shareState.textAlign);
+    });
+
+    // Scale
+    document.querySelectorAll(".share-scale-btn").forEach(btn => {
+      btn.classList.toggle("active", btn.dataset.scale === shareState.fontScale);
+    });
+
+    // Toggles
+    const toggleScrubber = document.getElementById("share-toggle-scrubber");
+    if (toggleScrubber) toggleScrubber.checked = shareState.showScrubber;
+
+    const toggleArt = document.getElementById("share-toggle-art");
+    if (toggleArt) toggleArt.checked = shareState.showAlbumArt;
+
+    const toggleTimestamp = document.getElementById("share-toggle-timestamp");
+    if (toggleTimestamp) toggleTimestamp.checked = shareState.showTimestamp;
+
+    const toggleWatermark = document.getElementById("share-toggle-watermark");
+    if (toggleWatermark) toggleWatermark.checked = shareState.showWatermark;
+
+    const toggleGrain = document.getElementById("share-toggle-grain");
+    if (toggleGrain) toggleGrain.checked = shareState.showGrain;
+
+    const toggle2x = document.getElementById("share-toggle-2x");
+    if (toggle2x) toggle2x.checked = shareState.export2x;
+  }
+
+  /**
+   * Renders live miniature previews on the preset cards using current song, artwork, and lyric
+   */
+  function renderPresetPreviews() {
+    const previewClassic = document.getElementById("preset-preview-classic");
+    const previewCinematic = document.getElementById("preset-preview-cinematic");
+
+    if (previewClassic && typeof previewClassic.getContext === 'function') {
+      const ctx1 = previewClassic.getContext('2d');
+      if (ctx1) {
+        ctx1.save();
+        ctx1.scale(0.1, 0.1);
+        const classicState = {
+          ...shareState,
+          ...SHARE_CARD_PRESETS.classic,
+          format: 'story',
+          export2x: false
+        };
+        renderCardContent(ctx1, 1080, 1920, classicState);
+        ctx1.restore();
+      }
+    }
+
+    if (previewCinematic && typeof previewCinematic.getContext === 'function') {
+      const ctx2 = previewCinematic.getContext('2d');
+      if (ctx2) {
+        ctx2.save();
+        ctx2.scale(0.1, 0.1);
+        const cinematicState = {
+          ...shareState,
+          ...SHARE_CARD_PRESETS.cinematic,
+          format: 'story',
+          export2x: false
+        };
+        renderCardContent(ctx2, 1080, 1920, cinematicState);
+        ctx2.restore();
+      }
+    }
+  }
+
   let eventsBound = false;
   function bindModalEventsOnce() {
     if (eventsBound) return;
     eventsBound = true;
+
+    // Preset cards
+    const presetCards = document.querySelectorAll(".share-preset-card");
+    presetCards.forEach(card => {
+      card.addEventListener("click", () => {
+        applyPreset(card.dataset.design || 'classic');
+      });
+    });
+
+    // Custom mode card and independent chevron toggle
+    const customCard = document.getElementById("preset-card-custom");
+    if (customCard) {
+      customCard.addEventListener("click", (e) => {
+        if (e.target.closest(".share-custom-chevron-btn")) return;
+        activateCustomMode();
+      });
+      customCard.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          if (e.target.closest(".share-custom-chevron-btn")) return;
+          e.preventDefault();
+          activateCustomMode();
+        }
+      });
+    }
+
+    const chevronBtn = document.getElementById("share-custom-chevron-btn") || document.querySelector(".share-custom-chevron-btn");
+    if (chevronBtn) {
+      chevronBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        toggleCustomDrawerOnly();
+      });
+      chevronBtn.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          e.stopPropagation();
+          toggleCustomDrawerOnly();
+        }
+      });
+    }
+
+    // Prevent nested scroll wheel trapping in #share-line-picker
+    const linePicker = document.getElementById("share-line-picker");
+    const scrollArea = document.getElementById("share-controls-scroll-area");
+    if (linePicker && scrollArea) {
+      linePicker.addEventListener("wheel", (e) => {
+        const atTop = linePicker.scrollTop <= 0 && e.deltaY < 0;
+        const atBottom = (linePicker.scrollTop + linePicker.clientHeight >= linePicker.scrollHeight - 1) && e.deltaY > 0;
+        if (atTop || atBottom) {
+          scrollArea.scrollTop += e.deltaY;
+        }
+      }, { passive: true });
+    }
 
     // Close button
     const closeBtn = document.getElementById("share-modal-close");
@@ -314,9 +855,11 @@
     const ratioBtns = document.querySelectorAll(".share-ratio-btn");
     ratioBtns.forEach(btn => {
       btn.addEventListener("click", () => {
+        markCustomModeActive();
         ratioBtns.forEach(b => b.classList.remove("active"));
         btn.classList.add("active");
         shareState.format = btn.dataset.ratio || 'story';
+        savedCustomConfig.format = shareState.format;
         renderModalCanvas();
       });
     });
@@ -325,9 +868,12 @@
     const themeCards = document.querySelectorAll(".share-theme-card");
     themeCards.forEach(card => {
       card.addEventListener("click", () => {
+        markCustomModeActive();
         themeCards.forEach(c => c.classList.remove("active"));
         card.classList.add("active");
+        shareState.userPickedTheme = true;
         shareState.theme = card.dataset.theme || 'mesh';
+        savedCustomConfig.theme = shareState.theme;
         renderModalCanvas();
       });
     });
@@ -336,9 +882,11 @@
     const transBtns = document.querySelectorAll(".share-trans-btn");
     transBtns.forEach(btn => {
       btn.addEventListener("click", () => {
+        markCustomModeActive();
         transBtns.forEach(b => b.classList.remove("active"));
         btn.classList.add("active");
         shareState.transMode = btn.dataset.trans || 'original';
+        savedCustomConfig.transMode = shareState.transMode;
         const badge = document.getElementById("share-trans-badge");
         if (badge) {
           badge.textContent = btn.textContent.trim();
@@ -351,9 +899,11 @@
     const fontBtns = document.querySelectorAll(".share-font-btn");
     fontBtns.forEach(btn => {
       btn.addEventListener("click", () => {
+        markCustomModeActive();
         fontBtns.forEach(b => b.classList.remove("active"));
         btn.classList.add("active");
         shareState.fontFamily = btn.dataset.font || 'sans';
+        savedCustomConfig.fontFamily = shareState.fontFamily;
         renderModalCanvas();
       });
     });
@@ -362,7 +912,9 @@
     const toggleWatermark = document.getElementById("share-toggle-watermark");
     if (toggleWatermark) {
       toggleWatermark.addEventListener("change", (e) => {
+        markCustomModeActive();
         shareState.showWatermark = e.target.checked;
+        savedCustomConfig.showWatermark = shareState.showWatermark;
         renderModalCanvas();
       });
     }
@@ -370,7 +922,9 @@
     const toggleTimestamp = document.getElementById("share-toggle-timestamp");
     if (toggleTimestamp) {
       toggleTimestamp.addEventListener("change", (e) => {
+        markCustomModeActive();
         shareState.showTimestamp = e.target.checked;
+        savedCustomConfig.showTimestamp = shareState.showTimestamp;
         renderModalCanvas();
       });
     }
@@ -378,10 +932,81 @@
     const toggleArt = document.getElementById("share-toggle-art");
     if (toggleArt) {
       toggleArt.addEventListener("change", (e) => {
+        markCustomModeActive();
         shareState.showAlbumArt = e.target.checked;
+        savedCustomConfig.showAlbumArt = shareState.showAlbumArt;
         renderModalCanvas();
       });
     }
+
+    const toggleScrubber = document.getElementById("share-toggle-scrubber");
+    if (toggleScrubber) {
+      toggleScrubber.addEventListener("change", (e) => {
+        markCustomModeActive();
+        shareState.showScrubber = e.target.checked;
+        savedCustomConfig.showScrubber = shareState.showScrubber;
+        renderModalCanvas();
+      });
+    }
+
+    const toggleGrain = document.getElementById("share-toggle-grain");
+    if (toggleGrain) {
+      toggleGrain.addEventListener("change", (e) => {
+        markCustomModeActive();
+        shareState.showGrain = e.target.checked;
+        savedCustomConfig.showGrain = shareState.showGrain;
+        renderModalCanvas();
+      });
+    }
+
+    const toggle2x = document.getElementById("share-toggle-2x");
+    if (toggle2x) {
+      toggle2x.addEventListener("change", (e) => {
+        markCustomModeActive();
+        shareState.export2x = e.target.checked;
+        savedCustomConfig.export2x = shareState.export2x;
+      });
+    }
+
+    // Alignment buttons
+    const alignBtns = document.querySelectorAll(".share-align-btn");
+    alignBtns.forEach(btn => {
+      btn.addEventListener("click", () => {
+        markCustomModeActive();
+        alignBtns.forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        shareState.textAlign = btn.dataset.align || 'center';
+        savedCustomConfig.textAlign = shareState.textAlign;
+        renderModalCanvas();
+      });
+    });
+
+    // Font Scale buttons
+    const scaleBtns = document.querySelectorAll(".share-scale-btn");
+    scaleBtns.forEach(btn => {
+      btn.addEventListener("click", () => {
+        markCustomModeActive();
+        scaleBtns.forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        shareState.fontScale = btn.dataset.scale || 'normal';
+        savedCustomConfig.fontScale = shareState.fontScale;
+        renderModalCanvas();
+      });
+    });
+
+    // Keyboard shortcuts inside modal: Ctrl+C (Copy), Ctrl+S (Download)
+    window.addEventListener("keydown", (e) => {
+      const modal = document.getElementById("share-card-modal");
+      if (modal && modal.classList.contains("is-open")) {
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c" && !e.target.closest("input, textarea")) {
+          e.preventDefault();
+          copyCanvasToClipboard();
+        } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s" && !e.target.closest("input, textarea")) {
+          e.preventDefault();
+          downloadCanvasAsPng();
+        }
+      }
+    });
 
     // Live search input
     const searchInput = document.getElementById("share-line-search");
@@ -435,19 +1060,21 @@
   }
 
   /**
-   * Helper: Resolves CSS font stack
+   * Helper: Resolves CSS font stack with first-class Japanese typographic fallbacks
    */
   function getFontStack(family) {
+    const JP_SANS = '"Noto Sans JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo"';
+    const JP_SERIF = '"Shippori Mincho", "Yu Mincho", "Hiragino Mincho ProN"';
     switch (family) {
       case 'serif':
-        return '"Playfair Display", "Georgia", "Times New Roman", serif';
+        return `"Playfair Display", ${JP_SERIF}, "Georgia", "Times New Roman", serif`;
       case 'mono':
-        return '"JetBrains Mono", "Consolas", monospace';
+        return `"JetBrains Mono", ${JP_SANS}, "Consolas", monospace`;
       case 'soft':
-        return '"Poppins", "Nunito", "Outfit", sans-serif';
+        return `"Poppins", "Nunito", "M PLUS Rounded 1c", "Outfit", ${JP_SANS}, sans-serif`;
       case 'sans':
       default:
-        return '"Outfit", "Inter", "Segoe UI", sans-serif';
+        return `"Outfit", "Inter", -apple-system, BlinkMacSystemFont, ${JP_SANS}, "Segoe UI", sans-serif`;
     }
   }
 
@@ -463,71 +1090,574 @@
       const timeMs = line.timeMs || 0;
 
       if (transMode === 'translation' && sub) {
-        return { primary: sub, secondary: null, timeMs };
+        return { primary: sub, secondary: null, timeMs, originalIndex: i };
       } else if (transMode === 'bilingual' && sub && sub.toLowerCase() !== orig.toLowerCase()) {
-        return { primary: orig, secondary: sub, timeMs };
+        return { primary: orig, secondary: sub, timeMs, originalIndex: i };
       } else {
-        return { primary: orig, secondary: null, timeMs };
+        return { primary: orig, secondary: null, timeMs, originalIndex: i };
       }
     }).filter(Boolean);
   }
 
   /**
-   * Renders the high-resolution canvas according to shareState
+   * Internal render orchestrator: draws background, format layout, and film grain overlay
+   */
+  function renderCardContent(ctx, width, height, state) {
+    ctx.clearRect(0, 0, width, height);
+
+    // Extract selected lyric lines with translation handling
+    const formattedLines = getFormattedLyricsForShare(
+      state.selectedIndices,
+      state.cachedLyrics,
+      state.transMode
+    );
+
+    if (formattedLines.length === 0) {
+      formattedLines.push({ primary: "Music is what feelings sound like.", secondary: null, timeMs: 0, originalIndex: -1 });
+    }
+
+    // Draw background based on theme
+    drawThemeBackground(ctx, width, height, state.theme, state.albumImg, state.palette, state);
+
+    // Draw format layout
+    switch (state.format) {
+      case 'square':
+        drawSquareLayout(ctx, width, height, formattedLines, state);
+        break;
+      case 'portrait':
+        drawPortraitLayout(ctx, width, height, formattedLines, state);
+        break;
+      case 'landscape':
+        drawLandscapeLayout(ctx, width, height, formattedLines, state);
+        break;
+      case 'story':
+      default:
+        drawStoryLayout(ctx, width, height, formattedLines, state);
+        break;
+    }
+
+    // Optional analog film grain overlay for authentic tactile print texture
+    if (state.showGrain) {
+      drawFilmGrain(ctx, width, height, 0.045);
+    }
+  }
+
+  /**
+   * Renders the interactive preview canvas according to shareState
    */
   function renderModalCanvas() {
     const canvas = document.getElementById("share-card-canvas");
-    if (!canvas) return;
+    if (!canvas || typeof canvas.getContext !== 'function') return;
 
     const { width, height } = getCardDimensions(shareState.format);
     canvas.width = width;
     canvas.height = height;
 
     const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, width, height);
+    if (!ctx) return;
+    renderCardContent(ctx, width, height, shareState);
+    renderPresetPreviews();
+  }
 
-    // Extract selected lyric lines with translation handling
-    const formattedLines = getFormattedLyricsForShare(
-      shareState.selectedIndices,
-      shareState.cachedLyrics,
-      shareState.transMode
-    );
+  /**
+   * Resolves the export canvas: renders at 2x Retina 4K resolution when export2x is enabled
+   */
+  function getExportCanvas() {
+    const previewCanvas = document.getElementById("share-card-canvas");
+    if (!previewCanvas) return null;
+    if (!shareState.export2x) return previewCanvas;
 
-    if (formattedLines.length === 0) {
-      formattedLines.push({ primary: "Music is what feelings sound like.", secondary: null, timeMs: 0 });
+    try {
+      const exportCanvas = document.createElement('canvas');
+      const { width, height } = getCardDimensions(shareState.format);
+      exportCanvas.width = width * 2;
+      exportCanvas.height = height * 2;
+      const ctx = exportCanvas.getContext('2d');
+      if (!ctx) return previewCanvas;
+
+      ctx.scale(2, 2);
+      renderCardContent(ctx, width, height, shareState);
+      return exportCanvas;
+    } catch (e) {
+      console.warn("[ShareCard] 2x canvas export failed, falling back to 1x:", e);
+      return previewCanvas;
     }
+  }
 
-    // Draw background based on theme
-    drawThemeBackground(ctx, width, height, shareState.theme, shareState.albumImg, shareState.palette);
-
-    // Draw format layout
-    switch (shareState.format) {
-      case 'square':
-        drawSquareLayout(ctx, width, height, formattedLines, shareState);
-        break;
-      case 'portrait':
-        drawPortraitLayout(ctx, width, height, formattedLines, shareState);
-        break;
-      case 'landscape':
-        drawLandscapeLayout(ctx, width, height, formattedLines, shareState);
-        break;
-      case 'story':
-      default:
-        drawStoryLayout(ctx, width, height, formattedLines, shareState);
-        break;
+  let _grainPatternCanvas = null;
+  function getGrainPattern() {
+    if (_grainPatternCanvas) return _grainPatternCanvas;
+    if (typeof document === 'undefined') return null;
+    try {
+      const size = 128;
+      const pCanvas = document.createElement('canvas');
+      if (!pCanvas || typeof pCanvas.getContext !== 'function') return null;
+      pCanvas.width = size;
+      pCanvas.height = size;
+      const pCtx = pCanvas.getContext('2d');
+      if (!pCtx || typeof pCtx.createImageData !== 'function') return null;
+      const imgData = pCtx.createImageData(size, size);
+      const data = imgData.data;
+      for (let i = 0; i < data.length; i += 4) {
+        const val = Math.floor(Math.random() * 255);
+        data[i] = val;
+        data[i + 1] = val;
+        data[i + 2] = val;
+        data[i + 3] = 255;
+      }
+      pCtx.putImageData(imgData, 0, 0);
+      _grainPatternCanvas = pCanvas;
+      return _grainPatternCanvas;
+    } catch (e) {
+      return null;
     }
   }
 
   /**
-   * Draw themes: mesh, obsidian, vinyl, glass, aurora, editorial, cyberpunk
+   * Overlays tactile analog film grain texture across the canvas
    */
-  function drawThemeBackground(ctx, w, h, theme, img, palette) {
+  function drawFilmGrain(ctx, w, h, opacity = 0.045) {
+    if (!ctx || typeof ctx.fillRect !== 'function') return;
+    try {
+      const pCanvas = getGrainPattern();
+      if (!pCanvas) return;
+      ctx.save();
+      if (typeof ctx.createPattern === 'function') {
+        const pattern = ctx.createPattern(pCanvas, 'repeat');
+        if (pattern) {
+          ctx.globalAlpha = opacity;
+          ctx.globalCompositeOperation = 'overlay';
+          ctx.fillStyle = pattern;
+          ctx.fillRect(0, 0, w, h);
+        }
+      }
+      ctx.restore();
+    } catch (e) {
+      // Ignore pattern rendering error in test or restricted canvas contexts
+    }
+  }
+
+  /**
+   * Robust color string parser: accepts #RGB, #RGBA, #RRGGBB, #RRGGBBAA,
+   * rgb(r, g, b), rgba(r, g, b, a), and { r, g, b } objects.
+   * Ensures authentic album palette colors originating from --accent-primary
+   * are ingested accurately without falling back to Spotify green.
+   */
+  function hexToRgbObj(colorStr) {
+    if (!colorStr) return { r: 29, g: 185, b: 84 };
+    if (typeof colorStr === 'object' && colorStr !== null && 'r' in colorStr && 'g' in colorStr && 'b' in colorStr) {
+      return {
+        r: Math.min(255, Math.max(0, Math.round(Number(colorStr.r) || 0))),
+        g: Math.min(255, Math.max(0, Math.round(Number(colorStr.g) || 0))),
+        b: Math.min(255, Math.max(0, Math.round(Number(colorStr.b) || 0)))
+      };
+    }
+    if (typeof colorStr !== 'string') return { r: 29, g: 185, b: 84 };
+
+    const str = colorStr.trim().toLowerCase();
+
+    // Match rgb(...) or rgba(...) with optional alpha and whitespace/comma separation
+    const rgbMatch = str.match(/^rgba?\(\s*([0-9.]+%?)\s*(?:,|\s+)\s*([0-9.]+%?)\s*(?:,|\s+)\s*([0-9.]+%?)(?:(?:\s*[,/]\s*([0-9.]+%?))?\s*\))?$/);
+    if (rgbMatch) {
+      const parseVal = (v) => {
+        if (!v) return 0;
+        if (v.endsWith('%')) {
+          return Math.round((parseFloat(v) / 100) * 255);
+        }
+        return Math.round(parseFloat(v));
+      };
+      const r = Math.min(255, Math.max(0, parseVal(rgbMatch[1]) || 0));
+      const g = Math.min(255, Math.max(0, parseVal(rgbMatch[2]) || 0));
+      const b = Math.min(255, Math.max(0, parseVal(rgbMatch[3]) || 0));
+      return { r, g, b };
+    }
+
+    // Match hex format (#RGB, #RGBA, #RRGGBB, #RRGGBBAA or without #)
+    let h = str.replace(/^#/, '').trim();
+    if (/^[0-9a-f]{3,8}$/.test(h)) {
+      if (h.length === 3 || h.length === 4) {
+        const r = parseInt(h[0] + h[0], 16);
+        const g = parseInt(h[1] + h[1], 16);
+        const b = parseInt(h[2] + h[2], 16);
+        return { r, g, b };
+      }
+      if (h.length >= 6) {
+        const r = parseInt(h.substring(0, 2), 16);
+        const g = parseInt(h.substring(2, 4), 16);
+        const b = parseInt(h.substring(4, 6), 16);
+        return { r, g, b };
+      }
+    }
+
+    return { r: 29, g: 185, b: 84 };
+  }
+
+  function rgbToHsl(r, g, b) {
+    r /= 255; g /= 255; b /= 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b);
+    let h, s, l = (max + min) / 2;
+    if (max === min) {
+      h = s = 0;
+    } else {
+      const d = max - min;
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      switch (max) {
+        case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
+        case g: h = ((b - r) / d + 2) / 6; break;
+        case b: h = ((r - g) / d + 4) / 6; break;
+      }
+    }
+    return { h: Math.round(h * 360), s: Math.round(s * 100), l: Math.round(l * 100) };
+  }
+
+  /**
+   * Harmonic Palette Normalizer: clamps saturation to editorial levels (18%-35%),
+   * creates deep tinted neutral charcoal, and generates an ambient lighting atmosphere.
+   */
+  function normalizeHarmonicPalette(palette) {
+    const rawList = Array.isArray(palette) && palette.length > 0
+      ? palette
+      : ['#1DB954', '#8b5cf6', '#3b82f6', '#f43f5e'];
+
+    const parsed = rawList.map(item => {
+      if (typeof item === 'string') return hexToRgbObj(item);
+      if (item && typeof item === 'object' && 'r' in item) return item;
+      return { r: 29, g: 185, b: 84 };
+    });
+
+    const hslList = parsed.map(c => rgbToHsl(c.r, c.g, c.b));
+    const dom = hslList[0] || { h: 141, s: 73, l: 42 };
+
+    const darkNeutral = `hsla(${dom.h}, ${Math.min(10, dom.s)}%, 4%, 1)`;
+    const ambientH = dom.h;
+    const ambientS = Math.min(35, Math.max(18, Math.round(dom.s * 0.45)));
+    const ambientL = 22;
+
+    const sec = hslList[1] || dom;
+    const secH = sec.h;
+    const secS = Math.min(28, Math.max(14, Math.round(sec.s * 0.4)));
+    const secL = 18;
+
+    const accent = `hsla(${dom.h}, ${Math.min(65, dom.s)}%, ${Math.min(56, Math.max(42, dom.l))}%, 1)`;
+
+    return {
+      darkNeutral,
+      ambientHue: ambientH,
+      ambientSat: ambientS,
+      ambientLight: ambientL,
+      secHue: secH,
+      secSat: secS,
+      secLight: secL,
+      accent,
+      captionMuted: 'rgba(240, 240, 245, 0.60)',
+      primaryWhite: '#f4f4f6'
+    };
+  }
+
+  /**
+   * Analyzes album artwork composition to detect subject placement, visual density,
+   * luminance distribution, and optimal negative space / quiet reading zone.
+   * Runs in sub-millisecond time on a 16x16 offscreen canvas.
+   */
+  function analyzeArtworkComposition(img) {
+    if (!img || !img.complete || !img.naturalWidth || img.naturalWidth <= 0) {
+      return {
+        focalZone: 'balanced',
+        quietZone: 'center',
+        leftVar: 0,
+        rightVar: 0,
+        leftLum: 0.1,
+        rightLum: 0.1,
+        avgBrightness: 0.1,
+        hasSubject: false
+      };
+    }
+
+    try {
+      const offCanvas = typeof document !== 'undefined' ? document.createElement('canvas') : null;
+      if (!offCanvas) {
+        return { focalZone: 'balanced', quietZone: 'center', avgBrightness: 0.1, hasSubject: false };
+      }
+      offCanvas.width = 16;
+      offCanvas.height = 16;
+      const offCtx = offCanvas.getContext('2d', { willReadFrequently: true });
+      if (!offCtx) {
+        return { focalZone: 'balanced', quietZone: 'center', avgBrightness: 0.1, hasSubject: false };
+      }
+
+      offCtx.drawImage(img, 0, 0, 16, 16);
+      const imgData = offCtx.getImageData(0, 0, 16, 16);
+      const d = imgData.data;
+
+      let leftLums = [];
+      let rightLums = [];
+      let topLums = [];
+      let bottomLums = [];
+      let centerLums = [];
+      let totalLum = 0;
+
+      for (let y = 0; y < 16; y++) {
+        for (let x = 0; x < 16; x++) {
+          const idx = (y * 16 + x) * 4;
+          const r = d[idx];
+          const g = d[idx + 1];
+          const b = d[idx + 2];
+          const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+          totalLum += lum;
+
+          if (x < 8) leftLums.push(lum);
+          else rightLums.push(lum);
+
+          if (y < 8) topLums.push(lum);
+          else bottomLums.push(lum);
+
+          if (x >= 4 && x < 12 && y >= 4 && y < 12) {
+            centerLums.push(lum);
+          }
+        }
+      }
+
+      const calcStats = (arr) => {
+        if (!arr.length) return { mean: 0, variance: 0 };
+        const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
+        const variance = arr.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / arr.length;
+        return { mean, variance };
+      };
+
+      const left = calcStats(leftLums);
+      const right = calcStats(rightLums);
+      const top = calcStats(topLums);
+      const bottom = calcStats(bottomLums);
+      const center = calcStats(centerLums);
+      const avgBrightness = totalLum / 256;
+
+      let focalZone = 'balanced';
+      let quietZone = 'center';
+      let hasSubject = false;
+
+      // Subject detection based on contrast variance threshold
+      const varianceThreshold = 0.012;
+      if (left.variance > right.variance * 1.25 && left.variance > varianceThreshold) {
+        focalZone = 'left';
+        quietZone = 'right';
+        hasSubject = true;
+      } else if (right.variance > left.variance * 1.25 && right.variance > varianceThreshold) {
+        focalZone = 'right';
+        quietZone = 'left';
+        hasSubject = true;
+      } else if (center.variance > Math.max(left.variance, right.variance) * 1.20 && center.variance > varianceThreshold) {
+        focalZone = 'center';
+        quietZone = top.variance < bottom.variance ? 'top' : 'bottom';
+        hasSubject = true;
+      } else {
+        if (left.variance < right.variance * 0.85) {
+          quietZone = 'left';
+        } else if (right.variance < left.variance * 0.85) {
+          quietZone = 'right';
+        } else if (top.variance < bottom.variance) {
+          quietZone = 'top';
+        } else {
+          quietZone = 'center';
+        }
+      }
+
+      return {
+        focalZone,
+        quietZone,
+        leftVar: left.variance,
+        rightVar: right.variance,
+        leftLum: left.mean,
+        rightLum: right.mean,
+        avgBrightness,
+        hasSubject
+      };
+    } catch (e) {
+      return { focalZone: 'balanced', quietZone: 'center', avgBrightness: 0.1, hasSubject: false };
+    }
+  }
+
+  /**
+   * Draw themes: classic (Design 1), cinematic (Design 2), mesh, obsidian, vinyl, glass, aurora, editorial, cyberpunk, cassette, bloom, sunset
+   */
+  function drawThemeBackground(ctx, w, h, theme, img, palette, state = null) {
+    if (theme && typeof theme === 'object' && 'theme' in theme) {
+      state = theme;
+      theme = state.theme;
+      img = state.albumImg;
+      palette = state.palette;
+    }
+    const harmonic = normalizeHarmonicPalette(palette);
     const p1 = palette[0] || '#1DB954';
     const p2 = palette[1] || '#8b5cf6';
     const p3 = palette[2] || '#3b82f6';
     const p4 = palette[3] || '#f43f5e';
 
-    if (theme === 'mesh') {
+    if (theme === 'classic') {
+      // Design 1: Minimal Editorial Poster (Velvet Charcoal + Atmospheric Tonal Wash + Refined Publication Header)
+      ctx.fillStyle = harmonic.darkNeutral;
+      ctx.fillRect(0, 0, w, h);
+
+      // Directional diffuse atmospheric lighting wash derived from authentic album artwork tones
+      const aura = ctx.createRadialGradient(w * 0.38, h * 0.18, 60, w * 0.46, h * 0.26, w * 0.90);
+      aura.addColorStop(0, `hsla(${harmonic.ambientHue}, ${harmonic.ambientSat}%, ${harmonic.ambientLight}%, 0.26)`);
+      aura.addColorStop(0.55, `hsla(${harmonic.secHue}, ${harmonic.secSat}%, ${harmonic.secLight}%, 0.08)`);
+      aura.addColorStop(1, 'transparent');
+      ctx.fillStyle = aura;
+      ctx.fillRect(0, 0, w, h);
+
+      // Subtle natural top-to-bottom light falloff
+      const linearWash = ctx.createLinearGradient(0, 0, 0, h);
+      linearWash.addColorStop(0, 'rgba(255, 255, 255, 0.015)');
+      linearWash.addColorStop(0.6, 'transparent');
+      linearWash.addColorStop(1, 'rgba(0, 0, 0, 0.35)');
+      ctx.fillStyle = linearWash;
+      ctx.fillRect(0, 0, w, h);
+
+      // Editorial Header: Authentic publication metadata & refined catalog notation
+      const margin = Math.min(80, w * 0.075);
+      const topY = 74;
+      ctx.save();
+      ctx.font = '600 10px "Outfit", "Inter", -apple-system, sans-serif';
+      ctx.fillStyle = 'rgba(244, 244, 246, 0.44)';
+      ctx.textAlign = 'left';
+
+      const artist = (state && state.artistName) ? String(state.artistName).trim() : '';
+      const track = (state && state.trackTitle) ? String(state.trackTitle).trim() : '';
+      const durationMs = state ? (state.trackDurationMs || 0) : 0;
+
+      const leftLabel = artist
+        ? `RELEASE // ${truncateText(ctx, artist.toUpperCase(), (w - margin * 2) * 0.52)}`
+        : 'EDITORIAL // ARCHIVE EDITION';
+      ctx.fillText(leftLabel, margin, topY);
+
+      ctx.textAlign = 'right';
+      ctx.fillStyle = 'rgba(244, 244, 246, 0.36)';
+      const rightLabel = track
+        ? truncateText(ctx, `${track.toUpperCase()}${durationMs > 0 ? ` • ${formatLyricTimestamp(durationMs)}` : ''}`, (w - margin * 2) * 0.42)
+        : 'SELECTED LYRIC EDITION';
+      ctx.fillText(rightLabel, w - margin, topY);
+
+      // Hairline rule under header
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.07)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(margin, topY + 12);
+      ctx.lineTo(w - margin, topY + 12);
+      ctx.stroke();
+      ctx.restore();
+
+      // Fine premium 1px hairline border around canvas
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.07)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(1, 1, w - 2, h - 2);
+
+    } else if (theme === 'cinematic') {
+      // Design 2: Frosted Photographic Grading with Focal-Aware Intelligent Cropping & Directional Scrim
+      const comp = analyzeArtworkComposition(img);
+
+      if (img && img.complete && img.naturalWidth > 0) {
+        ctx.save();
+        // Photographic color grade: moderate softening (frosted photograph), rich contrast, restrained saturation — NO heavy blur!
+        ctx.filter = 'blur(3px) contrast(1.14) brightness(0.60) saturate(1.10)';
+        const imgRatio = img.naturalWidth / img.naturalHeight;
+        const targetRatio = w / h;
+        let dw, dh, dx, dy;
+        if (imgRatio > targetRatio) {
+          dh = h + 24;
+          dw = dh * imgRatio;
+          // Focal-aware horizontal cropping: shift frame towards subject
+          if (comp.focalZone === 'left') {
+            dx = (w - dw) * 0.22;
+          } else if (comp.focalZone === 'right') {
+            dx = (w - dw) * 0.78;
+          } else {
+            dx = (w - dw) * 0.50;
+          }
+          dy = -12;
+        } else {
+          dw = w + 24;
+          dh = dw / imgRatio;
+          dx = -12;
+          // Focal-aware vertical cropping: shift frame towards subject
+          if (comp.quietZone === 'bottom') {
+            dy = (h - dh) * 0.20;
+          } else if (comp.quietZone === 'top') {
+            dy = (h - dh) * 0.80;
+          } else {
+            dy = (h - dh) * 0.50;
+          }
+        }
+        ctx.drawImage(img, dx, dy, dw, dh);
+        ctx.restore();
+      } else {
+        ctx.fillStyle = harmonic.darkNeutral;
+        ctx.fillRect(0, 0, w, h);
+
+        const rad = ctx.createRadialGradient(w * 0.5, h * 0.35, 60, w * 0.5, h * 0.45, w * 0.85);
+        rad.addColorStop(0, `hsla(${harmonic.ambientHue}, ${harmonic.ambientSat}%, ${harmonic.ambientLight}%, 0.38)`);
+        rad.addColorStop(0.6, `hsla(${harmonic.secHue}, ${harmonic.secSat}%, ${harmonic.secLight}%, 0.16)`);
+        rad.addColorStop(1, '#05070e');
+        ctx.fillStyle = rad;
+        ctx.fillRect(0, 0, w, h);
+      }
+
+      // Localized Directional Reading-Zone Scrim:
+      // Darkens ONLY the quiet zone where the lyric sits, leaving the subject crisp & vibrant!
+      ctx.save();
+      if (comp.quietZone === 'right') {
+        const rightScrim = ctx.createLinearGradient(w * 0.32, 0, w, 0);
+        rightScrim.addColorStop(0, 'transparent');
+        rightScrim.addColorStop(0.45, 'rgba(8, 9, 12, 0.48)');
+        rightScrim.addColorStop(1, 'rgba(8, 9, 12, 0.88)');
+        ctx.fillStyle = rightScrim;
+        ctx.fillRect(w * 0.32, 0, w * 0.68, h);
+      } else if (comp.quietZone === 'left') {
+        const leftScrim = ctx.createLinearGradient(0, 0, w * 0.68, 0);
+        leftScrim.addColorStop(0, 'rgba(8, 9, 12, 0.88)');
+        leftScrim.addColorStop(0.55, 'rgba(8, 9, 12, 0.48)');
+        leftScrim.addColorStop(1, 'transparent');
+        ctx.fillStyle = leftScrim;
+        ctx.fillRect(0, 0, w * 0.68, h);
+      } else if (comp.quietZone === 'top') {
+        const topScrim = ctx.createLinearGradient(0, 0, 0, h * 0.55);
+        topScrim.addColorStop(0, 'rgba(8, 9, 12, 0.82)');
+        topScrim.addColorStop(0.65, 'rgba(8, 9, 12, 0.38)');
+        topScrim.addColorStop(1, 'transparent');
+        ctx.fillStyle = topScrim;
+        ctx.fillRect(0, 0, w, h * 0.55);
+      } else {
+        // Balanced / Center scrim
+        const centerScrim = ctx.createRadialGradient(w / 2, h * 0.40, 50, w / 2, h * 0.40, w * 0.68);
+        centerScrim.addColorStop(0, 'rgba(8, 9, 12, 0.68)');
+        centerScrim.addColorStop(0.70, 'rgba(8, 9, 12, 0.28)');
+        centerScrim.addColorStop(1, 'transparent');
+        ctx.fillStyle = centerScrim;
+        ctx.fillRect(0, 0, w, h);
+      }
+      ctx.restore();
+
+      // Seamless natural floor scrim only in the bottom 20% for the metadata colophon
+      const floorScrim = ctx.createLinearGradient(0, h * 0.80, 0, h);
+      floorScrim.addColorStop(0, 'transparent');
+      floorScrim.addColorStop(0.45, 'rgba(0, 0, 0, 0.45)');
+      floorScrim.addColorStop(1, 'rgba(0, 0, 0, 0.88)');
+      ctx.fillStyle = floorScrim;
+      ctx.fillRect(0, h * 0.80, w, h * 0.20);
+
+      // Subtle perimeter vignette (darkening corners organically)
+      const vig = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.38, w / 2, h / 2, Math.max(w, h) * 0.80);
+      vig.addColorStop(0, 'transparent');
+      vig.addColorStop(0.70, 'rgba(0, 0, 0, 0.20)');
+      vig.addColorStop(1, 'rgba(0, 0, 0, 0.65)');
+      ctx.fillStyle = vig;
+      ctx.fillRect(0, 0, w, h);
+
+      // Fine premium 1px hairline border
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.07)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(1, 1, w - 2, h - 2);
+
+    } else if (theme === 'mesh') {
       ctx.fillStyle = '#0b0c10';
       ctx.fillRect(0, 0, w, h);
 
@@ -689,6 +1819,128 @@
       c2.addColorStop(1, 'transparent');
       ctx.fillStyle = c2;
       ctx.fillRect(0, 0, w, h);
+
+    } else if (theme === 'cassette') {
+      // Vintage Cassette J-Card Lyric Booklet Sleeve
+      ctx.fillStyle = '#141316';
+      ctx.fillRect(0, 0, w, h);
+
+      // Cream J-Card paper insert
+      const cardMargin = Math.min(54, w * 0.05);
+      const cardW = w - cardMargin * 2;
+      const cardH = h - cardMargin * 2;
+
+      ctx.save();
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.65)';
+      ctx.shadowBlur = 40;
+      ctx.shadowOffsetY = 16;
+      ctx.fillStyle = '#fbf8f1';
+      drawRoundedRect(ctx, cardMargin, cardMargin, cardW, cardH, 26);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetY = 0;
+
+      // Fine card border
+      ctx.strokeStyle = '#e7e0d3';
+      ctx.lineWidth = 2;
+      drawRoundedRect(ctx, cardMargin, cardMargin, cardW, cardH, 26);
+      ctx.stroke();
+
+      // Top Vintage Header Strip
+      const stripH = 46;
+      ctx.fillStyle = p1;
+      drawRoundedRect(ctx, cardMargin + 16, cardMargin + 16, cardW - 32, stripH, 12);
+      ctx.fill();
+
+      // Header Text inside strip
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '800 20px "Outfit", sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText('SIDE A • HI-FI STEREO', cardMargin + 34, cardMargin + 46);
+
+      ctx.font = '700 16px "JetBrains Mono", monospace';
+      ctx.textAlign = 'right';
+      ctx.fillText('DOLBY B-NR / TYPE I', cardMargin + cardW - 34, cardMargin + 46);
+
+      // Subtle cassette ribbon accent bar above bottom pill
+      const ribbonY = h - cardMargin - 210;
+      ctx.fillStyle = 'rgba(180, 150, 120, 0.2)';
+      drawRoundedRect(ctx, cardMargin + 40, ribbonY, cardW - 80, 6, 3);
+      ctx.fill();
+
+      ctx.restore();
+
+    } else if (theme === 'bloom') {
+      // Apple Fluid Bloom - ethereal glowing fluid atmosphere
+      if (img && img.complete && img.naturalWidth > 0) {
+        ctx.save();
+        ctx.filter = 'blur(75px) brightness(0.48) saturate(2.2)';
+        ctx.drawImage(img, -150, -150, w + 300, h + 300);
+        ctx.restore();
+      } else {
+        ctx.fillStyle = '#0a0d18';
+        ctx.fillRect(0, 0, w, h);
+
+        const b1 = ctx.createRadialGradient(w * 0.2, h * 0.2, 80, w * 0.3, h * 0.3, w * 0.8);
+        b1.addColorStop(0, hexToRgba(p1, 0.75));
+        b1.addColorStop(1, 'transparent');
+        ctx.fillStyle = b1;
+        ctx.fillRect(0, 0, w, h);
+
+        const b2 = ctx.createRadialGradient(w * 0.8, h * 0.7, 80, w * 0.7, h * 0.6, w * 0.8);
+        b2.addColorStop(0, hexToRgba(p2, 0.7));
+        b2.addColorStop(1, 'transparent');
+        ctx.fillStyle = b2;
+        ctx.fillRect(0, 0, w, h);
+      }
+
+      // Specular sheen card container
+      const margin = Math.min(60, w * 0.06);
+      const cardW = w - margin * 2;
+      const cardH = h - margin * 2;
+      ctx.save();
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+      ctx.lineWidth = 1.5;
+      drawRoundedRect(ctx, margin, margin, cardW, cardH, 40);
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+
+    } else if (theme === 'sunset') {
+      // Luxury Sunset Glow: Twilight Navy -> Plum -> Vivid Magenta -> Coral Fire -> Golden Horizon
+      const grad = ctx.createLinearGradient(0, 0, 0, h);
+      grad.addColorStop(0, '#090716');
+      grad.addColorStop(0.28, '#1d0e38');
+      grad.addColorStop(0.56, '#561352');
+      grad.addColorStop(0.82, '#c22d26');
+      grad.addColorStop(0.94, '#e96d1f');
+      grad.addColorStop(1, '#fba43a');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, w, h);
+
+      // Soft bokeh glowing embers
+      ctx.save();
+      const bokeh = [
+        { x: w * 0.2, y: h * 0.88, r: 140, o: 0.2 },
+        { x: w * 0.65, y: h * 0.92, r: 200, o: 0.16 },
+        { x: w * 0.88, y: h * 0.84, r: 120, o: 0.22 }
+      ];
+      bokeh.forEach(b => {
+        const bg = ctx.createRadialGradient(b.x, b.y, 10, b.x, b.y, b.r);
+        bg.addColorStop(0, `rgba(255, 240, 200, ${b.o})`);
+        bg.addColorStop(1, 'transparent');
+        ctx.fillStyle = bg;
+        ctx.fillRect(0, 0, w, h);
+      });
+
+      // Central contrast scrim for 100% crystal clear lyrics
+      const centerScrim = ctx.createRadialGradient(w / 2, h * 0.44, 80, w / 2, h * 0.44, w * 0.75);
+      centerScrim.addColorStop(0, 'rgba(9, 7, 22, 0.25)');
+      centerScrim.addColorStop(1, 'rgba(9, 7, 22, 0.65)');
+      ctx.fillStyle = centerScrim;
+      ctx.fillRect(0, 0, w, h);
+      ctx.restore();
     }
   }
 
@@ -753,287 +2005,520 @@
   }
 
   /**
-   * Story Format (9:16 - 1080 x 1920)
+   * Story Format (9:16 - 1080 x 1920) - Modern Apple Music & Spotify Stories Masterclass
    */
   function drawStoryLayout(ctx, w, h, lines, state) {
-    const isEditorial = state.theme === 'editorial';
-    const isVinyl = state.theme === 'vinyl';
-    const accent = isEditorial ? '#18181b' : (state.palette[0] || '#1DB954');
+    const isLight = state.theme === 'editorial' || state.theme === 'cassette';
+    const accent = isLight ? '#18181b' : (state.palette[0] || '#1DB954');
     const primaryFont = getFontStack(state.fontFamily);
 
-    // 1. Album Artwork & Vinyl (Top Area)
-    let artY = 220;
-    if (state.showAlbumArt) {
-      const artSize = isVinyl ? 360 : 380;
-      const artX = isVinyl ? (w / 2 - artSize / 2 - 50) : (w / 2 - artSize / 2);
+    // Calculate metadata sleeve credit dimensions (compact 52-70px footprint)
+    const pillMargin = Math.min(80, w * 0.075);
+    const pillW = w - pillMargin * 2;
+    const pillH = state.showScrubber ? 70 : 52;
+    const pillY = h - pillH - Math.min(90, h * 0.05);
 
-      if (isVinyl) {
-        drawVinylDisk(ctx, artX + artSize + 30, artY + artSize / 2, artSize * 0.48, state.albumImg, accent);
+    // Dynamic Artwork Composition analysis for subject-aware lyric placement
+    const comp = analyzeArtworkComposition(state.albumImg);
+
+    let lyricsCenterX = w / 2;
+    let lyricsMaxWidth = pillW;
+    let lyricsTopY = 120;
+    let effectiveAlign = state.textAlign;
+
+    // In Cinematic mode, apply artwork-subject-aware placement.
+    // Classic mode is a pure typography poster with an atmospheric wash and NO background photo,
+    // so it must maintain balanced typography and never dodge invisible subjects.
+    if (state.theme === 'cinematic') {
+      if (comp.focalZone === 'left') {
+        // Subject on Left -> Anchor lyric on the Right
+        lyricsCenterX = w * 0.70;
+        lyricsMaxWidth = w * 0.48;
+        if (state.textAlign === 'center') effectiveAlign = 'left';
+      } else if (comp.focalZone === 'right') {
+        // Subject on Right -> Anchor lyric on the Left
+        lyricsCenterX = w * 0.30;
+        lyricsMaxWidth = w * 0.48;
+        if (state.textAlign === 'center') effectiveAlign = 'left';
+      } else if (comp.focalZone === 'center') {
+        // Subject in Center -> Elevate lyric to upper third to avoid covering face/eyes
+        lyricsCenterX = w / 2;
+        lyricsMaxWidth = pillW * 0.88;
+        lyricsTopY = 85;
       }
-      drawAlbumArt(ctx, state.albumImg, artX, artY, artSize, isEditorial ? 0 : 32);
-
-      // Track & Artist Info
-      const trackY = artY + artSize + 56;
-      ctx.textAlign = 'center';
-
-      drawMiniSoundbars(ctx, w / 2, trackY - 14, accent);
-
-      ctx.font = `700 40px ${primaryFont}`;
-      ctx.fillStyle = isEditorial ? '#18181b' : '#ffffff';
-      ctx.fillText(truncateText(ctx, state.trackTitle, 800), w / 2, trackY + 36);
-
-      ctx.font = `500 26px ${primaryFont}`;
-      ctx.fillStyle = isEditorial ? 'rgba(24, 24, 27, 0.65)' : 'rgba(255, 255, 255, 0.65)';
-      ctx.fillText(truncateText(ctx, state.artistName, 760), w / 2, trackY + 76);
-
-      artY = trackY + 110;
-    } else {
-      artY = 320;
-      ctx.textAlign = 'center';
-      ctx.font = `700 38px ${primaryFont}`;
-      ctx.fillStyle = isEditorial ? '#18181b' : '#ffffff';
-      ctx.fillText(truncateText(ctx, state.trackTitle, 800), w / 2, artY);
-      ctx.font = `500 26px ${primaryFont}`;
-      ctx.fillStyle = isEditorial ? 'rgba(24, 24, 27, 0.65)' : 'rgba(255, 255, 255, 0.65)';
-      ctx.fillText(truncateText(ctx, state.artistName, 760), w / 2, artY + 44);
-      artY += 90;
+    } else if (state.theme === 'classic') {
+      // Classic typography-first optical balance adapting to lyric visual weight
+      const totalChars = lines.map(l => l.primary || '').join('').length;
+      lyricsTopY = 130;
+      lyricsMaxWidth = lines.length <= 2 && totalChars < 50 ? pillW * 0.88 : pillW * 0.96;
     }
 
-    // 2. Quotation Mark
-    ctx.textAlign = 'center';
-    ctx.font = '800 100px "Georgia", serif';
-    ctx.fillStyle = hexToRgba(accent, 0.7);
-    ctx.fillText('“', w / 2, artY + 20);
+    const availableLyricsH = pillY - 35 - lyricsTopY;
+    drawLyricBlock(ctx, lyricsCenterX, lyricsTopY, lyricsMaxWidth, lines, { ...state, textAlign: effectiveAlign }, isLight, primaryFont, availableLyricsH);
 
-    // 3. Render Lyric Lines (Handles bilingual subtitles)
-    drawLyricBlock(ctx, w / 2, artY + 70, 860, lines, state, isEditorial, primaryFont);
-
-    // 4. Timestamp & Watermark at bottom
-    if (state.showTimestamp && lines[0] && lines[0].timeMs > 0) {
-      drawTimestampBadge(ctx, w / 2, 1720, lines[0].timeMs, accent, isEditorial);
-    }
-    if (state.showWatermark) {
-      drawWatermarkPill(ctx, w / 2, 1780, accent, isEditorial);
-    }
+    drawFloatingMetadataPill(ctx, pillMargin, pillY, pillW, pillH, state, accent, isLight, primaryFont);
   }
 
   /**
-   * Square Format (1:1 - 1080 x 1080)
+   * Square Format (1:1 - 1080 x 1080) - Instagram Feed & Album Art Square
    */
   function drawSquareLayout(ctx, w, h, lines, state) {
-    const isEditorial = state.theme === 'editorial';
-    const accent = isEditorial ? '#18181b' : (state.palette[0] || '#1DB954');
+    const isLight = state.theme === 'editorial' || state.theme === 'cassette';
+    const accent = isLight ? '#18181b' : (state.palette[0] || '#1DB954');
     const primaryFont = getFontStack(state.fontFamily);
 
-    // 1. Quotation Mark at Top
-    ctx.textAlign = 'center';
-    ctx.font = '800 84px "Georgia", serif';
-    ctx.fillStyle = hexToRgba(accent, 0.7);
-    ctx.fillText('“', w / 2, 120);
+    const pillMargin = Math.min(60, w * 0.065);
+    const pillW = w - pillMargin * 2;
+    const pillH = state.showScrubber ? 66 : 50;
+    const pillY = h - pillH - Math.min(50, h * 0.05);
 
-    // 2. Lyric Text in Center Block
-    drawLyricBlock(ctx, w / 2, 170, 880, lines, state, isEditorial, primaryFont, 500);
+    const comp = analyzeArtworkComposition(state.albumImg);
+    let lyricsCenterX = w / 2;
+    let lyricsMaxWidth = pillW;
+    let lyricsTopY = 70;
+    let effectiveAlign = state.textAlign;
 
-    // 3. Bottom Footer
-    const footerY = 840;
-    const thumbSize = 120;
-    const footerMargin = 100;
-
-    if (state.showAlbumArt) {
-      drawAlbumArt(ctx, state.albumImg, footerMargin, footerY, thumbSize, isEditorial ? 0 : 20);
-      ctx.textAlign = 'left';
-      ctx.font = `700 32px ${primaryFont}`;
-      ctx.fillStyle = isEditorial ? '#18181b' : '#ffffff';
-      const textStartX = footerMargin + thumbSize + 24;
-      ctx.fillText(truncateText(ctx, state.trackTitle, 460), textStartX, footerY + 44);
-
-      ctx.font = `500 22px ${primaryFont}`;
-      ctx.fillStyle = isEditorial ? 'rgba(24, 24, 27, 0.65)' : 'rgba(255, 255, 255, 0.65)';
-      ctx.fillText(truncateText(ctx, state.artistName, 460), textStartX, footerY + 80);
-
-      drawMiniSoundbars(ctx, textStartX + 42, footerY + 104, accent);
-    } else {
-      ctx.textAlign = 'center';
-      ctx.font = `700 32px ${primaryFont}`;
-      ctx.fillStyle = isEditorial ? '#18181b' : '#ffffff';
-      ctx.fillText(truncateText(ctx, `${state.trackTitle} • ${state.artistName}`, 860), w / 2, footerY + 50);
+    if (state.theme === 'cinematic') {
+      if (comp.focalZone === 'left') {
+        lyricsCenterX = w * 0.68;
+        lyricsMaxWidth = w * 0.50;
+        if (state.textAlign === 'center') effectiveAlign = 'left';
+      } else if (comp.focalZone === 'right') {
+        lyricsCenterX = w * 0.32;
+        lyricsMaxWidth = w * 0.50;
+        if (state.textAlign === 'center') effectiveAlign = 'left';
+      } else if (comp.focalZone === 'center') {
+        lyricsTopY = 50;
+        lyricsMaxWidth = pillW * 0.88;
+      }
+    } else if (state.theme === 'classic') {
+      // Classic typography-first optical balance: maintain clear clearance below top publication header
+      const totalChars = lines.map(l => l.primary || '').join('').length;
+      lyricsTopY = 112;
+      lyricsMaxWidth = lines.length <= 2 && totalChars < 50 ? pillW * 0.85 : pillW * 0.94;
     }
 
-    if (state.showWatermark) {
-      drawWatermarkPill(ctx, w - footerMargin - 95, footerY + 60, accent, isEditorial);
-    }
+    const availableLyricsH = pillY - 25 - lyricsTopY;
+    drawLyricBlock(ctx, lyricsCenterX, lyricsTopY, lyricsMaxWidth, lines, { ...state, textAlign: effectiveAlign }, isLight, primaryFont, availableLyricsH);
+
+    drawFloatingMetadataPill(ctx, pillMargin, pillY, pillW, pillH, state, accent, isLight, primaryFont);
   }
 
   /**
    * Portrait Format (4:5 - 1080 x 1350) - Optimal Instagram Feed
    */
   function drawPortraitLayout(ctx, w, h, lines, state) {
-    const isEditorial = state.theme === 'editorial';
-    const accent = isEditorial ? '#18181b' : (state.palette[0] || '#1DB954');
+    const isLight = state.theme === 'editorial' || state.theme === 'cassette';
+    const accent = isLight ? '#18181b' : (state.palette[0] || '#1DB954');
     const primaryFont = getFontStack(state.fontFamily);
 
-    let startY = 160;
-    if (state.showAlbumArt) {
-      const thumbSize = 180;
-      drawAlbumArt(ctx, state.albumImg, w / 2 - thumbSize / 2, startY, thumbSize, isEditorial ? 0 : 24);
-      startY += thumbSize + 36;
-      ctx.textAlign = 'center';
-      ctx.font = `700 34px ${primaryFont}`;
-      ctx.fillStyle = isEditorial ? '#18181b' : '#ffffff';
-      ctx.fillText(truncateText(ctx, state.trackTitle, 800), w / 2, startY);
-      ctx.font = `500 24px ${primaryFont}`;
-      ctx.fillStyle = isEditorial ? 'rgba(24, 24, 27, 0.65)' : 'rgba(255, 255, 255, 0.65)';
-      ctx.fillText(truncateText(ctx, state.artistName, 760), w / 2, startY + 36);
-      startY += 70;
-    } else {
-      ctx.textAlign = 'center';
-      ctx.font = `700 34px ${primaryFont}`;
-      ctx.fillStyle = isEditorial ? '#18181b' : '#ffffff';
-      ctx.fillText(truncateText(ctx, `${state.trackTitle} — ${state.artistName}`, 800), w / 2, startY);
-      startY += 50;
+    const pillMargin = Math.min(70, w * 0.07);
+    const pillW = w - pillMargin * 2;
+    const pillH = state.showScrubber ? 68 : 52;
+    const pillY = h - pillH - Math.min(70, h * 0.05);
+
+    const comp = analyzeArtworkComposition(state.albumImg);
+    let lyricsCenterX = w / 2;
+    let lyricsMaxWidth = pillW;
+    let lyricsTopY = 90;
+    let effectiveAlign = state.textAlign;
+
+    if (state.theme === 'cinematic') {
+      if (comp.focalZone === 'left') {
+        lyricsCenterX = w * 0.69;
+        lyricsMaxWidth = w * 0.49;
+        if (state.textAlign === 'center') effectiveAlign = 'left';
+      } else if (comp.focalZone === 'right') {
+        lyricsCenterX = w * 0.31;
+        lyricsMaxWidth = w * 0.49;
+        if (state.textAlign === 'center') effectiveAlign = 'left';
+      } else if (comp.focalZone === 'center') {
+        lyricsTopY = 65;
+        lyricsMaxWidth = pillW * 0.88;
+      }
+    } else if (state.theme === 'classic') {
+      // Classic typography-first optical balance: intentional margins adapting to lyric weight
+      const totalChars = lines.map(l => l.primary || '').join('').length;
+      lyricsTopY = 118;
+      lyricsMaxWidth = lines.length <= 2 && totalChars < 50 ? pillW * 0.86 : pillW * 0.95;
     }
 
-    ctx.font = '800 80px "Georgia", serif';
-    ctx.fillStyle = hexToRgba(accent, 0.7);
-    ctx.fillText('“', w / 2, startY + 30);
+    const availableLyricsH = pillY - 30 - lyricsTopY;
+    drawLyricBlock(ctx, lyricsCenterX, lyricsTopY, lyricsMaxWidth, lines, { ...state, textAlign: effectiveAlign }, isLight, primaryFont, availableLyricsH);
 
-    drawLyricBlock(ctx, w / 2, startY + 60, 880, lines, state, isEditorial, primaryFont, 480);
-
-    if (state.showTimestamp && lines[0] && lines[0].timeMs > 0) {
-      drawTimestampBadge(ctx, w / 2, 1220, lines[0].timeMs, accent, isEditorial);
-    }
-    if (state.showWatermark) {
-      drawWatermarkPill(ctx, w / 2, 1270, accent, isEditorial);
-    }
+    drawFloatingMetadataPill(ctx, pillMargin, pillY, pillW, pillH, state, accent, isLight, primaryFont);
   }
 
   /**
-   * Landscape Format (16:9 - 1920 x 1080) - Twitter/X Header & Desktop
+   * Landscape Format (16:9 - 1920 x 1080) - Desktop & Twitter/X Header
    */
   function drawLandscapeLayout(ctx, w, h, lines, state) {
-    const isEditorial = state.theme === 'editorial';
-    const accent = isEditorial ? '#18181b' : (state.palette[0] || '#1DB954');
+    const isLight = state.theme === 'editorial' || state.theme === 'cassette';
+    const accent = isLight ? '#18181b' : (state.palette[0] || '#1DB954');
     const primaryFont = getFontStack(state.fontFamily);
 
-    // Left Column: Artwork & Track Metadata
-    const leftMargin = 140;
-    const artSize = 360;
-    const artY = (h - artSize) / 2 - 40;
+    const comp = analyzeArtworkComposition(state.albumImg);
+    // In Cinematic mode, if focal zone is on the left, position metadata card on the right
+    // so it never covers the visual subject
+    const subjectOnLeft = state.theme === 'cinematic' && comp.focalZone === 'left';
 
-    if (state.showAlbumArt) {
-      drawAlbumArt(ctx, state.albumImg, leftMargin, artY, artSize, isEditorial ? 0 : 28);
-      ctx.textAlign = 'left';
-      ctx.font = `700 36px ${primaryFont}`;
-      ctx.fillStyle = isEditorial ? '#18181b' : '#ffffff';
-      ctx.fillText(truncateText(ctx, state.trackTitle, 460), leftMargin, artY + artSize + 50);
+    const cardW = 520;
+    const cardH = 440;
+    const cardY = (h - cardH) / 2;
+    const cardX = subjectOnLeft ? (w - 120 - cardW) : 120;
 
-      ctx.font = `500 24px ${primaryFont}`;
-      ctx.fillStyle = isEditorial ? 'rgba(24, 24, 27, 0.65)' : 'rgba(255, 255, 255, 0.65)';
-      ctx.fillText(truncateText(ctx, state.artistName, 460), leftMargin, artY + artSize + 90);
+    drawLandscapeMetadataCard(ctx, cardX, cardY, cardW, cardH, state, accent, isLight, primaryFont);
 
-      drawMiniSoundbars(ctx, leftMargin + 40, artY + artSize + 120, accent);
+    // Lyrics block positioned in the remaining column
+    let lyricsCenterX, lyricsMaxWidth;
+    if (subjectOnLeft) {
+      lyricsCenterX = (cardX - 80) / 2 + 60;
+      lyricsMaxWidth = cardX - 160;
+    } else {
+      lyricsCenterX = cardX + cardW + (w - (cardX + cardW)) / 2;
+      lyricsMaxWidth = w - (cardX + cardW) - 160;
+    }
+    const lyricsTopY = 120;
+    const availableLyricsH = h - 240;
+
+    drawLyricBlock(ctx, lyricsCenterX, lyricsTopY, lyricsMaxWidth, lines, state, isLight, primaryFont, availableLyricsH);
+  }
+
+  /**
+   * Draws refined editorial track metadata (album art, title, artist, scrubber, publisher colophon)
+   */
+  function drawFloatingMetadataPill(ctx, px, py, pw, ph, state, accent, isLight, primaryFont) {
+    ctx.save();
+
+    const isEditorialTheme = state.theme === 'classic' || state.theme === 'cinematic';
+
+    if (!isEditorialTheme) {
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.35)';
+      ctx.shadowBlur = 24;
+      ctx.shadowOffsetY = 8;
+
+      if (isLight) {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.82)';
+        drawRoundedRect(ctx, px, py, pw, ph, 24);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetY = 0;
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.06)';
+        ctx.lineWidth = 1;
+        drawRoundedRect(ctx, px, py, pw, ph, 24);
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = 'rgba(12, 14, 20, 0.58)';
+        drawRoundedRect(ctx, px, py, pw, ph, 24);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetY = 0;
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+        ctx.lineWidth = 1;
+        drawRoundedRect(ctx, px, py, pw, ph, 24);
+        ctx.stroke();
+      }
+    } else if (state.theme === 'classic') {
+      // Design 1: Fine hairline divider above metadata section
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(px, py - 18);
+      ctx.lineTo(px + pw, py - 18);
+      ctx.stroke();
     }
 
-    // Right Column: Lyrics
-    const lyricsCenterX = state.showAlbumArt ? (w * 0.66) : (w / 2);
-    ctx.textAlign = 'center';
-    ctx.font = '800 90px "Georgia", serif';
-    ctx.fillStyle = hexToRgba(accent, 0.7);
-    ctx.fillText('“', lyricsCenterX, 180);
+    // 1. Album Artwork Thumbnail (compact 48px squircle with clean hairline border)
+    let contentStartX = px + (isEditorialTheme ? 0 : 20);
+    const artSize = isEditorialTheme ? 48 : (ph - 28);
+    const artY = py + (ph - artSize) / 2;
 
-    drawLyricBlock(ctx, lyricsCenterX, 240, 960, lines, state, isEditorial, primaryFont, 560);
+    if (state.showAlbumArt) {
+      drawAlbumArt(ctx, state.albumImg, contentStartX, artY, artSize, 10);
+      contentStartX += artSize + 18;
+    }
+
+    // 2. Right-side branding width reservation
+    const brandReserve = state.showWatermark ? 110 : 12;
+    const availableTextW = pw - (contentStartX - px) - brandReserve;
+
+    // 3. Editorial Metadata Hierarchy: TRACK overline, Title, Artist
+    const hasScrubber = state.showScrubber;
+
+    // Overline "TRACK"
+    const overlineY = hasScrubber ? (py + 14) : (py + ph / 2 - 14);
+    ctx.textAlign = 'left';
+    ctx.font = '700 9.5px "Outfit", "Inter", sans-serif';
+    ctx.fillStyle = isLight ? 'rgba(24, 24, 27, 0.45)' : 'rgba(244, 244, 246, 0.40)';
+    ctx.fillText('TRACK', contentStartX, overlineY);
+
+    // Title
+    const titleY = hasScrubber ? (py + 34) : (py + ph / 2 + 8);
+    ctx.font = `700 20px ${primaryFont}`;
+    ctx.fillStyle = isLight ? '#18181b' : '#f4f4f6';
+    ctx.fillText(truncateText(ctx, state.trackTitle, availableTextW), contentStartX, titleY);
+
+    // Artist
+    const artistY = hasScrubber ? (py + 52) : (py + ph / 2 + 27);
+    ctx.font = `500 13.5px ${primaryFont}`;
+    ctx.fillStyle = isLight ? 'rgba(24, 24, 27, 0.55)' : 'rgba(244, 244, 246, 0.52)';
+    ctx.fillText(truncateText(ctx, state.artistName, availableTextW), contentStartX, artistY);
+
+    // 4. Subordinate Scrubber Timeline underneath
+    if (hasScrubber) {
+      const scrubberY = py + 66;
+      const curMs = state.currentProgressMs || 0;
+      const totMs = state.trackDurationMs || 180000;
+      drawScrubberBar(ctx, contentStartX + availableTextW / 2, scrubberY, availableTextW, curMs, totMs, accent, isLight);
+    }
+
+    // 5. LyricFlow Brand Colophon (understated editorial signature)
+    if (state.showWatermark) {
+      const brandX = px + pw - (isEditorialTheme ? 0 : 20);
+      const brandY = py + ph / 2 + 4;
+      ctx.textAlign = 'right';
+      ctx.font = '700 10.5px "Outfit", "Inter", -apple-system, sans-serif';
+      ctx.fillStyle = isLight ? 'rgba(24, 24, 27, 0.38)' : 'rgba(244, 244, 246, 0.32)';
+      ctx.fillText('• LYRICFLOW', brandX, brandY);
+    }
+
+    ctx.restore();
+  }
+
+  /**
+   * Draws a floating metadata card for Landscape format
+   */
+  function drawLandscapeMetadataCard(ctx, cx, cy, cw, ch, state, accent, isLight, primaryFont) {
+    ctx.save();
+
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.40)';
+    ctx.shadowBlur = 24;
+    ctx.shadowOffsetY = 10;
+
+    if (isLight) {
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.90)';
+      drawRoundedRect(ctx, cx, cy, cw, ch, 28);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetY = 0;
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.08)';
+      ctx.lineWidth = 1;
+      drawRoundedRect(ctx, cx, cy, cw, ch, 28);
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = 'rgba(14, 15, 20, 0.72)';
+      drawRoundedRect(ctx, cx, cy, cw, ch, 28);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetY = 0;
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.09)';
+      ctx.lineWidth = 1;
+      drawRoundedRect(ctx, cx, cy, cw, ch, 28);
+      ctx.stroke();
+    }
+
+    let topY = cy + 40;
+    if (state.showAlbumArt) {
+      const artSize = 190;
+      drawAlbumArt(ctx, state.albumImg, cx + (cw - artSize) / 2, topY, artSize, 18);
+      topY += artSize + 32;
+    } else {
+      topY += 36;
+    }
+
+    // Title & Artist
+    ctx.textAlign = 'center';
+    ctx.font = `700 28px ${primaryFont}`;
+    ctx.fillStyle = isLight ? '#18181b' : '#f4f4f6';
+    ctx.fillText(truncateText(ctx, state.trackTitle, cw - 60), cx + cw / 2, topY + 8);
+
+    ctx.font = `500 18px ${primaryFont}`;
+    ctx.fillStyle = isLight ? 'rgba(24, 24, 27, 0.62)' : 'rgba(244, 244, 246, 0.60)';
+    ctx.fillText(truncateText(ctx, state.artistName, cw - 60), cx + cw / 2, topY + 40);
+
+    if (state.showScrubber) {
+      const curMs = state.currentProgressMs || 0;
+      const totMs = state.trackDurationMs || 180000;
+      drawScrubberBar(ctx, cx + cw / 2, topY + 80, cw - 80, curMs, totMs, accent, isLight);
+    }
 
     if (state.showWatermark) {
-      drawWatermarkPill(ctx, w - 200, h - 80, accent, isEditorial);
+      const brandY = cy + ch - 26;
+      ctx.textAlign = 'center';
+      ctx.font = '700 14px "Outfit", "Inter", sans-serif';
+      ctx.fillStyle = isLight ? 'rgba(24, 24, 27, 0.50)' : 'rgba(244, 244, 246, 0.48)';
+      ctx.fillText('• LyricFlow', cx + cw / 2, brandY);
+    }
+
+    ctx.restore();
+  }
+
+  /**
+   * Helper: Resolves font scale multiplier
+   */
+  function getScaleMultiplier(scale) {
+    switch (scale) {
+      case 'compact': return 0.85;
+      case 'large': return 1.18;
+      case 'heroic': return 1.36;
+      case 'normal':
+      default: return 1.0;
     }
   }
 
   /**
-   * Helper: Renders Lyric lines with responsive typography & bilingual subtitles
+   * Helper: Renders Lyric lines with high-impact hero typography, scaling, and punchline highlight
    */
-  function drawLyricBlock(ctx, cx, startY, maxWidth, lines, state, isEditorial, primaryFont, availableHeight = 520) {
+  function drawLyricBlock(ctx, cx, startY, maxWidth, lines, state, isLight, primaryFont, availableHeight = 800) {
     const totalLines = lines.length;
+    const scaleMult = getScaleMultiplier(state.fontScale);
+    const textAlign = state.textAlign || 'center';
+    const accent = isLight ? '#18181b' : (state.palette[0] || '#1DB954');
+    const hasHero = state.heroIndex != null && lines.some(l => l.originalIndex === state.heroIndex);
+
+    // Character and word count across all primary lines for content-aware typography
+    const allText = lines.map(l => l.primary || '').join(' ').trim();
+    const charCount = allText.length;
+
     let baseFontSize = 48;
-    let lineHeight = 68;
+    let lineHeight = 72;
     let subFontSize = 26;
     let subLineHeight = 38;
-    let paraGap = 24;
+    let paraGap = 28;
 
     if (totalLines === 1) {
-      baseFontSize = 54;
-      lineHeight = 76;
-      subFontSize = 28;
-      subLineHeight = 42;
+      if (charCount <= 18) {
+        // Short punchy lyric (e.g. "Tokyo Drift", "萌える容姿でぼちぼちね", "Stay with me"): commanding hero scale
+        baseFontSize = 76;
+        lineHeight = 106;
+      } else if (charCount <= 35) {
+        baseFontSize = 66;
+        lineHeight = 94;
+      } else {
+        baseFontSize = 56;
+        lineHeight = 82;
+      }
+      subFontSize = 30;
+      subLineHeight = 44;
     } else if (totalLines === 2) {
-      baseFontSize = 46;
-      lineHeight = 66;
-      subFontSize = 24;
-      subLineHeight = 36;
+      if (charCount <= 40) {
+        baseFontSize = 54;
+        lineHeight = 78;
+      } else {
+        baseFontSize = 46;
+        lineHeight = 68;
+      }
+      subFontSize = 26;
+      subLineHeight = 38;
     } else if (totalLines <= 4) {
-      baseFontSize = 38;
-      lineHeight = 54;
+      baseFontSize = 40;
+      lineHeight = 60;
       subFontSize = 22;
       subLineHeight = 32;
-      paraGap = 18;
+      paraGap = 20;
     } else {
       baseFontSize = 32;
-      lineHeight = 44;
+      lineHeight = 48;
       subFontSize = 18;
       subLineHeight = 26;
-      paraGap = 14;
+      paraGap = 16;
     }
 
-    // Pre-calculate line wraps
-    ctx.font = `600 ${baseFontSize}px ${primaryFont}`;
+    baseFontSize = Math.round(baseFontSize * scaleMult);
+    lineHeight = Math.round(lineHeight * scaleMult);
+    subFontSize = Math.round(subFontSize * scaleMult);
+    subLineHeight = Math.round(subLineHeight * scaleMult);
+    paraGap = Math.round(paraGap * scaleMult);
+
+    // Pre-calculate line wraps per item, boosting hero punchline
     const wrappedParagraphs = lines.map(item => {
+      const isHero = state.heroIndex != null && item.originalIndex === state.heroIndex;
+      const itemBaseFontSize = isHero ? Math.round(baseFontSize * 1.12) : baseFontSize;
+      const itemLineHeight = isHero ? Math.round(lineHeight * 1.12) : lineHeight;
+      const itemFontWeight = isHero ? 800 : 700;
+
+      ctx.font = `${itemFontWeight} ${itemBaseFontSize}px ${primaryFont}`;
       const priWraps = wrapText(ctx, item.primary, maxWidth);
       let secWraps = [];
       if (item.secondary) {
         ctx.font = `italic 400 ${subFontSize}px ${primaryFont}`;
         secWraps = wrapText(ctx, item.secondary, maxWidth);
-        ctx.font = `600 ${baseFontSize}px ${primaryFont}`;
       }
-      return { priWraps, secWraps };
+      return { item, priWraps, secWraps, itemBaseFontSize, itemLineHeight, itemFontWeight, isHero };
     });
 
-    // Compute total block height for center-alignment
+    // Compute total block height
     let totalHeight = 0;
     wrappedParagraphs.forEach((p, idx) => {
-      totalHeight += p.priWraps.length * lineHeight;
+      totalHeight += p.priWraps.length * p.itemLineHeight;
       if (p.secWraps.length > 0) {
         totalHeight += (p.secWraps.length * subLineHeight) + 8;
       }
       if (idx < wrappedParagraphs.length - 1) totalHeight += paraGap;
     });
 
-    let curY = startY + Math.max(0, (availableHeight - totalHeight) / 2);
+    // Content-aware optical vertical center: single-line punchy lyrics sit at golden ratio 36%
+    const opticalCenterRatio = totalLines === 1 ? 0.36 : (totalLines === 2 ? 0.40 : 0.44);
+    let curY = startY + Math.max(0, (availableHeight - totalHeight) * opticalCenterRatio);
+
+    // X coordinate based on alignment
+    let textX = cx;
+    if (textAlign === 'left') {
+      textX = cx - (maxWidth / 2);
+    } else if (textAlign === 'right') {
+      textX = cx + (maxWidth / 2);
+    }
 
     wrappedParagraphs.forEach(p => {
-      // Primary text
-      ctx.textAlign = 'center';
-      ctx.font = `600 ${baseFontSize}px ${primaryFont}`;
-      ctx.fillStyle = isEditorial ? '#18181b' : '#ffffff';
-      if (!isEditorial) {
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.55)';
-        ctx.shadowBlur = 12;
+      const isHero = p.isHero;
+      ctx.textAlign = textAlign;
+
+      // Primary text styling: sharp, solid, high-contrast, no artificial neon glow
+      ctx.font = `${p.itemFontWeight} ${p.itemBaseFontSize}px ${primaryFont}`;
+      if (state.theme === 'classic') {
+        // Classic: pure razor-sharp print typography without artificial glow or drop shadow
+        ctx.fillStyle = isHero ? (isLight ? '#18181b' : '#ffffff') : (isLight ? 'rgba(24, 24, 27, 0.96)' : (hasHero ? 'rgba(244, 244, 246, 0.45)' : 'rgba(244, 244, 246, 0.96)'));
+        ctx.shadowColor = 'transparent';
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetY = 0;
+      } else if (isHero) {
+        ctx.fillStyle = isLight ? '#18181b' : '#ffffff';
+        if (!isLight) {
+          ctx.shadowColor = state.theme === 'cinematic' ? 'rgba(0, 0, 0, 0.65)' : 'rgba(0, 0, 0, 0.35)';
+          ctx.shadowBlur = state.theme === 'cinematic' ? 6 : 2;
+          ctx.shadowOffsetY = 1;
+        } else {
+          ctx.shadowColor = 'transparent';
+          ctx.shadowBlur = 0;
+        }
+      } else {
+        const lineAlpha = hasHero ? 0.45 : 0.96;
+        ctx.fillStyle = isLight ? `rgba(24, 24, 27, ${lineAlpha})` : `rgba(244, 244, 246, ${lineAlpha})`;
+        if (!isLight) {
+          ctx.shadowColor = state.theme === 'cinematic' ? 'rgba(0, 0, 0, 0.55)' : 'rgba(0, 0, 0, 0.25)';
+          ctx.shadowBlur = state.theme === 'cinematic' ? 4 : 1;
+          ctx.shadowOffsetY = 1;
+        } else {
+          ctx.shadowColor = 'transparent';
+          ctx.shadowBlur = 0;
+        }
       }
 
       p.priWraps.forEach(lineText => {
-        ctx.fillText(lineText, cx, curY);
-        curY += lineHeight;
+        ctx.fillText(lineText, textX, curY);
+        curY += p.itemLineHeight;
       });
 
       // Secondary / Translated subtitle text
       if (p.secWraps.length > 0) {
-        curY -= (lineHeight - subLineHeight) / 2;
+        curY -= (p.itemLineHeight - subLineHeight) / 2;
         ctx.font = `italic 400 ${subFontSize}px ${primaryFont}`;
-        ctx.fillStyle = isEditorial ? 'rgba(24, 24, 27, 0.65)' : 'rgba(255, 255, 255, 0.72)';
-        if (!isEditorial) {
-          ctx.shadowBlur = 6;
-        }
+        const subAlpha = (isHero ? 0.88 : (hasHero ? 0.45 : 0.68));
+        ctx.fillStyle = isLight ? `rgba(24, 24, 27, ${subAlpha})` : `rgba(244, 244, 246, ${subAlpha})`;
+        ctx.shadowBlur = 0;
 
         p.secWraps.forEach(subText => {
-          ctx.fillText(subText, cx, curY);
+          ctx.fillText(subText, textX, curY);
           curY += subLineHeight;
         });
         curY += 8;
@@ -1050,9 +2535,9 @@
    */
   function drawAlbumArt(ctx, img, x, y, size, radius) {
     ctx.save();
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.65)';
-    ctx.shadowBlur = 36;
-    ctx.shadowOffsetY = 16;
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+    ctx.shadowBlur = 14;
+    ctx.shadowOffsetY = 4;
 
     if (img && img.complete && img.naturalWidth > 0) {
       drawRoundedRect(ctx, x, y, size, size, radius);
@@ -1064,11 +2549,11 @@
       ctx.restore();
     } else {
       drawRoundedRect(ctx, x, y, size, size, radius);
-      ctx.fillStyle = '#222228';
+      ctx.fillStyle = '#18191e';
       ctx.fill();
 
       // Placeholder music note icon
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.20)';
       ctx.beginPath();
       ctx.arc(x + size / 2, y + size / 2, size * 0.25, 0, Math.PI * 2);
       ctx.fill();
@@ -1076,8 +2561,8 @@
 
     ctx.shadowBlur = 0;
     ctx.shadowOffsetY = 0;
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.10)';
+    ctx.lineWidth = 1;
     drawRoundedRect(ctx, x, y, size, size, radius);
     ctx.stroke();
 
@@ -1106,22 +2591,63 @@
   }
 
   /**
-   * Draws timestamp badge (e.g. ▶ 02:14)
+   * Draws authentic Spotify-style Now Playing scrubber bar with progress track & timestamps
+   */
+  function drawScrubberBar(ctx, cx, cy, width, currentMs = 0, totalMs = 0, accent = '#1DB954', isEditorial = false) {
+    const safeTotal = Math.max(1, totalMs || 180000);
+    const safeCurrent = Math.min(safeTotal, Math.max(0, currentMs || 0));
+    const progressRatio = Math.min(1, Math.max(0, safeCurrent / safeTotal));
+
+    const barH = 2;
+    const barY = cy;
+    const leftX = cx - width / 2;
+    const trackW = width;
+
+    ctx.save();
+
+    // Track background hairline
+    ctx.fillStyle = isEditorial ? 'rgba(24, 24, 27, 0.12)' : 'rgba(255, 255, 255, 0.14)';
+    drawRoundedRect(ctx, leftX, barY - barH / 2, trackW, barH, 1);
+    ctx.fill();
+
+    // Filled progress track (clean informational hairline without player knob)
+    const filledW = Math.max(2, trackW * progressRatio);
+    ctx.fillStyle = isEditorial ? '#18181b' : (accent || '#ffffff');
+    drawRoundedRect(ctx, leftX, barY - barH / 2, filledW, barH, 1);
+    ctx.fill();
+
+    // Timestamps: Clean, understated monospace
+    const curStr = formatLyricTimestamp(safeCurrent);
+    const totStr = formatLyricTimestamp(safeTotal);
+
+    ctx.font = '500 11px "JetBrains Mono", monospace';
+    ctx.fillStyle = isEditorial ? 'rgba(24, 24, 27, 0.45)' : 'rgba(244, 244, 246, 0.45)';
+    ctx.textAlign = 'left';
+    ctx.fillText(curStr, leftX, barY + 14);
+
+    ctx.textAlign = 'right';
+    ctx.fillText(totStr, leftX + trackW, barY + 14);
+
+    ctx.restore();
+  }
+
+  /**
+   * Draws timestamp badge (e.g. 02:14 without player play glyph)
    */
   function drawTimestampBadge(ctx, cx, cy, timeMs, accent, isEditorial = false) {
-    const timeStr = `▶ ${formatLyricTimestamp(timeMs)}`;
+    const timeStr = formatLyricTimestamp(timeMs);
     ctx.save();
-    ctx.font = '600 16px "JetBrains Mono", monospace';
+    ctx.font = '600 15px "JetBrains Mono", monospace';
     const textW = ctx.measureText(timeStr).width;
-    const badgeW = textW + 28;
-    const badgeH = 32;
+    const badgeW = textW + 24;
+    const badgeH = 28;
     const px = cx - badgeW / 2;
     const py = cy - badgeH / 2;
 
-    ctx.fillStyle = isEditorial ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.08)';
-    ctx.strokeStyle = isEditorial ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.14)';
+    ctx.fillStyle = isEditorial ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.07)';
+    ctx.strokeStyle = isEditorial ? 'rgba(0,0,0,0.10)' : 'rgba(255,255,255,0.12)';
     ctx.lineWidth = 1;
-    drawRoundedRect(ctx, px, py, badgeW, badgeH, 16);
+    drawRoundedRect(ctx, px, py, badgeW, badgeH, 14);
     ctx.fill();
     ctx.stroke();
 
@@ -1132,32 +2658,14 @@
   }
 
   /**
-   * Draws modern pill badge: LyricFlow
+   * Draws understated editorial brand colophon: • LYRICFLOW
    */
   function drawWatermarkPill(ctx, cx, cy, accent, isEditorial = false) {
-    const pillW = 180;
-    const pillH = 42;
-    const px = cx - pillW / 2;
-    const py = cy - pillH / 2;
-
     ctx.save();
-    ctx.fillStyle = isEditorial ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.08)';
-    ctx.strokeStyle = isEditorial ? 'rgba(0, 0, 0, 0.12)' : 'rgba(255, 255, 255, 0.14)';
-    ctx.lineWidth = 1.5;
-    drawRoundedRect(ctx, px, py, pillW, pillH, 21);
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.fillStyle = accent;
-    ctx.beginPath();
-    ctx.arc(px + 26, cy, 4.5, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.textAlign = 'left';
-    ctx.font = '700 17px "Outfit", "Inter", "Segoe UI", sans-serif';
-    ctx.fillStyle = isEditorial ? '#18181b' : 'rgba(255, 255, 255, 0.85)';
-    ctx.fillText('LyricFlow', px + 42, cy + 6);
-
+    ctx.textAlign = 'center';
+    ctx.font = '700 11px "Outfit", "Inter", -apple-system, sans-serif';
+    ctx.fillStyle = isEditorial ? 'rgba(24, 24, 27, 0.42)' : 'rgba(244, 244, 246, 0.38)';
+    ctx.fillText('• LYRICFLOW', cx, cy + 4);
     ctx.restore();
   }
 
@@ -1186,26 +2694,208 @@
   }
 
   /**
-   * Word wrap helper
+   * Helper: Joins a slice of tokens preserving authentic spacing between Latin words
+   * and within mixed CJK/Latin scripts.
+   */
+  function joinTokenRange(tokens, fromIdx, toIdx, hasSpaceBefore = null, isCJK = false) {
+    if (fromIdx >= toIdx) return '';
+    let str = tokens[fromIdx];
+    for (let k = fromIdx + 1; k < toIdx; k++) {
+      let needsSpace = false;
+      if (hasSpaceBefore && hasSpaceBefore[k] !== undefined) {
+        needsSpace = hasSpaceBefore[k];
+      } else if (!isCJK) {
+        needsSpace = true;
+      } else {
+        const prev = tokens[k - 1];
+        const curr = tokens[k];
+        if (/[a-zA-Z0-9]$/.test(prev) && /^[a-zA-Z0-9]/.test(curr)) {
+          needsSpace = true;
+        }
+      }
+      str += (needsSpace ? ' ' : '') + tokens[k];
+    }
+    return str;
+  }
+
+  /**
+   * Tokenizes text with CJK / Japanese awareness and Kinsoku Shori punctuation gluing.
+   */
+  function tokenizeText(text) {
+    const isCJK = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f]/.test(text);
+    let rawTokens = [];
+    let spaceFlags = [];
+    if (isCJK && typeof Intl !== 'undefined' && Intl.Segmenter) {
+      const seg = new Intl.Segmenter(['ja', 'zh', 'ko'], { granularity: 'word' });
+      const segments = Array.from(seg.segment(text));
+      let hadSpace = false;
+      for (const s of segments) {
+        if (!s.segment) continue;
+        if (/^\s+$/.test(s.segment)) {
+          hadSpace = true;
+          continue;
+        }
+        const trimmed = s.segment.trim();
+        if (trimmed) {
+          rawTokens.push(trimmed);
+          spaceFlags.push(hadSpace);
+          hadSpace = false;
+        }
+      }
+    } else {
+      const parts = text.split(/\s+/).filter(Boolean);
+      rawTokens = parts;
+      spaceFlags = parts.map((_, idx) => idx > 0);
+    }
+
+    // Kinsoku Shori (Japanese & General punctuation gluing)
+    const NO_START = /^[、。，．！？!?』」）\)\}\]”’…:;]/;
+    const NO_END = /[「『（\(\{\[“‘]$/;
+
+    const glued = [];
+    const gluedSpaces = [];
+    for (let i = 0; i < rawTokens.length; i++) {
+      let t = rawTokens[i];
+      let sp = spaceFlags[i] || false;
+      if (glued.length > 0 && NO_START.test(t)) {
+        glued[glued.length - 1] += t;
+      } else if (glued.length > 0 && NO_END.test(glued[glued.length - 1])) {
+        glued[glued.length - 1] += (sp ? ' ' : '') + t;
+      } else {
+        glued.push(t);
+        gluedSpaces.push(sp);
+      }
+    }
+    return { tokens: glued, isCJK, hasSpaceBefore: gluedSpaces };
+  }
+
+  /**
+   * Balanced, CJK-aware, aesthetic line wrapping with rag-variance minimization (Knuth-Plass inspired)
    */
   function wrapText(ctx, text, maxWidth) {
     if (!text) return [];
-    const words = String(text).split(' ');
-    const lines = [];
-    let currentLine = words[0] || '';
+    const trimmed = String(text).trim();
+    if (!trimmed) return [];
 
-    for (let i = 1; i < words.length; i++) {
-      const word = words[i];
-      const width = ctx.measureText(currentLine + " " + word).width;
-      if (width < maxWidth) {
-        currentLine += " " + word;
+    // If entire text fits on one line, return immediately
+    if (ctx.measureText(trimmed).width <= maxWidth) {
+      return [trimmed];
+    }
+
+    const { tokens, isCJK, hasSpaceBefore } = tokenizeText(trimmed);
+    if (tokens.length <= 1) {
+      const chars = Array.from(trimmed);
+      const lines = [];
+      let cur = '';
+      for (const ch of chars) {
+        if (ctx.measureText(cur + ch).width <= maxWidth) {
+          cur += ch;
+        } else {
+          if (cur) lines.push(cur);
+          cur = ch;
+        }
+      }
+      if (cur) lines.push(cur);
+      return lines;
+    }
+
+    const n = tokens.length;
+
+    // Minimum lines needed
+    let minLines = 1;
+    let curTestWidth = ctx.measureText(tokens[0]).width;
+    for (let i = 1; i < n; i++) {
+      const sep = ((hasSpaceBefore && hasSpaceBefore[i]) || !isCJK) ? ' ' : '';
+      const w = ctx.measureText(sep + tokens[i]).width;
+      if (curTestWidth + w <= maxWidth) {
+        curTestWidth += w;
       } else {
-        lines.push(currentLine);
-        currentLine = word;
+        minLines++;
+        curTestWidth = ctx.measureText(tokens[i]).width;
       }
     }
-    if (currentLine) lines.push(currentLine);
-    return lines;
+
+    // 2-line balance optimization
+    if (minLines === 2) {
+      let bestSplit = 1;
+      let minDiff = Infinity;
+      for (let i = 1; i < n; i++) {
+        const line1 = joinTokenRange(tokens, 0, i, hasSpaceBefore, isCJK);
+        const line2 = joinTokenRange(tokens, i, n, hasSpaceBefore, isCJK);
+        const w1 = ctx.measureText(line1).width;
+        const w2 = ctx.measureText(line2).width;
+        if (w1 <= maxWidth && w2 <= maxWidth) {
+          const diff = Math.abs(w1 - w2);
+          const orphanPenalty = (tokens.slice(i).length === 1 && line2.length < 5) ? 200 : 0;
+          if (diff + orphanPenalty < minDiff) {
+            minDiff = diff + orphanPenalty;
+            bestSplit = i;
+          }
+        }
+      }
+      return [
+        joinTokenRange(tokens, 0, bestSplit, hasSpaceBefore, isCJK),
+        joinTokenRange(tokens, bestSplit, n, hasSpaceBefore, isCJK)
+      ];
+    }
+
+    // General dynamic programming for 3+ lines: rag variance minimization
+    let totalWidth = 0;
+    for (let i = 0; i < n; i++) {
+      const sep = (i < n - 1 && (((hasSpaceBefore && hasSpaceBefore[i + 1]) || !isCJK))) ? ' ' : '';
+      totalWidth += ctx.measureText(tokens[i] + sep).width;
+    }
+    const idealLineWidth = Math.min(maxWidth, totalWidth / minLines);
+
+    const dp = new Array(n + 1).fill(null).map(() => ({ cost: Infinity, prev: -1 }));
+    dp[0] = { cost: 0, prev: -1 };
+
+    for (let i = 1; i <= n; i++) {
+      for (let j = 0; j < i; j++) {
+        if (dp[j].cost === Infinity) continue;
+        const sliceStr = joinTokenRange(tokens, j, i, hasSpaceBefore, isCJK);
+        const lineW = ctx.measureText(sliceStr).width;
+        if (lineW <= maxWidth) {
+          const diff = idealLineWidth - lineW;
+          const isLastLine = (i === n);
+          let lineCost = diff * diff;
+          if (isLastLine && (i - j) === 1 && sliceStr.length < 5) {
+            lineCost += 100000;
+          }
+          const totalCost = dp[j].cost + lineCost;
+          if (totalCost < dp[i].cost) {
+            dp[i] = { cost: totalCost, prev: j };
+          }
+        }
+      }
+    }
+
+    if (dp[n].cost !== Infinity) {
+      const resultLines = [];
+      let curr = n;
+      while (curr > 0) {
+        const p = dp[curr].prev;
+        resultLines.unshift(joinTokenRange(tokens, p, curr, hasSpaceBefore, isCJK));
+        curr = p;
+      }
+      return resultLines;
+    }
+
+    // Fallback to greedy
+    const fallbackLines = [];
+    let curLine = tokens[0];
+    for (let i = 1; i < n; i++) {
+      const sep = ((hasSpaceBefore && hasSpaceBefore[i]) || !isCJK) ? ' ' : '';
+      const candidate = curLine + sep + tokens[i];
+      if (ctx.measureText(candidate).width <= maxWidth) {
+        curLine = candidate;
+      } else {
+        fallbackLines.push(curLine);
+        curLine = tokens[i];
+      }
+    }
+    if (curLine) fallbackLines.push(curLine);
+    return fallbackLines;
   }
 
   /**
@@ -1223,19 +2913,9 @@
   }
 
   function hexToRgba(hex, alpha) {
-    if (!hex || typeof hex !== 'string') return `rgba(29, 185, 84, ${alpha})`;
-    const h = hex.replace('#', '').trim();
-    let r = 0, g = 0, b = 0;
-    if (h.length === 3) {
-      r = parseInt(h[0] + h[0], 16);
-      g = parseInt(h[1] + h[1], 16);
-      b = parseInt(h[2] + h[2], 16);
-    } else if (h.length >= 6) {
-      r = parseInt(h.substring(0, 2), 16);
-      g = parseInt(h.substring(2, 4), 16);
-      b = parseInt(h.substring(4, 6), 16);
-    }
-    return `rgba(${r || 0}, ${g || 0}, ${b || 0}, ${alpha})`;
+    if (!hex) return `rgba(29, 185, 84, ${alpha})`;
+    const rgb = hexToRgbObj(hex);
+    return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
   }
 
   function escapeHTML(str) {
@@ -1246,10 +2926,10 @@
   }
 
   /**
-   * Copies the rendered card directly to clipboard as PNG
+   * Copies the rendered card directly to clipboard as PNG (renders at 2x Retina if export2x enabled)
    */
   function copyCanvasToClipboard() {
-    const canvas = document.getElementById("share-card-canvas");
+    const canvas = getExportCanvas();
     const copyText = document.getElementById("share-copy-text");
     if (!canvas) return;
 
@@ -1279,14 +2959,14 @@
   }
 
   /**
-   * Downloads the rendered card directly as PNG
+   * Downloads the rendered card directly as PNG (renders at 2x Retina 4K if export2x enabled)
    */
   function downloadCanvasAsPng() {
-    const canvas = document.getElementById("share-card-canvas");
+    const canvas = getExportCanvas();
     if (!canvas) return;
 
     const cleanTitle = (shareState.trackTitle || "lyrics").replace(/[^a-zA-Z0-9_\-]/g, "_");
-    const filename = `${cleanTitle}-LyricFlow.png`;
+    const filename = `${cleanTitle}-LyricFlow${shareState.export2x ? '-4K' : ''}.png`;
 
     try {
       const link = document.createElement('a');
@@ -1359,12 +3039,37 @@
     module.exports = {
       wrapText,
       truncateText,
+      hexToRgbObj,
       hexToRgba,
       getCardDimensions,
       getFontStack,
+      getScaleMultiplier,
       formatLyricTimestamp,
       getFormattedLyricsForShare,
-      buildShareTextQuote
+      buildShareTextQuote,
+      drawScrubberBar,
+      drawFilmGrain,
+      drawFloatingMetadataPill,
+      drawLandscapeMetadataCard,
+      drawThemeBackground,
+      renderCardContent,
+      normalizeHarmonicPalette,
+      tokenizeText,
+      SHARE_CARD_PRESETS,
+      applyPreset,
+      shareState,
+      savedCustomConfig,
+      restoreCustomConfigToState,
+      syncSavedCustomConfigFromState,
+      updateDesignSelectorUI,
+      toggleCustomMode,
+      activateCustomMode,
+      toggleCustomDrawerOnly,
+      markCustomModeActive,
+      renderPresetPreviews,
+      analyzeArtworkComposition,
+      drawTimestampBadge,
+      drawWatermarkPill
     };
   }
 

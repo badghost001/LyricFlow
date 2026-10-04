@@ -65,6 +65,31 @@ let isFetchingLyrics = false;
 let autoHideWakeTimer = null;
 let isAutoHaltedTemporarily = false;
 let checkAdaptiveBpm;
+let checkWordByWord;
+let checkNeteaseWordByWord;
+let checkFilterCredits;
+let selectPreferredProvider;
+
+// Typography System - Standardized Safe Font Stacks with Fallbacks
+const FONT_FAMILY_STACKS = {
+  'Outfit': "'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+  'Inter': "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+  'Poppins': "'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+  'Nunito': "'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+  'Raleway': "'Raleway', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+  'Space Grotesk': "'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+  'JetBrains Mono': "'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'Consolas', monospace",
+  'Georgia': "'Georgia', 'Times New Roman', 'Cambria', serif"
+};
+
+function resolveFontStack(fontName) {
+  if (!fontName) return FONT_FAMILY_STACKS['Outfit'];
+  if (FONT_FAMILY_STACKS[fontName]) return FONT_FAMILY_STACKS[fontName];
+  if (fontName.includes(',') || fontName.startsWith("'") || fontName.startsWith('"')) {
+    return fontName;
+  }
+  return fontName.includes(' ') ? `'${fontName}', sans-serif` : `${fontName}, sans-serif`;
+}
 
 // App State
 let config = null;
@@ -121,6 +146,9 @@ let settings = {
   autoHideDelay: 3,
   preferredLyricProvider: 'auto',
   preferredLyricProviders: [],
+  neteaseWordByWord: true,
+  filterSongCredits: true,
+  wordByWord: true,
   dynamicIslandMode: false,
   dynamicIslandPosition: 'top-center',
   islandVisualizerBars: 4,
@@ -129,6 +157,10 @@ let settings = {
   islandWheelGestures: true,
   islandTranslationMode: 'bilingual',
   islandInactivityTimeout: 30000,
+  islandMetamorphosis: true,
+  islandDuetSplit: true,
+  islandBeatBloom: true,
+  wallpaperBeatBloom: true,
   progressBarSeek: true,
   progressWheelSeek: true
 };
@@ -193,7 +225,9 @@ let lastSentWallpaperMonitor = null;
 let _lastSyncedTaskbarMode = null;
 let localArtCache = {};
 try {
-  const savedArt = localStorage.getItem('lyricflow_local_art_cache');
+  // Purge deprecated v1 cache which may contain unverified/mismatched artwork
+  localStorage.removeItem('lyricflow_local_art_cache');
+  const savedArt = localStorage.getItem('lyricflow_local_art_cache_v2');
   if (savedArt) localArtCache = JSON.parse(savedArt);
 } catch (e) {}
 
@@ -208,17 +242,61 @@ function saveArtToCache(trackId, url, trackName, artistName) {
   if (url.startsWith('data:')) return;
   try {
     const keys = Object.keys(localArtCache);
-    if (keys.length > 80) {
+    if (keys.length > 120) {
       delete localArtCache[keys[0]];
     }
     if (window.safeStorageSet) {
-      window.safeStorageSet('lyricflow_local_art_cache', JSON.stringify(localArtCache));
+      window.safeStorageSet('lyricflow_local_art_cache_v2', JSON.stringify(localArtCache));
     } else {
-      localStorage.setItem('lyricflow_local_art_cache', JSON.stringify(localArtCache));
+      localStorage.setItem('lyricflow_local_art_cache_v2', JSON.stringify(localArtCache));
     }
   } catch (e) {}
 }
 
+/**
+ * Detects whether a lyric line represents contributor credits, production metadata,
+ * or non-lyric structural information (e.g. Composer, Lyricist, Producer, OP, SP).
+ */
+function isLyricMetadataOrCreditLine(text) {
+  if (!text || typeof text !== 'string') return false;
+  const t = text.trim();
+  if (!t) return false;
+
+  // 1. LRC ID tags
+  if (/^\[(ti|ar|al|by|offset|length|re|ve):/i.test(t)) return true;
+
+  // 2. NetEase instrumental / system notice tags
+  if (t.includes('纯音乐，请欣赏') || t.includes('此歌曲为没有填词的纯音乐')) return true;
+
+  // 3. Multi-character Chinese credit tags followed by colon (: or ： or -)
+  const chineseMultiRegex = /^\s*(作\s*词|作\s*曲|填\s*词|谱\s*曲|制\s*作\s*人|制\s*作|编\s*曲|混\s*音|母\s*带|监\s*制|录\s*音|和\s*声|和\s*音|弦\s*乐|吉\s*他|贝\s*斯|鼓\s*手|打\s*击\s*乐|键\s*盘|钢\s*琴|企\s*划|统\s*筹|文\s*案|发\s*行|出\s*品|版\s*权|鸣\s*谢|提\s*供|词\s*曲|词\s*\/\s*曲|原\s*唱|翻\s*唱|策\s*划|伴\s*奏|音\s*频|后\s*期|剪\s*辑|设\s*计|封\s*面|发\s*行\s*人|录\s*音\s*室|混\s*音\s*室|母\s*带\s*室|录\s*音\s*师|混\s*音\s*师|母\s*带\s*师)\s*[:：\-]/i;
+  if (chineseMultiRegex.test(t)) return true;
+
+  // 4. Single-character Chinese credit tags ("词" or "曲") followed by colon
+  const chineseSingleRegex = /^\s*(词|曲)\s*[:：\-]/;
+  if (chineseSingleRegex.test(t)) return true;
+
+  // 5. English contributor credit phrases
+  const englishPrefixRegex = /^\s*(written\s+by|lyrics?\s+by|composed?\s+by|produced?\s+by|arranged?\s+by|mixed?\s+by|mastered?\s+by|recorded?\s+by|engineered?\s+by|published?\s+by|released?\s+by|remixed?\s+by|performed?\s+by|songwriters?:|lyricists?:|composers?:|producers?:|arrangers?:|audio\s+engineers?:|mixing\s+engineers?:|mastering\s+engineers?:|vocal\s+producers?:)/i;
+  if (englishPrefixRegex.test(t)) return true;
+
+  // 6. English role words followed by colon
+  const englishRoleRegex = /^\s*(producer|producers|composer|composers|lyricist|lyricists|arranger|arrangers|mixer|mastering|engineer|vocals|backing\s+vocals|guitar|guitars|bass|drums|keyboard|keyboards|piano|strings|lyrics|music|op|sp)\s*[:：\-]/i;
+  if (englishRoleRegex.test(t)) return true;
+
+  return false;
+}
+
+function extractLineText(l) {
+  if (!l) return "";
+  if (typeof l === "string") return l.trim();
+  if (typeof l.text === "string" && l.text.trim()) return l.text.trim();
+  if (typeof l.words === "string" && l.words.trim()) return l.words.trim();
+  if (Array.isArray(l.words) && l.words.length > 0) {
+    return l.words.map(w => (typeof w === 'string' ? w : (w.text || w.string || ""))).join(" ").trim();
+  }
+  return "";
+}
 
 function maybeSyncTaskbarLayout(force = false) {
   if (!settings.taskbarMode || !tbLyricLine) return;
@@ -310,6 +388,21 @@ let lastPushedBounds = { x: -1, y: -1, width: -1, height: -1 };
 
 function pushDynamicIslandBounds() {
   if (!isDynamicIslandMode) return;
+  if (isIslandSleeping && document.body.classList.contains("island-sleeping")) {
+    const zeroBounds = { x: 0, y: 0, width: 0, height: 0 };
+    if (
+      lastPushedBounds.x !== 0 ||
+      lastPushedBounds.y !== 0 ||
+      lastPushedBounds.width !== 0 ||
+      lastPushedBounds.height !== 0
+    ) {
+      lastPushedBounds = zeroBounds;
+      if (window.electronAPI && typeof window.electronAPI.updateIslandBounds === 'function') {
+        window.electronAPI.updateIslandBounds(zeroBounds);
+      }
+    }
+    return;
+  }
   const pri = document.getElementById("dynamic-island");
   if (!pri || !window.electronAPI || typeof window.electronAPI.updateIslandBounds !== 'function') return;
 
@@ -328,6 +421,18 @@ function pushDynamicIslandBounds() {
       unionTop = Math.min(unionTop, r2.top);
       unionRight = Math.max(unionRight, r2.right);
       unionBottom = Math.max(unionBottom, r2.bottom);
+    }
+  }
+
+  // Include duet capsule if visible
+  const duet = document.getElementById("island-duet-capsule");
+  if (duet && duet.offsetWidth > 0 && duet.offsetHeight > 0) {
+    const rDuet = duet.getBoundingClientRect();
+    if (rDuet.width > 0 && rDuet.height > 0) {
+      unionLeft = Math.min(unionLeft, rDuet.left);
+      unionTop = Math.min(unionTop, rDuet.top);
+      unionRight = Math.max(unionRight, rDuet.right);
+      unionBottom = Math.max(unionBottom, rDuet.bottom);
     }
   }
 
@@ -467,13 +572,17 @@ function applyDynamicIslandDockClass(dockPos) {
 }
 
 let lastAudioEnergyTimestamp = 0;
+let isVisualizerResting = false;
 
 function checkVisualizerFallback() {
+  if (!isDynamicIslandMode || isIslandSleeping) return;
   const islandWave = document.getElementById("island-wave");
   if (!islandWave) return;
   const isAudioActive = Boolean(isPlaying) || document.body.classList.contains("is-playing");
 
   if (!isAudioActive) {
+    if (isVisualizerResting) return;
+    isVisualizerResting = true;
     if (islandWave.classList.contains("is-fallback")) {
       islandWave.classList.remove("is-fallback");
     }
@@ -488,6 +597,8 @@ function checkVisualizerFallback() {
   // Audio is actively playing; decay bars smoothly toward authentic resting baseline during quiet interludes
   const msSinceEnergy = Date.now() - lastAudioEnergyTimestamp;
   if (msSinceEnergy > 260) {
+    if (isVisualizerResting) return;
+    isVisualizerResting = true;
     const bars = lastSpectrumBars || islandWave.querySelectorAll(".wave-bar");
     const visStyle = settings.islandVisualizerStyle || 'bars';
     bars.forEach(bar => {
@@ -508,29 +619,38 @@ let hasLoggedSpectrumTelemetry = false;
 if (window.electronAPI && typeof window.electronAPI.onAudioSpectrum === 'function') {
   window.electronAPI.onAudioSpectrum((bands) => {
     if (!Array.isArray(bands) || bands.length === 0) return;
-    const islandWave = document.getElementById("island-wave");
-    if (!islandWave) return;
+    // Execution Gating: if neither Dynamic Island nor Wallpaper Beat Bloom is active, skip all DOM processing
+    if (!isDynamicIslandMode && (!settings.wallpaperMode || settings.wallpaperBeatBloom === false)) return;
+
+    const islandWave = isDynamicIslandMode ? document.getElementById("island-wave") : null;
+    if (isDynamicIslandMode && !islandWave) return;
 
     if (!hasLoggedSpectrumTelemetry) {
       hasLoggedSpectrumTelemetry = true;
       console.log('[LF-SPECTRUM] Live WASAPI audio spectrum active. Sample bands:', JSON.stringify(bands.map(b => Number(b.toFixed(3)))));
     }
 
-    if (!lastSpectrumBars || lastSpectrumBars.length !== (settings.islandVisualizerBars || 4)) {
-      lastSpectrumBars = islandWave.querySelectorAll(".wave-bar");
+    let bars = null;
+    if (islandWave) {
+      if (!lastSpectrumBars || lastSpectrumBars.length !== (settings.islandVisualizerBars || 4)) {
+        lastSpectrumBars = islandWave.querySelectorAll(".wave-bar");
+      }
+      bars = lastSpectrumBars;
     }
-    const bars = lastSpectrumBars;
-    if (!bars || bars.length === 0) return;
 
     const isAudioActive = Boolean(isPlaying) || document.body.classList.contains("is-playing");
     if (!isAudioActive) {
-      if (islandWave.classList.contains("is-fallback")) {
-        islandWave.classList.remove("is-fallback");
+      if (islandWave && bars) {
+        if (islandWave.classList.contains("is-fallback")) {
+          islandWave.classList.remove("is-fallback");
+        }
+        const visStyle = settings.islandVisualizerStyle || 'bars';
+        bars.forEach(bar => {
+          bar.style.transform = visStyle === 'dots' ? 'scale(0.8) translateY(0px)' : 'scaleY(0.14)';
+        });
       }
-      const visStyle = settings.islandVisualizerStyle || 'bars';
-      bars.forEach(bar => {
-        bar.style.transform = visStyle === 'dots' ? 'scale(0.8) translateY(0px)' : 'scaleY(0.14)';
-      });
+      if (isDynamicIslandMode) updateIslandEnergyMorph([0, 0, 0, 0]);
+      if (settings.wallpaperMode) updateWallpaperLyricBeatBloom(0);
       return;
     }
 
@@ -538,8 +658,12 @@ if (window.electronAPI && typeof window.electronAPI.onAudioSpectrum === 'functio
     const hasEnergy = bands.some(b => typeof b === 'number' && b > 0.002);
     if (!hasEnergy) {
       checkVisualizerFallback();
+      if (isDynamicIslandMode) updateIslandEnergyMorph([0, 0, 0, 0]);
+      if (settings.wallpaperMode) updateWallpaperLyricBeatBloom(0);
       return;
     }
+
+    isVisualizerResting = false;
 
     lastAudioEnergyTimestamp = Date.now();
     if (islandWave.classList.contains("is-fallback")) {
@@ -578,6 +702,11 @@ if (window.electronAPI && typeof window.electronAPI.onAudioSpectrum === 'functio
       // Perceptual dynamic expansion: power 0.72 brings out quiet vocal/hi-hat details
       raw = Math.min(1.0, Math.pow(Math.max(0, raw), 0.72));
 
+      // Clean noise gate: sub-0.015 energy gently rolls off to zero to eliminate idle micro-twitch
+      if (raw < 0.015) {
+        raw = raw * (raw / 0.015);
+      }
+
       if (visStyle === 'dots') {
         const dotScale = (0.75 + raw * 0.95).toFixed(2);
         const dotY = (-raw * 5.0).toFixed(1);
@@ -587,6 +716,13 @@ if (window.electronAPI && typeof window.electronAPI.onAudioSpectrum === 'functio
         bars[i].style.transform = `scaleY(${clamped.toFixed(3)})`;
       }
     }
+
+    // Dynamic Island Metamorphosis Energy Morphing
+    updateIslandEnergyMorph(bands);
+
+    // Apple-Style Wallpaper Lyric Beat Bloom
+    const subBass = Math.max((bands && bands[0]) || 0, (bands && bands[1]) || 0);
+    updateWallpaperLyricBeatBloom(subBass);
   });
 }
 
@@ -598,8 +734,9 @@ function updateMarqueeOverflow(container, textElement, speedPxPerSec = 28) {
     const dur = Math.max(4.0, (diff / speedPxPerSec) + 3.0);
     textElement.style.setProperty('--marquee-dist', `-${diff + 8}px`);
     textElement.style.setProperty('--marquee-dur', `${dur.toFixed(1)}s`);
-    void textElement.offsetWidth; // Force reflow so marquee animation resets cleanly
-    textElement.classList.add('is-overflowing');
+    requestAnimationFrame(() => {
+      textElement.classList.add('is-overflowing');
+    });
   } else {
     textElement.style.removeProperty('--marquee-dist');
     textElement.style.removeProperty('--marquee-dur');
@@ -664,15 +801,7 @@ function syncDynamicIslandState() {
 
   // Dismiss satellite translation island immediately when music stops/pauses
   if (!isPlayingActive) {
-    const satIsland = document.getElementById("dynamic-island-translation");
-    const satBridge = document.getElementById("island-bridge");
-    if (satIsland && satIsland.style.display !== 'none') {
-      lastSatelliteActiveState = false;
-      document.body.classList.remove('has-satellite-active');
-      satIsland.style.display = 'none';
-      if (satBridge) satBridge.style.display = 'none';
-      pushDynamicIslandBounds();
-    }
+    hideSatelliteIsland(false);
   }
 
   if (!isScrubbingIslandProgress) {
@@ -683,13 +812,15 @@ function syncDynamicIslandState() {
     if (trackDuration > 0) {
       const curMs = Math.max(0, Math.min(trackDuration, currentProgress || 0));
       const pct = Math.min(100, Math.max(0, (curMs / trackDuration) * 100));
-      if (fill) fill.style.width = `${pct}%`;
-      if (thumb) thumb.style.left = `${pct}%`;
+      if (fill && fill.style.width !== `${pct}%`) fill.style.width = `${pct}%`;
+      if (thumb && thumb.style.left !== `${pct}%`) thumb.style.left = `${pct}%`;
       if (timeCurrent && typeof formatTime === 'function') {
-        timeCurrent.textContent = formatTime(curMs);
+        const text = formatTime(curMs);
+        if (timeCurrent.textContent !== text) timeCurrent.textContent = text;
       }
       if (timeRemaining && typeof formatTime === 'function') {
-        timeRemaining.textContent = '-' + formatTime(Math.max(0, trackDuration - curMs));
+        const text = '-' + formatTime(Math.max(0, trackDuration - curMs));
+        if (timeRemaining.textContent !== text) timeRemaining.textContent = text;
       }
     }
   }
@@ -708,6 +839,7 @@ function syncDynamicIslandState() {
 let currentIslandOffset = 0;
 let lastIslandActiveWordSpan = null;
 let islandNowPlayingBufferUntil = 0;
+let lastIslandPanTime = 0;
 
 function getDynamicIslandSyncData(syncProgress) {
   // 1. Now Playing 3-second intro buffer on song start / track change
@@ -754,7 +886,7 @@ function getDynamicIslandSyncData(syncProgress) {
       const lwStart = (lastW.start != null ? lastW.start * 1000 : lastW.timeMs) || start;
       const lwEnd = (lastW.end != null && lastW.end > 0)
         ? (lastW.end * 1000)
-        : (lastW.duration ? lwStart + lastW.duration : (lwStart + 450));
+        : (lastW.durationMs ? lwStart + lastW.durationMs : (lastW.duration ? lwStart + lastW.duration : (lwStart + 450)));
       end = Math.max(lwEnd, lwStart + 450);
     } else if (line.end != null && line.end > 0) {
       end = line.end * 1000;
@@ -776,13 +908,44 @@ function getDynamicIslandSyncData(syncProgress) {
   }
 
   // 3. Find matching line index with frame-accurate real-time synchrony (0ms offset)
+  // O(1) Fast-Path forward check, binary search O(log N) on seeks (Zero allocation churn)
+  function getLineStart(line) {
+    if (!line) return 0;
+    return (line.timeMs != null && !isNaN(line.timeMs))
+      ? line.timeMs
+      : ((line.start != null) ? line.start * 1000 : 0);
+  }
+
   let idx = 0;
-  for (let i = 0; i < lyrics.length; i++) {
-    const timing = getLineTiming(lyrics[i], lyrics[i + 1]);
-    if (syncProgress >= timing.start) {
-      idx = i;
-    } else {
-      break;
+  const lastIdx = (lastIslandSyncData && typeof lastIslandSyncData.lineIndex === 'number') ? lastIslandSyncData.lineIndex : -1;
+  let found = false;
+
+  if (lastIdx >= 0 && lastIdx < lyrics.length) {
+    const s0 = getLineStart(lyrics[lastIdx]);
+    const sNext = lyrics[lastIdx + 1] ? getLineStart(lyrics[lastIdx + 1]) : Infinity;
+    if (syncProgress >= s0 && syncProgress < sNext) {
+      idx = lastIdx;
+      found = true;
+    } else if (lyrics[lastIdx + 1] && syncProgress >= sNext) {
+      const sNext2 = lyrics[lastIdx + 2] ? getLineStart(lyrics[lastIdx + 2]) : Infinity;
+      if (syncProgress < sNext2) {
+        idx = lastIdx + 1;
+        found = true;
+      }
+    }
+  }
+
+  if (!found) {
+    let low = 0;
+    let high = lyrics.length - 1;
+    while (low <= high) {
+      const mid = (low + high) >> 1;
+      if (getLineStart(lyrics[mid]) <= syncProgress) {
+        idx = mid;
+        low = mid + 1;
+      } else {
+        high = mid - 1;
+      }
     }
   }
 
@@ -820,14 +983,556 @@ function getDynamicIslandSyncData(syncProgress) {
 let lastPlaybackActivityMs = Date.now();
 let isIslandSleeping = false;
 let lastSatelliteActiveState = false;
+let satelliteFuseTimeoutId = null;
+let lastDuetActiveState = false;
+let duetFuseTimeoutId = null;
+let lastIslandSyncData = null;
+let rollingAudioEnergy = 0.15;
+let currentMorphTier = 'groove';
+let lastMorphTierTime = Date.now();
+
+// Metamorphosis: Duet & Backing Vocal Split Parser
+function parseDuetVocalSplit(text) {
+  if (!text || typeof text !== 'string') return null;
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+
+  // 1. Parenthetical backing vocals: "Lead phrase (Backing response)" or "[Backing response]"
+  // Handles trailing punctuation (.?!,:;), multiple parentheticals, etc.
+  const parenEndMatch = trimmed.match(/^(.*?)\s*([\(\[][^\(\[\]\)]+[\)\]](?:\s*[\(\[][^\(\[\]\)]+[\)\]])*)[\s.?!,:;"'”’]*$/);
+  if (parenEndMatch && parenEndMatch[1].trim()) {
+    const lead = parenEndMatch[1].trim();
+    const rawDuet = parenEndMatch[2].trim();
+    const duet = rawDuet.replace(/^[\(\[]/, '').replace(/[\)\]]$/, '').replace(/[\)\]]\s*[\(\[]/g, ' ');
+    const duetLower = duet.toLowerCase();
+
+    // Filter out metadata and structural tags
+    const isMeta = duetLower.startsWith('feat') || duetLower.startsWith('ft.') ||
+                   duetLower === 'instrumental' || duetLower === 'solo' ||
+                   duetLower === 'intro' || duetLower === 'outro' ||
+                   duetLower === 'chorus' || duetLower === 'verse' ||
+                   duetLower === 'bridge';
+
+    if (!isMeta && lead.length >= 2 && duet.length >= 2) {
+      return { leadText: lead, duetText: duet, type: 'parenthetical' };
+    }
+  }
+
+  // 2. Parenthetical at start: "(Backing response) Lead phrase"
+  const parenStartMatch = trimmed.match(/^[\(\[]([^\(\[\]\)]+)[\)\]]\s*(.+)$/);
+  if (parenStartMatch) {
+    const duet = parenStartMatch[1].trim();
+    const lead = parenStartMatch[2].trim();
+    const duetLower = duet.toLowerCase();
+
+    const isMeta = duetLower.startsWith('feat') || duetLower.startsWith('ft.') ||
+                   duetLower === 'instrumental' || duetLower === 'solo' ||
+                   duetLower === 'intro' || duetLower === 'outro' ||
+                   duetLower === 'chorus' || duetLower === 'verse' ||
+                   duetLower === 'bridge';
+
+    if (!isMeta && lead.length >= 2 && duet.length >= 2) {
+      return { leadText: lead, duetText: duet, type: 'parenthetical' };
+    }
+  }
+
+  // 3. Attributed / colon split: "Artist 1: Line 1 / Artist 2: Line 2"
+  if (trimmed.includes(':') && (trimmed.includes('/') || trimmed.includes('&') || trimmed.includes('|'))) {
+    const parts = trimmed.split(/[\/&|]/);
+    if (parts.length >= 2) {
+      const lead = parts[0].replace(/^[^:]+:\s*/, '').trim();
+      const duet = parts[1].replace(/^[^:]+:\s*/, '').trim();
+      if (lead.length >= 2 && duet.length >= 2) {
+        return { leadText: lead, duetText: duet, type: 'attributed' };
+      }
+    }
+  }
+
+  return null;
+}
+
+function getLeadWordsForDuet(words, duetSplit) {
+  if (!words || words.length === 0 || !duetSplit) return words;
+  if (duetSplit.type === 'parenthetical') {
+    const firstWordText = (words[0].text || words[0].word || '').trim();
+    if (!firstWordText.startsWith('(') && !firstWordText.startsWith('[')) {
+      const leadWords = [];
+      for (let i = 0; i < words.length; i++) {
+        const wt = (words[i].text || words[i].word || '').trim();
+        if (wt.startsWith('(') || wt.startsWith('[')) {
+          break;
+        }
+        leadWords.push(words[i]);
+      }
+      return leadWords.length > 0 ? leadWords : words;
+    } else {
+      let pastParen = false;
+      const leadWords = [];
+      for (let i = 0; i < words.length; i++) {
+        const wt = (words[i].text || words[i].word || '').trim();
+        if (pastParen) {
+          leadWords.push(words[i]);
+        } else if (wt.includes(')') || wt.includes(']')) {
+          pastParen = true;
+        }
+      }
+      return leadWords.length > 0 ? leadWords : words;
+    }
+  }
+  return words;
+}
+
+function showSatelliteIsland() {
+  const satIsland = document.getElementById("dynamic-island-translation");
+  const satBridge = document.getElementById("island-bridge");
+  const primaryIsland = document.getElementById("dynamic-island");
+  if (!satIsland) return;
+
+  if (satelliteFuseTimeoutId) {
+    clearTimeout(satelliteFuseTimeoutId);
+    satelliteFuseTimeoutId = null;
+  }
+
+  satIsland.classList.remove('satellite-fusing');
+  if (satBridge) satBridge.classList.remove('bridge-fusing');
+
+  if (!lastSatelliteActiveState) {
+    lastSatelliteActiveState = true;
+    document.body.classList.add('has-satellite-active');
+    satIsland.style.display = 'flex';
+    if (satBridge) {
+      satBridge.style.display = 'block';
+    }
+    // Trigger organic cell-mitosis pinch animation on mother cell cleanly via rAF (zero layout thrashing)
+    if (primaryIsland) {
+      primaryIsland.classList.remove('island-cell-absorbing');
+      primaryIsland.classList.remove('island-cell-pinching');
+      requestAnimationFrame(() => {
+        primaryIsland.classList.add('island-cell-pinching');
+        setTimeout(() => {
+          primaryIsland.classList.remove('island-cell-pinching');
+        }, 400);
+      });
+    }
+    pushDynamicIslandBounds();
+    startDynamicIslandBoundsTracking(480);
+  }
+}
+
+function hideSatelliteIsland(fuse = true) {
+  const satIsland = document.getElementById("dynamic-island-translation");
+  const satBridge = document.getElementById("island-bridge");
+  const primaryIsland = document.getElementById("dynamic-island");
+  if (!satIsland) return;
+
+  if (fuse && satelliteFuseTimeoutId) {
+    return; // Already actively fusing out; do not clear or restart timer!
+  }
+
+  if (satelliteFuseTimeoutId) {
+    clearTimeout(satelliteFuseTimeoutId);
+    satelliteFuseTimeoutId = null;
+  }
+
+  if (!lastSatelliteActiveState && !satelliteFuseTimeoutId) {
+    if (satIsland.style.display !== 'none') satIsland.style.display = 'none';
+    if (satBridge && satBridge.style.display !== 'none') satBridge.style.display = 'none';
+    return;
+  }
+
+  if (fuse && lastSatelliteActiveState) {
+    lastSatelliteActiveState = false;
+    satIsland.classList.add('satellite-fusing');
+    if (satBridge) satBridge.classList.add('bridge-fusing');
+    // Trigger organic cell-absorption reaction on mother cell cleanly via rAF (zero layout thrashing)
+    if (primaryIsland) {
+      primaryIsland.classList.remove('island-cell-pinching');
+      primaryIsland.classList.remove('island-cell-absorbing');
+      requestAnimationFrame(() => {
+        primaryIsland.classList.add('island-cell-absorbing');
+        setTimeout(() => {
+          primaryIsland.classList.remove('island-cell-absorbing');
+        }, 260);
+      });
+    }
+    startDynamicIslandBoundsTracking(320);
+    satelliteFuseTimeoutId = setTimeout(() => {
+      satelliteFuseTimeoutId = null;
+      document.body.classList.remove('has-satellite-active');
+      satIsland.classList.remove('satellite-fusing');
+      satIsland.style.display = 'none';
+      if (satBridge) {
+        satBridge.classList.remove('bridge-fusing');
+        satBridge.style.display = 'none';
+      }
+      lastSatelliteActiveState = false;
+      pushDynamicIslandBounds();
+    }, 240);
+  } else {
+    lastSatelliteActiveState = false;
+    document.body.classList.remove('has-satellite-active');
+    satIsland.classList.remove('satellite-fusing');
+    satIsland.style.display = 'none';
+    if (satBridge) {
+      satBridge.classList.remove('bridge-fusing');
+      satBridge.style.display = 'none';
+    }
+    if (primaryIsland) {
+      primaryIsland.classList.remove('island-cell-pinching', 'island-cell-absorbing');
+    }
+    pushDynamicIslandBounds();
+  }
+}
+
+let duetTextAnimTimeout = null;
+let duetTextCleanupTimeout = null;
+function animateDuetTextChange(duetTextEl, duetMarqueeWrapper, newText) {
+  if (!duetTextEl) return;
+  if (duetTextEl.dataset.targetText === newText) return;
+  duetTextEl.dataset.targetText = newText;
+
+  if (!duetTextEl.textContent || duetTextEl.textContent === '•••' || duetTextEl.textContent === '♪ ♪ ♪') {
+    if (duetTextAnimTimeout) { clearTimeout(duetTextAnimTimeout); duetTextAnimTimeout = null; }
+    if (duetTextCleanupTimeout) { clearTimeout(duetTextCleanupTimeout); duetTextCleanupTimeout = null; }
+    duetTextEl.classList.remove("duet-text-swapping", "duet-text-entering");
+    duetTextEl.textContent = newText;
+    if (duetMarqueeWrapper) updateMarqueeOverflow(duetMarqueeWrapper, duetTextEl);
+    return;
+  }
+  if (duetTextAnimTimeout) clearTimeout(duetTextAnimTimeout);
+  if (duetTextCleanupTimeout) clearTimeout(duetTextCleanupTimeout);
+
+  duetTextEl.classList.remove("duet-text-entering");
+  duetTextEl.classList.add("duet-text-swapping");
+
+  duetTextAnimTimeout = setTimeout(() => {
+    duetTextAnimTimeout = null;
+    duetTextEl.textContent = newText;
+    duetTextEl.classList.remove("duet-text-swapping");
+    duetTextEl.classList.add("duet-text-entering");
+    if (duetMarqueeWrapper) {
+      updateMarqueeOverflow(duetMarqueeWrapper, duetTextEl);
+    }
+    duetTextCleanupTimeout = setTimeout(() => {
+      duetTextCleanupTimeout = null;
+      duetTextEl.classList.remove("duet-text-entering");
+    }, 240);
+  }, 120);
+}
+
+function showDuetCapsule(duetText) {
+  const duetCap = document.getElementById("island-duet-capsule");
+  const duetBridge = document.getElementById("island-duet-bridge");
+  const duetTextEl = document.getElementById("island-duet-text");
+  const duetMarquee = document.getElementById("island-duet-marquee-wrapper");
+  const primaryIsland = document.getElementById("dynamic-island");
+  if (!duetCap) return;
+
+  if (duetFuseTimeoutId) {
+    clearTimeout(duetFuseTimeoutId);
+    duetFuseTimeoutId = null;
+  }
+
+  duetCap.classList.remove('duet-fusing');
+  const wasActive = lastDuetActiveState;
+  if (!wasActive) {
+    lastDuetActiveState = true;
+    document.body.classList.add('has-duet-active');
+    duetCap.style.display = 'flex';
+    if (duetBridge) {
+      duetBridge.classList.remove('bridge-fusing');
+      duetBridge.style.display = 'block';
+    }
+    // Trigger organic cell-mitosis pinch animation on mother cell cleanly via rAF (zero layout thrashing)
+    if (primaryIsland) {
+      primaryIsland.classList.remove('island-cell-absorbing');
+      primaryIsland.classList.remove('island-cell-pinching');
+      requestAnimationFrame(() => {
+        primaryIsland.classList.add('island-cell-pinching');
+        setTimeout(() => {
+          primaryIsland.classList.remove('island-cell-pinching');
+        }, 400);
+      });
+    }
+
+    // On initial cell emergence / split, render text immediately so cell is never empty while budding
+    if (duetTextEl) {
+      if (duetTextAnimTimeout) { clearTimeout(duetTextAnimTimeout); duetTextAnimTimeout = null; }
+      if (duetTextCleanupTimeout) { clearTimeout(duetTextCleanupTimeout); duetTextCleanupTimeout = null; }
+      duetTextEl.classList.remove("duet-text-swapping", "duet-text-entering");
+      duetTextEl.dataset.targetText = duetText;
+      duetTextEl.textContent = duetText;
+      if (duetMarquee) updateMarqueeOverflow(duetMarquee, duetTextEl);
+    }
+
+    pushDynamicIslandBounds();
+    startDynamicIslandBoundsTracking(480);
+    return;
+  }
+
+  // Already active: check if text actually changed before animating
+  if (duetTextEl && duetTextEl.dataset.targetText !== duetText && duetTextEl.textContent !== duetText) {
+    animateDuetTextChange(duetTextEl, duetMarquee, duetText);
+  }
+}
+
+function hideDuetCapsule(fuse = true) {
+  const duetCap = document.getElementById("island-duet-capsule");
+  const duetBridge = document.getElementById("island-duet-bridge");
+  const duetTextEl = document.getElementById("island-duet-text");
+  const primaryIsland = document.getElementById("dynamic-island");
+  if (!duetCap) return;
+
+  if (fuse && duetFuseTimeoutId) {
+    return; // Already actively fusing out; do not clear or restart timer!
+  }
+
+  if (duetFuseTimeoutId) {
+    clearTimeout(duetFuseTimeoutId);
+    duetFuseTimeoutId = null;
+  }
+  if (duetTextAnimTimeout) {
+    clearTimeout(duetTextAnimTimeout);
+    duetTextAnimTimeout = null;
+  }
+  if (duetTextCleanupTimeout) {
+    clearTimeout(duetTextCleanupTimeout);
+    duetTextCleanupTimeout = null;
+  }
+
+  if (!lastDuetActiveState && !duetFuseTimeoutId) {
+    if (duetCap.style.display !== 'none') duetCap.style.display = 'none';
+    if (duetBridge && duetBridge.style.display !== 'none') duetBridge.style.display = 'none';
+    return;
+  }
+
+  if (duetTextEl) {
+    duetTextEl.dataset.targetText = "";
+    duetTextEl.classList.remove("duet-text-swapping", "duet-text-entering", "is-overflowing");
+  }
+
+  if (fuse && lastDuetActiveState) {
+    lastDuetActiveState = false;
+    duetCap.classList.add('duet-fusing');
+    if (duetBridge) duetBridge.classList.add('bridge-fusing');
+    // Trigger organic cell-absorption reaction on mother cell cleanly via rAF (zero layout thrashing)
+    if (primaryIsland) {
+      primaryIsland.classList.remove('island-cell-pinching');
+      primaryIsland.classList.remove('island-cell-absorbing');
+      requestAnimationFrame(() => {
+        primaryIsland.classList.add('island-cell-absorbing');
+        setTimeout(() => {
+          primaryIsland.classList.remove('island-cell-absorbing');
+        }, 260);
+      });
+    }
+    startDynamicIslandBoundsTracking(320);
+    duetFuseTimeoutId = setTimeout(() => {
+      duetFuseTimeoutId = null;
+      document.body.classList.remove('has-duet-active');
+      duetCap.classList.remove('duet-fusing');
+      duetCap.style.display = 'none';
+      if (duetBridge) {
+        duetBridge.classList.remove('bridge-fusing');
+        duetBridge.style.display = 'none';
+      }
+      if (duetTextEl) {
+        duetTextEl.textContent = "";
+      }
+      lastDuetActiveState = false;
+      pushDynamicIslandBounds();
+    }, 240);
+  } else {
+    lastDuetActiveState = false;
+    document.body.classList.remove('has-duet-active');
+    duetCap.classList.remove('duet-fusing');
+    duetCap.style.display = 'none';
+    if (duetBridge) {
+      duetBridge.classList.remove('bridge-fusing');
+      duetBridge.style.display = 'none';
+    }
+    if (duetTextEl) {
+      duetTextEl.textContent = "";
+    }
+    if (primaryIsland) {
+      primaryIsland.classList.remove('island-cell-pinching', 'island-cell-absorbing');
+    }
+    pushDynamicIslandBounds();
+  }
+}
+
+let lastWallpaperBloomState = false;
+let smoothedWallpaperBloom = 0;
+function getWallpaperLyricsElement() {
+  return document.getElementById('lyrics-container');
+}
+function setStylePropertyIfChanged(element, property, value) {
+  if (element && element.style.getPropertyValue(property) !== value) element.style.setProperty(property, value);
+}
+function updateWallpaperLyricBeatBloom(subBass) {
+  const lyricsEl = getWallpaperLyricsElement();
+  if (!settings.wallpaperMode || settings.wallpaperBeatBloom === false || !isPlaying) {
+    smoothedWallpaperBloom = 0;
+    if (lastWallpaperBloomState) {
+      lastWallpaperBloomState = false;
+      document.body.classList.remove('has-beat-bloom');
+      if (lyricsEl) {
+        lyricsEl.style.removeProperty('--wb-bloom-glow');
+        lyricsEl.style.removeProperty('--wb-bloom-alpha');
+        lyricsEl.style.removeProperty('--wb-beat-scale');
+      }
+    }
+    return;
+  }
+
+  // Audio peak envelope: instantaneous attack on bass kicks, exponential decay (~150ms release)
+  let currentSub = (typeof subBass === 'number' && !isNaN(subBass)) ? Math.max(0, subBass) : 0;
+
+  // Fallback pulse generator: if WASAPI audio loopback is silent/unrouted (>1.2s without audio packet)
+  // synthesize a smooth rhythmic beat pulse in sync with the song playback timeline
+  if (currentSub < 0.05 && isPlaying && (Date.now() - lastAudioEnergyTimestamp > 1200)) {
+    const beatPhase = (currentProgress % 500); // 120 bpm pulse cadence
+    if (beatPhase < 140) {
+      currentSub = 0.55 * (1.0 - (beatPhase / 140));
+    }
+  }
+
+  if (currentSub > smoothedWallpaperBloom) {
+    smoothedWallpaperBloom = currentSub;
+  } else {
+    smoothedWallpaperBloom = smoothedWallpaperBloom * 0.84;
+  }
+
+  const triggerThreshold = 0.20;
+  if (smoothedWallpaperBloom > triggerThreshold) {
+    if (!lastWallpaperBloomState) document.body.classList.add('has-beat-bloom');
+    lastWallpaperBloomState = true;
+    const norm = Math.min(1.0, (smoothedWallpaperBloom - triggerThreshold) / (1.0 - triggerThreshold));
+    const glowRadius = Math.round(norm * 22 + 10); // 10px to 32px
+    const glowAlpha = (0.45 + norm * 0.45).toFixed(2); // 0.45 to 0.90
+    const scaleBump = (1.025 + norm * 0.035).toFixed(3); // 1.025 to 1.060
+
+    if (lyricsEl) {
+      setStylePropertyIfChanged(lyricsEl, '--wb-bloom-glow', `${glowRadius}px`);
+      setStylePropertyIfChanged(lyricsEl, '--wb-bloom-alpha', glowAlpha);
+      setStylePropertyIfChanged(lyricsEl, '--wb-beat-scale', scaleBump);
+    }
+  } else if (lastWallpaperBloomState) {
+    lastWallpaperBloomState = false;
+    document.body.classList.remove('has-beat-bloom');
+    if (lyricsEl) {
+      lyricsEl.style.removeProperty('--wb-bloom-glow');
+      lyricsEl.style.removeProperty('--wb-bloom-alpha');
+      lyricsEl.style.removeProperty('--wb-beat-scale');
+    }
+  }
+}
+
+let smoothedIslandBloom = 0;
+let lastAppliedMorphTier = null;
+function updateIslandEnergyMorph(bands) {
+  if (!isDynamicIslandMode || isIslandSleeping) return;
+
+  const islandEl = document.getElementById("dynamic-island");
+  if (!islandEl) return;
+
+  if (!settings.islandMetamorphosis) {
+    if (lastAppliedMorphTier !== null) {
+      document.body.classList.remove('island-morph-calm', 'island-morph-groove', 'island-morph-climax', 'island-morph-solo');
+      lastAppliedMorphTier = null;
+    }
+    islandEl.style.removeProperty('--island-bloom-radius');
+    islandEl.style.removeProperty('--island-bloom-alpha');
+    islandEl.style.removeProperty('box-shadow');
+    smoothedIslandBloom = 0;
+    return;
+  }
+
+  // Calculate instant RMS energy across bands
+  let sumSq = 0;
+  let count = 0;
+  if (Array.isArray(bands) && bands.length > 0) {
+    for (let i = 0; i < bands.length; i++) {
+      const v = typeof bands[i] === 'number' ? bands[i] : 0;
+      sumSq += v * v;
+      count++;
+    }
+  }
+  const instantRms = count > 0 ? Math.sqrt(sumSq / count) : 0;
+
+  // Exponential moving average smoothing: 88% history, 12% instant
+  rollingAudioEnergy = rollingAudioEnergy * 0.88 + instantRms * 0.12;
+
+  // Sub-bass intensity (first two bands: 30Hz - 250Hz)
+  const subBass = Math.max((bands && bands[0]) || 0, (bands && bands[1]) || 0);
+
+  // Dynamic Beat Bloom: fast peak attack + smooth ~150ms exponential decay (zero getComputedStyle)
+  if (settings.islandBeatBloom) {
+    if (subBass > smoothedIslandBloom) {
+      smoothedIslandBloom = subBass;
+    } else {
+      smoothedIslandBloom = smoothedIslandBloom * 0.86;
+    }
+
+    if (smoothedIslandBloom > 0.60) {
+      const norm = Math.min(1.0, (smoothedIslandBloom - 0.60) / 0.40);
+      const bloomRadius = Math.round(norm * 24 + 10);
+      const bloomAlpha = Math.min(0.75, (0.30 + norm * 0.45)).toFixed(2);
+      setStylePropertyIfChanged(islandEl, '--island-bloom-radius', `${bloomRadius}px`);
+      setStylePropertyIfChanged(islandEl, '--island-bloom-alpha', bloomAlpha);
+    } else {
+      if (islandEl.style.getPropertyValue('--island-bloom-radius')) islandEl.style.removeProperty('--island-bloom-radius');
+      if (islandEl.style.getPropertyValue('--island-bloom-alpha')) islandEl.style.removeProperty('--island-bloom-alpha');
+    }
+  } else {
+    if (islandEl.style.getPropertyValue('--island-bloom-radius')) islandEl.style.removeProperty('--island-bloom-radius');
+    if (islandEl.style.getPropertyValue('--island-bloom-alpha')) islandEl.style.removeProperty('--island-bloom-alpha');
+    smoothedIslandBloom = 0;
+  }
+
+  // Tier classification with 350ms hysteresis
+  const now = Date.now();
+  let targetTier = 'groove';
+
+  const isInstrumental = Boolean(lastIslandSyncData && lastIslandSyncData.isInstrumental);
+
+  if (isInstrumental && rollingAudioEnergy >= 0.15) {
+    targetTier = 'solo';
+  } else if (rollingAudioEnergy >= 0.42 || subBass > 0.82) {
+    targetTier = 'climax';
+  } else if (rollingAudioEnergy < 0.10) {
+    targetTier = 'calm';
+  } else {
+    targetTier = 'groove';
+  }
+
+  // Enforce hysteresis hold time before downgrading tier
+  if (targetTier !== currentMorphTier) {
+    const isUpgrade = (targetTier === 'climax' || targetTier === 'solo');
+    if (isUpgrade || (now - lastMorphTierTime >= 350)) {
+      currentMorphTier = targetTier;
+      lastMorphTierTime = now;
+    }
+  }
+
+  // Update body classes
+  if (lastAppliedMorphTier !== currentMorphTier) {
+    const tierClasses = ['island-morph-calm', 'island-morph-groove', 'island-morph-climax', 'island-morph-solo'];
+    tierClasses.forEach(cls => document.body.classList.toggle(cls, cls === `island-morph-${currentMorphTier}`));
+    lastAppliedMorphTier = currentMorphTier;
+  }
+}
 
 let satelliteTextAnimTimeout = null;
 let satelliteTextCleanupTimeout = null;
 function animateSatelliteTextChange(satText, satMarqueeWrapper, newText) {
   if (!satText) return;
+  if (satText.dataset.targetText === newText) return;
+  satText.dataset.targetText = newText;
+
   if (!satText.textContent || satText.textContent === '•••' || satText.textContent === '♪ ♪ ♪') {
-    if (satelliteTextAnimTimeout) clearTimeout(satelliteTextAnimTimeout);
-    if (satelliteTextCleanupTimeout) clearTimeout(satelliteTextCleanupTimeout);
+    if (satelliteTextAnimTimeout) { clearTimeout(satelliteTextAnimTimeout); satelliteTextAnimTimeout = null; }
+    if (satelliteTextCleanupTimeout) { clearTimeout(satelliteTextCleanupTimeout); satelliteTextCleanupTimeout = null; }
     satText.classList.remove("satellite-text-swapping", "satellite-text-entering");
     satText.textContent = newText;
     if (satMarqueeWrapper) updateMarqueeOverflow(satMarqueeWrapper, satText);
@@ -840,6 +1545,7 @@ function animateSatelliteTextChange(satText, satMarqueeWrapper, newText) {
   satText.classList.add("satellite-text-swapping");
 
   satelliteTextAnimTimeout = setTimeout(() => {
+    satelliteTextAnimTimeout = null;
     satText.textContent = newText;
     satText.classList.remove("satellite-text-swapping");
     satText.classList.add("satellite-text-entering");
@@ -847,13 +1553,13 @@ function animateSatelliteTextChange(satText, satMarqueeWrapper, newText) {
       updateMarqueeOverflow(satMarqueeWrapper, satText);
     }
     satelliteTextCleanupTimeout = setTimeout(() => {
+      satelliteTextCleanupTimeout = null;
       satText.classList.remove("satellite-text-entering");
     }, 240);
   }, 120);
 }
 
 function resetSatelliteIslandState(immediate = true) {
-  lastSatelliteActiveState = false;
   if (satelliteTextAnimTimeout) {
     clearTimeout(satelliteTextAnimTimeout);
     satelliteTextAnimTimeout = null;
@@ -864,20 +1570,23 @@ function resetSatelliteIslandState(immediate = true) {
   }
 
   const satIsland = document.getElementById("dynamic-island-translation");
-  const satBridge = document.getElementById("island-bridge");
   const satText = document.getElementById("island-satellite-text");
 
-  document.body.classList.remove('has-satellite-active');
+  hideSatelliteIsland(false);
   if (satIsland) {
     satIsland.classList.remove('island-vaporizing', 'island-materializing');
-    satIsland.style.display = 'none';
-  }
-  if (satBridge) {
-    satBridge.style.display = 'none';
   }
   if (satText) {
+    satText.dataset.targetText = "";
     satText.textContent = '•••';
     satText.classList.remove('satellite-text-swapping', 'satellite-text-entering', 'is-overflowing');
+  }
+  hideDuetCapsule(false);
+  const duetText = document.getElementById("island-duet-text");
+  if (duetText) {
+    duetText.dataset.targetText = "";
+    duetText.textContent = '';
+    duetText.classList.remove('duet-text-swapping', 'duet-text-entering', 'is-overflowing');
   }
   if (immediate && window.caEmitterLayer && typeof window.caEmitterLayer.clear === 'function') {
     window.caEmitterLayer.clear();
@@ -936,7 +1645,15 @@ function sleepDynamicIsland() {
   if (isIslandSleeping || !isDynamicIslandMode) return;
   isIslandSleeping = true;
   lastSatelliteActiveState = false;
+  hideDuetCapsule(false);
+  document.body.classList.remove('island-morph-calm', 'island-morph-groove', 'island-morph-climax', 'island-morph-solo');
   const pri = document.getElementById("dynamic-island");
+  if (pri) {
+    pri.style.removeProperty('box-shadow');
+    pri.style.removeProperty('--island-bloom-radius');
+    pri.style.removeProperty('--island-bloom-alpha');
+  }
+  smoothedIslandBloom = 0;
   const sat = document.getElementById("dynamic-island-translation");
   const bridge = document.getElementById("island-bridge");
 
@@ -973,11 +1690,14 @@ function sleepDynamicIsland() {
 
 function wakeDynamicIsland() {
   lastPlaybackActivityMs = Date.now();
-  if (!isIslandSleeping) return;
   isIslandSleeping = false;
   lastSatelliteActiveState = false;
   document.body.classList.remove("island-sleeping");
   const pri = document.getElementById("dynamic-island");
+  if (pri) {
+    pri.style.display = '';
+    pri.classList.remove("island-vaporizing");
+  }
   const ambientColor = (typeof getComputedStyle === 'function' && document.documentElement)
     ? (getComputedStyle(document.documentElement).getPropertyValue('--ambient-glow-color').trim() || '#38bdf8')
     : '#38bdf8';
@@ -1023,6 +1743,14 @@ function updateDynamicIslandLyric(targetIndex, lineData, syncProgress, isInstrum
     lastPlaybackActivityMs = Date.now();
   }
 
+  lastIslandSyncData = {
+    lineIndex: targetIndex,
+    lineData: lineData,
+    syncProgress: syncProgress,
+    isInstrumental: Boolean(isInstrumental || targetIndex === -2),
+    countdownMs: countdownMs
+  };
+
   const islandLine = document.getElementById("island-lyric-line");
   const islandSubline = document.getElementById("island-lyric-subline");
   const islandExpLyric = document.getElementById("island-expanded-lyric");
@@ -1048,10 +1776,12 @@ function updateDynamicIslandLyric(targetIndex, lineData, syncProgress, isInstrum
       if (fill) fill.style.width = `${pct}%`;
       if (thumb) thumb.style.left = `${pct}%`;
       if (timeCurrent && typeof formatTime === 'function') {
-        timeCurrent.textContent = formatTime(curMs);
+        const curStr = formatTime(curMs);
+        if (timeCurrent.textContent !== curStr) timeCurrent.textContent = curStr;
       }
       if (timeRemaining && typeof formatTime === 'function') {
-        timeRemaining.textContent = '-' + formatTime(Math.max(0, trackDuration - curMs));
+        const remStr = '-' + formatTime(Math.max(0, trackDuration - curMs));
+        if (timeRemaining.textContent !== remStr) timeRemaining.textContent = remStr;
       }
     }
   }
@@ -1059,11 +1789,20 @@ function updateDynamicIslandLyric(targetIndex, lineData, syncProgress, isInstrum
   const transMode = settings.islandTranslationMode || 'bilingual';
   const isSatelliteEnabled = settings.islandSatelliteEnabled !== false && transMode !== 'none';
 
-  // 1. Check if the song has at least one foreign translated line (different from original)
-  const trackHasTranslation = Boolean(
-    lyrics && lyrics.length > 0 &&
-    lyrics.some(l => l.subText && l.subText.trim().length > 0 && l.subText.trim().toLowerCase() !== (l.text || '').trim().toLowerCase())
-  );
+  // 1. Check if the song has at least one foreign translated line
+  let trackHasTranslation = false;
+  if (lyrics && lyrics.length > 0) {
+    if (lyrics._hasTranslation === true) {
+      trackHasTranslation = true;
+    } else if (lyrics._noTransNeeded) {
+      trackHasTranslation = false;
+    } else {
+      trackHasTranslation = lyrics.some(l => l.subText && l.subText.trim().length > 0 && l.subText.trim().toLowerCase() !== (l.text || '').trim().toLowerCase());
+      if (trackHasTranslation) {
+        lyrics._hasTranslation = true;
+      }
+    }
+  }
 
   // 2. Check if the CURRENT line has a foreign translation (not English/identical)
   const curOrigText = (lineData && lineData.text) ? lineData.text.trim() : '';
@@ -1074,20 +1813,20 @@ function updateDynamicIslandLyric(targetIndex, lineData, syncProgress, isInstrum
     curSubText.toLowerCase() !== curOrigText.toLowerCase()
   );
 
-  // 3. Docking rule: MUST have line translation and music actively playing!
+  // 3. Docking rule: MUST have line translation!
   const shouldSatelliteBeDocked = Boolean(
     isSatelliteEnabled &&
     trackHasTranslation &&
     lineHasTranslation &&
-    !isIslandSleeping &&
-    isPlaying
+    !isIslandSleeping
   );
 
   const subText = lineHasTranslation ? curSubText : '';
   const hasTrans = Boolean(subText && transMode !== 'none');
 
   if (btnTranslate) {
-    btnTranslate.classList.toggle('active', transMode !== 'none');
+    const shouldBeActive = transMode !== 'none';
+    if (btnTranslate.classList.contains('active') !== shouldBeActive) btnTranslate.classList.toggle('active', shouldBeActive);
   }
 
   // Ask user in LyricFlow via discovery prompt if they have not decided yet
@@ -1119,46 +1858,32 @@ function updateDynamicIslandLyric(targetIndex, lineData, syncProgress, isInstrum
       if (lastSatelliteActiveState) {
         dismissSatelliteForUntranslatedTrack();
       } else {
-        document.body.classList.remove('has-satellite-active');
-        satIsland.classList.remove('island-vaporizing', 'island-materializing');
-        satIsland.style.display = 'none';
-        satBridge.style.display = 'none';
+        hideSatelliteIsland(false);
         if (satText) satText.classList.remove('is-overflowing');
       }
     } else if (shouldSatelliteBeDocked) {
-      // Foreign language line: quietly show satellite pill (zero particles mid-song)
-      if (!lastSatelliteActiveState) {
-        lastSatelliteActiveState = true;
-        document.body.classList.add('has-satellite-active');
-        satIsland.style.display = 'flex';
-        satBridge.style.display = 'block';
-        pushDynamicIslandBounds();
-      }
+      // Foreign language line: organic split-cell mitosis emergence
+      showSatelliteIsland();
       if (satLang) {
         const langCode = (settings.translateLang && settings.translateLang !== 'none') ? settings.translateLang : 'en';
         satLang.textContent = langCode.split('-')[0].toUpperCase();
       }
       const displaySub = decodeHtmlEntities(subText);
       if (satText && satText.textContent !== displaySub) {
-        satText.textContent = displaySub;
-        if (satMarqueeWrapper) updateMarqueeOverflow(satMarqueeWrapper, satText);
+        animateSatelliteTextChange(satText, satMarqueeWrapper, displaySub);
       }
     } else {
-      // English line in foreign song, or instrumental break: quietly hide satellite pill (zero particles mid-song)
-      if (lastSatelliteActiveState) {
-        lastSatelliteActiveState = false;
-        document.body.classList.remove('has-satellite-active');
-        satIsland.style.display = 'none';
-        satBridge.style.display = 'none';
-        pushDynamicIslandBounds();
-      }
+      // English line in foreign song, or instrumental break: liquid droplet fuse back into mother cell
+      hideSatelliteIsland(true);
     }
   }
 
   // 2. Idle, Intro, Instrumental Break, Outro, or Now Playing Buffer
   if (!lineData || targetIndex < 0) {
-    if (dynamicIslandEl) dynamicIslandEl.classList.remove('island-mode-stacked');
-    if (islandSubline) islandSubline.style.display = 'none';
+    hideSatelliteIsland(true);
+    hideDuetCapsule(true);
+    if (dynamicIslandEl && dynamicIslandEl.classList.contains('island-mode-stacked')) dynamicIslandEl.classList.remove('island-mode-stacked');
+    if (islandSubline && islandSubline.style.display !== 'none') islandSubline.style.display = 'none';
 
     const isNowPlayingBuffer = targetIndex === -4;
     const isOutro = targetIndex === -3;
@@ -1203,42 +1928,63 @@ function updateDynamicIslandLyric(targetIndex, lineData, syncProgress, isInstrum
       islandLine.dataset.subText = "";
       islandLine.dataset.transMode = transMode;
       islandLine.dataset.satellite = String(shouldSatelliteBeDocked);
+      islandLine.dataset.duet = "false";
       islandLine.innerHTML = idleHtml;
-      islandLine.style.transform = 'translateX(0px)';
+      islandLine.style.transform = 'translate3d(0px, 0, 0)';
       currentIslandOffset = 0;
       lastIslandActiveWordSpan = null;
     }
     if (islandExpLyric) {
-      islandExpLyric.textContent = expText;
+      if (islandExpLyric.textContent !== expText) islandExpLyric.textContent = expText;
     }
     return;
   }
 
+  // Duet / Backing Vocal Split handling
+  const duetSplit = (settings.islandDuetSplit !== false && lineData && lineData.text)
+    ? parseDuetVocalSplit(lineData.text)
+    : null;
+
+  if (duetSplit) {
+    showDuetCapsule(duetSplit.duetText);
+  } else {
+    hideDuetCapsule(true);
+  }
+
   // 3. Update Hero Expanded Stage Lyric
   if (islandExpLyric) {
-    islandExpLyric.textContent = (transMode === 'translated' && subText && !shouldSatelliteBeDocked) ? subText : (lineData.text || '');
+    const expandedText = (transMode === 'translated' && subText && !shouldSatelliteBeDocked)
+      ? subText
+      : (duetSplit ? `${duetSplit.leadText} (${duetSplit.duetText})` : (lineData.text || ''));
+    if (islandExpLyric.textContent !== expandedText) islandExpLyric.textContent = expandedText;
   }
 
   // 5. Compact View Layout per Mode
   const isStackedMode = (!shouldSatelliteBeDocked && transMode === 'stacked' && hasTrans);
   if (dynamicIslandEl) {
-    dynamicIslandEl.classList.toggle('island-mode-stacked', isStackedMode);
+    if (dynamicIslandEl.classList.contains('island-mode-stacked') !== isStackedMode) {
+      dynamicIslandEl.classList.toggle('island-mode-stacked', isStackedMode);
+    }
   }
   if (islandSubline) {
     if (isStackedMode) {
-      islandSubline.textContent = subText;
-      islandSubline.style.display = 'block';
+      if (islandSubline.textContent !== subText) islandSubline.textContent = subText;
+      if (islandSubline.style.display !== 'block') islandSubline.style.display = 'block';
     } else {
-      islandSubline.style.display = 'none';
+      if (islandSubline.style.display !== 'none') islandSubline.style.display = 'none';
     }
   }
 
-  const hasWords = Boolean(lineData.words && lineData.words.length > 0 && transMode !== 'translated');
+  const displayMainText = duetSplit ? duetSplit.leadText : (lineData.text || '');
+  const activeWords = duetSplit ? getLeadWordsForDuet(lineData.words, duetSplit) : lineData.words;
+  const isDuetActive = Boolean(duetSplit);
+  const hasWords = Boolean(activeWords && activeWords.length > 0 && transMode !== 'translated');
   const needsRerender = (
     islandLine.dataset.lineIndex !== String(targetIndex) ||
     islandLine.dataset.subText !== subText ||
     islandLine.dataset.transMode !== transMode ||
-    islandLine.dataset.satellite !== String(shouldSatelliteBeDocked)
+    islandLine.dataset.satellite !== String(shouldSatelliteBeDocked) ||
+    islandLine.dataset.duet !== String(isDuetActive)
   );
 
   // 6. Line or Translation Changed: Re-render DOM
@@ -1248,38 +1994,39 @@ function updateDynamicIslandLyric(targetIndex, lineData, syncProgress, isInstrum
     islandLine.dataset.subText = subText;
     islandLine.dataset.transMode = transMode;
     islandLine.dataset.satellite = String(shouldSatelliteBeDocked);
+    islandLine.dataset.duet = String(isDuetActive);
     lastIslandActiveWordSpan = null;
 
     if (shouldSatelliteBeDocked) {
       // Clean original karaoke line without cut-offs; translation is in satellite capsule
       if (hasWords) {
-        islandLine.innerHTML = lineData.words.map((w, i) => `<span class="lyric-word" data-word-idx="${i}">${escapeHTML(w.text || w.word || '')}</span>`).join(' ');
+        islandLine.innerHTML = timedWordSpansHtml(activeWords, displayMainText);
         islandLine._cachedWordSpans = islandLine.querySelectorAll('.lyric-word');
       } else {
-        islandLine.textContent = lineData.text || '';
+        islandLine.textContent = displayMainText;
         islandLine._cachedWordSpans = null;
       }
     } else if (transMode === 'translated' && subText) {
       // Translated only mode
       islandLine.textContent = subText;
       islandLine._cachedWordSpans = null;
-    } else if (transMode === 'bilingual' && hasTrans) {
-      // Inline Original • Translation fallback
+    } else if (!isSatelliteEnabled && transMode === 'bilingual' && hasTrans) {
+      // Inline Original • Translation fallback (ONLY when satellite is disabled in settings)
       const transHtml = `<span class="island-trans-divider"> • </span><span class="island-trans-inline">${escapeHTML(subText)}</span>`;
       if (hasWords) {
-        islandLine.innerHTML = lineData.words.map((w, i) => `<span class="lyric-word" data-word-idx="${i}">${escapeHTML(w.text || w.word || '')}</span>`).join(' ') + transHtml;
+        islandLine.innerHTML = timedWordSpansHtml(activeWords, displayMainText) + transHtml;
         islandLine._cachedWordSpans = islandLine.querySelectorAll('.lyric-word');
       } else {
-        islandLine.innerHTML = escapeHTML(lineData.text || '') + transHtml;
+        islandLine.innerHTML = escapeHTML(displayMainText) + transHtml;
         islandLine._cachedWordSpans = null;
       }
     } else {
       // Stacked, hover-only, none, or song without translation
       if (hasWords) {
-        islandLine.innerHTML = lineData.words.map((w, i) => `<span class="lyric-word" data-word-idx="${i}">${escapeHTML(w.text || w.word || '')}</span>`).join(' ');
+        islandLine.innerHTML = timedWordSpansHtml(activeWords, displayMainText);
         islandLine._cachedWordSpans = islandLine.querySelectorAll('.lyric-word');
       } else {
-        islandLine.textContent = lineData.text || '';
+        islandLine.textContent = displayMainText;
         islandLine._cachedWordSpans = null;
       }
     }
@@ -1301,7 +2048,7 @@ function updateDynamicIslandLyric(targetIndex, lineData, syncProgress, isInstrum
     islandLine._lastActiveWordIdx = -2;
 
     currentIslandOffset = 0;
-    islandLine.style.transform = 'translateX(0px)';
+    islandLine.style.transform = 'translate3d(0px, 0, 0)';
   }
 
   // 6. Word-by-Word Karaoke State Update
@@ -1309,47 +2056,28 @@ function updateDynamicIslandLyric(targetIndex, lineData, syncProgress, isInstrum
   let activeWordOffset = null;
   if (hasWords && islandLine._cachedWordSpans && islandLine._cachedWordSpans.length > 0) {
     const spans = islandLine._cachedWordSpans;
-    const words = lineData.words;
+    const words = activeWords;
     const wordsCount = words.length;
 
-    const engine = window.LyricsService?.instance?.engine;
-    let engineWordStates = null;
-    if (engine && engine.hasLyrics() && targetIndex >= 0) {
-      engineWordStates = engine.getLineWordStates(targetIndex, syncProgress / 1000);
-    }
-
     let currentActiveIdx = -1;
-    if (engineWordStates && engineWordStates.length === wordsCount) {
-      currentActiveIdx = engineWordStates.indexOf('active');
-    } else {
-      for (let wi = 0; wi < wordsCount; wi++) {
-        const w = words[wi];
-        const wStart = (w.start != null ? w.start * 1000 : w.timeMs) || 0;
-        const nextW = words[wi + 1];
-        const nextWStart = nextW ? ((nextW.start != null ? nextW.start * 1000 : nextW.timeMs) || (wStart + 500)) : Infinity;
-        const wEnd = (w.end != null && w.end > 0)
-          ? (w.end * 1000)
-          : (w.duration ? wStart + w.duration : nextWStart);
+    for (let wi = 0; wi < wordsCount; wi++) {
+      const w = words[wi];
+      const wStart = (w.start != null ? w.start * 1000 : w.timeMs) || 0;
+      const wEnd = getLyricWordEndMs(words, wi, lineData, targetIndex);
 
-        if (syncProgress >= wStart && syncProgress <= wEnd) {
-          currentActiveIdx = wi;
-          break;
-        }
+      if (syncProgress >= wStart && syncProgress < wEnd) {
+        currentActiveIdx = wi;
+        break;
       }
     }
 
-    // Only mutate DOM if the active word index actually changed
+    // Only mutate DOM classes if the active word index actually changed
     if (islandLine._lastActiveWordIdx !== currentActiveIdx) {
       islandLine._lastActiveWordIdx = currentActiveIdx;
       for (let wi = 0; wi < wordsCount; wi++) {
         const span = spans[wi];
         if (!span) continue;
-        if (engineWordStates && engineWordStates[wi]) {
-          const st = engineWordStates[wi];
-          span.className = st === 'completed'
-            ? 'lyric-word lyric-word-completed lyric-word-passed'
-            : (st === 'active' ? 'lyric-word lyric-word-active' : 'lyric-word lyric-word-upcoming');
-        } else if (currentActiveIdx === -1) {
+        if (currentActiveIdx === -1) {
           const w = words[wi];
           const wStart = (w.start != null ? w.start * 1000 : w.timeMs) || 0;
           if (syncProgress < wStart) {
@@ -1364,6 +2092,9 @@ function updateDynamicIslandLyric(targetIndex, lineData, syncProgress, isInstrum
         } else {
           span.className = 'lyric-word lyric-word-upcoming';
         }
+        if (wi !== currentActiveIdx) {
+          span.style.removeProperty('--word-progress');
+        }
       }
     }
 
@@ -1372,6 +2103,14 @@ function updateDynamicIslandLyric(targetIndex, lineData, syncProgress, isInstrum
       lastIslandActiveWordSpan = activeWordSpan;
       if (islandLine._cachedWordOffsets && islandLine._cachedWordOffsets[currentActiveIdx]) {
         activeWordOffset = islandLine._cachedWordOffsets[currentActiveIdx];
+      }
+      const curW = words[currentActiveIdx];
+      if (curW && activeWordSpan) {
+        const curStart = (curW.start != null ? curW.start * 1000 : curW.timeMs) || 0;
+        const curEnd = getLyricWordEndMs(words, currentActiveIdx, lineData, targetIndex);
+        const curDur = Math.max(50, curEnd - curStart);
+        const wordProgress = Math.min(1, Math.max(0, (syncProgress - curStart) / curDur));
+        setLyricWordProgress(activeWordSpan, wordProgress);
       }
     } else if (lastIslandActiveWordSpan) {
       activeWordSpan = lastIslandActiveWordSpan;
@@ -1384,8 +2123,8 @@ function updateDynamicIslandLyric(targetIndex, lineData, syncProgress, isInstrum
   // 7. Smooth Panning Math
   const islandZone = document.getElementById("island-lyric-zone") || islandLine.parentElement;
   if (islandZone) {
-    const zoneWidth = islandZone.clientWidth || 250;
-    const contentWidth = islandLine._cachedScrollWidth || islandLine.scrollWidth || zoneWidth;
+    const zoneWidth = getCachedIslandZoneWidth(islandZone);
+    const contentWidth = islandLine._cachedScrollWidth || zoneWidth;
 
     if (contentWidth > zoneWidth + 4) {
       // 28px clearance buffer ensures trailing characters are completely visible and never shadowed by container edges
@@ -1439,12 +2178,17 @@ function updateDynamicIslandLyric(targetIndex, lineData, syncProgress, isInstrum
         targetOffset = Math.min(0, Math.max(maxScroll, targetOffset));
       }
 
+      const nowMs = performance.now();
+      const dt = lastIslandPanTime > 0 ? Math.min(0.06, Math.max(0.001, (nowMs - lastIslandPanTime) / 1000)) : 0.016;
+      lastIslandPanTime = nowMs;
+
       if (Math.abs(targetOffset - currentIslandOffset) > 140) {
         currentIslandOffset = targetOffset;
       } else {
-        currentIslandOffset += (targetOffset - currentIslandOffset) * 0.20;
+        const factor = 1 - Math.exp(-14 * dt);
+        currentIslandOffset += (targetOffset - currentIslandOffset) * factor;
       }
-      islandLine.style.transform = `translateX(${currentIslandOffset.toFixed(2)}px)`;
+      islandLine.style.transform = `translate3d(${currentIslandOffset.toFixed(2)}px, 0, 0)`;
 
       // Dynamic edge mask:
       // Start (offset >= -4): fade only right edge since start is flush
@@ -1465,7 +2209,8 @@ function updateDynamicIslandLyric(targetIndex, lineData, syncProgress, isInstrum
       }
     } else {
       currentIslandOffset = 0;
-      islandLine.style.transform = 'translateX(0px)';
+      lastIslandPanTime = performance.now();
+      islandLine.style.transform = 'translate3d(0px, 0, 0)';
       if (islandZone._currentMask !== 'none') {
         islandZone.style.maskImage = 'none';
         islandZone.style.webkitMaskImage = 'none';
@@ -1531,76 +2276,222 @@ function cycleIslandTranslationMode() {
   }
 }
 
-async function toggleDynamicIslandMode(forceState) {
-  const targetState = typeof forceState === 'boolean' ? forceState : !isDynamicIslandMode;
-  isDynamicIslandMode = targetState;
-  settings.dynamicIslandMode = isDynamicIslandMode;
-  document.body.classList.toggle('mode-dynamic-island', isDynamicIslandMode);
+let isTransitioningMode = false;
 
-  const checkIsland = document.getElementById("check-dynamic-island");
-  if (checkIsland) checkIsland.checked = isDynamicIslandMode;
-
-  const dockPos = settings.dynamicIslandPosition || 'top-center';
-  applyDynamicIslandDockClass(dockPos);
-
-  if (window.electronAPI && typeof window.electronAPI.setDynamicIslandMode === 'function') {
-    await window.electronAPI.setDynamicIslandMode(isDynamicIslandMode, dockPos);
-  }
+async function transitionToMode(targetMode) {
+  if (isTransitioningMode) return;
+  isTransitioningMode = true;
 
   try {
-    syncDynamicIslandState();
-  } catch (err) {
-    console.warn("[DynamicIsland] Error syncing state:", err);
-  }
+    // 1. Cleanly disengage active conflicting modes first
+    if (settings.wallpaperMode && targetMode !== 'wallpaper') {
+      settings.wallpaperMode = false;
+      if (checkWallpaperMode) checkWallpaperMode.checked = false;
+      if (typeof updateWallpaperLyricBeatBloom === 'function') {
+        updateWallpaperLyricBeatBloom(0);
+      }
+      document.body.classList.remove('wallpaper-mode', 'custom-bg-active', 'has-beat-bloom');
+      if (window.electronAPI && typeof window.electronAPI.setWallpaperMode === 'function') {
+        await window.electronAPI.setWallpaperMode(false);
+      }
+    }
 
-  if (isDynamicIslandMode) {
-    if (fluidMeshGradientInstance) {
-      fluidMeshGradientInstance.stop();
+    if (isDynamicIslandMode && targetMode !== 'island') {
+      isDynamicIslandMode = false;
+      settings.dynamicIslandMode = false;
+      isIslandSleeping = false;
+      document.body.classList.remove('mode-dynamic-island', 'island-sleeping', 'island-ghost-mode');
+      const checkIsland = document.getElementById("check-dynamic-island");
+      if (checkIsland) checkIsland.checked = false;
+      const pri = document.getElementById("dynamic-island");
+      if (pri) {
+        pri.style.display = '';
+        pri.classList.remove('island-vaporizing', 'island-materializing');
+      }
+      lastPushedBounds = { x: -1, y: -1, width: -1, height: -1 };
+      if (window.electronAPI && typeof window.electronAPI.setDynamicIslandMode === 'function') {
+        await window.electronAPI.setDynamicIslandMode(false);
+      }
     }
-    applyIslandVisualizerStyle(settings.islandVisualizerStyle || 'bars');
-    lastPlaybackActivityMs = Date.now();
-    if (isIslandSleeping) {
-      wakeDynamicIsland();
+
+    if (settings.taskbarMode && targetMode !== 'taskbar') {
+      settings.taskbarMode = false;
+      if (checkTaskbarMode) checkTaskbarMode.checked = false;
+      document.body.classList.remove('taskbar-mode');
+      if (window.electronAPI && typeof window.electronAPI.setTaskbarMode === 'function') {
+        await window.electronAPI.setTaskbarMode(false);
+      }
     }
-    setTimeout(() => {
+
+    // 2. Engage target mode cleanly
+    if (targetMode === 'island') {
+      isDynamicIslandMode = true;
+      settings.dynamicIslandMode = true;
+      document.body.classList.add('mode-dynamic-island');
+      cancelAutoHide();
+      if (appContainer) {
+        appContainer.classList.remove('auto-hide-faded', 'auto-hide-collapsed');
+      }
+      document.body.classList.remove('island-sleeping', 'auto-hide-faded', 'auto-hide-collapsed');
+      isIslandSleeping = false;
+      isLyricsAutoHidden = false;
+
+      const pri = document.getElementById("dynamic-island");
+      if (pri) {
+        pri.style.display = '';
+        pri.classList.remove('island-vaporizing', 'island-materializing');
+      }
+      const sat = document.getElementById("dynamic-island-translation");
+      if (sat) {
+        sat.classList.remove('island-vaporizing', 'island-materializing');
+      }
+      const duet = document.getElementById("island-duet-capsule");
+      if (duet) {
+        duet.classList.remove('island-vaporizing', 'island-materializing');
+      }
+
+      const checkIsland = document.getElementById("check-dynamic-island");
+      if (checkIsland) checkIsland.checked = true;
+      const dockPos = settings.dynamicIslandPosition || 'top-center';
+      applyDynamicIslandDockClass(dockPos);
+
+      if (window.electronAPI && typeof window.electronAPI.setDynamicIslandMode === 'function') {
+        await window.electronAPI.setDynamicIslandMode(true, dockPos);
+      }
+      try {
+        syncDynamicIslandState();
+      } catch (err) {
+        console.warn("[DynamicIsland] Error syncing state:", err);
+      }
+      if (fluidMeshGradientInstance) {
+        fluidMeshGradientInstance.stop();
+      }
+      applyIslandVisualizerStyle(settings.islandVisualizerStyle || 'bars');
+      lastPlaybackActivityMs = Date.now();
       pushDynamicIslandBounds();
-      startDynamicIslandBoundsTracking(500);
-    }, 60);
-    try {
-      const syncProgress = currentProgress + (settings.syncOffsetMs || 0);
-      const islandSync = getDynamicIslandSyncData(syncProgress);
-      updateDynamicIslandLyric(islandSync.lineIndex, islandSync.lineData, syncProgress, islandSync.isInstrumental, islandSync.countdownMs);
-    } catch (err) {
-      console.warn("[DynamicIsland] Error updating lyric on toggle:", err);
-    }
-    if (!settings.ghostModeTipShown) {
-      settings.ghostModeTipShown = true;
-      if (typeof saveLocalSettings === 'function') saveLocalSettings();
       setTimeout(() => {
-        if (typeof showToast === 'function') {
-          showToast("Tip: Hover & tap ` (Tilde) or Ctrl+Shift+G to click tabs behind the island", 4500);
-        }
-      }, 1000);
+        pushDynamicIslandBounds();
+        startDynamicIslandBoundsTracking(500);
+      }, 60);
+      try {
+        const syncProgress = currentProgress + (settings.syncOffsetMs || 0);
+        const islandSync = getDynamicIslandSyncData(syncProgress);
+        updateDynamicIslandLyric(islandSync.lineIndex, islandSync.lineData, syncProgress, islandSync.isInstrumental, islandSync.countdownMs);
+      } catch (err) {
+        console.warn("[DynamicIsland] Error updating lyric on toggle:", err);
+      }
+      if (!settings.ghostModeTipShown) {
+        settings.ghostModeTipShown = true;
+        if (typeof saveLocalSettings === 'function') saveLocalSettings();
+        setTimeout(() => {
+          if (typeof showToast === 'function') {
+            showToast("Tip: Hover & tap ` (Tilde) or Ctrl+Shift+G to click tabs behind the island", 4500);
+          }
+        }, 1000);
+      }
+    } else if (targetMode === 'wallpaper') {
+      settings.wallpaperMode = true;
+      if (checkWallpaperMode) checkWallpaperMode.checked = true;
+      applyVisualSettings();
+    } else if (targetMode === 'taskbar') {
+      settings.taskbarMode = true;
+      if (checkTaskbarMode) checkTaskbarMode.checked = true;
+      applyVisualSettings();
+    } else {
+      // Normal overlay mode
+      applyVisualSettings();
+      if (fluidMeshGradientInstance && (settings.bgStyle || 'fluid') === 'fluid') {
+        fluidMeshGradientInstance.start();
+      }
     }
-  } else {
-    lastPushedBounds = { x: -1, y: -1, width: -1, height: -1 };
-    if (fluidMeshGradientInstance && (settings.bgStyle || 'fluid') === 'fluid' && !settings.taskbarMode) {
-      fluidMeshGradientInstance.start();
+
+    saveLocalSettings();
+    updateModeButtonsState();
+  } finally {
+    isTransitioningMode = false;
+  }
+}
+
+async function toggleDynamicIslandMode(forceState) {
+  const targetState = typeof forceState === 'boolean' ? forceState : !isDynamicIslandMode;
+  if (targetState === isDynamicIslandMode) return;
+  await transitionToMode(targetState ? 'island' : 'normal');
+}
+
+async function toggleWallpaperMode(forceState) {
+  const targetState = typeof forceState === 'boolean' ? forceState : !settings.wallpaperMode;
+  if (targetState === settings.wallpaperMode) return;
+  await transitionToMode(targetState ? 'wallpaper' : 'normal');
+}
+
+async function toggleTaskbarMode(forceState) {
+  const targetState = typeof forceState === 'boolean' ? forceState : !settings.taskbarMode;
+  if (targetState === settings.taskbarMode) return;
+  if (targetState && !config && !(typeof isSpotifyConnected === 'function' && isSpotifyConnected()) && !isPlaying && !currentTrackId) {
+    if (typeof showToast === 'function') {
+      showToast("Please play music or connect Spotify to use Taskbar Mode.", 3000, 'warning');
     }
-    isIslandSleeping = false;
-    document.body.classList.remove('island-sleeping');
-    document.body.classList.remove('island-ghost-mode');
-    const pri = document.getElementById("dynamic-island");
-    if (pri) pri.style.display = '';
+    return;
+  }
+  await transitionToMode(targetState ? 'taskbar' : 'normal');
+}
+
+function updateModeButtonsState() {
+  const btnIsland = document.getElementById("btn-dynamic-island");
+  const btnWallpaper = document.getElementById("btn-wallpaper-mode");
+  const btnTaskbar = document.getElementById("btn-taskbar-mode");
+
+  if (btnIsland) {
+    btnIsland.classList.toggle("active", Boolean(isDynamicIslandMode));
+  }
+  if (btnWallpaper) {
+    btnWallpaper.classList.toggle("active", Boolean(settings.wallpaperMode));
+  }
+  if (btnTaskbar) {
+    btnTaskbar.classList.toggle("active", Boolean(settings.taskbarMode));
   }
 }
 
 let isMouseOverDynamicIsland = false;
+let islandMouseLeaveTimer = null;
+
+function handleIslandClusterEnter() {
+  if (islandMouseLeaveTimer) {
+    clearTimeout(islandMouseLeaveTimer);
+    islandMouseLeaveTimer = null;
+  }
+  isMouseOverDynamicIsland = true;
+  wakeDynamicIsland();
+  startDynamicIslandBoundsTracking(450);
+}
+
+function handleIslandClusterLeave() {
+  if (islandMouseLeaveTimer) clearTimeout(islandMouseLeaveTimer);
+  islandMouseLeaveTimer = setTimeout(() => {
+    isMouseOverDynamicIsland = false;
+    startDynamicIslandBoundsTracking(450);
+  }, 120);
+}
+
+let ghostModeAutoRestoreTimer = null;
 
 function toggleIslandGhostMode(enable) {
   const isGhost = Boolean(enable) && isDynamicIslandMode;
   document.body.classList.toggle('island-ghost-mode', isGhost);
-  // Repetitive HUD toast suppressed for clean, distraction-free ghosting
+
+  if (ghostModeAutoRestoreTimer) {
+    clearTimeout(ghostModeAutoRestoreTimer);
+    ghostModeAutoRestoreTimer = null;
+  }
+
+  if (isGhost) {
+    // Web/fallback safety timeout: auto-restore after 6s if not restored by native bridge
+    ghostModeAutoRestoreTimer = setTimeout(() => {
+      if (document.body.classList.contains('island-ghost-mode')) {
+        toggleIslandGhostMode(false);
+      }
+    }, 6000);
+  }
 }
 
 function initDOMElements() {
@@ -1805,10 +2696,43 @@ function initDOMElements() {
   // Click on Album Art to Enlarge Lightbox Modal
   const artContainer = document.querySelector(".widget-art-container");
   if (artContainer) {
-    artContainer.title = "Click to enlarge album artwork";
+    artContainer.title = "Click to enlarge (Right-click to refetch album artwork)";
     artContainer.addEventListener("click", (e) => {
       e.stopPropagation();
       showAlbumArtModal();
+    });
+    artContainer.addEventListener("contextmenu", async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!currentTrack || !currentTrack.name) return;
+      console.log("[Artwork] Manual refetch triggered for", currentTrack.name);
+
+      if (currentTrackId) delete localArtCache[currentTrackId];
+      const artist = currentTrack.artists?.[0]?.name || '';
+      const dualKey = `${artist}:::${currentTrack.name}`.toLowerCase().trim();
+      delete localArtCache[dualKey];
+
+      if (widgetAlbumArt) widgetAlbumArt.style.opacity = '0.5';
+
+      try {
+        const artUrl = await fetchFallbackAlbumArt(currentTrack.name, artist, currentTrack.album?.name || '');
+        if (artUrl) {
+          saveArtToCache(currentTrackId, artUrl, currentTrack.name, artist);
+          if (widgetAlbumArt) {
+            widgetAlbumArt.src = artUrl;
+            widgetAlbumArt.style.display = 'block';
+            widgetAlbumArt.style.opacity = '1';
+          }
+          if (widgetArtFallback) widgetArtFallback.style.display = 'none';
+          setWallpaperAlbumArt(artUrl);
+          updateDynamicArtColor(artUrl);
+          currentStaticAlbumArtUrl = artUrl;
+        } else {
+          if (widgetAlbumArt) widgetAlbumArt.style.opacity = '1';
+        }
+      } catch (err) {
+        if (widgetAlbumArt) widgetAlbumArt.style.opacity = '1';
+      }
     });
   }
 
@@ -1858,6 +2782,10 @@ function initDOMElements() {
   checkAutoLaunch = document.getElementById("check-auto-launch");
   checkShowNextUp = document.getElementById("check-show-next-up");
   checkAdaptiveBpm = document.getElementById("check-adaptive-bpm");
+  checkWordByWord = document.getElementById("check-word-by-word");
+  checkNeteaseWordByWord = document.getElementById("check-netease-word-by-word");
+  checkFilterCredits = document.getElementById("check-filter-credits");
+  selectPreferredProvider = document.getElementById("select-preferred-provider");
   checkShowGenius = document.getElementById("check-show-genius");
   selectGeniusPosition = document.getElementById("select-genius-position");
 
@@ -2245,9 +3173,11 @@ function loadLocalSettings(skipIPC = false) {
     settings.autoHideTaskbarOnPause = false;
   }
 
-  // Force taskbarMode to false on startup so app always opens as a normal window (matches Electron line 240)
+  // Force special modes to false on startup so app always opens as a normal window (matches Electron line 240)
   settings.taskbarMode = false;
   settings.wallpaperMode = false;
+  settings.dynamicIslandMode = false;
+  isDynamicIslandMode = false;
 
   // Load custom GIF into memory if path is saved
   if (settings.customArtGifPath && !settings.customArtGifSrc) {
@@ -2808,6 +3738,18 @@ function applyVisualSettings(fromTray = false, skipIPC = false) {
   if (checkIslandSatInit) {
     checkIslandSatInit.checked = settings.islandSatelliteEnabled !== false;
   }
+  const checkIslandMetaInit = document.getElementById("check-island-metamorphosis");
+  if (checkIslandMetaInit) {
+    checkIslandMetaInit.checked = settings.islandMetamorphosis !== false;
+  }
+  const checkIslandDuetInit = document.getElementById("check-island-duet-split");
+  if (checkIslandDuetInit) {
+    checkIslandDuetInit.checked = settings.islandDuetSplit !== false;
+  }
+  const checkIslandBloomInit = document.getElementById("check-island-beat-bloom");
+  if (checkIslandBloomInit) {
+    checkIslandBloomInit.checked = settings.islandBeatBloom !== false;
+  }
   const selectIslandInactivityInit = document.getElementById("select-island-inactivity-timeout");
   if (selectIslandInactivityInit) {
     selectIslandInactivityInit.value = String(settings.islandInactivityTimeout ?? 30000);
@@ -2883,8 +3825,18 @@ function applyVisualSettings(fromTray = false, skipIPC = false) {
   }
 
   // Font Family
-  document.documentElement.style.setProperty('--font-family', settings.fontFamily);
+  const resolvedFont = resolveFontStack(settings.fontFamily);
+  document.documentElement.style.setProperty('--font-family', resolvedFont);
   if (selectFont) selectFont.value = settings.fontFamily;
+
+  // Invalidate lyric metrics if typography signature changed
+  const currentTypographySig = `${settings.fontFamily}_${settings.fontSize}_${settings.lineSpacing}_${settings.textAlign}`;
+  if (window._lastAppliedTypography && window._lastAppliedTypography !== currentTypographySig) {
+    if (typeof invalidateLyricMetrics === 'function') {
+      invalidateLyricMetrics(true);
+    }
+  }
+  window._lastAppliedTypography = currentTypographySig;
 
   // Line Spacing
   document.documentElement.style.setProperty('--line-spacing', `${settings.lineSpacing}px`);
@@ -2945,6 +3897,9 @@ function applyVisualSettings(fromTray = false, skipIPC = false) {
   if (selectWallpaperStyle) selectWallpaperStyle.value = settings.wallpaperStyle || 'style1';
   const selWpMon = document.getElementById("select-wallpaper-monitor");
   if (selWpMon) selWpMon.value = settings.wallpaperMonitor || '0';
+  const chkWpBeatBloom = document.getElementById("check-wallpaper-beat-bloom");
+  if (chkWpBeatBloom) chkWpBeatBloom.checked = settings.wallpaperBeatBloom !== false;
+  if (checkFilterCredits) checkFilterCredits.checked = settings.filterSongCredits !== false;
 
   // Window Toggles (sync UI states)
 
@@ -3116,6 +4071,7 @@ function applyVisualSettings(fromTray = false, skipIPC = false) {
   attachAnnotationsToRenderedLyrics();
 
   updateAutoHideState();
+  updateModeButtonsState();
 }
 
 function applyGeniusPosition() {
@@ -3693,6 +4649,8 @@ function setupUIHandlers() {
         if (settings.translateLang === 'none') {
           lyrics.forEach(l => { delete l.subText; });
           delete lyrics._transLang;
+          delete lyrics._hasTranslation;
+          delete lyrics._noTransNeeded;
           renderLyrics();
           const islandLine = document.getElementById("island-lyric-line");
           if (islandLine) {
@@ -3763,6 +4721,7 @@ function setupUIHandlers() {
       settings.fontSize = parseInt(e.target.value, 10);
       applyVisualSettings();
       saveLocalSettings();
+      invalidateLyricMetrics(true);
     });
   }
 
@@ -3776,6 +4735,7 @@ function setupUIHandlers() {
       lines.forEach(line => {
         line.style.transformOrigin = `${settings.textAlign} center`;
       });
+      invalidateLyricMetrics(true);
     });
   }
 
@@ -3966,6 +4926,7 @@ function setupUIHandlers() {
       settings.fontFamily = e.target.value;
       applyVisualSettings();
       saveLocalSettings();
+      invalidateLyricMetrics(true);
     });
   }
 
@@ -3976,6 +4937,7 @@ function setupUIHandlers() {
       applyVisualSettings();
       if (valLineSpacing) triggerSliderPulse(valLineSpacing);
       saveLocalSettings();
+      invalidateLyricMetrics(true);
     });
   }
 
@@ -4019,11 +4981,37 @@ function setupUIHandlers() {
     });
   }
 
+  // Double-click HUD header to reset window to standard 780x560
+  if (hudHeader) {
+    hudHeader.addEventListener("dblclick", (e) => {
+      if (e.target.closest("button, input, select, .hud-btn")) return;
+      if (window.electronAPI && typeof window.electronAPI.resetWindowSize === "function") {
+        window.electronAPI.resetWindowSize();
+      }
+    });
+  }
+
   // Dynamic Island HUD button listener
   const btnDynamicIsland = document.getElementById("btn-dynamic-island");
   if (btnDynamicIsland) {
     btnDynamicIsland.addEventListener("click", () => {
       toggleDynamicIslandMode();
+    });
+  }
+
+  // Wallpaper Mode HUD button listener
+  const btnWallpaperMode = document.getElementById("btn-wallpaper-mode");
+  if (btnWallpaperMode) {
+    btnWallpaperMode.addEventListener("click", () => {
+      toggleWallpaperMode();
+    });
+  }
+
+  // Taskbar Mode HUD button listener
+  const btnTaskbarMode = document.getElementById("btn-taskbar-mode");
+  if (btnTaskbarMode) {
+    btnTaskbarMode.addEventListener("click", () => {
+      toggleTaskbarMode();
     });
   }
 
@@ -4077,9 +5065,7 @@ function setupUIHandlers() {
   const dynamicIslandEl = document.getElementById("dynamic-island");
   if (dynamicIslandEl) {
     dynamicIslandEl.addEventListener("mouseenter", () => {
-      isMouseOverDynamicIsland = true;
-      wakeDynamicIsland();
-      startDynamicIslandBoundsTracking(450);
+      handleIslandClusterEnter();
       const titleEl = document.getElementById("island-track-title");
       const artistEl = document.getElementById("island-track-artist");
       if (titleEl) updateMarqueeOverflow(document.getElementById("island-title-wrapper"), titleEl);
@@ -4089,8 +5075,7 @@ function setupUIHandlers() {
       lastPlaybackActivityMs = Date.now();
     });
     dynamicIslandEl.addEventListener("mouseleave", () => {
-      isMouseOverDynamicIsland = false;
-      startDynamicIslandBoundsTracking(450);
+      handleIslandClusterLeave();
     });
     dynamicIslandEl.addEventListener("transitionstart", () => {
       startDynamicIslandBoundsTracking(450);
@@ -4440,8 +5425,19 @@ function toggleAppMute() {
       const checkIsland = document.getElementById("check-dynamic-island");
       if (checkIsland) checkIsland.checked = isDynamicIslandMode;
       if (isDynamicIslandMode) {
+        cancelAutoHide();
+        if (appContainer) appContainer.classList.remove('auto-hide-faded', 'auto-hide-collapsed');
+        document.body.classList.remove('island-sleeping', 'auto-hide-faded', 'auto-hide-collapsed');
+        isIslandSleeping = false;
+        isLyricsAutoHidden = false;
+        const pri = document.getElementById("dynamic-island");
+        if (pri) {
+          pri.style.display = '';
+          pri.classList.remove('island-vaporizing', 'island-materializing');
+        }
         applyDynamicIslandDockClass(settings.dynamicIslandPosition);
         syncDynamicIslandState();
+        pushDynamicIslandBounds();
         setTimeout(() => {
           pushDynamicIslandBounds();
           startDynamicIslandBoundsTracking(500);
@@ -4550,6 +5546,45 @@ function toggleAppMute() {
     });
   }
 
+  const checkIslandMetamorphosis = document.getElementById("check-island-metamorphosis");
+  if (checkIslandMetamorphosis) {
+    checkIslandMetamorphosis.checked = settings.islandMetamorphosis !== false;
+    checkIslandMetamorphosis.addEventListener("change", (e) => {
+      settings.islandMetamorphosis = e.target.checked;
+      saveLocalSettings();
+      if (!settings.islandMetamorphosis) {
+        document.body.classList.remove('island-morph-calm', 'island-morph-groove', 'island-morph-climax', 'island-morph-solo');
+        const pri = document.getElementById("dynamic-island");
+        if (pri) pri.style.removeProperty('box-shadow');
+      }
+    });
+  }
+
+  const checkIslandDuetSplit = document.getElementById("check-island-duet-split");
+  if (checkIslandDuetSplit) {
+    checkIslandDuetSplit.checked = settings.islandDuetSplit !== false;
+    checkIslandDuetSplit.addEventListener("change", (e) => {
+      settings.islandDuetSplit = e.target.checked;
+      saveLocalSettings();
+      if (!settings.islandDuetSplit) {
+        hideDuetCapsule(false);
+      }
+    });
+  }
+
+  const checkIslandBeatBloom = document.getElementById("check-island-beat-bloom");
+  if (checkIslandBeatBloom) {
+    checkIslandBeatBloom.checked = settings.islandBeatBloom !== false;
+    checkIslandBeatBloom.addEventListener("change", (e) => {
+      settings.islandBeatBloom = e.target.checked;
+      saveLocalSettings();
+      if (!settings.islandBeatBloom) {
+        const pri = document.getElementById("dynamic-island");
+        if (pri) pri.style.removeProperty('box-shadow');
+      }
+    });
+  }
+
   const selectIslandInactivityTimeout = document.getElementById("select-island-inactivity-timeout");
   if (selectIslandInactivityTimeout) {
     selectIslandInactivityTimeout.value = String(settings.islandInactivityTimeout ?? 30000);
@@ -4597,9 +5632,7 @@ function toggleAppMute() {
   const dynamicIslandTranslationEl = document.getElementById("dynamic-island-translation");
   if (dynamicIslandTranslationEl) {
     dynamicIslandTranslationEl.addEventListener("mouseenter", () => {
-      isMouseOverDynamicIsland = true;
-      wakeDynamicIsland();
-      startDynamicIslandBoundsTracking(450);
+      handleIslandClusterEnter();
       const satText = document.getElementById("island-satellite-text");
       const satWrap = document.getElementById("island-satellite-marquee-wrapper");
       if (satText && satWrap) updateMarqueeOverflow(satWrap, satText);
@@ -4608,13 +5641,35 @@ function toggleAppMute() {
       lastPlaybackActivityMs = Date.now();
     });
     dynamicIslandTranslationEl.addEventListener("mouseleave", () => {
-      isMouseOverDynamicIsland = false;
-      startDynamicIslandBoundsTracking(450);
+      handleIslandClusterLeave();
     });
     dynamicIslandTranslationEl.addEventListener("transitionstart", () => {
       startDynamicIslandBoundsTracking(450);
     });
     dynamicIslandTranslationEl.addEventListener("transitionend", () => {
+      pushDynamicIslandBounds();
+    });
+  }
+
+  // Duet Backing Vocal Capsule hover & marquee tracking
+  const dynamicIslandDuetEl = document.getElementById("island-duet-capsule");
+  if (dynamicIslandDuetEl) {
+    dynamicIslandDuetEl.addEventListener("mouseenter", () => {
+      handleIslandClusterEnter();
+      const duetText = document.getElementById("island-duet-text");
+      const duetWrap = document.getElementById("island-duet-marquee-wrapper");
+      if (duetText && duetWrap) updateMarqueeOverflow(duetWrap, duetText);
+    });
+    dynamicIslandDuetEl.addEventListener("mousemove", () => {
+      lastPlaybackActivityMs = Date.now();
+    });
+    dynamicIslandDuetEl.addEventListener("mouseleave", () => {
+      handleIslandClusterLeave();
+    });
+    dynamicIslandDuetEl.addEventListener("transitionstart", () => {
+      startDynamicIslandBoundsTracking(450);
+    });
+    dynamicIslandDuetEl.addEventListener("transitionend", () => {
       pushDynamicIslandBounds();
     });
   }
@@ -4645,10 +5700,24 @@ function toggleAppMute() {
       if (settings.wallpaperMode) {
         settings.taskbarMode = false;
         if (checkTaskbarMode) checkTaskbarMode.checked = false;
+      } else {
+        updateWallpaperLyricBeatBloom(0);
       }
       
       applyVisualSettings();
       saveLocalSettings();
+    });
+  }
+
+  const checkWallpaperBeatBloom = document.getElementById("check-wallpaper-beat-bloom");
+  if (checkWallpaperBeatBloom) {
+    checkWallpaperBeatBloom.checked = settings.wallpaperBeatBloom !== false;
+    checkWallpaperBeatBloom.addEventListener("change", (e) => {
+      settings.wallpaperBeatBloom = e.target.checked;
+      saveLocalSettings();
+      if (!settings.wallpaperBeatBloom) {
+        updateWallpaperLyricBeatBloom(0);
+      }
     });
   }
 
@@ -4809,6 +5878,57 @@ function toggleAppMute() {
     });
   }
 
+  // Word-by-Word Karaoke Mode toggle
+  if (checkWordByWord) {
+    checkWordByWord.checked = settings.wordByWord !== false;
+    checkWordByWord.addEventListener('change', (e) => {
+      settings.wordByWord = e.target.checked;
+      saveLocalSettings();
+      if (lyrics && lyrics.length > 0) {
+        renderLyrics();
+      }
+    });
+  }
+
+  // NetEase Word-by-Word (YRC) toggle
+  if (checkNeteaseWordByWord) {
+    checkNeteaseWordByWord.checked = settings.neteaseWordByWord !== false;
+    checkNeteaseWordByWord.addEventListener('change', (e) => {
+      settings.neteaseWordByWord = e.target.checked;
+      saveLocalSettings();
+    });
+  }
+
+  // Filter Song Credits & Metadata toggle
+  if (checkFilterCredits) {
+    checkFilterCredits.checked = settings.filterSongCredits !== false;
+    checkFilterCredits.addEventListener('change', (e) => {
+      settings.filterSongCredits = e.target.checked;
+      saveLocalSettings();
+      if (currentTrackId) {
+        fetchLyrics(currentTrackId, { forceRefresh: true });
+      }
+    });
+  }
+
+  // Preferred Lyrics Provider select
+  if (selectPreferredProvider) {
+    selectPreferredProvider.value = settings.preferredLyricProvider || 'auto';
+    selectPreferredProvider.addEventListener('change', (e) => {
+      settings.preferredLyricProvider = e.target.value;
+      if (settings.preferredLyricProvider === 'netease') {
+        settings.preferredLyricProviders = ['netease', 'lrclib', 'musixmatch'];
+      } else if (settings.preferredLyricProvider === 'lrclib') {
+        settings.preferredLyricProviders = ['lrclib', 'musixmatch', 'netease'];
+      } else if (settings.preferredLyricProvider === 'musixmatch') {
+        settings.preferredLyricProviders = ['musixmatch', 'lrclib', 'netease'];
+      } else {
+        settings.preferredLyricProviders = [];
+      }
+      saveLocalSettings();
+    });
+  }
+
   // Show Genius Facts toggle
   if (checkShowGenius) {
     checkShowGenius.checked = settings.showGeniusFact !== false;
@@ -4887,6 +6007,14 @@ function toggleAppMute() {
       if (geniusModal && geniusModal.classList.contains('show')) {
         hideGeniusModal();
       } else if (isDynamicIslandMode) {
+        if (document.body.classList.contains('island-ghost-mode')) {
+          if (window.electronAPI && typeof window.electronAPI.toggleDynamicIslandGhost === 'function') {
+            window.electronAPI.toggleDynamicIslandGhost();
+          } else {
+            toggleIslandGhostMode(false);
+          }
+          return;
+        }
         toggleDynamicIslandMode(false);
       }
     }
@@ -4896,10 +6024,27 @@ function toggleAppMute() {
       e.preventDefault();
       toggleDynamicIslandMode();
     }
+    // Ctrl+Shift+W to toggle Wallpaper mode
+    if (e.ctrlKey && e.shiftKey && (e.code === 'KeyW' || e.key.toLowerCase() === 'w')) {
+      e.preventDefault();
+      toggleWallpaperMode();
+    }
+    // Ctrl+Shift+B to toggle Taskbar mode
+    if (e.ctrlKey && e.shiftKey && (e.code === 'KeyB' || e.key.toLowerCase() === 'b')) {
+      e.preventDefault();
+      toggleTaskbarMode();
+    }
     // Ctrl+Shift+T to cycle Dynamic Island translation mode
     if (e.ctrlKey && e.shiftKey && (e.code === 'KeyT' || e.key.toLowerCase() === 't')) {
       e.preventDefault();
       cycleIslandTranslationMode();
+    }
+    // Ctrl+Alt+R to reset window size to standard (780x560)
+    if (e.ctrlKey && e.altKey && (e.code === 'KeyR' || e.key.toLowerCase() === 'r')) {
+      e.preventDefault();
+      if (window.electronAPI && typeof window.electronAPI.resetWindowSize === 'function') {
+        window.electronAPI.resetWindowSize();
+      }
     }
   });
 
@@ -5665,6 +6810,25 @@ function toggleAppMute() {
     });
   }
 
+  // Global OS-Level Mode Shortcut Listeners
+  if (window.electronAPI.onToggleDynamicIslandShortcut) {
+    window.electronAPI.onToggleDynamicIslandShortcut(() => {
+      toggleDynamicIslandMode();
+    });
+  }
+
+  if (window.electronAPI.onToggleWallpaperModeShortcut) {
+    window.electronAPI.onToggleWallpaperModeShortcut(() => {
+      toggleWallpaperMode();
+    });
+  }
+
+  if (window.electronAPI.onToggleTaskbarModeShortcut) {
+    window.electronAPI.onToggleTaskbarModeShortcut(() => {
+      toggleTaskbarMode();
+    });
+  }
+
   // Reload / Find Alternative Lyrics listeners
   if (btnReloadLyrics) {
     btnReloadLyrics.addEventListener("click", () => {
@@ -5969,7 +7133,7 @@ let autoHideLyricsTimer = null;
 let isLyricsAutoHidden = false;
 
 function wakeAutoHideTemporarily(durationMs = 3500) {
-  if (!settings.autoHideLyrics || settings.taskbarMode || settings.wallpaperMode) return;
+  if (!settings.autoHideLyrics || settings.taskbarMode || settings.wallpaperMode || isDynamicIslandMode) return;
 
   isAutoHaltedTemporarily = true;
   if (isLyricsAutoHidden) {
@@ -5988,7 +7152,7 @@ function wakeAutoHideTemporarily(durationMs = 3500) {
 }
 
 function checkShouldAutoHide() {
-  if (!settings.autoHideLyrics || settings.taskbarMode || settings.wallpaperMode) return false;
+  if (!settings.autoHideLyrics || settings.taskbarMode || settings.wallpaperMode || isDynamicIslandMode) return false;
   if (settingsPanel && settingsPanel.classList.contains("open")) return false;
   if (searchOverlay && searchOverlay.style.display !== "none") return false;
   if (geniusModal && geniusModal.classList.contains("show")) return false;
@@ -6009,7 +7173,7 @@ function checkShouldAutoHide() {
 }
 
 function updateAutoHideState() {
-  if (!settings.autoHideLyrics || settings.taskbarMode || settings.wallpaperMode) {
+  if (!settings.autoHideLyrics || settings.taskbarMode || settings.wallpaperMode || isDynamicIslandMode) {
     cancelAutoHide();
     return;
   }
@@ -7044,8 +8208,8 @@ async function handlePlaybackData(data) {
             lastPollTimestamp = now;
             currentProgress = progressMs;
           } else if (absDrift > 300) {
-            // Smooth clock slewing: gently adjust the clock reference without backward time jumps
-            const adjustment = drift * 0.12;
+            // Catch up stale playback clocks faster without snapping across small polling drift.
+            const adjustment = drift * 0.35;
             lastPollProgress = currentProgress - adjustment;
             lastPollTimestamp = now;
           } else {
@@ -7254,17 +8418,17 @@ async function handlePlaybackData(data) {
 
     // Trigger slide-in Next Up popup window!
     const popupArtUrl = track.album?.images?.[1]?.url || track.album?.images?.[0]?.url;
-    // Treat data: URLs (low-res SMTC thumbnails ~234px) the same as missing art —
-    // show as placeholder immediately but kick off a proper 600x600 fetch in the background.
-    const artIsLowResDataUrl = albumArtUrl && albumArtUrl.startsWith('data:');
-    if (artIsLowResDataUrl && currentTrackId === track.id) {
+
+    // Authentic player art (including SMTC data: URLs) is authoritative ground truth.
+    if (albumArtUrl && currentTrackId === track.id) {
       widgetAlbumArt.src = albumArtUrl;
       widgetAlbumArt.style.display = 'block';
       widgetArtFallback.style.display = 'none';
     }
-    if ((!albumArtUrl || artIsLowResDataUrl) && (!localArtCache[track.id] || localArtCache[track.id] === 'notfound')) {
+
+    if (!albumArtUrl && (!localArtCache[track.id] || localArtCache[track.id] === 'notfound')) {
       localArtCache[track.id] = 'fetching';
-      fetchFallbackAlbumArt(track.name, track.artists?.[0]?.name || '').then(artUrl => {
+      fetchFallbackAlbumArt(track.name, track.artists?.[0]?.name || '', track.album?.name || '').then(artUrl => {
         if (artUrl) {
           saveArtToCache(track.id, artUrl, track.name, track.artists?.[0]?.name || '');
         } else {
@@ -7538,6 +8702,9 @@ async function triggerAutoTranslation(targetTrackId, linesToTranslate, cacheKey 
         console.log(`[LF-LYRICS] Auto-translation skipped: original track matches target/skip language (${transRes.src})`);
         linesToTranslate._transLang = settings.translateLang;
         linesToTranslate._noTransNeeded = true;
+        if (targetTrackId === currentTrackId) {
+          dismissSatelliteForUntranslatedTrack();
+        }
       }
       return;
     }
@@ -7557,8 +8724,15 @@ async function triggerAutoTranslation(targetTrackId, linesToTranslate, cacheKey 
     }
 
     linesToTranslate._transLang = settings.translateLang;
-    if (!hasNewTrans) {
+    if (hasNewTrans) {
+      linesToTranslate._hasTranslation = true;
+      delete linesToTranslate._noTransNeeded;
+    } else {
       linesToTranslate._noTransNeeded = true;
+      linesToTranslate._hasTranslation = false;
+      if (targetTrackId === currentTrackId) {
+        dismissSatelliteForUntranslatedTrack();
+      }
     }
 
     // Persist updated lyrics with subText back into cache
@@ -7662,8 +8836,14 @@ async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = nu
           const currentSig = cachedData.lyrics.slice(0, 4).map(l => (l.text || "").trim().toLowerCase()).join("|");
           if (currentSig) rejectedLyricsSignatures[trackId].add(currentSig);
         } else if (trackId === currentTrackId && cachedData.lyrics?.length > 0) {
-          lyrics = cachedData.lyrics;
+          let loadedLyrics = cachedData.lyrics;
+          if (settings.filterSongCredits !== false) {
+            loadedLyrics = loadedLyrics.filter(l => !isLyricMetadataOrCreditLine(extractLineText(l)));
+          }
+          lyrics = loadedLyrics;
           lyrics._transLang = cachedData.transLang;
+          lyrics._hasTranslation = loadedLyrics.some(l => l.subText && l.subText.trim().length > 0 && l.subText.trim().toLowerCase() !== (l.text || '').trim().toLowerCase());
+          if (cachedData.noTransNeeded) lyrics._noTransNeeded = true;
           isFetchingLyrics = false;
           updateTimingStatus(cachedData.level || 2, cachedData.source || "", cachedData.candidateInfo || "");
           renderLyrics();
@@ -7729,12 +8909,13 @@ async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = nu
 
     const applyLyricsData = async (parsedLines, sourceLevel, sourceName = "", candidateInfo = "", normalizedLyricsObj = null) => {
       console.log(`[LF-LYRICS] applyLyricsData called: sourceLevel=${sourceLevel}, sourceName=${sourceName}, parsedLines.length=${parsedLines.length}, trackId=${trackId}, currentTrackId=${currentTrackId}`);
-      // Strip structural tags that often have bad timestamps (e.g., "[Outro]", "Intro", "Chorus")
+      // Strip structural tags and credit metadata (e.g., "[Outro]", "Intro", "制作人 : ...", "Lyrics by ...")
       parsedLines = parsedLines.filter(line => {
         if (!line.text) return false;
         const t = line.text.trim().toLowerCase();
         if (t.startsWith('[') && t.endsWith(']')) return false;
         if (/^(outro|intro|instrumental|chorus|verse|bridge|hook)(\s+\d+)?$/i.test(t)) return false;
+        if (settings.filterSongCredits !== false && isLyricMetadataOrCreditLine(extractLineText(line))) return false;
         return true;
       });
 
@@ -7783,6 +8964,8 @@ async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = nu
       parsedLines.forEach(line => {
         delete line.subText;
       });
+      delete parsedLines._hasTranslation;
+      delete parsedLines._noTransNeeded;
 
       console.log(`[LF-LYRICS] applyLyricsData SUCCESS: setting ${parsedLines.length} lines, level=${sourceLevel}, source=${sourceName}`);
       lyrics = parsedLines;
@@ -7873,15 +9056,16 @@ async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = nu
           spotifyToken: config?.access_token || null,
           spotifyTrackId: trackId?.startsWith('spotify:track:') ? trackId.replace('spotify:track:', '') : null,
           forceRefresh: !!options.forceRefresh,
-          candidateIndex: trackLyricsCandidateIndex[trackId] || 0
+          candidateIndex: trackLyricsCandidateIndex[trackId] || 0,
+          neteaseWordByWord: settings.neteaseWordByWord !== false
         });
         if (candidate && trackId === currentTrackId) {
           console.log(`[LF-LYRICS] rustLyricsFetch received candidate from provider=${candidate.provider} (${candidate.syncType})`);
           let parsed = [];
-          if (candidate.rawLRC) {
-            parsed = parseLRC(candidate.rawLRC);
-          } else if (candidate.parsedLines && candidate.parsedLines.length > 0) {
+          if (candidate.parsedLines && candidate.parsedLines.length > 0) {
             parsed = candidate.parsedLines;
+          } else if (candidate.rawLRC) {
+            parsed = parseLRC(candidate.rawLRC);
           }
           if (parsed.length > 0) {
             if (isPollutedYeatLyrics(parsed)) {
@@ -8167,12 +9351,17 @@ async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = nu
       return;
     }
 
-    // 2. Fallback: Run Rust multi-provider engine, Cloudflare proxy, and direct LRCLIB simultaneously for maximum speed & redundancy
-    const rustTask = rustLyricsFetch();
+    // 2. Query Rust multi-provider engine (combines Proxy + LRCLIB + Musixmatch + NetEase with ranking & candidate cycling)
+    const rustSuccess = await rustLyricsFetch();
+    if (rustSuccess) {
+      manageLyricsCache(cacheKey);
+      return;
+    }
+
+    // 3. Fallback: Direct web proxy & LRCLIB if Rust engine found no match
     const proxyTask = proxyFetch();
     const lrclibTask = localLrclibFetch();
-
-    await Promise.allSettled([rustTask, proxyTask, lrclibTask]);
+    await Promise.allSettled([proxyTask, lrclibTask]);
 
     if (lyrics.length === 0 && trackId === currentTrackId) {
       await ovhFetch();
@@ -8652,6 +9841,142 @@ function hideAlbumArtModal() {
 }
 
 // Render lyrics to DOM
+function getLyricWordEndMs(words, wordIndex, lineData, lineIndex) {
+  const word = words && words[wordIndex];
+  if (!word) return 0;
+  const startMs = (word.start != null && Number.isFinite(Number(word.start)))
+    ? Number(word.start) * 1000
+    : (Number(word.timeMs) || 0);
+  if (word.end != null && Number(word.end) > 0) return Number(word.end) * 1000;
+  if (word.durationMs != null && Number(word.durationMs) > 0) return startMs + Number(word.durationMs);
+  if (word.duration != null && Number(word.duration) > 0) {
+    const duration = Number(word.duration);
+    return startMs + (duration > 50 ? duration : duration * 1000);
+  }
+  const nextWord = words[wordIndex + 1];
+  if (nextWord) {
+    const nextStart = (nextWord.start != null && Number.isFinite(Number(nextWord.start)))
+      ? Number(nextWord.start) * 1000
+      : Number(nextWord.timeMs);
+    if (Number.isFinite(nextStart) && nextStart > startMs) return nextStart;
+  }
+
+  // --- Fallback for the LAST word of a line ---
+  const wordTextLen = (word.text || '').trim().length;
+  const naturalWordDur = Math.max(500, Math.min(2200, wordTextLen * 160 + 400));
+
+  // If next line starts soon, cap to before next line
+  if (Array.isArray(lyrics) && lineIndex >= 0 && lyrics[lineIndex + 1]) {
+    const nextLine = lyrics[lineIndex + 1];
+    const nextLineMs = Number(nextLine.timeMs) || (Number(nextLine.start) * 1000) || 0;
+    if (nextLineMs > startMs && nextLineMs < startMs + naturalWordDur) {
+      return Math.max(startMs + 50, nextLineMs - 50);
+    }
+  }
+
+  // If lineData has an explicit line duration or end that is reasonable (< 3500ms from startMs):
+  const lineStartMs = Number(lineData?.timeMs) || (Number(lineData?.start) * 1000) || startMs;
+  let lineEndMs = 0;
+  if (lineData?.end != null && Number(lineData.end) > 0) lineEndMs = Number(lineData.end) * 1000;
+  else if (lineData?.durationMs != null && Number(lineData.durationMs) > 0) lineEndMs = lineStartMs + Number(lineData.durationMs);
+  else if (lineData?.duration != null && Number(lineData.duration) > 0) {
+    const duration = Number(lineData.duration);
+    lineEndMs = lineStartMs + (duration > 50 ? duration : duration * 1000);
+  }
+  if (lineEndMs > startMs && (lineEndMs - startMs) <= 3500) {
+    return lineEndMs;
+  }
+
+  return startMs + naturalWordDur;
+}
+
+let cachedIslandZoneWidth = 0;
+let islandZoneResizeObserver = null;
+function getCachedIslandZoneWidth(zone) {
+  if (!zone) return 250;
+  if (!islandZoneResizeObserver && typeof ResizeObserver !== 'undefined') {
+    islandZoneResizeObserver = new ResizeObserver(entries => {
+      const entry = entries.find(item => item.target?.id === 'island-lyric-zone') || entries[0];
+      if (entry) cachedIslandZoneWidth = entry.contentRect.width || entry.target.clientWidth || cachedIslandZoneWidth;
+    });
+    islandZoneResizeObserver.observe(zone);
+  }
+  if (!cachedIslandZoneWidth) cachedIslandZoneWidth = zone.clientWidth || 250;
+  return cachedIslandZoneWidth;
+}
+
+function setLyricWordProgress(span, progress) {
+  if (!span) return;
+  const bounded = Math.min(1, Math.max(0, Number(progress) || 0));
+  const previousValue = span.style.getPropertyValue('--word-progress');
+  const previous = previousValue ? Number(previousValue) : NaN;
+  if (Number.isFinite(previous) && previous === bounded) return;
+  if (Number.isFinite(previous) && Math.abs(bounded - previous) < 0.005 && bounded !== 0 && bounded !== 1) return;
+  const value = bounded.toFixed(3);
+  span.style.setProperty('--word-progress', value);
+}
+
+function needsTimedWordSpace(words, wordIndex, lineText, searchState) {
+  if (wordIndex >= words.length - 1) return false;
+  const word = String(words[wordIndex]?.text ?? words[wordIndex] ?? '');
+  const nextWord = String(words[wordIndex + 1]?.text ?? words[wordIndex + 1] ?? '');
+
+  if (/\s$/.test(word) || /^\s/.test(nextWord)) return true;
+
+  const needle = word.trim();
+  const found = needle && lineText ? lineText.indexOf(needle, searchState.position) : -1;
+  if (found >= 0) {
+    searchState.position = found + needle.length;
+    if (/\s/.test(lineText[searchState.position] || '')) {
+      while (/\s/.test(lineText[searchState.position] || '')) searchState.position++;
+      return true;
+    }
+  }
+
+  // Fallback for adjacent tokens when lineText has no spaces or token was not found
+  const curTrim = word.trim();
+  const nextTrim = nextWord.trim();
+  if (!curTrim || !nextTrim) return false;
+
+  // After punctuation like comma, period, exclamation, question mark: always space
+  if (/[,.!?;:]$/.test(curTrim)) return true;
+
+  // Between alphanumeric Latin characters unless next is contraction ('t, 's, 'm, 're, 've, 'll, 'd)
+  const curEndsAlphaNum = /[a-zA-Z0-9]$/.test(curTrim);
+  const nextStartsAlphaNum = /^[a-zA-Z0-9]/.test(nextTrim);
+  const nextIsContraction = /^['’](t|s|m|re|ve|ll|d)\b/i.test(nextTrim);
+
+  if (curEndsAlphaNum && nextStartsAlphaNum && !nextIsContraction) {
+    return true;
+  }
+
+  return false;
+}
+
+function appendTimedWordSpans(container, words, lineText, className, dataName) {
+  const searchState = { position: 0 };
+  words.forEach((word, index) => {
+    const rawText = String(word?.text ?? word ?? '');
+    const span = document.createElement('span');
+    span.className = className;
+    span.textContent = rawText.trim();
+    if (dataName) span.dataset[dataName] = index;
+    container.appendChild(span);
+    if (index < words.length - 1 && needsTimedWordSpace(words, index, lineText || '', searchState)) {
+      container.appendChild(document.createTextNode(' '));
+    }
+  });
+}
+
+function timedWordSpansHtml(words, lineText) {
+  const searchState = { position: 0 };
+  return words.map((word, index) => {
+    const text = String(word?.text ?? word ?? '');
+    const span = `<span class="lyric-word" data-word-idx="${index}">${escapeHTML(text.trim())}</span>`;
+    return span + (index < words.length - 1 && needsTimedWordSpace(words, index, lineText || '', searchState) ? ' ' : '');
+  }).join('');
+}
+
 function renderLyrics() {
   if (lyrics.length === 0) {
     lyricsContainer.style.transform = 'translateY(0px)';
@@ -8690,7 +10015,7 @@ function renderLyrics() {
 
   // Only enable visual "dimming" of the line if we actually have words to highlight
   const hasAnyWordTiming = lyrics.some(l => l.words && l.words.length > 0);
-  document.body.classList.toggle("wbw-active", settings.wordByWord && hasAnyWordTiming);
+  document.body.classList.toggle("wbw-active", (settings.wordByWord !== false) && hasAnyWordTiming);
 
   lyricsContainer.innerHTML = "";
   manualLyricScrollY = null;
@@ -8708,21 +10033,10 @@ function renderLyrics() {
     // This stops the inaccurate "guessing/dividing" fallback.
     const hasRealWordTiming = line.words && line.words.length > 0;
 
-    if (settings.wordByWord && hasRealWordTiming) {
+    if ((settings.wordByWord !== false) && hasRealWordTiming) {
       // Need to preserve the actual word timing data instead of just extracting strings
       const wordList = line.words;
-
-      wordList.forEach((word, wi) => {
-        const span = document.createElement('span');
-        span.className = 'lyric-word lyric-word-upcoming';
-        span.textContent = word.text;
-        span.dataset.wordIndex = wi;
-        el.appendChild(span);
-        // Add a space text node between words (except after last)
-        if (wi < wordList.length - 1) {
-          el.appendChild(document.createTextNode(' '));
-        }
-      });
+      appendTimedWordSpans(el, wordList, lineText, 'lyric-word lyric-word-upcoming', 'wordIndex');
     } else {
       el.textContent = lineText;
     }
@@ -8806,6 +10120,21 @@ function renderLyrics() {
 let cachedViewportHeight = 0;
 let cachedLineMetrics = [];
 
+function invalidateLyricMetrics(andScroll = true) {
+  cachedLineMetrics = [];
+  cachedViewportHeight = 0;
+  if (!lyrics || lyrics.length === 0 || !cachedLineEls || cachedLineEls.length === 0) return;
+
+  requestAnimationFrame(() => {
+    measureLyricMetrics();
+    if (andScroll && activeLineIndex >= 0 && !userScrolling) {
+      const idx = activeLineIndex;
+      activeLineIndex = -1;
+      scrollLyrics(idx);
+    }
+  });
+}
+
 function measureLyricMetrics() {
   if (!lyricsViewport || !cachedLineEls || cachedLineEls.length === 0) return;
   const vh = lyricsViewport.clientHeight;
@@ -8848,6 +10177,20 @@ window.addEventListener('resize', () => {
   }
 });
 
+// Monitor asynchronous font downloads (Google Fonts) and remeasure lyrics upon font load
+if (typeof document !== 'undefined' && document.fonts) {
+  if (document.fonts.ready) {
+    document.fonts.ready.then(() => {
+      invalidateLyricMetrics(true);
+    }).catch(() => {});
+  }
+  if (typeof document.fonts.addEventListener === 'function') {
+    document.fonts.addEventListener('loadingdone', () => {
+      invalidateLyricMetrics(true);
+    });
+  }
+}
+
 // Tap to Ghost Passthrough mode: hover + ` (Tilde) or Ctrl+Shift+G to toggle
 window.addEventListener('keydown', (e) => {
   if (isDynamicIslandMode) {
@@ -8858,6 +10201,7 @@ window.addEventListener('keydown', (e) => {
     const isCombo = e.ctrlKey && e.shiftKey && e.key.toUpperCase() === 'G';
     const isGhostActive = document.body.classList.contains('island-ghost-mode');
     if (isCombo || (isTilde && (isMouseOverDynamicIsland || isGhostActive))) {
+      e.preventDefault();
       if (window.electronAPI && typeof window.electronAPI.toggleDynamicIslandGhost === 'function') {
         window.electronAPI.toggleDynamicIslandGhost();
       } else {
@@ -8868,6 +10212,10 @@ window.addEventListener('keydown', (e) => {
 });
 
 window.addEventListener('blur', () => {
+  if (islandMouseLeaveTimer) {
+    clearTimeout(islandMouseLeaveTimer);
+    islandMouseLeaveTimer = null;
+  }
   isMouseOverDynamicIsland = false;
   document.body.classList.add('window-blurred');
 });
@@ -8900,6 +10248,7 @@ document.addEventListener('visibilitychange', () => {
 
 // Highlight and center active lyric line
 function scrollLyrics(index) {
+  if (isDynamicIslandMode || settings.taskbarMode) return;
   if (index === activeLineIndex) return;
   if (cachedLineEls.length === 0) return;
 
@@ -9093,11 +10442,12 @@ function updatePlayhead() {
         if (Math.abs((window._lastFillPercent || 0) - fillPercent) > 0.1) {
           widgetProgressFill.style.width = `${fillPercent}%`;
           window._lastFillPercent = fillPercent;
-        }
-
-        const mainThumb = document.getElementById("main-progress-thumb");
-        if (mainThumb) {
-          mainThumb.style.left = `${fillPercent}%`;
+          if (!window._cachedMainThumb) {
+            window._cachedMainThumb = document.getElementById("main-progress-thumb");
+          }
+          if (window._cachedMainThumb) {
+            window._cachedMainThumb.style.left = `${fillPercent}%`;
+          }
         }
 
         const timeStr = formatTime(currentProgress);
@@ -9135,11 +10485,30 @@ function updatePlayhead() {
           const syncState = window.LyricsService.instance.engine.update(syncProgress / 1000);
           activeIndex = syncState.lineIndex;
         } else {
-          for (let i = 0; i < lyrics.length; i++) {
-            if (lyrics[i].timeMs <= syncProgress) {
-              activeIndex = i;
-            } else {
-              break;
+          // O(1) Fast-Path forward check, binary search O(log N) on seeks
+          if (activeLineIndex >= 0 && activeLineIndex < lyrics.length) {
+            const curTime = lyrics[activeLineIndex].timeMs;
+            const nextLine = lyrics[activeLineIndex + 1];
+            if (syncProgress >= curTime && (!nextLine || syncProgress < nextLine.timeMs)) {
+              activeIndex = activeLineIndex;
+            } else if (nextLine && syncProgress >= nextLine.timeMs) {
+              const lineAfter = lyrics[activeLineIndex + 2];
+              if (!lineAfter || syncProgress < lineAfter.timeMs) {
+                activeIndex = activeLineIndex + 1;
+              }
+            }
+          }
+          if (activeIndex === -1) {
+            let low = 0;
+            let high = lyrics.length - 1;
+            while (low <= high) {
+              const mid = (low + high) >> 1;
+              if (lyrics[mid].timeMs <= syncProgress) {
+                activeIndex = mid;
+                low = mid + 1;
+              } else {
+                high = mid - 1;
+              }
             }
           }
         }
@@ -9159,67 +10528,116 @@ function updatePlayhead() {
           activeIndex = 0;
         }
 
-        scrollLyrics(activeIndex);
+        // Only run main app lyrics scrolling and word-by-word highlighting when in normal window mode
+        if (!isDynamicIslandMode && !settings.taskbarMode) {
+          scrollLyrics(activeIndex);
 
-        // Word-by-Word karaoke highlight
-        if (settings.wordByWord && activeIndex >= 0) {
-          const activeEl = cachedLineEls[activeIndex];
-          const lineData = lyrics[activeIndex];
+          // Word-by-Word karaoke highlight
+          if ((settings.wordByWord !== false) && activeIndex >= 0) {
+            const activeEl = cachedLineEls[activeIndex];
+            const lineData = lyrics[activeIndex];
 
-          if (activeEl && lineData) {
-            if (!activeEl._cachedWordSpans) {
-              activeEl._cachedWordSpans = activeEl.querySelectorAll('.lyric-word');
-            }
-            const wordSpans = activeEl._cachedWordSpans;
-            // Only process word highlights if spans actually exist (meaning we have real word data)
-            if (wordSpans.length > 0 && lineData.words && lineData.words.length > 0) {
-              const engine = window.LyricsService?.instance?.engine;
-              let wordStates = null;
-              if (engine && engine.hasLyrics()) {
-                wordStates = engine.getLineWordStates(activeIndex, syncProgress / 1000);
+            if (activeEl && lineData) {
+              if (!activeEl._cachedWordSpans) {
+                activeEl._cachedWordSpans = activeEl.querySelectorAll('.lyric-word');
               }
-
-              if (wordStates && wordStates.length === wordSpans.length) {
-                const statesKey = wordStates.join(',');
-                if (activeEl._lastWordStates !== statesKey) {
-                  activeEl._lastWordStates = statesKey;
-                  wordSpans.forEach((span, wi) => {
-                    const st = wordStates[wi] || 'upcoming';
-                    span.classList.toggle('lyric-word-completed', st === 'completed');
-                    span.classList.toggle('lyric-word-passed', st === 'completed');
-                    span.classList.toggle('lyric-word-active', st === 'active');
-                    span.classList.toggle('lyric-word-upcoming', st === 'upcoming');
-                  });
+              const wordSpans = activeEl._cachedWordSpans;
+              // Only process word highlights if spans actually exist (meaning we have real word data)
+              if (wordSpans.length > 0 && lineData.words && lineData.words.length > 0) {
+                const engine = window.LyricsService?.instance?.engine;
+                let wordStates = null;
+                if (engine && engine.hasLyrics()) {
+                  wordStates = engine.getLineWordStates(activeIndex, syncProgress / 1000);
                 }
-              } else {
-                let activeWordIdx = -1;
-                for (let i = 0; i < lineData.words.length; i++) {
-                  if (lineData.words[i].timeMs <= syncProgress) {
-                    activeWordIdx = i;
-                  } else {
-                    break;
+
+                if (wordStates && wordStates.length === wordSpans.length) {
+                  const statesKey = wordStates.join(',');
+                  if (activeEl._lastWordStates !== statesKey) {
+                    activeEl._lastWordStates = statesKey;
+                    wordSpans.forEach((span, wi) => {
+                      const st = wordStates[wi] || 'upcoming';
+                      span.classList.toggle('lyric-word-completed', st === 'completed');
+                      span.classList.toggle('lyric-word-passed', st === 'completed');
+                      span.classList.toggle('lyric-word-active', st === 'active');
+                      span.classList.toggle('lyric-word-upcoming', st === 'upcoming');
+                      if (st !== 'active') {
+                        span.style.removeProperty('--word-progress');
+                      }
+                    });
                   }
-                }
+                  const activeWi = wordStates.indexOf('active');
+                  if (activeWi >= 0 && lineData.words[activeWi] && wordSpans[activeWi]) {
+                    const activeW = lineData.words[activeWi];
+                    const wStart = (activeW.start != null ? activeW.start * 1000 : activeW.timeMs) || 0;
+                    const wEnd = getLyricWordEndMs(lineData.words, activeWi, lineData, activeIndex);
+                    const wDur = Math.max(50, wEnd - wStart);
+                    const wordProgress = Math.min(1, Math.max(0, (syncProgress - wStart) / wDur));
+                    setLyricWordProgress(wordSpans[activeWi], wordProgress);
+                  }
+                } else {
+                  let activeWordIdx = -1;
+                  for (let i = 0; i < lineData.words.length; i++) {
+                    const w = lineData.words[i];
+                    const wTime = (w.start != null ? w.start * 1000 : w.timeMs) || 0;
+                    if (wTime <= syncProgress) {
+                      activeWordIdx = i;
+                    } else {
+                      break;
+                    }
+                  }
 
-                // Only update if index changed
-                if (activeEl.dataset.activeWord !== String(activeWordIdx)) {
-                  activeEl.dataset.activeWord = activeWordIdx;
-                  wordSpans.forEach((span, wi) => {
-                    span.classList.toggle('lyric-word-completed', wi < activeWordIdx);
-                    span.classList.toggle('lyric-word-passed', wi < activeWordIdx);
-                    span.classList.toggle('lyric-word-active', wi === activeWordIdx);
-                    span.classList.toggle('lyric-word-upcoming', wi > activeWordIdx);
-                  });
+                  let currentActiveWord = activeWordIdx;
+                  if (activeWordIdx >= 0) {
+                    const curW = lineData.words[activeWordIdx];
+                    const wStart = (curW.start != null ? curW.start * 1000 : curW.timeMs) || 0;
+                    const nextW = lineData.words[activeWordIdx + 1];
+                    const nextWStart = nextW
+                      ? ((nextW.start != null ? nextW.start * 1000 : nextW.timeMs) || (wStart + 500))
+                      : getLyricWordEndMs(lineData.words, activeWordIdx, lineData, activeIndex);
+                    const wEnd = getLyricWordEndMs(lineData.words, activeWordIdx, lineData, activeIndex);
+                    if (syncProgress >= wEnd && syncProgress < nextWStart) {
+                      currentActiveWord = -1;
+                    }
+                  }
+
+                  const stateKey = `${activeWordIdx}_${currentActiveWord}`;
+                  if (activeEl.dataset.activeWord !== stateKey) {
+                    activeEl.dataset.activeWord = stateKey;
+                    wordSpans.forEach((span, wi) => {
+                      const isCompleted = wi < activeWordIdx || (wi === activeWordIdx && currentActiveWord === -1);
+                      const isActive = wi === currentActiveWord;
+                      const isUpcoming = wi > activeWordIdx;
+                      span.classList.toggle('lyric-word-completed', isCompleted);
+                      span.classList.toggle('lyric-word-passed', isCompleted);
+                      span.classList.toggle('lyric-word-active', isActive);
+                      span.classList.toggle('lyric-word-upcoming', isUpcoming);
+                      if (!isActive) {
+                        span.style.removeProperty('--word-progress');
+                      }
+                    });
+                  }
+
+                  if (currentActiveWord >= 0 && lineData.words[currentActiveWord] && wordSpans[currentActiveWord]) {
+                    const activeW = lineData.words[currentActiveWord];
+                    const wStart = (activeW.start != null ? activeW.start * 1000 : activeW.timeMs) || 0;
+                    const nextW = lineData.words[currentActiveWord + 1];
+                    const nextWStart = nextW
+                      ? ((nextW.start != null ? nextW.start * 1000 : nextW.timeMs) || (wStart + 500))
+                      : getLyricWordEndMs(lineData.words, currentActiveWord, lineData, activeIndex);
+                    const wEnd = getLyricWordEndMs(lineData.words, currentActiveWord, lineData, activeIndex);
+                    const wDur = Math.max(50, wEnd - wStart);
+                    const wordProgress = Math.min(1, Math.max(0, (syncProgress - wStart) / wDur));
+                    setLyricWordProgress(wordSpans[currentActiveWord], wordProgress);
+                  }
                 }
               }
             }
           }
         }
 
-
         // Update Dynamic Island lyric line with smart synchronization
         try {
-          if (!isIslandSleeping) {
+          if (isDynamicIslandMode && !isIslandSleeping) {
             const islandSync = getDynamicIslandSyncData(syncProgress);
             updateDynamicIslandLyric(islandSync.lineIndex, islandSync.lineData, syncProgress, islandSync.isInstrumental, islandSync.countdownMs);
           }
@@ -9239,24 +10657,16 @@ function updatePlayhead() {
             const lineData = lyrics[activeIndex];
             const hasRealWordTiming = lineData.words && lineData.words.length > 0;
 
-            if (settings.wordByWord && hasRealWordTiming) {
+            if ((settings.wordByWord !== false) && hasRealWordTiming) {
               // Render word-by-word spans for taskbar if not already rendered for this line
               if (tbLyricLine.dataset.lineIndex !== String(activeIndex)) {
                 tbLyricLine.innerHTML = '';
                 tbLyricLine.dataset.lineIndex = activeIndex;
 
-                // Use real words from source
-                const words = lineData.words.map(w => w.text);
-
-                words.forEach((word, wi) => {
-                  const span = document.createElement('span');
-                  span.className = 'lyric-word tb-lyric-word';
-                  span.textContent = word;
-                  tbLyricLine.appendChild(span);
-                  if (wi < words.length - 1) {
-                    tbLyricLine.appendChild(document.createTextNode(' '));
-                  }
-                });
+                // Keep syllables flush together and preserve spaces between timed words.
+                const words = lineData.words;
+                const tbLineText = lineData.text || '';
+                appendTimedWordSpans(tbLyricLine, words, tbLineText, 'lyric-word tb-lyric-word', null);
                 tbLyricLine._cachedWordSpans = null; // Clear cache when rebuilding
               }
 
@@ -9288,21 +10698,41 @@ function updatePlayhead() {
               } else {
                 let activeWordIdx = -1;
                 for (let i = 0; i < lineData.words.length; i++) {
-                  if (lineData.words[i].timeMs <= syncProgress) {
+                  const w = lineData.words[i];
+                  const wTime = (w.start != null ? w.start * 1000 : w.timeMs) || 0;
+                  if (wTime <= syncProgress) {
                     activeWordIdx = i;
                   } else {
                     break;
                   }
                 }
 
-                if (tbLyricLine.dataset.activeTbWord !== String(activeWordIdx)) {
-                  tbLyricLine.dataset.activeTbWord = activeWordIdx;
+                let currentActiveWord = activeWordIdx;
+                if (activeWordIdx >= 0) {
+                  const curW = lineData.words[activeWordIdx];
+                  const wStart = (curW.start != null ? curW.start * 1000 : curW.timeMs) || 0;
+                  const nextW = lineData.words[activeWordIdx + 1];
+                  const nextWStart = nextW
+                    ? ((nextW.start != null ? nextW.start * 1000 : nextW.timeMs) || (wStart + 500))
+                    : getLyricWordEndMs(lineData.words, activeWordIdx, lineData, activeIndex);
+                  const wEnd = getLyricWordEndMs(lineData.words, activeWordIdx, lineData, activeIndex);
+                  if (syncProgress >= wEnd && syncProgress < nextWStart) {
+                    currentActiveWord = -1;
+                  }
+                }
+
+                const tbStateKey = `${activeWordIdx}_${currentActiveWord}`;
+                if (tbLyricLine.dataset.activeTbWord !== tbStateKey) {
+                  tbLyricLine.dataset.activeTbWord = tbStateKey;
                   if (tbSpans) {
                     tbSpans.forEach((span, wi) => {
-                      span.classList.toggle('lyric-word-completed', wi < activeWordIdx);
-                      span.classList.toggle('lyric-word-passed', wi < activeWordIdx);
-                      span.classList.toggle('lyric-word-active', wi === activeWordIdx);
-                      span.classList.toggle('lyric-word-upcoming', wi > activeWordIdx);
+                      const isCompleted = wi < activeWordIdx || (wi === activeWordIdx && currentActiveWord === -1);
+                      const isActive = wi === currentActiveWord;
+                      const isUpcoming = wi > activeWordIdx;
+                      span.classList.toggle('lyric-word-completed', isCompleted);
+                      span.classList.toggle('lyric-word-passed', isCompleted);
+                      span.classList.toggle('lyric-word-active', isActive);
+                      span.classList.toggle('lyric-word-upcoming', isUpcoming);
                     });
                   }
                   sendTaskbarLyric(tbLyricLine.textContent, false, tbLyricLine.innerHTML);
@@ -9334,7 +10764,7 @@ function updatePlayhead() {
       }
     } else {
       try {
-        if (!isIslandSleeping) {
+        if (isDynamicIslandMode && !isIslandSleeping) {
           updateDynamicIslandLyric(-1, null, currentProgress, false);
         }
       } catch (_) {}
@@ -9502,7 +10932,7 @@ async function updateTaskbarColors() {
   }
 }
 
-async function fetchFallbackAlbumArt(trackName, artistName) {
+async function fetchFallbackAlbumArt(trackName, artistName, albumName = null) {
   if (!trackName) return null;
   const rawArtist = (artistName || "").replace(/\s*-\s*Topic$/i, "").trim();
   const rawTrack = trackName.trim();
@@ -9513,144 +10943,30 @@ async function fetchFallbackAlbumArt(trackName, artistName) {
     return localArtCache[dualKey];
   }
 
-  // Clean title: strip feature tags, parentheticals, and remaster tags
-  const cleanTrack = rawTrack
-    .replace(/\s*[\(\[](feat\.|ft\.|with|remix|version|deluxe|explicit|remastered|bonus).*?[\)\]]/ig, "")
-    .replace(/\s*-\s*(feat\.|ft\.|with|remix|version|deluxe|explicit|remastered|bonus).*$/ig, "")
-    .replace(/\s*\(.*?\)/g, "")
-    .trim() || rawTrack;
-
-  const cleanArtist = rawArtist
-    .replace(/\s*[\(\[](feat\.|ft\.|with).*?[\)\]]/ig, "")
-    .replace(/\s*,\s*.*$/, "")
-    .trim() || rawArtist;
-
-  // Native Rust query (runs iTunes + Deezer concurrently in Rust without browser CORS)
-  const queryNative = async (t, a) => {
-    if (window.electronAPI && typeof window.electronAPI.fetchTrackArtwork === 'function') {
-      const nativeArt = await window.electronAPI.fetchTrackArtwork(t, a);
-      if (nativeArt) return nativeArt;
-    }
-    throw new Error('Native not found');
-  };
-
-  // Fast helper with strict 1.8s timeout
-  const queryItunes = async (queryStr) => {
+  // 1. Scored Native Retrieval Pipeline (Spotify Web API album-art flow, iTunes, Deezer, NetEase)
+  if (window.electronAPI && typeof window.electronAPI.fetchTrackArtwork === 'function') {
     try {
-      const url = `https://itunes.apple.com/search?term=${encodeURIComponent(queryStr)}&limit=1&entity=song`;
-      const res = await fetch(url, { signal: AbortSignal.timeout(1800) });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.results && data.results.length > 0) {
-          const raw = data.results[0].artworkUrl100 || data.results[0].artworkUrl60;
-          if (raw) {
-            return raw.replace(/\/\d+x\d+bb?\.(jpg|png|webp)/i, '/600x600bb.$1');
-          }
-        }
-      }
-    } catch (e) {}
-    throw new Error('iTunes not found');
-  };
-
-  // Helper to query Deezer API with strict 1.8s timeout
-  const queryDeezer = async (queryStr) => {
-    try {
-      const url = `https://api.deezer.com/search?q=${encodeURIComponent(queryStr)}&limit=1`;
-      const res = await fetch(url, { signal: AbortSignal.timeout(1800) });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.data && data.data.length > 0) {
-          const cover = data.data[0].album?.cover_xl || data.data[0].album?.cover_big || data.data[0].album?.cover_medium;
-          if (cover) return cover;
-        }
-      }
-    } catch (e) {}
-    throw new Error('Deezer not found');
-  };
-
-  // Helper to query MusicBrainz
-  const queryMusicBrainz = async (queryStr) => {
-    try {
-      const url = `https://musicbrainz.org/ws/2/recording/?query=${encodeURIComponent(queryStr)}&fmt=json`;
-      const res = await fetch(url, { headers: { 'User-Agent': 'LyricFlow/1.3.0 (contact@lyricflow.app)' }, signal: AbortSignal.timeout(1800) });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.recordings && data.recordings.length > 0) {
-          for (const rec of data.recordings.slice(0, 3)) {
-            const relId = rec.releases?.[0]?.id;
-            if (relId) {
-              return `https://coverartarchive.org/release/${relId}/front-500`;
-            }
-          }
-        }
-      }
-    } catch (e) {}
-    throw new Error('MusicBrainz not found');
-  };
-
-  // Helper to query Last.fm API with strict 1.8s timeout
-  const queryLastFM = async (trackStr, artistStr) => {
-    try {
-      if (window.lastFM && typeof window.lastFM.getTrackAlbumArt === 'function') {
-        const art = await Promise.race([
-          window.lastFM.getTrackAlbumArt(trackStr, artistStr),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1800))
-        ]);
-        if (art) return art;
-      }
-    } catch (e) {}
-    throw new Error('Last.fm not found');
-  };
-
-  try {
-    // If user explicitly configured Last.fm as fallback source, try it first
-    if (settings.artSource === 'lastfm') {
-      try {
-        const lfmArt = await queryLastFM(cleanTrack, cleanArtist);
-        if (lfmArt) {
-          saveArtToCache(null, lfmArt, rawTrack, rawArtist);
-          return lfmArt;
-        }
-      } catch (e) {}
-    }
-
-    // Run ALL providers simultaneously in parallel — fastest response wins immediately!
-    const candidates = [
-      queryNative(cleanTrack, cleanArtist),
-      queryItunes(`${cleanTrack} ${cleanArtist}`),
-      queryDeezer(`${cleanTrack} ${cleanArtist}`),
-      queryLastFM(cleanTrack, cleanArtist)
-    ];
-
-    if (cleanTrack !== rawTrack || cleanArtist !== rawArtist) {
-      candidates.push(queryNative(rawTrack, rawArtist));
-      candidates.push(queryItunes(`${rawTrack} ${rawArtist}`));
-      candidates.push(queryDeezer(`${rawTrack} ${rawArtist}`));
-    }
-
-    try {
-      const fastest = await Promise.any(candidates);
-      if (fastest) {
-        saveArtToCache(null, fastest, rawTrack, rawArtist);
-        return fastest;
+      const nativeArt = await window.electronAPI.fetchTrackArtwork(rawTrack, rawArtist, albumName);
+      if (nativeArt) {
+        saveArtToCache(null, nativeArt, rawTrack, rawArtist);
+        return nativeArt;
       }
     } catch (e) {
-      // Primary batch failed, try single track search + MusicBrainz
-      try {
-        const fallback = await Promise.any([
-          queryItunes(cleanTrack),
-          queryLastFM(cleanTrack, cleanArtist),
-          queryMusicBrainz(`${cleanTrack} ${cleanArtist}`)
-        ]);
-        if (fallback) {
-          saveArtToCache(null, fallback, rawTrack, rawArtist);
-          return fallback;
-        }
-      } catch (e2) {}
+      console.warn("[Artwork] Native fetchTrackArtwork error:", e);
     }
-  } catch (err) {
-    console.error("Failed to fetch fallback album art:", err);
   }
+
+  // 2. Verified Last.fm fallback (autocorrect disabled, candidate artist verified)
+  if (window.lastFM && typeof window.lastFM.getTrackAlbumArt === 'function') {
+    try {
+      const lfmArt = await window.lastFM.getTrackAlbumArt(rawTrack, rawArtist);
+      if (lfmArt) {
+        saveArtToCache(null, lfmArt, rawTrack, rawArtist);
+        return lfmArt;
+      }
+    } catch (e) {}
+  }
+
   return null;
 }
 
@@ -9789,7 +11105,7 @@ window.updatePlaycountUI = function(playcount) {
 
 window.onLastfmArtFound = function(artUrl) {
   if (!artUrl) return;
-  if (!widgetAlbumArt.src || widgetAlbumArt.style.display === 'none' || widgetAlbumArt.src.includes('data:image')) {
+  if (!widgetAlbumArt.src || widgetAlbumArt.style.display === 'none') {
     widgetAlbumArt.src = artUrl;
     widgetAlbumArt.style.display = "block";
     if (widgetArtFallback) widgetArtFallback.style.display = "none";
@@ -9806,3 +11122,25 @@ window.onLastfmArtFound = function(artUrl) {
   }
 };
 
+if (typeof window !== 'undefined') {
+  window.FONT_FAMILY_STACKS = FONT_FAMILY_STACKS;
+  window.resolveFontStack = resolveFontStack;
+  window.invalidateLyricMetrics = invalidateLyricMetrics;
+  window.toggleDynamicIslandMode = toggleDynamicIslandMode;
+  window.toggleWallpaperMode = toggleWallpaperMode;
+  window.toggleTaskbarMode = toggleTaskbarMode;
+  window.updateModeButtonsState = updateModeButtonsState;
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    FONT_FAMILY_STACKS,
+    resolveFontStack,
+    invalidateLyricMetrics,
+    measureLyricMetrics,
+    toggleDynamicIslandMode,
+    toggleWallpaperMode,
+    toggleTaskbarMode,
+    updateModeButtonsState
+  };
+}

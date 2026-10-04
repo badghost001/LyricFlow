@@ -394,6 +394,8 @@ class CAEmitterEngine {
     } else {
       this.isEmitting = false;
       this.lastDirtyRect = null;
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 1.0;
       ctx.clearRect(0, 0, winW, winH);
     }
   }
@@ -411,6 +413,8 @@ class CAEmitterEngine {
     if (this.ctx && this.canvas) {
       const winW = typeof window !== 'undefined' ? window.innerWidth : (this.canvas ? this.canvas.width : 800);
       const winH = typeof window !== 'undefined' ? window.innerHeight : (this.canvas ? this.canvas.height : 600);
+      this.ctx.globalCompositeOperation = 'source-over';
+      this.ctx.globalAlpha = 1.0;
       this.ctx.clearRect(0, 0, winW, winH);
     }
     this.lastDirtyRect = null;

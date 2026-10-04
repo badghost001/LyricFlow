@@ -1,6 +1,6 @@
 [package]
 name = "lyricflow"
-version = "1.40.6"
+version = "1.41.0"
 description = "LyricFlow - Dynamic Desktop Lyrics Overlay"
 authors = ["badghost"]
 edition = "2021"
@@ -45,7 +45,9 @@ windows = { version = "0.61", features = [
     "Win32_System_Threading",
     "Win32_Security",
     "Win32_Media_Audio",
-    "Win32_Media_Audio_Endpoints"
+    "Win32_Media_Audio_Endpoints",
+    "Win32_System_DataExchange",
+    "Win32_System_Memory"
 ] }
 
 

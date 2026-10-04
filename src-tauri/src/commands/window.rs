@@ -46,10 +46,26 @@ static ISLAND_BOUNDS: OnceLock<Mutex<Option<LyricBounds>>> = OnceLock::new();
 static ISLAND_GEOMETRY: OnceLock<Mutex<(i32, i32, f64)>> = OnceLock::new();
 static DYNAMIC_ISLAND_GHOST_ACTIVE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 static DYNAMIC_ISLAND_GHOST_ENTERED_AT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+static DYNAMIC_ISLAND_GHOST_LAST_TOGGLE_MS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+static GHOST_LOCKED_BOUNDS: OnceLock<Mutex<Option<LyricBounds>>> = OnceLock::new();
+static GHOST_ENTERED_WHILE_HOVERING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
-pub fn toggle_dynamic_island_ghost() {
+pub fn toggle_dynamic_island_ghost() -> bool {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0);
+    let last = DYNAMIC_ISLAND_GHOST_LAST_TOGGLE_MS.load(std::sync::atomic::Ordering::SeqCst);
+    // 250ms hardware debounce to eliminate duplicate rapid triggers between JS keydown, GetAsyncKeyState, and global shortcuts
+    if now.saturating_sub(last) < 250 {
+        return DYNAMIC_ISLAND_GHOST_ACTIVE.load(std::sync::atomic::Ordering::SeqCst);
+    }
+    DYNAMIC_ISLAND_GHOST_LAST_TOGGLE_MS.store(now, std::sync::atomic::Ordering::SeqCst);
+
     let current = DYNAMIC_ISLAND_GHOST_ACTIVE.load(std::sync::atomic::Ordering::SeqCst);
-    set_dynamic_island_ghost(!current);
+    let next = !current;
+    set_dynamic_island_ghost(next);
+    next
 }
 
 pub fn set_dynamic_island_ghost(enable: bool) {
@@ -60,13 +76,37 @@ pub fn set_dynamic_island_ghost(enable: bool) {
             .map(|d| d.as_millis() as u64)
             .unwrap_or(0);
         DYNAMIC_ISLAND_GHOST_ENTERED_AT.store(now, std::sync::atomic::Ordering::SeqCst);
+        GHOST_ENTERED_WHILE_HOVERING.store(true, std::sync::atomic::Ordering::SeqCst);
+
+        // Snapshot current bounds so hover loss (which collapses height from 126px to 36px) doesn't cause premature auto-restore
+        if let Ok(cur_bounds) = get_island_bounds().lock() {
+            if let Some(b) = *cur_bounds {
+                if let Ok(mut lock) = GHOST_LOCKED_BOUNDS.get_or_init(|| Mutex::new(None)).lock() {
+                    let locked = LyricBounds {
+                        x: b.x,
+                        y: b.y,
+                        width: b.width.max(340),
+                        height: b.height.max(36),
+                    };
+                    *lock = Some(locked);
+                }
+            }
+        }
+    } else {
+        if let Ok(mut lock) = GHOST_LOCKED_BOUNDS.get_or_init(|| Mutex::new(None)).lock() {
+            *lock = None;
+        }
+        GHOST_ENTERED_WHILE_HOVERING.store(false, std::sync::atomic::Ordering::SeqCst);
     }
 }
 
 #[tauri::command]
-pub fn cmd_toggle_dynamic_island_ghost() -> Result<bool, String> {
-    toggle_dynamic_island_ghost();
-    Ok(DYNAMIC_ISLAND_GHOST_ACTIVE.load(std::sync::atomic::Ordering::SeqCst))
+pub fn cmd_toggle_dynamic_island_ghost(window: tauri::WebviewWindow) -> Result<bool, String> {
+    use tauri::Emitter;
+    let new_state = toggle_dynamic_island_ghost();
+    let _ = window.emit("island-ghost-mode", new_state);
+    let _ = window.set_ignore_cursor_events(new_state);
+    Ok(new_state)
 }
 
 fn get_island_bounds() -> &'static Mutex<Option<LyricBounds>> {
@@ -114,19 +154,29 @@ pub async fn copy_to_clipboard(text: String) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
         #[cfg(target_os = "windows")]
         {
-            use std::process::Command;
-            use std::os::windows::process::CommandExt;
-            let mut child = Command::new("powershell")
-                .args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", "$input | Set-Clipboard"])
-                .creation_flags(0x08000000)
-                .stdin(std::process::Stdio::piped())
-                .spawn()
-                .map_err(|e| e.to_string())?;
-            if let Some(mut stdin) = child.stdin.take() {
-                use std::io::Write;
-                let _ = stdin.write_all(text.as_bytes());
+            use windows::Win32::System::DataExchange::{OpenClipboard, CloseClipboard, EmptyClipboard, SetClipboardData};
+            use windows::Win32::System::Memory::{GlobalAlloc, GlobalLock, GlobalUnlock, GMEM_MOVEABLE};
+            use windows::Win32::Foundation::HANDLE;
+
+            let wide: Vec<u16> = text.encode_utf16().chain(std::iter::once(0)).collect();
+            let bytes_len = wide.len() * std::mem::size_of::<u16>();
+
+            unsafe {
+                if OpenClipboard(None).is_ok() {
+                    let _ = EmptyClipboard();
+                    if let Ok(h_mem) = GlobalAlloc(GMEM_MOVEABLE, bytes_len) {
+                        let ptr = GlobalLock(h_mem);
+                        if !ptr.is_null() {
+                            std::ptr::copy_nonoverlapping(wide.as_ptr() as *const u8, ptr as *mut u8, bytes_len);
+                            let _ = GlobalUnlock(h_mem);
+                            // 13 is CF_UNICODETEXT
+                            let _ = SetClipboardData(13, Some(HANDLE(h_mem.0 as *mut _)));
+                        }
+                    }
+                    let _ = CloseClipboard();
+                    return Ok(());
+                }
             }
-            let _ = child.wait();
             return Ok(());
         }
         #[cfg(target_os = "macos")]
@@ -249,11 +299,12 @@ pub async fn set_taskbar_mode(app: AppHandle, enabled: bool, _from_tray: Option<
         #[cfg(target_os = "windows")]
         {
             use windows::Win32::UI::WindowsAndMessaging::{
-                GetSystemMetrics, SystemParametersInfoW, SetWindowPos,
+                GetSystemMetrics, SystemParametersInfoW, SetWindowPos, FindWindowW,
                 HWND_TOPMOST, SM_CXSCREEN, SM_CYSCREEN, SPI_GETWORKAREA,
-                SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS, SWP_SHOWWINDOW, SWP_NOACTIVATE,
-                GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_NOACTIVATE,
+                SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS, SWP_SHOWWINDOW, SWP_NOACTIVATE, SWP_FRAMECHANGED,
+                GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE, GWLP_HWNDPARENT, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_NOACTIVATE,
             };
+            use windows::core::w;
             use windows::Win32::Foundation::RECT;
 
             let screen_w = unsafe { GetSystemMetrics(SM_CXSCREEN) };
@@ -319,6 +370,15 @@ pub async fn set_taskbar_mode(app: AppHandle, enabled: bool, _from_tray: Option<
             if let Ok(hwnd) = tb_win.hwnd() {
                 unsafe {
                     let hwnd_val = windows::Win32::Foundation::HWND(hwnd.0 as _);
+
+                    // 1. Establish Win32 shell ownership with Shell_TrayWnd so Windows WM permanently stacks tb_win on top of the taskbar
+                    if let Ok(tray) = FindWindowW(w!("Shell_TrayWnd"), None) {
+                        if !tray.is_invalid() {
+                            let _ = SetWindowLongPtrW(hwnd_val, GWLP_HWNDPARENT, tray.0 as isize);
+                            crate::log_to_file(&format!("[LyricFlow Command] Set Shell_TrayWnd ({:?}) as owner of taskbar window", tray));
+                        }
+                    }
+
                     let cur_ex = GetWindowLongPtrW(hwnd_val, GWL_EXSTYLE);
                     let new_ex = cur_ex | (WS_EX_TOOLWINDOW.0 as isize) | (WS_EX_TOPMOST.0 as isize) | (WS_EX_NOACTIVATE.0 as isize);
                     let _ = SetWindowLongPtrW(hwnd_val, GWL_EXSTYLE, new_ex);
@@ -330,7 +390,7 @@ pub async fn set_taskbar_mode(app: AppHandle, enabled: bool, _from_tray: Option<
                         win_y,
                         win_w,
                         win_h,
-                        SWP_SHOWWINDOW | SWP_NOACTIVATE,
+                        SWP_SHOWWINDOW | SWP_NOACTIVATE | SWP_FRAMECHANGED,
                     );
                 }
             }
@@ -362,13 +422,14 @@ pub async fn set_taskbar_mode(app: AppHandle, enabled: bool, _from_tray: Option<
             #[cfg(target_os = "windows")]
             {
                 use windows::Win32::UI::WindowsAndMessaging::{
-                    GetCursorPos, SetWindowPos, HWND_TOPMOST,
+                    GetCursorPos, GetForegroundWindow, SetWindowPos, HWND_TOPMOST,
                     SWP_NOMOVE, SWP_NOSIZE, SWP_NOACTIVATE, SWP_SHOWWINDOW,
                 };
-                use windows::Win32::Foundation::POINT;
+                use windows::Win32::Foundation::{HWND, POINT};
 
                 let mut current_clickthrough = true;
                 let mut tick_counter: u32 = 0;
+                let mut last_foreground = HWND::default();
 
                 // Cache HWND once so we don't query Tauri window methods every tick
                 let tb_hwnd = app_handle
@@ -385,8 +446,12 @@ pub async fn set_taskbar_mode(app: AppHandle, enabled: bool, _from_tray: Option<
 
                     tick_counter = tick_counter.wrapping_add(1);
 
-                    // Every 600ms (20 ticks of 30ms), ensure HWND_TOPMOST over Shell_TrayWnd
-                    if tick_counter % 20 == 0 {
+                    // Re-assert HWND_TOPMOST immediately whenever foreground changes (focus shift),
+                    // or on a 90ms tick cadence (every 3 ticks) to guarantee visibility over Shell_TrayWnd
+                    let fg = unsafe { GetForegroundWindow() };
+                    let focus_changed = fg != last_foreground;
+                    if focus_changed || tick_counter % 3 == 0 {
+                        last_foreground = fg;
                         if let Some(hwnd_val) = tb_hwnd {
                             unsafe {
                                 let _ = SetWindowPos(
@@ -936,16 +1001,22 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
     let app = window.app_handle();
 
     if enabled {
-        // Save current window position & size only on first entry
+        // Save current window position & size only on first entry from a legitimate main window
         if !DYNAMIC_ISLAND_ACTIVE.load(Ordering::SeqCst) {
-            if let Ok(pos) = window.outer_position() {
-                if let Ok(mut lock) = SAVED_ISLAND_MAIN_POS.get_or_init(|| Mutex::new(None)).lock() {
-                    *lock = Some((pos.x, pos.y));
-                }
-            }
+            let scale = window.scale_factor().unwrap_or(1.0);
+            let min_w = (650.0 * scale) as u32;
+            let min_h = (450.0 * scale) as u32;
+
             if let Ok(size) = window.inner_size() {
-                if let Ok(mut lock) = SAVED_ISLAND_MAIN_SIZE.get_or_init(|| Mutex::new(None)).lock() {
-                    *lock = Some((size.width, size.height));
+                if size.width >= min_w && size.height >= min_h {
+                    if let Ok(mut lock) = SAVED_ISLAND_MAIN_SIZE.get_or_init(|| Mutex::new(None)).lock() {
+                        *lock = Some((size.width, size.height));
+                    }
+                    if let Ok(pos) = window.outer_position() {
+                        if let Ok(mut lock) = SAVED_ISLAND_MAIN_POS.get_or_init(|| Mutex::new(None)).lock() {
+                            *lock = Some((pos.x, pos.y));
+                        }
+                    }
                 }
             }
         }
@@ -1017,6 +1088,8 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
             (center_x, 0)
         };
 
+        let _ = window.unminimize();
+        let _ = window.show();
         let _ = window.set_resizable(false);
         let _ = window.set_size(tauri::PhysicalSize::new(island_w, island_h));
         let _ = window.set_position(tauri::PhysicalPosition::new(target_x, target_y));
@@ -1029,13 +1102,13 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
             use windows::Win32::UI::WindowsAndMessaging::{
                 SetWindowPos, HWND_TOPMOST, SWP_SHOWWINDOW, SWP_NOACTIVATE, SWP_FRAMECHANGED,
                 GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE, WS_EX_TOPMOST,
-                WS_EX_TOOLWINDOW, WS_EX_APPWINDOW,
+                WS_EX_TOOLWINDOW, WS_EX_APPWINDOW, WS_EX_TRANSPARENT,
             };
             if let Ok(hwnd) = window.hwnd() {
                 let hwnd_val = windows::Win32::Foundation::HWND(hwnd.0 as _);
                 unsafe {
                     let cur_ex = GetWindowLongPtrW(hwnd_val, GWL_EXSTYLE);
-                    let new_ex = (cur_ex & !(WS_EX_APPWINDOW.0 as isize)) | (WS_EX_TOOLWINDOW.0 as isize) | (WS_EX_TOPMOST.0 as isize);
+                    let new_ex = (cur_ex & !(WS_EX_APPWINDOW.0 as isize | WS_EX_TRANSPARENT.0 as isize)) | (WS_EX_TOOLWINDOW.0 as isize) | (WS_EX_TOPMOST.0 as isize);
                     let _ = SetWindowLongPtrW(hwnd_val, GWL_EXSTYLE, new_ex);
                     let _ = SetWindowPos(
                         hwnd_val,
@@ -1079,7 +1152,7 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
                 .name("dynamic-island-hit-test".to_string())
                 .spawn(move || {
                     use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
-                    use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_OEM_3};
+                    use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_OEM_3, VK_OEM_5, VK_OEM_8};
                     use windows::Win32::Foundation::POINT;
                     use tauri::Emitter;
 
@@ -1089,8 +1162,10 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
                     let mut last_pt = POINT { x: -9999, y: -9999 };
                     let mut last_bounds_id: (i32, i32, i32, i32) = (-1, -1, -1, -1);
 
+                    let mut sleep_ms = 25u64;
+
                     while DYNAMIC_ISLAND_ACTIVE.load(Ordering::SeqCst) {
-                        std::thread::sleep(std::time::Duration::from_millis(25));
+                        std::thread::sleep(std::time::Duration::from_millis(sleep_ms));
 
                         if !DYNAMIC_ISLAND_ACTIVE.load(Ordering::SeqCst) {
                             break;
@@ -1103,9 +1178,17 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
 
                             let (win_x, win_y, scale) = get_island_geometry().lock().ok().map(|g| *g).unwrap_or((0, 0, 1.0));
 
-                            let is_over_island = if let Some(b) = bounds_opt {
+                            // While in ghost mode, prefer the snapshot bounds so CSS :hover unmatch doesn't collapse hit-testing
+                            let is_ghost_active = DYNAMIC_ISLAND_GHOST_ACTIVE.load(Ordering::SeqCst);
+                            let active_bounds = if is_ghost_active {
+                                GHOST_LOCKED_BOUNDS.get_or_init(|| Mutex::new(None)).lock().ok().and_then(|g| *g).or(bounds_opt)
+                            } else {
+                                bounds_opt
+                            };
+
+                            let is_over_island = if let Some(b) = active_bounds {
                                 if b.width > 0 && b.height > 0 {
-                                    let pad = (10.0 * scale) as i32; // 10px generous buffer for effortless hover
+                                    let pad = (16.0 * scale) as i32; // Generous 16px buffer for seamless interaction
                                     let left = win_x + (b.x as f64 * scale) as i32 - pad;
                                     let top = win_y + (b.y as f64 * scale) as i32 - pad;
                                     let right = win_x + ((b.x + b.width) as f64 * scale) as i32 + pad;
@@ -1119,20 +1202,42 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
                                 false
                             };
 
-                            // Real-time tap of ` (Tilde / Backtick, VK_OEM_3):
-                            // Strictly gated so it ONLY triggers when the cursor is hovering directly over the island,
-                            // or when already in ghost mode (to toggle it back off).
-                            // This guarantees typing backticks in code, markdown, or chat anywhere else is never hijacked.
-                            let is_tilde_down = (unsafe { GetAsyncKeyState(VK_OEM_3.0 as i32) } as u16 & 0x8000) != 0;
+                            // Adaptive sleep: If cursor is far from island bounds (> 160px), poll slower (45ms) to save CPU/battery.
+                            // If close (< 100px) or hovering or ghost active, poll at 25ms for instant responsiveness.
+                            let is_near_island = if let Some(b) = active_bounds {
+                                let pad = (160.0 * scale) as i32;
+                                pt.x >= (win_x + (b.x as f64 * scale) as i32 - pad)
+                                    && pt.x <= (win_x + ((b.x + b.width) as f64 * scale) as i32 + pad)
+                                    && pt.y >= (win_y + (b.y as f64 * scale) as i32 - pad)
+                                    && pt.y <= (win_y + ((b.y + b.height) as f64 * scale) as i32 + pad)
+                            } else {
+                                false
+                            };
+
+                            sleep_ms = if is_over_island || is_ghost_active || is_near_island {
+                                25
+                            } else {
+                                45
+                            };
+
+                            // Real-time tap of ` (Tilde / Backtick):
+                            // Support US (VK_OEM_3 / 0xC0), UK (VK_OEM_5 / 0xDC), and International (VK_OEM_8 / 0xDF) keyboards
+                            let is_oem3 = (unsafe { GetAsyncKeyState(VK_OEM_3.0 as i32) } as u16 & 0x8000) != 0;
+                            let is_oem5 = (unsafe { GetAsyncKeyState(VK_OEM_5.0 as i32) } as u16 & 0x8000) != 0;
+                            let is_oem8 = (unsafe { GetAsyncKeyState(VK_OEM_8.0 as i32) } as u16 & 0x8000) != 0;
+                            let is_tilde_down = is_oem3 || is_oem5 || is_oem8;
+
                             if is_tilde_down && !last_tilde_state {
-                                let is_ghost_active = DYNAMIC_ISLAND_GHOST_ACTIVE.load(Ordering::SeqCst);
                                 if is_over_island || is_ghost_active {
+                                    if !is_ghost_active && is_over_island {
+                                        GHOST_ENTERED_WHILE_HOVERING.store(true, Ordering::SeqCst);
+                                    }
                                     toggle_dynamic_island_ghost();
                                 }
                             }
                             last_tilde_state = is_tilde_down;
 
-                            // Auto-restore ghost mode when cursor leaves island area
+                            // Auto-restore ghost mode
                             let is_ghost = DYNAMIC_ISLAND_GHOST_ACTIVE.load(Ordering::SeqCst);
                             if is_ghost {
                                 let now = std::time::SystemTime::now()
@@ -1140,8 +1245,9 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
                                     .map(|d| d.as_millis() as u64)
                                     .unwrap_or(0);
                                 let entered_at = DYNAMIC_ISLAND_GHOST_ENTERED_AT.load(Ordering::SeqCst);
-                                // If cursor moves away after 600ms grace period OR after 8s safety timeout, auto-restore
-                                if now.saturating_sub(entered_at) > 600 && (!is_over_island || now.saturating_sub(entered_at) > 8000) {
+                                let should_auto_restore = now.saturating_sub(entered_at) > 500 && (!is_over_island || now.saturating_sub(entered_at) > 7000);
+
+                                if should_auto_restore {
                                     set_dynamic_island_ghost(false);
                                 }
                             }
@@ -1152,18 +1258,18 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
                                 let _ = win_clone.emit("island-ghost-mode", is_ghost_now);
                             }
 
-                            if pt.x == last_pt.x && pt.y == last_pt.y && cur_bounds_id == last_bounds_id && !is_ghost_now && !current_ghost_mode {
-                                continue;
-                            }
-                            last_pt = pt;
-                            last_bounds_id = cur_bounds_id;
-
                             // In Ghost Passthrough mode (Tap to Ghost), all cursor events pass through to windows beneath
                             let should_clickthrough = is_ghost_now || !is_over_island;
                             if should_clickthrough != current_clickthrough {
                                 current_clickthrough = should_clickthrough;
                                 let _ = win_clone.set_ignore_cursor_events(should_clickthrough);
                             }
+
+                            if pt.x == last_pt.x && pt.y == last_pt.y && cur_bounds_id == last_bounds_id && !is_ghost_now && !current_ghost_mode {
+                                continue;
+                            }
+                            last_pt = pt;
+                            last_bounds_id = cur_bounds_id;
                         }
                     }
 
@@ -1184,15 +1290,22 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
         let saved_pos = SAVED_ISLAND_MAIN_POS.get_or_init(|| Mutex::new(None)).lock().ok().and_then(|mut g| g.take());
         let saved_size = SAVED_ISLAND_MAIN_SIZE.get_or_init(|| Mutex::new(None)).lock().ok().and_then(|mut g| g.take());
 
+        let scale = window.scale_factor().unwrap_or(1.0);
+        let default_w = (780.0 * scale) as u32;
+        let default_h = (560.0 * scale) as u32;
+        let min_w = (680.0 * scale) as u32;
+        let min_h = (480.0 * scale) as u32;
+
         let (rx, ry, rw, rh) = if let (Some((px, py)), Some((sw, sh))) = (saved_pos, saved_size) {
-            (px, py, sw, sh)
+            let w = if sw < min_w { default_w } else { sw };
+            let h = if sh < min_h { default_h } else { sh };
+            (px, py, w, h)
         } else {
-            let scale = window.scale_factor().unwrap_or(1.0);
-            let sw = (780.0 * scale) as u32;
-            let sh = (560.0 * scale) as u32;
-            (100, 100, sw, sh)
+            (100, 100, default_w, default_h)
         };
 
+        let _ = window.unminimize();
+        let _ = window.show();
         let _ = window.set_resizable(true);
         let _ = window.set_size(tauri::PhysicalSize::new(rw, rh));
         let _ = window.set_position(tauri::PhysicalPosition::new(rx, ry));
@@ -1233,6 +1346,20 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
     }
 
     let _ = app.emit("dynamic-island-mode-changed", enabled);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn reset_window_size(window: WebviewWindow) -> Result<(), String> {
+    let scale = window.scale_factor().unwrap_or(1.0);
+    let sw = (780.0 * scale) as u32;
+    let sh = (560.0 * scale) as u32;
+    let _ = window.set_resizable(true);
+    let _ = window.set_size(tauri::PhysicalSize::new(sw, sh));
+    let _ = window.center();
+    let _ = window.show();
+    let _ = window.unminimize();
+    let _ = window.set_focus();
     Ok(())
 }
 

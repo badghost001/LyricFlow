@@ -93,7 +93,7 @@ body.custom-bg-active .app-container {
     height: 32px;
   }
   .lyrics-scroll-container {
-    padding: 40vh 0;
+    padding: 40vh 12px;
   }
 }
 
@@ -102,7 +102,7 @@ body.custom-bg-active .app-container {
     padding: 6px 12px;
   }
   .lyrics-scroll-container {
-    padding: 30vh 0;
+    padding: 30vh 12px;
   }
 }
 

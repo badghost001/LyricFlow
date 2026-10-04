@@ -48,12 +48,20 @@
           words = [];
           for (let wi = 0; wi < item.words.length; wi++) {
             const w = item.words[wi];
-            const wStart = Math.max(startSec, (Number(w.timeMs || 0)) / 1000);
-            let wEnd = wStart + 0.3;
-            if (wi < item.words.length - 1 && item.words[wi + 1]?.timeMs !== undefined) {
+            const wStart = Math.max(startSec, (Number(w.timeMs != null ? w.timeMs : (w.start != null ? w.start * 1000 : 0))) / 1000);
+            let wEnd;
+            if (w.durationMs != null && w.durationMs > 0) {
+              wEnd = wStart + (w.durationMs / 1000);
+            } else if (w.duration != null && w.duration > 0) {
+              wEnd = wStart + (w.duration / 1000);
+            } else if (w.end != null && w.end > 0) {
+              wEnd = Number(w.end);
+            } else if (wi < item.words.length - 1 && item.words[wi + 1]?.timeMs !== undefined) {
               wEnd = Math.max(wStart + 0.05, item.words[wi + 1].timeMs / 1000);
             } else {
-              wEnd = endSec;
+              const wordLen = (w.text || '').trim().length;
+              const naturalSec = Math.max(0.45, Math.min(2.0, wordLen * 0.16 + 0.35));
+              wEnd = Math.min(endSec, wStart + naturalSec);
             }
             words.push(createLyricWord(w.text, wStart, wEnd));
           }

@@ -64,4 +64,10 @@ pub struct LyricsSearchOptions {
     pub force_refresh: bool,
     #[serde(rename = "candidateIndex", default)]
     pub candidate_index: usize,
+    #[serde(rename = "neteaseWordByWord", default = "default_true")]
+    pub netease_word_by_word: bool,
+}
+
+fn default_true() -> bool {
+    true
 }

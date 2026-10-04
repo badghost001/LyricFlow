@@ -68,19 +68,25 @@
 
     const logQueue = [];
     let isDrainingLogs = false;
+    let logDrainTimer = null;
 
     function queueLog(msg) {
-      if (logQueue.length >= 80) logQueue.shift();
+      if (logQueue.length >= 100) logQueue.shift();
       logQueue.push(msg);
-      drainLogs();
+      if (!logDrainTimer) {
+        logDrainTimer = setTimeout(() => {
+          logDrainTimer = null;
+          drainLogs();
+        }, 200);
+      }
     }
 
     async function drainLogs() {
-      if (isDrainingLogs) return;
+      if (isDrainingLogs || logQueue.length === 0) return;
       isDrainingLogs = true;
       try {
         while (logQueue.length > 0) {
-          const batch = logQueue.splice(0, 5).join('\n');
+          const batch = logQueue.splice(0, 15).join('\n');
           await safeInvoke('log_debug', { msg: batch });
         }
       } finally {
@@ -184,6 +190,7 @@
     closeApp: () => safeInvoke('close_app', {}, null),
     minimizeApp: () => safeInvoke('minimize_app', {}, null),
     showMainWindow: () => safeInvoke('show_main_window', {}, null),
+    resetWindowSize: () => safeInvoke('reset_window_size', {}, null),
     openExternal: (url) => safeInvoke('open_external', { url }, null),
     lastfmApi: (method, params = {}, apiKey = '', apiSecret = '', sessionKey = '') =>
       safeInvoke('lastfm_api', { data: { method, params, apiKey, apiSecret, sessionKey } }, null),
@@ -223,7 +230,7 @@
     },
     readFileDataUrl: (path) => safeInvoke('read_file_data_url', { path }, null),
     fetchImageDataUrl: (url) => safeInvoke('fetch_image_data_url', { url }, null),
-    fetchTrackArtwork: (track, artist) => safeInvoke('fetch_track_artwork', { track, artist }, null),
+    fetchTrackArtwork: (track, artist, album = null) => safeInvoke('fetch_track_artwork', { track, artist, album }, null),
     fetchSpotifyCanvas: (trackId, token) => safeInvoke('fetch_spotify_canvas', { trackId, token }, null),
     searchMusicGif: (trackName, artistName) => safeInvoke('search_music_gif', { trackName, artistName }, null),
     setFullscreenLyrics: (enabled) => safeInvoke('set_fullscreen_lyrics', { enabled }, null),
@@ -252,6 +259,9 @@
 
     // Event Listeners
     onToggleClickThrough: (cb) => safeListen('toggle-click-through-shortcut', () => cb()),
+    onToggleDynamicIslandShortcut: (cb) => safeListen('toggle-dynamic-island-shortcut', () => cb()),
+    onToggleWallpaperModeShortcut: (cb) => safeListen('toggle-wallpaper-mode-shortcut', () => cb()),
+    onToggleTaskbarModeShortcut: (cb) => safeListen('toggle-taskbar-mode-shortcut', () => cb()),
     onWindowRestored: (cb) => safeListen('window-restored', () => cb()),
     onForceNormalMode: (cb) => safeListen('force-normal-mode', () => cb()),
     onWallpaperModeState: (cb) => safeListen('set-wallpaper-mode-state', (payload) => cb(payload)),
