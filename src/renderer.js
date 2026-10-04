@@ -1940,8 +1940,14 @@ function updateDynamicIslandLyric(targetIndex, lineData, syncProgress, isInstrum
         idleHtml = `<span class="island-idle-text"><span class="island-idle-title">${escapeHTML(trackTitle)}</span> • <span class="island-instrumental-dots">♪ ♪ ♪</span></span>`;
         expText = `${trackTitle} • Instrumental`;
       } else {
-        idleHtml = `<span class="island-idle-text"><span class="island-idle-title">${escapeHTML(trackTitle)}</span>${trackArtist ? ` • ${escapeHTML(trackArtist)}` : ''}</span>`;
-        expText = trackTitle;
+        const hasNoLyrics = (!lyrics || lyrics.length === 0) && currentTrackId;
+        if (hasNoLyrics) {
+          idleHtml = `<span class="island-idle-text"><span class="island-idle-title">${escapeHTML(trackTitle)}</span> • <span class="island-no-lyrics-hint" title="No lyrics found - Click ↻ or right-click to search alternatives">No lyrics (Click ↻)</span></span>`;
+          expText = `${trackTitle} • No lyrics found (Click ↻ to refetch)`;
+        } else {
+          idleHtml = `<span class="island-idle-text"><span class="island-idle-title">${escapeHTML(trackTitle)}</span>${trackArtist ? ` • ${escapeHTML(trackArtist)}` : ''}</span>`;
+          expText = trackTitle;
+        }
       }
     }
 
@@ -5072,6 +5078,13 @@ function setupUIHandlers() {
       toggleDynamicIslandMode(false);
     });
   }
+  const islandBtnRefetch = document.getElementById("island-btn-refetch");
+  if (islandBtnRefetch) {
+    islandBtnRefetch.addEventListener("click", (e) => {
+      e.stopPropagation();
+      cycleAlternativeLyrics();
+    });
+  }
   const islandBtnTranslate = document.getElementById("island-btn-translate");
   if (islandBtnTranslate) {
     islandBtnTranslate.addEventListener("click", (e) => {
@@ -5258,6 +5271,26 @@ function toggleAppMute() {
       e.preventDefault();
       toggleAppMute();
     });
+
+    // Right Click on Dynamic Island to Refetch / Cycle Alternative Lyrics
+    dynamicIslandEl.addEventListener("contextmenu", (e) => {
+      if (!isDynamicIslandMode) return;
+      if (e.target.closest('#island-expanded-controls')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      cycleAlternativeLyrics();
+    });
+
+    const islandStage = document.getElementById("island-stage");
+    if (islandStage) {
+      islandStage.addEventListener("click", (e) => {
+        if (!isDynamicIslandMode) return;
+        if ((!lyrics || lyrics.length === 0) && currentTrackId) {
+          e.stopPropagation();
+          cycleAlternativeLyrics();
+        }
+      });
+    }
   }
 
   function attachScrubberController({
@@ -9025,6 +9058,10 @@ async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = nu
       currentSourceLevel = sourceLevel;
       updateTimingStatus(sourceLevel, sourceName, candidateInfo);
 
+      if (options.forceRefresh && isDynamicIslandMode) {
+        showIslandHud({ icon: "✓", text: `${sourceName || "Lyrics"} loaded`, showBar: false });
+      }
+
       // Keep lyric engine synchronized with standard internal NormalizedLyrics
       if (window.LyricsService?.instance?.engine) {
         if (normalizedLyricsObj && window.LyricModels && window.LyricModels.isValidLyrics(normalizedLyricsObj)) {
@@ -9420,7 +9457,11 @@ async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = nu
     }
 
     if (lyrics.length === 0 && options.forceRefresh && trackId === currentTrackId) {
-      showToast("No alternative lyrics found in database for this track.", 3000, 'warning');
+      if (isDynamicIslandMode) {
+        showIslandHud({ icon: "⚠️", text: "No alternatives", showBar: false });
+      } else {
+        showToast("No alternative lyrics found in database for this track.", 3000, 'warning');
+      }
     }
 
     // Immediately resolve empty state: do not leave user hanging in limbo
@@ -9491,13 +9532,21 @@ function updateTimingStatus(level, sourceName = "", candidateInfo = "") {
 async function cycleAlternativeLyrics() {
   if (isReloadingLyrics) return;
   if (!currentTrackId) {
-    showToast("No active track playing to reload lyrics.", 2000, 'warning');
+    if (isDynamicIslandMode) {
+      showIslandHud({ icon: "⚠️", text: "No track playing", showBar: false });
+    } else {
+      showToast("No active track playing to reload lyrics.", 2000, 'warning');
+    }
     return;
   }
   const title = (widgetTrackName && widgetTrackName.textContent !== "Not Playing") ? widgetTrackName.textContent : "";
   const artist = (widgetArtistName && widgetArtistName.textContent !== "Spotify") ? widgetArtistName.textContent : "";
   if (!title) {
-    showToast("Play a track first to reload lyrics.", 2000, 'warning');
+    if (isDynamicIslandMode) {
+      showIslandHud({ icon: "⚠️", text: "Play track first", showBar: false });
+    } else {
+      showToast("Play a track first to reload lyrics.", 2000, 'warning');
+    }
     return;
   }
 
@@ -9508,13 +9557,21 @@ async function cycleAlternativeLyrics() {
   reloadIcons.forEach(icon => icon.classList.add("rotating"));
 
   const curIdx = (trackLyricsCandidateIndex[currentTrackId] || 0) + 1;
-  showToast(`Searching lyrics database for alternative #${curIdx + 1}...`, 3000, 'reload');
+  if (isDynamicIslandMode) {
+    showIslandHud({ icon: "↻", text: `Refetching lyrics #${curIdx + 1}...`, showBar: false });
+  } else {
+    showToast(`Searching lyrics database for alternative #${curIdx + 1}...`, 3000, 'reload');
+  }
 
   try {
     await fetchLyrics(currentTrackId, title, artist, trackDuration, null, { forceRefresh: true });
   } catch (err) {
     console.error("Cycle lyrics error:", err);
-    showToast("Error researching lyrics from database.", 3000, 'warning');
+    if (isDynamicIslandMode) {
+      showIslandHud({ icon: "⚠️", text: "Refetch failed", showBar: false });
+    } else {
+      showToast("Error researching lyrics from database.", 3000, 'warning');
+    }
   } finally {
     setTimeout(() => {
       reloadIcons.forEach(icon => icon.classList.remove("rotating"));

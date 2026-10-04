@@ -420,6 +420,12 @@ body:not(.is-playing) .island-art-halo {
   font-weight: 600;
 }
 
+.island-no-lyrics-hint {
+  color: rgba(255, 255, 255, 0.45);
+  font-style: italic;
+  font-size: 11px;
+}
+
 /* ==========================================================
    PAUSED ZONE: SONG NAME ONLY (LYRICS HIDDEN)
    When music is paused/stopped:
@@ -1299,16 +1305,41 @@ body:not(.is-playing) .island-wave-visualizer.is-fallback .wave-bar {
   transform: scaleY(0.14) !important;
 }
 
+#dynamic-island .island-top-actions #island-btn-refetch,
 #dynamic-island .island-top-actions #island-btn-translate,
 #dynamic-island .island-top-actions #island-btn-ghost,
 #dynamic-island .island-top-actions #island-btn-expand {
   display: none !important;
 }
 
+#dynamic-island:hover .island-top-actions #island-btn-refetch,
 #dynamic-island:hover .island-top-actions #island-btn-translate,
 #dynamic-island:hover .island-top-actions #island-btn-ghost,
 #dynamic-island:hover .island-top-actions #island-btn-expand {
   display: flex !important;
+}
+
+.island-btn.island-btn-refetch {
+  width: 22px;
+  height: 22px;
+  color: rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.island-btn.island-btn-refetch:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.20);
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.island-btn.island-btn-refetch .reload-icon {
+  display: block;
+  transform-origin: center center;
+  transition: transform 0.25s ease;
+}
+
+.island-btn.island-btn-refetch .reload-icon.rotating {
+  animation: spinCycle 0.75s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
 .island-btn.island-btn-ghost {
