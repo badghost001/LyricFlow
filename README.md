@@ -28,6 +28,7 @@
 
 ## 🌟 What's New in v1.42.0
 
+- 🎤 **Real-Time Word-by-Word Karaoke Lyrics:** Syllable-by-syllable acoustic vocal tracking with progressive word illumination across the main overlay, Cinematic Mode, and Dynamic Island. Parses Enhanced LRC (`<mm:ss.xx>`) and YRC word timing with millisecond precision.
 - 🎬 **Immersive Kinetic & Cinematic Live Mode:** Turn your desktop into an art-directed music visualizer with horizontal widescreen typography, 1-to-3 word rapid rhythmic phrase cuts, and zero ambient blur distractions.
 - 📐 **Parametric Shape Morph Transitions:** 7 curated geometric shapes (*Astroid, Rosette, Clover, Diamond, Pill, Heart, and Editorial Seal*) that smoothly contract, rotate, and expand during musical breaks (`gap >= 1.8s`) right before upcoming vocals.
 - ⚡ **Enhanced LRC Word-by-Word Acoustic Synchronization:** Strict 1:1 acoustic playhead synchronization with zero artificial lead, clamped polling latency, and smooth anti-drift clock convergence.
