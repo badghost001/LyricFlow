@@ -34,6 +34,7 @@
 - 🔤 **Clean Punctuation & Typography Formatting:** Automated double-bracket stripping, contraction syllable preservation, clean Hanzi/Kana character spacing, and ad-lib formatting.
 - 🔄 **Dynamic Island Alternative Lyrics Refetch:** Instant right-click context menu and hover button to cycle through alternative lyric providers directly from the floating island pill.
 - 🛡️ **Zero-Distraction Stage & Resilient Transitions:** Complete suppression of resync buttons and ambient background bleed in cinematic view, with seamless track transitions that never get stuck on song headings.
+- 🚧 **Kinetic Share Card Export:** *(Under Active Development)* Kinetic typography video card export with dynamic shape morphs is currently under active development and preview testing.
 
 ---
 
@@ -67,6 +68,7 @@
 - **Multi-Format Social Presets:** Generate visually stunning lyric cards in **Instagram Story (9:16)**, **Square (1:1)**, **Portrait Feed (4:5)**, and **Landscape (16:9)**.
 - **Curated Typography Stacks:** Switch between Modern Sans, Editorial Serif, Monospace, and Soft Rounded font stacks.
 - **Multi-Mode Lyrics Rendering:** Original lyrics, Bilingual (Original + Translation), or Translation-only view with instant clipboard copying and PNG saving.
+- **Kinetic Video Card Export:** *(Under Active Development)* High-definition video generator bringing dynamic kinetic typography and parametric shape morphs to exportable social share cards.
 
 ### 📻 Deep Native OS Integrations
 - **Windows:** System Media Transport Controls (SMTC) via dedicated MTA COM worker thread—supporting Spotify Desktop, Apple Music, YouTube Music, web browsers, and local media players.
@@ -102,9 +104,9 @@
 <br/><br/>
 
 ### 3D MMCQ Adaptive Color Window & White Lyrics
-*Pure white typography with luminous artwork glow aura, seamlessly tinted to authentic album palette centroids.*
+*Pure white high-contrast typography, frosted glass overlay, and integrated media transport controls.*
 <br/>
-<img src="assets/screenshots/adaptive-color-lyrics.png" alt="3D MMCQ Adaptive Color Lyrics" width="950" />
+<img src="assets/screenshots/adaptive-color-lyrics.png" alt="LyricFlow Main Window" width="950" />
 
 <br/><br/>
 
@@ -123,7 +125,7 @@
 <br/><br/>
 
 ### Settings & Aesthetics Studio
-*Deep personalization: OLED themes, dynamic album accents, custom fonts, line spacing, and inactivity sleep timers.*
+*Deep personalization: Themes (Dark Glass, OLED Black, Pearl Light), Cinematic Stage vs. Classic Scrolling toggle, custom accents, and typography controls.*
 <br/>
 <img src="assets/screenshots/settings-panel-v1.4.0.png" alt="LyricFlow Settings Panel" width="950" />
 
