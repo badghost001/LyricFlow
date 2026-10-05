@@ -1,4 +1,4 @@
-/* Settings Side Panel */
+/* Settings Side Panel - Authentic Liquid Glass Masterpiece */
 .settings-panel {
   position: absolute;
   top: 0;
@@ -7,22 +7,22 @@
   bottom: 0;
   width: 100%;
   height: 100%;
-  background: var(--glass-liquid-bg, rgba(16, 16, 26, 0.88));
-  backdrop-filter: var(--glass-lens-filter, blur(48px) saturate(190%) contrast(105%));
-  -webkit-backdrop-filter: var(--glass-lens-filter, blur(48px) saturate(190%) contrast(105%));
-  border: var(--glass-border);
-  border-radius: 16px;
+  background: var(--liquid-glass-bg, rgba(12, 13, 22, 0.85));
+  backdrop-filter: blur(48px) saturate(200%) contrast(105%);
+  -webkit-backdrop-filter: blur(48px) saturate(200%) contrast(105%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 20px;
   box-shadow: 
-    var(--glass-specular-top),
-    var(--glass-bevel-bottom),
-    0 24px 60px rgba(0, 0, 0, 0.65);
+    inset 0 1.5px 0.5px rgba(255, 255, 255, 0.22),
+    inset 0 -1px 0.5px rgba(0, 0, 0, 0.35),
+    0 24px 60px rgba(0, 0, 0, 0.70);
   z-index: 100;
   display: flex;
   flex-direction: column;
   opacity: 0;
   pointer-events: none;
   transform: scale(0.96) translateY(10px);
-  transition: opacity 0.4s ease, transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1), transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .settings-panel.open {
@@ -40,80 +40,105 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 30px 40px 16px;
-  max-width: 800px;
+  padding: 24px 36px 14px;
+  max-width: 820px;
   width: 100%;
   margin: 0 auto;
+  box-sizing: border-box;
 }
 
 .settings-header h3 {
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 700;
-  letter-spacing: -0.01em;
-  background: linear-gradient(135deg, #ffffff 30%, var(--accent-soft) 100%);
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, #ffffff 40%, var(--accent-soft, #a7f3d0) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-/* Settings Tabs Navigation */
+/* Liquid Glass Tab Navigation Pill Bar */
 .settings-tabs {
   display: flex;
-  gap: 8px;
-  padding: 0 40px 16px;
-  max-width: 800px;
-  width: 100%;
-  margin: 0 auto;
-  border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
+  gap: 6px;
+  padding: 4px;
+  max-width: 820px;
+  width: calc(100% - 72px);
+  margin: 0 auto 16px;
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
+  box-sizing: border-box;
 }
 
 .settings-tab {
+  flex: 1;
   background: transparent;
   border: 1px solid transparent;
-  color: var(--text-secondary, rgba(255, 255, 255, 0.6));
+  color: rgba(255, 255, 255, 0.65);
   padding: 8px 14px;
-  border-radius: 8px;
+  border-radius: 999px;
   font-family: inherit;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 12.5px;
+  font-weight: 550;
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
+  user-select: none;
+  white-space: nowrap;
 }
 
 .settings-tab:hover {
-  color: var(--text-primary, #ffffff);
-  background: rgba(255, 255, 255, 0.05);
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .settings-tab.active {
-  color: var(--text-primary, #ffffff);
-  background: rgba(var(--accent-primary-rgb, 29, 185, 84), 0.12);
-  border-color: rgba(var(--accent-primary-rgb, 29, 185, 84), 0.3);
-  box-shadow: 0 2px 10px rgba(var(--accent-primary-rgb, 29, 185, 84), 0.15);
+  color: #ffffff;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.06) 100%);
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow:
+    0 4px 14px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+  font-weight: 600;
+}
+
+[data-theme="light"] .settings-tabs {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.06);
 }
 
 [data-theme="light"] .settings-tab {
-  color: var(--text-secondary, rgba(0, 0, 0, 0.55));
+  color: rgba(0, 0, 0, 0.6);
 }
 
 [data-theme="light"] .settings-tab:hover {
-  color: var(--text-primary, #1d1d1f);
+  color: #1d1d1f;
   background: rgba(0, 0, 0, 0.05);
 }
 
 [data-theme="light"] .settings-tab.active {
-  color: var(--accent-primary);
-  background: rgba(var(--accent-primary-rgb, 29, 185, 84), 0.1);
-  border-color: rgba(var(--accent-primary-rgb, 29, 185, 84), 0.25);
+  color: #1d1d1f;
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(0, 0, 0, 0.12);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .settings-tab-content {
   display: none;
   flex-direction: column;
-  gap: 24px;
+  gap: 16px;
   animation: tabFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -135,13 +160,14 @@
 .settings-body {
   flex: 1;
   overflow-y: auto;
-  padding: 10px 40px 40px;
-  max-width: 800px;
+  padding: 6px 36px 36px;
+  max-width: 820px;
   width: 100%;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 18px;
+  box-sizing: border-box;
 }
 
 /* Custom scrollbar for settings */
@@ -163,24 +189,48 @@
   background: linear-gradient(180deg, rgba(var(--accent-primary-rgb, 29, 185, 84), 0.6), rgba(var(--accent-bright-rgb, 30, 215, 96), 0.5));
 }
 
+/* Liquid Glass Settings Group Card */
 .settings-group {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
+  background: rgba(255, 255, 255, 0.035);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 18px 20px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 8px 24px rgba(0, 0, 0, 0.30);
+  transition: border-color 0.25s, box-shadow 0.25s;
+}
+
+.settings-group:hover {
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 12px 30px rgba(0, 0, 0, 0.38);
+}
+
+[data-theme="light"] .settings-group {
+  background: rgba(255, 255, 255, 0.7);
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
 }
 
 .settings-group h4 {
-  font-size: 11px;
+  font-size: 11.5px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--accent-primary, #1DB954);
-  opacity: 0.9;
-  border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.05));
+  margin: 0;
   padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
 }
 
 .settings-group h4::before {
@@ -190,66 +240,209 @@
   height: 12px;
   background: var(--accent-primary, #1DB954);
   border-radius: 2px;
-  opacity: 0.75;
+  opacity: 0.85;
   flex-shrink: 0;
 }
 
 .setting-row {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .setting-row label {
   font-size: 12.5px;
-  color: var(--text-secondary, rgba(255, 255, 255, 0.75));
+  font-weight: 500;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.82));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
+/* ══════════════════════════════════════════════════════════════
+   LIQUID GLASS ADJUSTABLE BARS & SLIDERS
+   ══════════════════════════════════════════════════════════════ */
+
+/* Liquid Glass Segmented Pill Bar */
+.liquid-glass-bar {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 999px;
+  padding: 3px;
+  gap: 3px;
+  box-sizing: border-box;
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.35),
+    0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.liquid-bar-segment {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+  white-space: nowrap;
+}
+
+.liquid-bar-segment:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.liquid-bar-segment.active {
+  color: #ffffff;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.20) 0%, rgba(255, 255, 255, 0.08) 100%);
+  border-color: rgba(255, 255, 255, 0.24);
+  box-shadow:
+    0 4px 14px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+  font-weight: 600;
+}
+
+[data-theme="light"] .liquid-glass-bar {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.1);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .liquid-bar-segment {
+  color: rgba(0, 0, 0, 0.6);
+}
+
+[data-theme="light"] .liquid-bar-segment:hover {
+  color: #1d1d1f;
+  background: rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="light"] .liquid-bar-segment.active {
+  color: #1d1d1f;
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(0, 0, 0, 0.12);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Liquid Glass Slider Bar */
+.liquid-slider-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.liquid-slider {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  outline: none;
+  cursor: pointer;
+  position: relative;
+  transition: background 0.2s;
+}
+
+.liquid-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #ffffff 0%, var(--accent-bright, #1ed760) 60%, var(--accent-primary, #1DB954) 100%);
+  border: 1.5px solid rgba(255, 255, 255, 0.85);
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.5),
+    0 0 12px rgba(var(--accent-primary-rgb, 29, 185, 84), 0.65),
+    inset 0 1px 1px rgba(255, 255, 255, 0.7);
+  cursor: grab;
+  transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.15s;
+}
+
+.liquid-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+  box-shadow:
+    0 3px 12px rgba(0, 0, 0, 0.6),
+    0 0 16px rgba(var(--accent-primary-rgb, 29, 185, 84), 0.85);
+}
+
+.liquid-slider-val {
+  font-family: var(--font-mono, monospace);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #ffffff;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  min-width: 48px;
+  text-align: center;
+}
+
+/* Legacy slider-container fallback compatibility */
 .slider-container {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
+  width: 100%;
 }
 
 .slider-container input[type="range"] {
   flex: 1;
-  accent-color: var(--accent-primary);
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  outline: none;
   cursor: pointer;
+}
+
+.slider-container input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #ffffff 0%, var(--accent-bright, #1ed760) 60%, var(--accent-primary, #1DB954) 100%);
+  border: 1.5px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5), 0 0 12px rgba(var(--accent-primary-rgb, 29, 185, 84), 0.65);
+  cursor: grab;
 }
 
 .slider-container span {
   font-size: 11.5px;
-  font-family: 'JetBrains Mono', monospace;
-  color: var(--text-tertiary, rgba(255, 255, 255, 0.45));
-  width: 40px;
-  text-align: right;
-}
-
-select {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: var(--text-primary, #ffffff);
-  padding: 7px 11px;
-  border-radius: 8px;
-  font-family: inherit;
-  font-size: 13px;
-  outline: none;
-  cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-select:hover {
-  border-color: rgba(var(--accent-primary-rgb), 0.3);
-}
-
-select:focus {
-  border-color: var(--accent-primary);
-  box-shadow: 0 0 0 2px rgba(var(--accent-primary-rgb), 0.12);
-}
-
-select option {
-  background: var(--surface-mid, #12121a);
-  color: var(--text-primary, #ffffff);
+  font-family: var(--font-mono, monospace);
+  font-weight: 600;
+  color: #ffffff;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  min-width: 48px;
+  text-align: center;
 }
 
 .shortcut-tip {

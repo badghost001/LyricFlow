@@ -85,6 +85,21 @@
         }
       }
 
+      // If binary search picked a line whose words haven't started singing yet,
+      // but the previous line's words are still actively singing, stay on previous line!
+      if (result > 0 && result < lines.length) {
+        const prev = lines[result - 1];
+        const cur = lines[result];
+        if (Array.isArray(prev.words) && prev.words.length > 0) {
+          const prevLastWord = prev.words[prev.words.length - 1];
+          const curFirstWord = (Array.isArray(cur.words) && cur.words.length > 0) ? cur.words[0] : null;
+          const curVocalStart = curFirstWord ? curFirstWord.start : cur.start;
+          if (time < prevLastWord.end && time < curVocalStart) {
+            result = result - 1;
+          }
+        }
+      }
+
       return result;
     }
 
@@ -145,15 +160,33 @@
         const curLine = lines[targetLineIndex];
         const nextLine = lines[targetLineIndex + 1];
 
-        // Is time still in current line?
+        // Compute true vocal end for current line and vocal start for next line
+        let curVocalEnd = curLine.end;
+        if (Array.isArray(curLine.words) && curLine.words.length > 0) {
+          const lw = curLine.words[curLine.words.length - 1];
+          if (lw && lw.end && lw.end > 0) curVocalEnd = lw.end;
+        }
+
+        let nextVocalStart = nextLine ? nextLine.start : Infinity;
+        if (nextLine && Array.isArray(nextLine.words) && nextLine.words.length > 0) {
+          const fw = nextLine.words[0];
+          if (fw && fw.start != null) nextVocalStart = fw.start;
+        }
+
+        // Prevent premature cutoff: do not advance to next line while current line's vocal is still singing
+        // unless the next line's words have actually started.
+        const switchPoint = nextLine
+          ? Math.max(curVocalEnd, Math.min(nextLine.start, nextVocalStart))
+          : (curVocalEnd + 2.0);
+
         const isPastStart = time >= curLine.start;
-        const isBeforeNext = nextLine ? (time < nextLine.start) : (time <= curLine.end + 2.0);
+        const isBeforeNext = time < switchPoint;
 
         if (isPastStart && isBeforeNext) {
           // Stay on current line!
         }
         // Stepped smoothly to next line?
-        else if (nextLine && time >= nextLine.start && (targetLineIndex + 2 >= lines.length || time < lines[targetLineIndex + 2].start)) {
+        else if (nextLine && time >= switchPoint && (targetLineIndex + 2 >= lines.length || time < (lines[targetLineIndex + 2].start || Infinity))) {
           targetLineIndex++;
         }
         // Jump / seek detected -> fallback to fast O(log N) binary search

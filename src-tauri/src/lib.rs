@@ -77,6 +77,8 @@ pub fn run() {
                             let _ = app.emit("share-active-lyric", ());
                         } else if text.contains("shift") && text.contains("keyd") {
                             let _ = app.emit("toggle-dynamic-island-shortcut", ());
+                        } else if text.contains("shift") && text.contains("keyk") {
+                            let _ = app.emit("toggle-kinetic-mode-shortcut", ());
                         } else if text.contains("shift") && text.contains("keyw") {
                             let _ = app.emit("toggle-wallpaper-mode-shortcut", ());
                         } else if text.contains("shift") && text.contains("keyb") {
@@ -85,14 +87,10 @@ pub fn run() {
                             let _ = app.emit("toggle-click-through-shortcut", ());
                         } else if text.contains("shift") && text.contains("keyg") {
                             commands::window::toggle_dynamic_island_ghost();
-                        } else if text.contains("shift") && text.contains("arrowleft") {
-                            let _ = app.emit("nudge-overlay", serde_json::json!({ "dx": -2, "dy": 0 }));
-                        } else if text.contains("shift") && text.contains("arrowright") {
-                            let _ = app.emit("nudge-overlay", serde_json::json!({ "dx": 2, "dy": 0 }));
-                        } else if text.contains("shift") && text.contains("arrowup") {
-                            let _ = app.emit("nudge-overlay", serde_json::json!({ "dx": 0, "dy": -2 }));
-                        } else if text.contains("shift") && text.contains("arrowdown") {
-                            let _ = app.emit("nudge-overlay", serde_json::json!({ "dx": 0, "dy": 2 }));
+                        } else if text.contains("shift") && (text.contains("arrowleft") || text.contains("arrowdown")) {
+                            let _ = app.emit("adjust-sync-offset", -100);
+                        } else if text.contains("shift") && (text.contains("arrowright") || text.contains("arrowup")) {
+                            let _ = app.emit("adjust-sync-offset", 100);
                         } else if text.contains("mediaplaypause") || (text.contains("alt") && text.contains("space")) {
                             let _ = app.emit("tray-playback-control", "play-pause");
                             media::get_platform_backend().trigger_control("play-pause", 0);
@@ -133,6 +131,7 @@ pub fn run() {
                 "ctrl+shift+c",
                 "ctrl+shift+s",
                 "ctrl+shift+d",
+                "ctrl+shift+k",
                 "ctrl+shift+w",
                 "ctrl+shift+b",
                 "ctrl+shift+l",
@@ -210,6 +209,7 @@ pub fn run() {
             let sep1 = PredefinedMenuItem::separator(app)?;
             let show_item = MenuItem::with_id(app, "show_main", "Open Overlay App", true, None::<&str>)?;
             let island_item = MenuItem::with_id(app, "island", "Toggle Dynamic Island (Ctrl+Shift+D)", true, None::<&str>)?;
+            let kinetic_item = MenuItem::with_id(app, "kinetic", "Toggle Kinetic Video (Ctrl+Shift+K)", true, None::<&str>)?;
             let wallpaper_item = MenuItem::with_id(app, "wallpaper", "Toggle Wallpaper Mode (Ctrl+Shift+W)", true, None::<&str>)?;
             let taskbar_item = MenuItem::with_id(app, "taskbar", "Toggle Taskbar Mode (Ctrl+Shift+B)", true, None::<&str>)?;
             let share_item = MenuItem::with_id(app, "share", "Share Lyric Card (Ctrl+Shift+S)", true, None::<&str>)?;
@@ -228,6 +228,7 @@ pub fn run() {
                     &sep1,
                     &show_item,
                     &island_item,
+                    &kinetic_item,
                     &wallpaper_item,
                     &taskbar_item,
                     &share_item,
@@ -273,6 +274,9 @@ pub fn run() {
                         }
                         "island" => {
                             let _ = app.emit("toggle-dynamic-island-shortcut", ());
+                        }
+                        "kinetic" => {
+                            let _ = app.emit("toggle-kinetic-mode-shortcut", ());
                         }
                         "wallpaper" => {
                             let _ = app.emit("toggle-wallpaper-mode-shortcut", ());
@@ -458,6 +462,7 @@ pub fn run() {
             window::set_click_through,
             window::minimize_app,
             window::reset_window_size,
+            window::set_cinematic_mode,
             window::copy_to_clipboard,
             window::close_app,
             window::get_is_startup,
@@ -502,7 +507,9 @@ pub fn run() {
             window::show_main_window,
             integrations::open_external,
             integrations::fetch_spotify_canvas,
-            integrations::search_music_gif
+            integrations::search_music_gif,
+            video::export_kinetic_video,
+            video::save_card_image
         ]);
     log_to_file("[LyricFlow] Builder configured, now calling builder.run(tauri::generate_context!())...");
     b.run(tauri::generate_context!())

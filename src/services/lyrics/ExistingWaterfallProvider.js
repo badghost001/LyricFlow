@@ -48,14 +48,18 @@
           words = [];
           for (let wi = 0; wi < item.words.length; wi++) {
             const w = item.words[wi];
-            const wStart = Math.max(startSec, (Number(w.timeMs != null ? w.timeMs : (w.start != null ? w.start * 1000 : 0))) / 1000);
+            const rawStart = (Number(w.timeMs != null ? w.timeMs : (w.start != null ? w.start * 1000 : 0))) / 1000;
+            const wStart = Math.max(0, rawStart);
             let wEnd;
-            if (w.durationMs != null && w.durationMs > 0) {
-              wEnd = wStart + (w.durationMs / 1000);
-            } else if (w.duration != null && w.duration > 0) {
-              wEnd = wStart + (w.duration / 1000);
+            if (w.endMs != null && w.endMs > 0) {
+              wEnd = Number(w.endMs) / 1000;
             } else if (w.end != null && w.end > 0) {
               wEnd = Number(w.end);
+            } else if (w.durationMs != null && w.durationMs > 0) {
+              wEnd = wStart + (w.durationMs / 1000);
+            } else if (w.duration != null && w.duration > 0) {
+              const dur = Number(w.duration);
+              wEnd = wStart + (dur > 50 ? dur / 1000 : dur);
             } else if (wi < item.words.length - 1 && item.words[wi + 1]?.timeMs !== undefined) {
               wEnd = Math.max(wStart + 0.05, item.words[wi + 1].timeMs / 1000);
             } else {
@@ -67,7 +71,21 @@
           }
         }
 
-        lines.push(createLyricLine(item.text, startSec, endSec, words, item.subText));
+        let effectiveLineStart = startSec;
+        if (words && words.length > 0 && words[0].start < effectiveLineStart) {
+          effectiveLineStart = words[0].start;
+        }
+        let effectiveLineEnd = endSec;
+        if (words && words.length > 0) {
+          const lastWordEnd = words[words.length - 1].end;
+          if (i === parsedLines.length - 1) {
+            effectiveLineEnd = lastWordEnd;
+          } else {
+            effectiveLineEnd = Math.max(lastWordEnd, endSec);
+          }
+        }
+
+        lines.push(createLyricLine(item.text, effectiveLineStart, effectiveLineEnd, words, item.subText));
       }
 
       if (lines.length === 0) return null;

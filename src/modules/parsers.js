@@ -36,13 +36,117 @@ function isLyricMetadataOrCreditLine(text) {
   return false;
 }
 
+/**
+ * Cleans word/syllable token text:
+ * 1. Collapses duplicate/repeated brackets (((, )), [[, ]], {{, }}, etc.) into single brackets.
+ * 2. Removes internal spaces inside brackets within tokens.
+ */
+function cleanWordPunctuation(text) {
+  if (!text || typeof text !== 'string') return '';
+  let str = text;
+
+  // Collapse duplicate/repeated consecutive brackets
+  str = str
+    .replace(/(?:\(\s*)+\(/g, '(')
+    .replace(/(?:\)\s*)+\)/g, ')')
+    .replace(/(?:\[\s*)+\[/g, '[')
+    .replace(/(?:\]\s*)+\]/g, ']')
+    .replace(/(?:\{\s*)+\{/g, '{')
+    .replace(/(?:\}\s*)+\}/g, '}')
+    .replace(/(?:（\s*)+（/g, '（')
+    .replace(/(?:）\s*)+）/g, '）')
+    .replace(/(?:【\s*)+【/g, '【')
+    .replace(/(?:】\s*)+】/g, '】')
+    .replace(/(?:《\s*)+《/g, '《')
+    .replace(/(?:》\s*)+》/g, '》');
+
+  while (/[\(\[\{（【《]\s*[\(\[\{（【《]/.test(str)) {
+    str = str.replace(/[\(\[\{（【《]\s*[\(\[\{（【《]/g, '(');
+  }
+  while (/[\)\]\}）】》]\s*[\)\]\}）】》]/.test(str)) {
+    str = str.replace(/[\)\]\}）】》]\s*[\)\]\}）】》]/g, ')');
+  }
+
+  // Remove internal spaces inside brackets within token
+  str = str
+    .replace(/([“‘«\(\{\[「『（【［｛《])[ \t]+/g, '$1')
+    .replace(/[ \t]+([,.!?;:’”'»\)}\]…~～、。，．！？–—）】］｝》])/g, '$1');
+
+  return str;
+}
+
+/**
+ * Cleans ground-truth lyric text by eliminating extraneous whitespace, double brackets,
+ * spaces before/after brackets, spacing before punctuation, and artificial delimiters between continuous Hanzi.
+ */
+function cleanLyricText(text) {
+  if (!text || typeof text !== 'string') return '';
+  let str = text;
+
+  // 1. Collapse duplicate/repeated consecutive brackets (with or without spaces between them)
+  // Handles: ((, )), [[, ]], {{, }}, （（, ））, 【【, 】】, 《《, 》》, ( (, ) ), etc.
+  str = str
+    .replace(/(?:\(\s*)+\(/g, '(')
+    .replace(/(?:\)\s*)+\)/g, ')')
+    .replace(/(?:\[\s*)+\[/g, '[')
+    .replace(/(?:\]\s*)+\]/g, ']')
+    .replace(/(?:\{\s*)+\{/g, '{')
+    .replace(/(?:\}\s*)+\}/g, '}')
+    .replace(/(?:（\s*)+（/g, '（')
+    .replace(/(?:）\s*)+）/g, '）')
+    .replace(/(?:【\s*)+【/g, '【')
+    .replace(/(?:】\s*)+】/g, '】')
+    .replace(/(?:《\s*)+《/g, '《')
+    .replace(/(?:》\s*)+》/g, '》');
+
+  while (/[\(\[\{（【《]\s*[\(\[\{（【《]/.test(str)) {
+    str = str.replace(/[\(\[\{（【《]\s*[\(\[\{（【《]/g, '(');
+  }
+  while (/[\)\]\}）】》]\s*[\)\]\}）】》]/.test(str)) {
+    str = str.replace(/[\)\]\}）】》]\s*[\)\]\}）】》]/g, ')');
+  }
+
+  // 2. Collapse multiple spaces and tabs into a single space
+  str = str.replace(/[ \t]+/g, ' ');
+
+  // 3. Remove space inside brackets:
+  // - after opening brackets/quotes: '( hello' -> '(hello'
+  // - before closing brackets/quotes: 'hello )' -> 'hello)'
+  str = str
+    .replace(/([“‘«\(\{\[「『（【［｛《])[ \t]+/g, '$1')
+    .replace(/[ \t]+([,.!?;:’”'»\)}\]…~～、。，．！？–—）】］｝》])/g, '$1');
+
+  // 4. Remove space between closing bracket and following punctuation: '(text) .' -> '(text).'
+  str = str.replace(/([”’»\)}\]」』）】］｝》])[ \t]+([,.!?;:’”'»\)}\]…~～、。，．！？–—）】］｝》])/g, '$1$2');
+
+  // 5. Remove space before contraction apostrophe ('t, 's, 'm, 're, 've, 'll, 'd)
+  str = str.replace(/[ \t]+(['’](?:t|s|m|re|ve|ll|d)\b)/gi, '$1');
+
+  // 6. Remove artificial spaces between continuous Hanzi (Chinese characters)
+  str = str.replace(/([\u4e00-\u9fff])\s+(?=[\u4e00-\u9fff])/g, '$1');
+
+  return str.trim();
+}
+
 // Robust LRC Parser (handles Enhanced LRC syllable tags, bracket syllables, and legacy formats)
 function parseLRC(lrcText) {
   if (!lrcText || typeof lrcText !== 'string') return [];
+
+  // Extract [offset:+/-ms] tag if present (per standard LRC & Lyricify spec)
+  // Positive offset: delays lyrics (adds offset to timestamps)
+  // Negative offset: advances lyrics (subtracts offset from timestamps)
+  let offsetMs = 0;
+  const offsetMatch = lrcText.match(/\[offset:\s*([+-]?\d+)\s*\]/i);
+  if (offsetMatch) {
+    const parsedOffset = parseInt(offsetMatch[1], 10);
+    if (!isNaN(parsedOffset)) {
+      offsetMs = parsedOffset;
+    }
+  }
+
   const lines = lrcText.split('\n');
   const parsed = [];
   const tagTimeRegex = /\[(\d{1,2}):(\d{2})(?:[.:](\d{2,3}))?\]/g;
-  const syllableTokenRegex = /([<[])(\d{1,2}):(\d{2})(?:[.:](\d{2,3}))?([>\]])([^<>[\]]*)/g;
 
   for (const line of lines) {
     const trimmed = line.trim();
@@ -60,7 +164,8 @@ function parseLRC(lrcText) {
         const seconds = parseInt(m[2], 10);
         const msPart = m[3] || "000";
         const ms = parseInt(msPart.padEnd(3, '0').substring(0, 3), 10);
-        const totalMs = (minutes * 60 + seconds) * 1000 + ms;
+        const rawMs = (minutes * 60 + seconds) * 1000 + ms;
+        const totalMs = Math.max(0, rawMs + offsetMs);
         if (lineTimestamps.includes(totalMs)) {
           break; // Duplicate tag marks the start of bracket-based syllable tokens
         }
@@ -76,92 +181,148 @@ function parseLRC(lrcText) {
       const afterLineTags = trimmed.substring(textStartIndex).trim();
       let words = [];
 
-      // Check if line begins with a syllable tag (Prefix format: <mm:ss.xx>word or [mm:ss.xx]word)
-      const prefixMatch = afterLineTags.match(/^([<[])(\d{1,2}):(\d{2})/);
-      if (prefixMatch) {
-        syllableTokenRegex.lastIndex = 0;
-        let tokenMatch;
-        while ((tokenMatch = syllableTokenRegex.exec(afterLineTags)) !== null) {
-          const min = parseInt(tokenMatch[2], 10);
-          const sec = parseInt(tokenMatch[3], 10);
-          const msStr = tokenMatch[4] || "000";
-          const ms = parseInt(msStr.padEnd(3, '0').substring(0, 3), 10);
-          const totalMs = (min * 60 + sec) * 1000 + ms;
-          const text = (tokenMatch[6] || "").trim();
-          if (text) {
-            if (words.length > 0 && /^[,.!?;:’”'»\)}\]…~～、。，．！？–—"']+$/.test(text)) {
-              words[words.length - 1].text += text;
-            } else {
-              words.push({ text, timeMs: totalMs });
+      // Find first syllable tag candidate (either <mm:ss.xx> or [mm:ss.xx])
+      const firstSylMatch = afterLineTags.match(/([<[])(\d{1,2}):(\d{2})(?:[.:](\d{2,3}))?([>\]])/);
+
+      if (firstSylMatch) {
+        const leadingText = afterLineTags.substring(0, firstSylMatch.index).trim();
+        // If leading text is empty or pure opening punctuation/brackets (e.g. "(", "[", "\"", "“"),
+        // this is PREFIX syllable format (<mm:ss.xx>word or [mm:ss.xx]word)
+        const isPrefixFormat = !leadingText || /^[“‘«\(\{\[「『"'\s]+$/.test(leadingText);
+
+        if (isPrefixFormat) {
+          // Robust prefix syllable extraction:
+          // Match all syllable tags and extract text strictly between consecutive tags
+          // This ensures brackets, parentheses, and special characters inside words are never eaten or dropped!
+          const sylTagRegex = /([<[])(\d{1,2}):(\d{2})(?:[.:](\d{2,3}))?([>\]])/g;
+          const tags = [];
+          let tagMatch;
+          while ((tagMatch = sylTagRegex.exec(afterLineTags)) !== null) {
+            const opener = tagMatch[1];
+            const closer = tagMatch[5];
+            if ((opener === '<' && closer === '>') || (opener === '[' && closer === ']')) {
+              const min = parseInt(tagMatch[2], 10);
+              const sec = parseInt(tagMatch[3], 10);
+              const msStr = tagMatch[4] || "000";
+              const ms = parseInt(msStr.padEnd(3, '0').substring(0, 3), 10);
+              const rawSylMs = (min * 60 + sec) * 1000 + ms;
+              const totalMs = Math.max(0, rawSylMs + offsetMs);
+              tags.push({
+                startIndex: tagMatch.index,
+                endIndex: sylTagRegex.lastIndex,
+                timeMs: totalMs
+              });
             }
           }
-        }
-      } else if (/<(\d{1,2}):(\d{2})/.test(afterLineTags)) {
-        // Postfix / Legacy format: text <mm:ss.xx> text <mm:ss.xx>
-        const sylRegex = /<(\d{1,2}):(\d{2})(?:[.:](\d{2,3}))?>/g;
-        let lastIdx = 0;
-        let sylMatch;
-        while ((sylMatch = sylRegex.exec(afterLineTags)) !== null) {
-          const wordText = afterLineTags.substring(lastIdx, sylMatch.index).trim();
-          if (wordText) {
+
+          for (let ti = 0; ti < tags.length; ti++) {
+            const curTag = tags[ti];
+            const nextTag = tags[ti + 1];
+            const wordRaw = afterLineTags.substring(curTag.endIndex, nextTag ? nextTag.startIndex : afterLineTags.length);
+            const hasTrailingSpace = /\s$/.test(wordRaw);
+            const hasLeadingSpace = /^\s/.test(wordRaw);
+            let wordText = wordRaw.trim();
+
+            // Prepend leading opening punctuation (e.g. "(") to the very first word
+            if (ti === 0 && leadingText) {
+              wordText = leadingText + wordText;
+            }
+            wordText = cleanWordPunctuation(wordText);
+
+            if (wordText) {
+              if (words.length > 0 && /^[,.!?;:’”'»\)}\]…~～、。，．！？–—"']+$/.test(wordText)) {
+                words[words.length - 1].text = cleanWordPunctuation(words[words.length - 1].text.trimEnd() + wordText);
+                if (hasTrailingSpace) {
+                  words[words.length - 1].hasSpace = true;
+                }
+              } else {
+                if (words.length > 0 && hasLeadingSpace) {
+                  words[words.length - 1].hasSpace = true;
+                }
+                words.push({
+                  text: wordText,
+                  timeMs: curTag.timeMs,
+                  hasSpace: hasTrailingSpace
+                });
+              }
+            } else if (words.length > 0) {
+              // Trailing syllable tag without text explicitly marks the end time of the preceding word!
+              words[words.length - 1].endMs = curTag.timeMs;
+              words[words.length - 1].duration = Math.max(50, curTag.timeMs - words[words.length - 1].timeMs);
+              words[words.length - 1]._explicitEnd = true;
+            }
+          }
+        } else {
+          // Postfix / Legacy format: text <mm:ss.xx> text <mm:ss.xx>
+          const sylRegex = /<(\d{1,2}):(\d{2})(?:[.:](\d{2,3}))?>/g;
+          let lastIdx = 0;
+          let sylMatch;
+          while ((sylMatch = sylRegex.exec(afterLineTags)) !== null) {
+            const wordRaw = afterLineTags.substring(lastIdx, sylMatch.index);
+            const wordText = wordRaw.trim();
             const min = parseInt(sylMatch[1], 10);
             const sec = parseInt(sylMatch[2], 10);
             const msStr = sylMatch[3] || "000";
             const ms = parseInt(msStr.padEnd(3, '0').substring(0, 3), 10);
-            const totalMs = (min * 60 + sec) * 1000 + ms;
-            words.push({ text: wordText, timeMs: totalMs });
+            const totalMs = Math.max(0, (min * 60 + sec) * 1000 + ms + offsetMs);
+            if (wordText) {
+              const hasTrailingSpace = /\s$/.test(wordRaw);
+              words.push({ text: wordText, timeMs: totalMs, hasSpace: hasTrailingSpace });
+            } else if (words.length > 0) {
+              words[words.length - 1].endMs = totalMs;
+              words[words.length - 1].duration = Math.max(50, totalMs - words[words.length - 1].timeMs);
+              words[words.length - 1]._explicitEnd = true;
+            }
+            lastIdx = sylRegex.lastIndex;
           }
-          lastIdx = sylRegex.lastIndex;
-        }
-        const trailing = afterLineTags.substring(lastIdx).replace(sylRegex, '').trim();
-        if (trailing && words.length > 0) {
-          words.push({ text: trailing, timeMs: lineTime + 3000 });
-        }
-      } else if (/\[(\d{1,2}):(\d{2})/.test(afterLineTags)) {
-        // Inline bracket syllables inside text: e.g. "Hello [00:20.50]World"
-        const bracketSylRegex = /\[(\d{1,2}):(\d{2})(?:[.:](\d{2,3}))?\]/g;
-        let lastIdx = 0;
-        let bMatch;
-        let nextTime = lineTime;
-        while ((bMatch = bracketSylRegex.exec(afterLineTags)) !== null) {
-          const wordText = afterLineTags.substring(lastIdx, bMatch.index).trim();
-          if (wordText) {
-            words.push({ text: wordText, timeMs: nextTime });
+          const trailing = afterLineTags.substring(lastIdx).replace(sylRegex, '');
+          const trailingTrim = trailing.trim();
+          if (trailingTrim && words.length > 0) {
+            words.push({ text: trailingTrim, timeMs: lineTime + 3000, hasSpace: false });
           }
-          const min = parseInt(bMatch[1], 10);
-          const sec = parseInt(bMatch[2], 10);
-          const msStr = bMatch[3] || "000";
-          const ms = parseInt(msStr.padEnd(3, '0').substring(0, 3), 10);
-          nextTime = (min * 60 + sec) * 1000 + ms;
-          lastIdx = bracketSylRegex.lastIndex;
-        }
-        const trailing = afterLineTags.substring(lastIdx).replace(bracketSylRegex, '').trim();
-        if (trailing) {
-          words.push({ text: trailing, timeMs: nextTime });
         }
       }
 
       // Compute word endMs and duration using BetterLyrics-style resolution
       if (words.length > 0) {
         for (let wi = 0; wi < words.length; wi++) {
+          if (words[wi].endMs && words[wi].duration && words[wi]._explicitEnd) {
+            continue;
+          }
           if (wi + 1 < words.length) {
-            words[wi].endMs = words[wi + 1].timeMs;
-            words[wi].duration = Math.max(0, words[wi].endMs - words[wi].timeMs);
+            const nextStart = words[wi + 1].timeMs;
+            const gap = Math.max(0, nextStart - words[wi].timeMs);
+            // Inter-word pause protection:
+            // If the gap to next word exceeds 2200ms, cap word singing duration to natural length
+            // rather than stretching fill over an audible multi-second pause.
+            if (gap > 2200) {
+              const naturalDur = Math.max(400, Math.min(1800, (words[wi].text || '').length * 150 + 350));
+              words[wi].endMs = words[wi].timeMs + naturalDur;
+              words[wi].duration = naturalDur;
+            } else {
+              words[wi].endMs = nextStart;
+              words[wi].duration = gap;
+            }
           } else {
-            words[wi].endMs = words[wi].timeMs + 1000;
-            words[wi].duration = 1000;
+            const wordLen = (words[wi].text || '').trim().length;
+            const naturalDur = Math.max(500, Math.min(2200, wordLen * 160 + 400));
+            words[wi].endMs = words[wi].timeMs + naturalDur;
+            words[wi].duration = naturalDur;
           }
         }
       }
 
-      const cleanText = afterLineTags
+      const rawClean = afterLineTags
         .replace(/<(\d{1,2}):(\d{2})(?:[.:](\d{2,3}))?>/g, '')
-        .replace(/\[(\d{1,2}):(\d{2})(?:[.:](\d{2,3}))?\]/g, '')
-        .trim();
+        .replace(/\[(\d{1,2}):(\d{2})(?:[.:](\d{2,3}))?\]/g, '');
+      const cleanText = cleanLyricText(rawClean);
 
       if (cleanText && !isLyricMetadataOrCreditLine(cleanText)) {
         for (const timeMs of lineTimestamps) {
-          const lineWords = words.map(w => ({ ...w }));
+          const lineWords = words.map(w => ({
+            ...w,
+            text: cleanWordPunctuation(w.text)
+          }));
           parsed.push({ timeMs, text: cleanText, words: lineWords });
         }
       }
@@ -170,16 +331,27 @@ function parseLRC(lrcText) {
 
   parsed.sort((a, b) => a.timeMs - b.timeMs);
 
-  // Refine final word's endMs to clamp against the start of the next line
+  // Refine final word's endMs to clamp against the start of the next line's vocal onset
   for (let li = 0; li < parsed.length; li++) {
     const curLine = parsed[li];
     const nextLine = parsed[li + 1];
     if (curLine.words && curLine.words.length > 0) {
       const lastW = curLine.words[curLine.words.length - 1];
       if (nextLine) {
-        lastW.endMs = Math.min(lastW.timeMs + 1500, nextLine.timeMs);
-        lastW.duration = Math.max(100, lastW.endMs - lastW.timeMs);
+        const nextVocalStart = (nextLine.words && nextLine.words.length > 0)
+          ? nextLine.words[0].timeMs
+          : nextLine.timeMs;
+        if (lastW._explicitEnd) {
+          if (lastW.endMs > nextVocalStart) {
+            lastW.endMs = Math.max(lastW.timeMs + 50, nextVocalStart - 20);
+            lastW.duration = Math.max(50, lastW.endMs - lastW.timeMs);
+          }
+        } else {
+          lastW.endMs = Math.min(lastW.endMs || (lastW.timeMs + 1500), nextVocalStart);
+          lastW.duration = Math.max(100, lastW.endMs - lastW.timeMs);
+        }
       }
+      delete lastW._explicitEnd;
     }
   }
 
@@ -284,11 +456,11 @@ function parseYRC(yrcText) {
     while ((wordMatch = wordPattern.exec(content)) !== null) {
       const wStart = parseInt(wordMatch[1], 10);
       const wDur = parseInt(wordMatch[2], 10);
-      const text = wordMatch[3] || '';
+      const text = cleanWordPunctuation(wordMatch[3] || '');
       if (text) {
         if (words.length > 0 && /^[,.!?;:’”'»\)}\]…~～、。，．！？–—"']+$/.test(text.trim())) {
           const prev = words[words.length - 1];
-          prev.text = prev.text.trimEnd() + text;
+          prev.text = cleanWordPunctuation(prev.text.trimEnd() + text);
           prev.endMs = Math.max(prev.endMs || 0, wStart + wDur);
           prev.duration = prev.endMs - prev.timeMs;
         } else {
@@ -302,7 +474,7 @@ function parseYRC(yrcText) {
       }
     }
 
-    const cleanText = words.map(w => w.text).join('').trim() || content.trim();
+    const cleanText = cleanLyricText(words.map(w => w.text).join('').trim() || content.trim());
     if (cleanText && !isLyricMetadataOrCreditLine(cleanText)) {
       parsed.push({
         timeMs: lineStart,
@@ -334,13 +506,24 @@ function yrcToEnhancedLRC(yrcText) {
       const wTag = `<${String(wMin).padStart(2, '0')}:${String(wSec).padStart(2, '0')}.${String(wCs).padStart(2, '0')}>`;
       return `${wTag}${w.text}`;
     }).join('');
-    return `${lineTag} ${wordsPart}`;
+
+    const lastW = line.words[line.words.length - 1];
+    const endMs = lastW.endMs || (lastW.timeMs + (lastW.duration || 1000));
+    const eMin = Math.floor(endMs / 60000);
+    const eSec = Math.floor((endMs % 60000) / 1000);
+    const eCs = Math.floor((endMs % 1000) / 10);
+    const endTag = `<${String(eMin).padStart(2, '0')}:${String(eSec).padStart(2, '0')}.${String(eCs).padStart(2, '0')}>`;
+
+    // Avoid injecting artificial space before trailing end tag
+    return `${lineTag} ${wordsPart}${endTag}`;
   }).join('\n');
 }
 
 // Expose on global window object and Node.js exports
 if (typeof window !== 'undefined') {
   window.isLyricMetadataOrCreditLine = isLyricMetadataOrCreditLine;
+  window.cleanLyricText = cleanLyricText;
+  window.cleanWordPunctuation = cleanWordPunctuation;
   window.parseLRC = parseLRC;
   window.parseMusixmatch = parseMusixmatch;
   window.parseLyricsPlus = parseLyricsPlus;
@@ -351,6 +534,8 @@ if (typeof window !== 'undefined') {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     isLyricMetadataOrCreditLine,
+    cleanLyricText,
+    cleanWordPunctuation,
     parseLRC,
     parseMusixmatch,
     parseLyricsPlus,

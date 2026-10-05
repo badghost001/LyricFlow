@@ -1,0 +1,311 @@
+/**
+ * LyricFlow - Kinetic Mode & Video Typography Styling
+ * Ambient 9:16 fullscreen stage and floating control bar.
+ */
+
+#kinetic-mode-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: #000000;
+  z-index: 99990;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  user-select: none;
+  -webkit-app-region: no-drag;
+}
+
+#kinetic-mode-container.active {
+  display: flex;
+  animation: kineticFadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes kineticFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.kinetic-stage-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+#kinetic-canvas {
+  max-width: calc(94vh * 9 / 16);
+  max-height: 94vh;
+  aspect-ratio: 9 / 16;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.85);
+  border-radius: 4px;
+}
+
+/* Floating Glass HUD Controls */
+.kinetic-floating-bar {
+  position: absolute;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: rgba(22, 22, 28, 0.75);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+  z-index: 99995;
+  transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  opacity: 1;
+}
+
+.kinetic-floating-bar.idle-hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-50%) translateY(12px);
+}
+
+.kinetic-control-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.kinetic-control-label {
+  font-family: var(--app-font, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.5);
+  margin-right: 2px;
+}
+
+.kinetic-select {
+  appearance: none;
+  -webkit-appearance: none;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+  padding: 5px 24px 5px 10px;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.2s ease;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 6px center;
+  background-size: 12px;
+}
+
+.kinetic-select:hover {
+  background-color: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.kinetic-select option {
+  background: #18181f;
+  color: #ffffff;
+}
+
+.kinetic-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.kinetic-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.35);
+  transform: scale(1.05);
+}
+
+.kinetic-btn-share {
+  margin-right: 2px;
+}
+
+.kinetic-btn-share:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.kinetic-btn-close {
+  margin-left: 4px;
+}
+
+.kinetic-divider {
+  width: 1px;
+  height: 18px;
+  background: rgba(255, 255, 255, 0.15);
+  margin: 0 4px;
+}
+
+/* ==========================================================
+   HORIZONTAL CINEMATIC MAIN APP STAGE (FULLSCREEN IMMERSIVE)
+   ========================================================== */
+/* When cinematic view is active, ensure the app container, screens, and lyrics viewport completely strip borders, padding, shadows, and backdrop-filters so zero white blur or bleed-through occurs from the background */
+.cinematic-view-active #app-container,
+#app-container.cinematic-view-active,
+body.cinematic-view-active #app-container,
+body.cinematic-view-active {
+  background: #000000 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+  outline: none !important;
+}
+
+.cinematic-view-active .app-screen,
+body.cinematic-view-active .app-screen {
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+  overflow: hidden !important;
+}
+
+.cinematic-view-active .lyrics-view,
+body.cinematic-view-active .lyrics-view {
+  padding: 0 !important;
+  margin: 0 !important;
+  mask-image: none !important;
+  -webkit-mask-image: none !important;
+  border: none !important;
+  overflow: hidden !important;
+}
+
+.cinematic-main-stage {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.cinematic-view-active .cinematic-main-stage,
+body.cinematic-view-active .cinematic-main-stage {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  z-index: 99990;
+  background-color: #000000 !important;
+  opacity: 1;
+  pointer-events: auto;
+  border: none !important;
+}
+
+/* Hide all surrounding HUD, bottom widgets, glow orbs, fluid mesh WebGL canvas, particle emitters, wallpaper art, resync buttons, and scroll container when cinematic mode is active */
+.cinematic-view-active #hud-header,
+.cinematic-view-active #playback-widget,
+.cinematic-view-active #ambient-glow,
+.cinematic-view-active #fluid-mesh-canvas,
+.cinematic-view-active #island-ca-emitter-canvas,
+.cinematic-view-active #custom-bg-video,
+.cinematic-view-active #custom-bg-img,
+.cinematic-view-active #wallpaper-album-bg,
+.cinematic-view-active #wallpaper-album-bg-video,
+.cinematic-view-active .wallpaper-now-playing,
+.cinematic-view-active #genius-fact-card,
+.cinematic-view-active #genius-live-meaning,
+.cinematic-view-active #btn-sync-lyrics,
+.cinematic-view-active #btn-resync-lyrics,
+.cinematic-view-active #sync-resume-btn,
+.cinematic-view-active .sync-resume-btn,
+body.cinematic-view-active #btn-sync-lyrics,
+body.cinematic-view-active #btn-resync-lyrics,
+body.cinematic-view-active #sync-resume-btn,
+body.cinematic-view-active .sync-resume-btn,
+#btn-resync-lyrics.cinematic-hidden,
+.cinematic-view-active .lyrics-scroll-container,
+body.cinematic-view-active .lyrics-scroll-container {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+#cinematic-main-canvas {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Liquid Glass Exit Button in Top-Right Corner */
+.cinematic-exit-btn {
+  position: absolute;
+  top: 20px;
+  right: 22px;
+  z-index: 99999;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: rgba(255, 255, 255, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  outline: none;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  -webkit-app-region: no-drag;
+}
+
+.cinematic-exit-btn:hover {
+  background: rgba(255, 255, 255, 0.24);
+  border-color: rgba(255, 255, 255, 0.42);
+  color: #ffffff;
+  transform: scale(1.08);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.55);
+}
+
+.cinematic-exit-btn:active {
+  transform: scale(0.95);
+}
+
+

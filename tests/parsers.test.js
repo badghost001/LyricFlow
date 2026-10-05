@@ -341,6 +341,75 @@ function runParserTests() {
     assert.strictEqual(res[0].words[2].text, "can't");
   });
 
+  // Test 10a: parseLRC handles [offset:+/-ms] tag per standard LRC & Lyricify specification
+  test('10a. parseLRC handles [offset:+/-ms] tag and shifts line & syllable timestamps', () => {
+    const lrcPositiveOffset = `[offset: 500]
+[00:10.00] <00:10.00>Never <00:10.40>gonna <00:10.80>give <00:11.20>you`;
+    const resPos = parseLRC(lrcPositiveOffset);
+    assert.strictEqual(resPos.length, 1);
+    // 10000ms + 500ms offset = 10500ms
+    assert.strictEqual(resPos[0].timeMs, 10500);
+    assert.strictEqual(resPos[0].words[0].timeMs, 10500);
+    assert.strictEqual(resPos[0].words[1].timeMs, 10900);
+
+    const lrcNegativeOffset = `[offset: -300]
+[00:10.00] <00:10.00>Never <00:10.40>gonna`;
+    const resNeg = parseLRC(lrcNegativeOffset);
+    // 10000ms + (-300ms) offset = 9700ms
+    assert.strictEqual(resNeg[0].timeMs, 9700);
+    assert.strictEqual(resNeg[0].words[0].timeMs, 9700);
+    assert.strictEqual(resNeg[0].words[1].timeMs, 10100);
+  });
+
+  // Test 10b: Trailing syllable tags accurately set last word's endMs and duration
+  test('10b. parseLRC extracts trailing syllable tags for exact last-word endMs and sustained durations', () => {
+    const lrc = `[00:10.00] <00:10.00>Hold <00:10.50>on <00:14.20>`;
+    const res = parseLRC(lrc);
+    assert.strictEqual(res.length, 1);
+    assert.strictEqual(res[0].words.length, 2);
+    assert.strictEqual(res[0].words[0].text, 'Hold');
+    assert.strictEqual(res[0].words[0].timeMs, 10000);
+    assert.strictEqual(res[0].words[0].endMs, 10500);
+    assert.strictEqual(res[0].words[0].duration, 500);
+
+    assert.strictEqual(res[0].words[1].text, 'on');
+    assert.strictEqual(res[0].words[1].timeMs, 10500);
+    // Sustained note for 3.7 seconds!
+    assert.strictEqual(res[0].words[1].endMs, 14200);
+    assert.strictEqual(res[0].words[1].duration, 3700);
+  });
+
+  // Test 10c: Inter-word pauses are protected against multi-second fill stretching
+  test('10c. parseLRC caps natural word duration over long inter-word pauses', () => {
+    const lrc = `[00:10.00] <00:10.00>Hold <00:10.40>on <00:15.00>to <00:15.50>me`;
+    const res = parseLRC(lrc);
+    assert.strictEqual(res.length, 1);
+    assert.strictEqual(res[0].words.length, 4);
+    // Gap from 10400 to 15000 is 4600ms (silence/pause). Word "on" should not stretch to 4.6s!
+    const wordOn = res[0].words[1];
+    assert.strictEqual(wordOn.text, 'on');
+    assert.strictEqual(wordOn.timeMs, 10400);
+    assert.ok(wordOn.duration <= 1800, `Duration should be capped, was ${wordOn.duration}ms`);
+    assert.strictEqual(wordOn.endMs, 10400 + wordOn.duration);
+  });
+
+  // Test 10d: yrcToEnhancedLRC emits trailing closing tag and round-trips exact durations
+  test('10d. yrcToEnhancedLRC emits trailing closing tag and preserves round-trip word ends', () => {
+    const yrc = `[12000,4000](12000,500,0)Never (12500,400,0)gonna (12900,600,0)give (13500,2500,0)you`;
+    const elrc = yrcToEnhancedLRC(yrc);
+    // 13500 + 2500 = 16000 -> <00:16.00> closing tag
+    assert.ok(elrc.includes('<00:16.00>'), `Expected trailing <00:16.00> in output: ${elrc}`);
+
+    const parsed = parseLRC(elrc);
+    assert.strictEqual(parsed.length, 1);
+    assert.strictEqual(parsed[0].words.length, 4);
+    const lastWord = parsed[0].words[3];
+    assert.strictEqual(lastWord.text, 'you');
+    assert.strictEqual(lastWord.timeMs, 13500);
+    assert.strictEqual(lastWord.endMs, 16000);
+    assert.strictEqual(lastWord.duration, 2500);
+  });
+
   console.log(`\nResults: ${passedTests}/${totalTests} tests passed.\n`);
   if (passedTests !== totalTests) {
     process.exit(1);

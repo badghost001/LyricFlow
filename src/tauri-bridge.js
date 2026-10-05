@@ -200,6 +200,7 @@
     minimizeApp: () => safeInvoke('minimize_app', {}, null),
     showMainWindow: () => safeInvoke('show_main_window', {}, null),
     resetWindowSize: () => safeInvoke('reset_window_size', {}, null),
+    setCinematicMode: (enabled) => safeInvoke('set_cinematic_mode', { enabled }, null),
     openExternal: (url) => safeInvoke('open_external', { url }, null),
     lastfmApi: (method, params = {}, apiKey = '', apiSecret = '', sessionKey = '') =>
       safeInvoke('lastfm_api', { data: { method, params, apiKey, apiSecret, sessionKey } }, null),
@@ -299,6 +300,7 @@
     // Event Listeners
     onToggleClickThrough: (cb) => safeListen('toggle-click-through-shortcut', () => cb()),
     onToggleDynamicIslandShortcut: (cb) => safeListen('toggle-dynamic-island-shortcut', () => cb()),
+    onToggleKineticModeShortcut: (cb) => safeListen('toggle-kinetic-mode-shortcut', () => cb()),
     onToggleWallpaperModeShortcut: (cb) => safeListen('toggle-wallpaper-mode-shortcut', () => cb()),
     onToggleTaskbarModeShortcut: (cb) => safeListen('toggle-taskbar-mode-shortcut', () => cb()),
     onWindowRestored: (cb) => safeListen('window-restored', () => cb()),
@@ -326,6 +328,10 @@
       }
       cb(dx, dy);
     }),
+    onAdjustSyncOffset: (cb) => safeListen('adjust-sync-offset', (payload) => {
+      const delta = typeof payload === 'number' ? payload : (parseInt(payload, 10) || 0);
+      if (typeof cb === 'function') cb(delta);
+    }),
     onLocalPlaybackChange: (cb) => safeListen('local-playback-change', (payload) => cb(payload)),
     onSmtcPlaybackStatus: (cb) => safeListen('smtc-playback-status', (payload) => cb(payload)),
     onCopyActiveLyric: (cb) => safeListen('copy-active-lyric', () => cb()),
@@ -339,6 +345,8 @@
     onAudioSpectrum: (cb) => safeListen('audio-visualizer-bands', (payload) => cb(payload)),
     onIslandGhostMode: (cb) => safeListen('island-ghost-mode', (payload) => cb(payload)),
     toggleDynamicIslandGhost: () => safeInvoke('cmd_toggle_dynamic_island_ghost', {}, null),
+    exportKineticVideo: (payload) => safeInvoke('export_kinetic_video', { payload }, null),
+    saveCardImage: (payload) => safeInvoke('save_card_image', { payload }, null),
   };
 
   // Taskbar window bridge polyfill

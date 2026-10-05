@@ -14,9 +14,9 @@
   </p>
 
   <p>
-    <a href="#-whats-new-in-v140">What's New</a> •
+    <a href="#-whats-new-in-v1420">What's New</a> •
     <a href="#-key-features">Features</a> •
-    <a href="#-screenshots">Screenshots</a> •
+    <a href="#-showcase--screenshots">Showcase</a> •
     <a href="#-keyboard-shortcuts">Shortcuts</a> •
     <a href="#-installation">Installation</a> •
     <a href="#-building-from-source">Build from Source</a> •
@@ -26,13 +26,14 @@
 
 ---
 
-## 🌟 What's New in v1.4.0
+## 🌟 What's New in v1.42.0
 
-- 🏝️ **Dynamic Island & Dual-Connected Satellite:** Apple-inspired floating pill with real-time audio visualizer, interactive controls, and an intelligent **Satellite Translation Pill** that docks right below the island for on-the-fly bilingual lyrics.
-- ✨ **CoreAnimation Stardust Emitter (`CAEmitterEngine`):** Smooth stardust particle vaporization and materialization animations on inactivity sleep and wake transitions, with silent seamless in-song transitions.
-- 🎨 **3D MMCQ Adaptive Color Quantization:** 5-bit color space (`32×32×32` RGB voxel grid) Modified Median Cut Quantization extracting authentic artwork centroids in ~1.6ms. Zero artificial rainbow offsets—preserves genuine monochrome, warm sepia, and obsidian dark covers.
-- 🪟 **Luminous White Typography:** High-contrast `#ffffff` lyrics text paired with dynamically extracted artwork glow auras for peak legibility over dynamic album art and video canvases.
-- 🔄 **Minisign Cryptographic OTA Auto-Updates:** Full cross-platform background update pipeline with signed `latest.json` manifests for Windows, macOS, and Linux.
+- 🎬 **Immersive Kinetic & Cinematic Live Mode:** Turn your desktop into an art-directed music visualizer with horizontal widescreen typography, 1-to-3 word rapid rhythmic phrase cuts, and zero ambient blur distractions.
+- 📐 **Parametric Shape Morph Transitions:** 7 curated geometric shapes (*Astroid, Rosette, Clover, Diamond, Pill, Heart, and Editorial Seal*) that smoothly contract, rotate, and expand during musical breaks (`gap >= 1.8s`) right before upcoming vocals.
+- ⚡ **Enhanced LRC Word-by-Word Acoustic Synchronization:** Strict 1:1 acoustic playhead synchronization with zero artificial lead, clamped polling latency, and smooth anti-drift clock convergence.
+- 🔤 **Clean Punctuation & Typography Formatting:** Automated double-bracket stripping, contraction syllable preservation, clean Hanzi/Kana character spacing, and ad-lib formatting.
+- 🔄 **Dynamic Island Alternative Lyrics Refetch:** Instant right-click context menu and hover button to cycle through alternative lyric providers directly from the floating island pill.
+- 🛡️ **Zero-Distraction Stage & Resilient Transitions:** Complete suppression of resync buttons and ambient background bleed in cinematic view, with seamless track transitions that never get stuck on song headings.
 
 ---
 
@@ -75,9 +76,16 @@
 
 ---
 
-## 📸 Screenshots
+## 📸 Showcase & Screenshots
 
 <div align="center">
+
+### 🎬 Immersive Kinetic & Cinematic Live Mode
+*Dynamic word-by-word karaoke typography, 7 parametric shape morph transitions, and zero-latency acoustic audio tracking.*
+<br/>
+<img src="assets/screenshots/cinematic-mode.gif" alt="LyricFlow Cinematic Mode" width="950" />
+
+<br/><br/>
 
 ### Dynamic Island with Dual-Connected Satellite Translation
 *Floating pill with live WASAPI audio visualizer and docked real-time bilingual translation satellite.*

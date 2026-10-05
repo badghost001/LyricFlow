@@ -12,11 +12,41 @@
  */
 
 (function () {
+  const ShapeMorpher = (typeof window !== 'undefined' && window.KineticShapeMorpher)
+    ? window.KineticShapeMorpher
+    : (typeof require === 'function' ? require('./kinetic/KineticShapeMorpher') : null);
+  const ColorEngine = (typeof window !== 'undefined' && window.KineticColorEngine)
+    ? window.KineticColorEngine
+    : (typeof require === 'function' ? require('./kinetic/KineticColorEngine') : null);
+  const TypographyEngine = (typeof window !== 'undefined' && window.KineticTypographyEngine)
+    ? window.KineticTypographyEngine
+    : (typeof require === 'function' ? require('./kinetic/KineticTypographyEngine') : null);
+  const Director = (typeof window !== 'undefined' && window.KineticDirector)
+    ? window.KineticDirector
+    : (typeof require === 'function' ? require('./kinetic/KineticDirector') : null);
+
   /**
    * Top-Level Editorial Design Presets
-   * Classic (Design 1) & Cinematic (Design 2) with shared extensible architecture
+   * Classic (Design 1), Cinematic (Design 2) & Kinetic (Design 3)
    */
   const SHARE_CARD_PRESETS = {
+    glass: {
+      id: 'glass',
+      name: 'Featured',
+      subtitle: 'Glass Box',
+      description: 'Frosted glass floating card',
+      format: 'story',
+      theme: 'glass',
+      cardContent: 'lyrics_art',
+      fontFamily: 'sans',
+      textAlign: 'left',
+      fontScale: 'large',
+      showAlbumArt: true,
+      showScrubber: true,
+      showGrain: false,
+      showWatermark: true,
+      showTimestamp: false
+    },
     classic: {
       id: 'classic',
       name: 'Design 1',
@@ -49,6 +79,24 @@
       showWatermark: true,
       showTimestamp: false
     },
+    kinetic: {
+      id: 'kinetic',
+      name: 'Design 3',
+      subtitle: 'Kinetic',
+      description: 'Animated story video',
+      format: 'story',
+      theme: 'kinetic',
+      fontFamily: 'serif',
+      textAlign: 'center',
+      fontScale: 'normal',
+      showAlbumArt: true,
+      showScrubber: false,
+      showGrain: false,
+      showWatermark: false,
+      showTimestamp: false,
+      kineticShape: 'auto',
+      kineticColor: 'album_art'
+    },
     custom: {
       id: 'custom',
       name: 'Custom',
@@ -58,9 +106,10 @@
   };
 
   let shareState = {
-    designMode: 'classic',   // 'classic' (Design 1), 'cinematic' (Design 2), 'custom' (Custom Studio)
+    designMode: 'glass',     // 'glass' (Featured Glass Box), 'classic' (Design 1), 'cinematic' (Design 2), 'kinetic' (Design 3), 'custom' (Custom Studio)
+    cardContent: 'lyrics_art', // 'lyrics_art' (Lyrics + Album Art) | 'art_track' (Album Art + Song Name + Artist)
     format: 'story',         // 'story' (9:16), 'square' (1:1), 'portrait' (4:5), 'landscape' (16:9)
-    theme: 'classic',        // 'classic', 'cinematic', 'mesh', 'obsidian', 'vinyl', 'cassette', 'bloom', 'sunset', 'glass', 'aurora', 'editorial', 'cyberpunk'
+    theme: 'glass',          // 'glass', 'classic', 'cinematic', 'kinetic', 'mesh', 'obsidian', 'vinyl', 'cassette', 'bloom', 'sunset', 'aurora', 'editorial', 'cyberpunk'
     transMode: 'original',   // 'original', 'bilingual', 'translation'
     fontFamily: 'sans',      // 'sans', 'serif', 'mono', 'soft'
     textAlign: 'center',     // 'left', 'center', 'right'
@@ -72,6 +121,10 @@
     showScrubber: true,      // Playback progress scrubber bar
     showGrain: true,         // Analog film grain texture
     export2x: true,          // 4K Ultra-HD 2x Retina export
+    kineticShape: 'auto',    // 'auto' | 'random' | 'astroid' | 'diamond' | 'clover' | 'rosette' | 'heart' | 'hexagon' | 'circle'
+    kineticColor: 'album_art', // 'album_art' | 'velvet_plum' | 'midnight_emerald' | ... | 'custom'
+    kineticCustomColors: null,
+    isExportingVideo: false,
     selectedIndices: [],
     albumImg: null,
     trackTitle: '',
@@ -255,10 +308,14 @@
     bindModalEventsOnce();
 
     // Initialize active design preset or custom mode
-    if (shareState.designMode === 'classic') {
+    if (shareState.designMode === 'glass') {
+      applyPreset('glass', false);
+    } else if (shareState.designMode === 'classic') {
       applyPreset('classic', false);
     } else if (shareState.designMode === 'cinematic') {
       applyPreset('cinematic', false);
+    } else if (shareState.designMode === 'kinetic') {
+      applyPreset('kinetic', false);
     } else {
       restoreCustomConfigToState();
       const controlsPane = document.querySelector(".share-controls-pane");
@@ -270,11 +327,17 @@
       syncCustomDrawerControlsFromState();
     }
 
-    // Render initial card
-    if (document.fonts && document.fonts.ready) {
-      document.fonts.ready.then(() => renderModalCanvas());
-    } else {
-      renderModalCanvas();
+    // Render initial card safely
+    try {
+      if (document.fonts && document.fonts.ready) {
+        document.fonts.ready.then(() => {
+          try { renderModalCanvas(); } catch (err) { console.error("[ShareCard] Canvas render error:", err); }
+        });
+      } else {
+        renderModalCanvas();
+      }
+    } catch (err) {
+      console.error("[ShareCard] Initial render error:", err);
     }
 
     // Show modal
@@ -310,6 +373,11 @@
         if (window.electronAPI && typeof window.electronAPI.setDynamicIslandMode === 'function') {
           window.electronAPI.setDynamicIslandMode(true, dockPos);
         }
+      }
+    } else if (window._returnToKineticAfterShare) {
+      window._returnToKineticAfterShare = false;
+      if (typeof toggleKineticMode === 'function') {
+        toggleKineticMode(true);
       }
     }
   }
@@ -484,6 +552,7 @@
     if (typeof preset.showGrain === 'boolean') shareState.showGrain = preset.showGrain;
     if (typeof preset.showWatermark === 'boolean') shareState.showWatermark = preset.showWatermark;
     if (typeof preset.showTimestamp === 'boolean') shareState.showTimestamp = preset.showTimestamp;
+    if (preset.cardContent) shareState.cardContent = preset.cardContent;
 
     // Synchronize UI
     syncCustomDrawerControlsFromState();
@@ -671,14 +740,47 @@
 
     const statusBadge = document.getElementById("share-preset-status");
     if (statusBadge) {
-      if (shareState.designMode === 'classic') {
+      if (shareState.designMode === 'glass') {
+        statusBadge.textContent = "Glass Box Active";
+      } else if (shareState.designMode === 'classic') {
         statusBadge.textContent = "Design 1 Active";
       } else if (shareState.designMode === 'cinematic') {
         statusBadge.textContent = "Design 2 Active";
+      } else if (shareState.designMode === 'kinetic') {
+        statusBadge.textContent = "Design 3 Active";
       } else {
         statusBadge.textContent = "Custom Active";
       }
     }
+
+    updateGlassOptionsUI();
+
+    const btnExportVideo = document.getElementById("btn-share-export-video");
+    if (btnExportVideo) {
+      if (shareState.designMode === 'kinetic') {
+        btnExportVideo.classList.add("btn-primary-gradient");
+        btnExportVideo.classList.remove("btn-secondary-glass");
+      } else {
+        btnExportVideo.classList.remove("btn-primary-gradient");
+        btnExportVideo.classList.add("btn-secondary-glass");
+      }
+    }
+  }
+
+  function updateGlassOptionsUI() {
+    if (typeof document === 'undefined') return;
+    const isLyrics = (shareState.cardContent !== 'art_track');
+    const isVert = (shareState.format !== 'landscape');
+
+    const btnL = document.getElementById("btn-content-lyrics-art");
+    const btnA = document.getElementById("btn-content-art-track");
+    if (btnL) btnL.classList.toggle("active", isLyrics);
+    if (btnA) btnA.classList.toggle("active", !isLyrics);
+
+    const btnV = document.getElementById("btn-orient-vertical");
+    const btnH = document.getElementById("btn-orient-horizontal");
+    if (btnV) btnV.classList.toggle("active", isVert);
+    if (btnH) btnH.classList.toggle("active", !isVert);
   }
 
   /**
@@ -740,39 +842,88 @@
    * Renders live miniature previews on the preset cards using current song, artwork, and lyric
    */
   function renderPresetPreviews() {
-    const previewClassic = document.getElementById("preset-preview-classic");
-    const previewCinematic = document.getElementById("preset-preview-cinematic");
-
-    if (previewClassic && typeof previewClassic.getContext === 'function') {
-      const ctx1 = previewClassic.getContext('2d');
-      if (ctx1) {
-        ctx1.save();
-        ctx1.scale(0.1, 0.1);
-        const classicState = {
-          ...shareState,
-          ...SHARE_CARD_PRESETS.classic,
-          format: 'story',
-          export2x: false
-        };
-        renderCardContent(ctx1, 1080, 1920, classicState);
-        ctx1.restore();
+    try {
+      const previewGlass = document.getElementById("preset-preview-glass");
+      if (previewGlass && typeof previewGlass.getContext === 'function') {
+        const ctx0 = previewGlass.getContext('2d');
+        if (ctx0) {
+          ctx0.save();
+          ctx0.scale(0.1, 0.1);
+          const glassState = {
+            ...shareState,
+            ...SHARE_CARD_PRESETS.glass,
+            format: 'story',
+            export2x: false
+          };
+          renderCardContent(ctx0, 1080, 1920, glassState);
+          ctx0.restore();
+        }
       }
+    } catch (e0) {
+      console.warn("[ShareCard] Preview glass failed:", e0);
     }
 
-    if (previewCinematic && typeof previewCinematic.getContext === 'function') {
-      const ctx2 = previewCinematic.getContext('2d');
-      if (ctx2) {
-        ctx2.save();
-        ctx2.scale(0.1, 0.1);
-        const cinematicState = {
-          ...shareState,
-          ...SHARE_CARD_PRESETS.cinematic,
-          format: 'story',
-          export2x: false
-        };
-        renderCardContent(ctx2, 1080, 1920, cinematicState);
-        ctx2.restore();
+    try {
+      const previewClassic = document.getElementById("preset-preview-classic");
+      if (previewClassic && typeof previewClassic.getContext === 'function') {
+        const ctx1 = previewClassic.getContext('2d');
+        if (ctx1) {
+          ctx1.save();
+          ctx1.scale(0.1, 0.1);
+          const classicState = {
+            ...shareState,
+            ...SHARE_CARD_PRESETS.classic,
+            format: 'story',
+            export2x: false
+          };
+          renderCardContent(ctx1, 1080, 1920, classicState);
+          ctx1.restore();
+        }
       }
+    } catch (e1) {
+      console.warn("[ShareCard] Preview classic failed:", e1);
+    }
+
+    try {
+      const previewCinematic = document.getElementById("preset-preview-cinematic");
+      if (previewCinematic && typeof previewCinematic.getContext === 'function') {
+        const ctx2 = previewCinematic.getContext('2d');
+        if (ctx2) {
+          ctx2.save();
+          ctx2.scale(0.1, 0.1);
+          const cinematicState = {
+            ...shareState,
+            ...SHARE_CARD_PRESETS.cinematic,
+            format: 'story',
+            export2x: false
+          };
+          renderCardContent(ctx2, 1080, 1920, cinematicState);
+          ctx2.restore();
+        }
+      }
+    } catch (e2) {
+      console.warn("[ShareCard] Preview cinematic failed:", e2);
+    }
+
+    try {
+      const previewKinetic = document.getElementById("preset-preview-kinetic");
+      if (previewKinetic && typeof previewKinetic.getContext === 'function') {
+        const ctx3 = previewKinetic.getContext('2d');
+        if (ctx3) {
+          ctx3.save();
+          ctx3.scale(0.1, 0.1);
+          const kineticState = {
+            ...shareState,
+            ...SHARE_CARD_PRESETS.kinetic,
+            format: 'story',
+            export2x: false
+          };
+          renderCardContent(ctx3, 1080, 1920, kineticState);
+          ctx3.restore();
+        }
+      }
+    } catch (e3) {
+      console.warn("[ShareCard] Preview kinetic failed:", e3);
     }
   }
 
@@ -785,9 +936,47 @@
     const presetCards = document.querySelectorAll(".share-preset-card");
     presetCards.forEach(card => {
       card.addEventListener("click", () => {
-        applyPreset(card.dataset.design || 'classic');
+        applyPreset(card.dataset.design || 'glass');
       });
     });
+
+    // Readymade Static Glass Card Options (Card Content: Lyrics+Art vs Art+Track)
+    const btnContentLyrics = document.getElementById("btn-content-lyrics-art");
+    if (btnContentLyrics) {
+      btnContentLyrics.addEventListener("click", () => {
+        shareState.cardContent = 'lyrics_art';
+        updateGlassOptionsUI();
+        renderModalCanvas();
+      });
+    }
+    const btnContentArtTrack = document.getElementById("btn-content-art-track");
+    if (btnContentArtTrack) {
+      btnContentArtTrack.addEventListener("click", () => {
+        shareState.cardContent = 'art_track';
+        updateGlassOptionsUI();
+        renderModalCanvas();
+      });
+    }
+
+    // Readymade Static Glass Card Options (Orientation: Vertical vs Horizontal)
+    const btnOrientVertical = document.getElementById("btn-orient-vertical");
+    if (btnOrientVertical) {
+      btnOrientVertical.addEventListener("click", () => {
+        shareState.format = 'story';
+        updateGlassOptionsUI();
+        updateRatioButtonsUI();
+        renderModalCanvas();
+      });
+    }
+    const btnOrientHorizontal = document.getElementById("btn-orient-horizontal");
+    if (btnOrientHorizontal) {
+      btnOrientHorizontal.addEventListener("click", () => {
+        shareState.format = 'landscape';
+        updateGlassOptionsUI();
+        updateRatioButtonsUI();
+        renderModalCanvas();
+      });
+    }
 
     // Custom mode card and independent chevron toggle
     const customCard = document.getElementById("preset-card-custom");
@@ -1033,6 +1222,14 @@
       });
     }
 
+    // Export Video action
+    const btnExportVideo = document.getElementById("btn-share-export-video");
+    if (btnExportVideo) {
+      btnExportVideo.addEventListener("click", () => {
+        exportKineticStoryVideo();
+      });
+    }
+
     // Copy Text action
     const btnCopyText = document.getElementById("btn-share-copy-text");
     if (btnCopyText) {
@@ -1116,8 +1313,21 @@
       formattedLines.push({ primary: "Music is what feelings sound like.", secondary: null, timeMs: 0, originalIndex: -1 });
     }
 
+    if (state.designMode === 'kinetic' || state.theme === 'kinetic') {
+      drawKineticStoryCard(ctx, width, height, formattedLines, state);
+      return;
+    }
+
     // Draw background based on theme
     drawThemeBackground(ctx, width, height, state.theme, state.albumImg, state.palette, state);
+
+    if (state.theme === 'glass' || state.designMode === 'glass') {
+      drawGlassBoxLayout(ctx, width, height, formattedLines, state);
+      if (state.showGrain) {
+        drawFilmGrain(ctx, width, height, 0.035);
+      }
+      return;
+    }
 
     // Draw format layout
     switch (state.format) {
@@ -1719,30 +1929,42 @@
       ctx.fillRect(0, 0, w, h);
 
     } else if (theme === 'glass') {
+      // Aesthetic deep blurred album art background with cinematic contrast
       if (img && img.complete && img.naturalWidth > 0) {
         ctx.save();
-        ctx.filter = 'blur(60px) brightness(0.38) saturate(1.6)';
-        ctx.drawImage(img, -120, -120, w + 240, h + 240);
+        ctx.filter = 'blur(48px) brightness(0.38) saturate(1.45) contrast(1.08)';
+        const imgRatio = img.naturalWidth / img.naturalHeight;
+        const targetRatio = w / h;
+        let dw, dh, dx, dy;
+        if (imgRatio > targetRatio) {
+          dh = h + 180;
+          dw = dh * imgRatio;
+          dx = (w - dw) / 2;
+          dy = -90;
+        } else {
+          dw = w + 180;
+          dh = dw / imgRatio;
+          dx = -90;
+          dy = (h - dh) / 2;
+        }
+        ctx.drawImage(img, dx, dy, dw, dh);
         ctx.restore();
+
+        // Subtle gradient vignette from bottom to anchor the canvas
+        const vig = ctx.createLinearGradient(0, h * 0.55, 0, h);
+        vig.addColorStop(0, 'transparent');
+        vig.addColorStop(1, 'rgba(0, 0, 0, 0.48)');
+        ctx.fillStyle = vig;
+        ctx.fillRect(0, 0, w, h);
       } else {
-        const g = ctx.createLinearGradient(0, 0, w, h);
-        g.addColorStop(0, '#1a102f');
-        g.addColorStop(1, '#0c1a24');
-        ctx.fillStyle = g;
+        ctx.fillStyle = harmonic.darkNeutral || '#090a10';
+        ctx.fillRect(0, 0, w, h);
+        const rad = ctx.createRadialGradient(w * 0.5, h * 0.35, 60, w * 0.5, h * 0.45, w * 0.85);
+        rad.addColorStop(0, `hsla(${harmonic.ambientHue}, ${harmonic.ambientSat}%, ${harmonic.ambientLight}%, 0.45)`);
+        rad.addColorStop(1, '#05070e');
+        ctx.fillStyle = rad;
         ctx.fillRect(0, 0, w, h);
       }
-
-      const cardMargin = Math.min(80, w * 0.08);
-      const cardW = w - (cardMargin * 2);
-      const cardH = h - (cardMargin * 2);
-      ctx.save();
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
-      ctx.lineWidth = 2;
-      drawRoundedRect(ctx, cardMargin, cardMargin, cardW, cardH, 44);
-      ctx.fill();
-      ctx.stroke();
-      ctx.restore();
 
     } else if (theme === 'aurora') {
       // Apple Music style vibrant multi-gradient aura
@@ -2002,6 +2224,376 @@
     ctx.stroke();
 
     ctx.restore();
+  }
+
+  /**
+   * Helper: Renders the frosted glass container box with specular highlight and ambient depth
+   * Directly replicates the frosted glass aesthetic from breaking-the-habit reference.
+   */
+  function drawGlassContainer(ctx, x, y, width, height, radius) {
+    ctx.save();
+
+    // 1. Ambient drop shadow (deep and soft)
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+    ctx.shadowBlur = 48;
+    ctx.shadowOffsetY = 18;
+
+    // 2. Glass backdrop fill (frosted translucent)
+    const grad = ctx.createLinearGradient(x, y, x, y + height);
+    grad.addColorStop(0, 'rgba(255, 255, 255, 0.14)');
+    grad.addColorStop(0.4, 'rgba(255, 255, 255, 0.09)');
+    grad.addColorStop(1, 'rgba(255, 255, 255, 0.05)');
+
+    ctx.fillStyle = grad;
+    drawRoundedRect(ctx, x, y, width, height, radius);
+    ctx.fill();
+
+    // Subtle dark tinted layer to guarantee high contrast against bright highlights
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgba(18, 20, 26, 0.32)';
+    drawRoundedRect(ctx, x, y, width, height, radius);
+    ctx.fill();
+
+    // 3. Specular hairline border (crisp frosted edge)
+    const strokeGrad = ctx.createLinearGradient(x, y, x, y + height);
+    strokeGrad.addColorStop(0, 'rgba(255, 255, 255, 0.28)');
+    strokeGrad.addColorStop(0.5, 'rgba(255, 255, 255, 0.12)');
+    strokeGrad.addColorStop(1, 'rgba(255, 255, 255, 0.06)');
+
+    ctx.strokeStyle = strokeGrad;
+    ctx.lineWidth = 1.5;
+    drawRoundedRect(ctx, x, y, width, height, radius);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  /**
+   * Glass Box Layout Generator
+   * Replicates breaking-the-habit reference with two content modes (Lyrics+Art vs Art+Track)
+   * and responsive adaptations for both Horizontal (16:9) and Vertical (9:16).
+   */
+  function drawGlassBoxLayout(ctx, w, h, lines, state) {
+    const isHorizontal = state.format === 'landscape' || (w > h);
+    const contentMode = state.cardContent || 'lyrics_art'; // 'lyrics_art' | 'art_track'
+    const img = state.albumImg;
+    const fontStack = getFontStack(state.fontFamily || 'sans');
+    const trackTitle = (state.trackTitle || 'LyricFlow').trim();
+    const artistName = (state.artistName || 'Unknown Artist').trim();
+    const progressMs = state.currentProgressMs || 0;
+    const durationMs = state.trackDurationMs || 0;
+
+    if (contentMode === 'art_track') {
+      // Option 1: Prominent Album Artwork + Song Name + Artist (Track Spotlight)
+      if (isHorizontal) {
+        // Horizontal 16:9 Glass Box (Two-column layout)
+        const boxW = Math.round(w * 0.74);
+        const boxH = Math.round(Math.min(h * 0.74, 620));
+        const boxX = Math.round((w - boxW) / 2);
+        const boxY = Math.round((h - boxH) / 2);
+        const radius = 40;
+        const pad = Math.round(boxH * 0.10);
+
+        drawGlassContainer(ctx, boxX, boxY, boxW, boxH, radius);
+
+        const artSize = boxH - pad * 2;
+        const artX = boxX + pad;
+        const artY = boxY + pad;
+        const artRadius = 24;
+
+        // Draw Hero Album Artwork
+        if (img && img.complete && img.naturalWidth > 0) {
+          ctx.save();
+          drawRoundedRect(ctx, artX, artY, artSize, artSize, artRadius);
+          ctx.clip();
+          ctx.drawImage(img, artX, artY, artSize, artSize);
+          ctx.restore();
+
+          // Artwork border
+          ctx.save();
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
+          ctx.lineWidth = 1.5;
+          drawRoundedRect(ctx, artX, artY, artSize, artSize, artRadius);
+          ctx.stroke();
+          ctx.restore();
+        } else {
+          ctx.save();
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+          drawRoundedRect(ctx, artX, artY, artSize, artSize, artRadius);
+          ctx.fill();
+          ctx.restore();
+        }
+
+        // Right Column: Track Details
+        const rightX = artX + artSize + Math.round(pad * 0.85);
+        const rightW = boxX + boxW - pad - rightX;
+        const centerY = boxY + boxH / 2;
+
+        ctx.save();
+        ctx.textAlign = 'left';
+
+        // Badge: NOW PLAYING
+        ctx.font = '650 13px ' + fontStack;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.50)';
+        ctx.fillText('NOW PLAYING', rightX, centerY - 64);
+
+        // Song Title
+        ctx.font = '700 40px ' + fontStack;
+        ctx.fillStyle = '#ffffff';
+        const displayTitle = truncateText(ctx, trackTitle, rightW);
+        ctx.fillText(displayTitle, rightX, centerY - 14);
+
+        // Artist Name
+        ctx.font = '600 24px ' + fontStack;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.72)';
+        const displayArtist = truncateText(ctx, artistName, rightW);
+        ctx.fillText(displayArtist, rightX, centerY + 28);
+
+        // Scrubber bar if enabled
+        if (state.showScrubber !== false && durationMs > 0) {
+          drawScrubberBar(ctx, rightX, centerY + 68, rightW, progressMs, durationMs, false);
+        }
+
+        // Colophon
+        if (state.showWatermark !== false) {
+          ctx.font = '500 13px ' + fontStack;
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+          ctx.fillText('LYRICFLOW', rightX, boxY + boxH - pad + 8);
+        }
+
+        ctx.restore();
+
+      } else {
+        // Vertical 9:16 Glass Box (Centered Column)
+        const boxW = Math.round(w * 0.84);
+        const pad = Math.round(boxW * 0.08);
+        const innerW = boxW - pad * 2;
+        const artSize = innerW;
+        const artRadius = 28;
+
+        const titleFontSize = 36;
+        const artistFontSize = 22;
+        const titleH = titleFontSize * 1.25;
+        const artistH = artistFontSize * 1.25;
+        const scrubberH = (state.showScrubber !== false && durationMs > 0) ? 36 : 0;
+        const gap = 24;
+
+        const contentH = artSize + gap + titleH + 8 + artistH + (scrubberH ? (gap + scrubberH) : 0);
+        const boxH = contentH + pad * 2;
+        const boxX = Math.round((w - boxW) / 2);
+        const boxY = Math.round((h - boxH) / 2);
+        const radius = 48;
+
+        drawGlassContainer(ctx, boxX, boxY, boxW, boxH, radius);
+
+        // Hero Album Artwork
+        const artX = boxX + pad;
+        const artY = boxY + pad;
+
+        if (img && img.complete && img.naturalWidth > 0) {
+          ctx.save();
+          drawRoundedRect(ctx, artX, artY, artSize, artSize, artRadius);
+          ctx.clip();
+          ctx.drawImage(img, artX, artY, artSize, artSize);
+          ctx.restore();
+
+          ctx.save();
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.20)';
+          ctx.lineWidth = 1.5;
+          drawRoundedRect(ctx, artX, artY, artSize, artSize, artRadius);
+          ctx.stroke();
+          ctx.restore();
+        } else {
+          ctx.save();
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+          drawRoundedRect(ctx, artX, artY, artSize, artSize, artRadius);
+          ctx.fill();
+          ctx.restore();
+        }
+
+        // Details below Artwork
+        const textY = artY + artSize + gap;
+        ctx.save();
+        ctx.textAlign = 'left';
+
+        // Song Title
+        ctx.font = '700 ' + titleFontSize + 'px ' + fontStack;
+        ctx.fillStyle = '#ffffff';
+        const displayTitle = truncateText(ctx, trackTitle, innerW);
+        ctx.fillText(displayTitle, artX, textY + titleFontSize * 0.85);
+
+        // Artist Name
+        ctx.font = '600 ' + artistFontSize + 'px ' + fontStack;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.72)';
+        const displayArtist = truncateText(ctx, artistName, innerW);
+        ctx.fillText(displayArtist, artX, textY + titleH + 8 + artistFontSize * 0.85);
+
+        // Scrubber bar
+        if (state.showScrubber !== false && durationMs > 0) {
+          drawScrubberBar(ctx, artX, textY + titleH + 8 + artistH + gap, innerW, progressMs, durationMs, false);
+        }
+
+        ctx.restore();
+      }
+
+    } else {
+      // Option 2: Lyrics + Album Art Thumbnail (Exact replicate of breaking-the-habit.png)
+      if (isHorizontal) {
+        // Horizontal 16:9 Glass Box (Wide lyric card)
+        const boxW = Math.round(w * 0.74);
+        const boxX = Math.round((w - boxW) / 2);
+        const pad = Math.round(boxW * 0.05);
+        const innerW = boxW - pad * 2;
+
+        const fontSize = 42;
+        const lineHeight = Math.round(fontSize * 1.34);
+        ctx.font = '700 ' + fontSize + 'px ' + fontStack;
+
+        const wrappedLines = [];
+        lines.forEach(item => {
+          const wraps = wrapText(ctx, item.primary, innerW);
+          wraps.forEach(wLine => wrappedLines.push(wLine));
+        });
+
+        const lyricsH = wrappedLines.length * lineHeight;
+        const thumbSize = 64;
+        const gap = 44;
+        const contentH = lyricsH + gap + thumbSize;
+        const boxH = Math.min(h * 0.84, contentH + pad * 2);
+        const boxY = Math.round((h - boxH) / 2);
+        const radius = 44;
+
+        drawGlassContainer(ctx, boxX, boxY, boxW, boxH, radius);
+
+        // Draw Lyrics (Left aligned, bold white)
+        ctx.save();
+        ctx.font = '700 ' + fontSize + 'px ' + fontStack;
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'alphabetic';
+
+        let lineY = boxY + pad + Math.round(fontSize * 0.85);
+        wrappedLines.forEach(l => {
+          ctx.fillText(l, boxX + pad, lineY);
+          lineY += lineHeight;
+        });
+
+        // Bottom Metadata Row: Thumbnail + Title + Artist
+        const metaY = boxY + pad + lyricsH + gap;
+        const thumbX = boxX + pad;
+        if (img && img.complete && img.naturalWidth > 0) {
+          ctx.save();
+          drawRoundedRect(ctx, thumbX, metaY, thumbSize, thumbSize, 16);
+          ctx.clip();
+          ctx.drawImage(img, thumbX, metaY, thumbSize, thumbSize);
+          ctx.restore();
+
+          ctx.save();
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.20)';
+          ctx.lineWidth = 1;
+          drawRoundedRect(ctx, thumbX, metaY, thumbSize, thumbSize, 16);
+          ctx.stroke();
+          ctx.restore();
+        } else {
+          ctx.save();
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+          drawRoundedRect(ctx, thumbX, metaY, thumbSize, thumbSize, 16);
+          ctx.fill();
+          ctx.restore();
+        }
+
+        const textX = thumbX + thumbSize + 18;
+        const titleW = innerW - thumbSize - 18;
+        ctx.font = '700 22px ' + fontStack;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(truncateText(ctx, trackTitle, titleW), textX, metaY + 26);
+
+        ctx.font = '600 15px ' + fontStack;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.70)';
+        ctx.fillText(truncateText(ctx, artistName.toUpperCase(), titleW), textX, metaY + 50);
+
+        ctx.restore();
+
+      } else {
+        // Vertical 9:16 Glass Box (EXACT match to breaking-the-habit.png)
+        const boxW = Math.round(w * 0.86);
+        const boxX = Math.round((w - boxW) / 2);
+        const pad = Math.round(boxW * 0.07);
+        const innerW = boxW - pad * 2;
+
+        let fontSize = 48;
+        if (lines.length > 5) fontSize = 38;
+        else if (lines.length > 3) fontSize = 44;
+        const lineHeight = Math.round(fontSize * 1.34);
+
+        ctx.font = '700 ' + fontSize + 'px ' + fontStack;
+        const wrappedLines = [];
+        lines.forEach(item => {
+          const wraps = wrapText(ctx, item.primary, innerW);
+          wraps.forEach(wLine => wrappedLines.push(wLine));
+        });
+
+        const lyricsH = wrappedLines.length * lineHeight;
+        const thumbSize = 64;
+        const gap = 52;
+        const contentH = lyricsH + gap + thumbSize;
+        const boxH = contentH + pad * 2;
+        const boxY = Math.round((h - boxH) / 2);
+        const radius = 48;
+
+        drawGlassContainer(ctx, boxX, boxY, boxW, boxH, radius);
+
+        // Draw Lyrics (Left aligned, bold white)
+        ctx.save();
+        ctx.font = '700 ' + fontSize + 'px ' + fontStack;
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'alphabetic';
+
+        let lineY = boxY + pad + Math.round(fontSize * 0.85);
+        wrappedLines.forEach(l => {
+          ctx.fillText(l, boxX + pad, lineY);
+          lineY += lineHeight;
+        });
+
+        // Bottom Metadata Row: Thumbnail + Title + Artist
+        const metaY = boxY + pad + lyricsH + gap;
+        const thumbX = boxX + pad;
+        if (img && img.complete && img.naturalWidth > 0) {
+          ctx.save();
+          drawRoundedRect(ctx, thumbX, metaY, thumbSize, thumbSize, 16);
+          ctx.clip();
+          ctx.drawImage(img, thumbX, metaY, thumbSize, thumbSize);
+          ctx.restore();
+
+          ctx.save();
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.20)';
+          ctx.lineWidth = 1;
+          drawRoundedRect(ctx, thumbX, metaY, thumbSize, thumbSize, 16);
+          ctx.stroke();
+          ctx.restore();
+        } else {
+          ctx.save();
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+          drawRoundedRect(ctx, thumbX, metaY, thumbSize, thumbSize, 16);
+          ctx.fill();
+          ctx.restore();
+        }
+
+        const textX = thumbX + thumbSize + 18;
+        const titleW = innerW - thumbSize - 18;
+        ctx.font = '700 22px ' + fontStack;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(truncateText(ctx, trackTitle, titleW), textX, metaY + 26);
+
+        ctx.font = '600 15px ' + fontStack;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.70)';
+        ctx.fillText(truncateText(ctx, artistName.toUpperCase(), titleW), textX, metaY + 50);
+
+        ctx.restore();
+      }
+    }
   }
 
   /**
@@ -2961,17 +3553,32 @@
   /**
    * Downloads the rendered card directly as PNG (renders at 2x Retina 4K if export2x enabled)
    */
-  function downloadCanvasAsPng() {
+  async function downloadCanvasAsPng() {
     const canvas = getExportCanvas();
     if (!canvas) return;
 
     const cleanTitle = (shareState.trackTitle || "lyrics").replace(/[^a-zA-Z0-9_\-]/g, "_");
     const filename = `${cleanTitle}-LyricFlow${shareState.export2x ? '-4K' : ''}.png`;
+    const dataUrl = canvas.toDataURL('image/png');
 
     try {
+      if (window.electronAPI && typeof window.electronAPI.saveCardImage === 'function') {
+        const savedPath = await window.electronAPI.saveCardImage({
+          image_base64: dataUrl,
+          filename: filename
+        });
+        if (savedPath) {
+          if (typeof showToast === 'function') {
+            showToast("Saved card image to Pictures/LyricFlow!", 3500, 'success');
+          }
+          return;
+        }
+      }
+
+      // Browser fallback
       const link = document.createElement('a');
       link.download = filename;
-      link.href = canvas.toDataURL('image/png');
+      link.href = dataUrl;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -2981,6 +3588,9 @@
       }
     } catch (e) {
       console.error("[ShareCard] Download error:", e);
+      if (typeof showToast === 'function') {
+        showToast(`Save failed: ${e.message || e}`, 3500, 'error');
+      }
     }
   }
 
@@ -3027,6 +3637,269 @@
     }
   }
 
+  /**
+   * Renders Kinetic Story Card preview on canvas
+   */
+  function drawKineticStoryCard(ctx, width, height, formattedLines, state) {
+    try {
+      const KColor = (typeof window !== 'undefined' && window.KineticColorEngine) || ColorEngine;
+      const KMorph = (typeof window !== 'undefined' && window.KineticShapeMorpher) || ShapeMorpher;
+      const KTypo = (typeof window !== 'undefined' && window.KineticTypographyEngine) || TypographyEngine;
+      const KDir = (typeof window !== 'undefined' && window.KineticDirector) || Director;
+
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, width, height);
+
+      if (!KColor || !KMorph || !KTypo) {
+        drawStoryLayout(ctx, width, height, formattedLines, state);
+        return;
+      }
+
+      let dominantRgb = { r: 52, g: 24, b: 32 };
+      if (state.palette && state.palette.length > 0) {
+        dominantRgb = hexToRgbObj(state.palette[0]);
+      }
+
+      const palette = KColor.resolvePalette(state.kineticColor || 'album_art', {
+        presetKey: state.kineticColor,
+        dominantRgb,
+        custom: state.kineticCustomColors
+      });
+
+      const cardW = Math.round(width * 0.78);
+      const cardH = Math.round(height * 0.56);
+      const cardBounds = {
+        x: Math.round((width - cardW) / 2),
+        y: Math.round((height - cardH) / 2),
+        width: cardW,
+        height: cardH,
+        cornerRadius: Math.round(cardW * 0.065)
+      };
+
+      const heroLine = formattedLines[state.heroIndex !== null ? state.heroIndex : 0] || formattedLines[0] || { primary: '' };
+      const isClimax = (heroLine.primary || '').includes('?');
+
+      KMorph.drawMorphedCard(ctx, {
+        shapeType: state.kineticShape === 'auto' ? KMorph.getShapeForTrack(state.artistName, state.trackTitle) : (state.kineticShape || 'astroid'),
+        progress: 1.0,
+        bounds: cardBounds,
+        fillColor: palette.cardColor,
+        showAccentStar: !isClimax,
+        starColor: palette.textColor
+      });
+
+      if (KDir && typeof KDir.classifyPhrase === 'function') {
+        const classification = KDir.classifyPhrase(heroLine.primary || '', [], isClimax);
+        switch (classification.style) {
+          case 'styleC':
+            KTypo.renderStyleC(ctx, {
+              text: classification.primaryText,
+              creatorTag: state.artistName ? `@${state.artistName.replace(/\s+/g, '').toLowerCase()}` : '',
+              artworkImage: state.albumImg,
+              bounds: cardBounds,
+              palette,
+              colorEngine: KColor
+            });
+            break;
+          case 'styleB':
+            KTypo.renderStyleB(ctx, {
+              primaryText: classification.primaryText,
+              secondaryText: classification.secondaryText,
+              secondaryPosition: classification.secondaryPosition,
+              bounds: cardBounds,
+              palette
+            });
+            break;
+          case 'styleA':
+          default:
+            KTypo.renderStyleA(ctx, {
+              text: classification.primaryText,
+              bounds: cardBounds,
+              palette
+            });
+            break;
+        }
+      } else {
+        KTypo.renderStyleA(ctx, {
+          text: heroLine.primary || '',
+          bounds: cardBounds,
+          palette
+        });
+      }
+    } catch (err) {
+      console.warn("[ShareCard] drawKineticStoryCard fallback:", err);
+      drawStoryLayout(ctx, width, height, formattedLines, state);
+    }
+  }
+
+  function arrayBufferToBase64(buffer) {
+    let binary = '';
+    const bytes = new Uint8Array(buffer);
+    const len = bytes.byteLength;
+    for (let i = 0; i < len; i += 8192) {
+      const slice = bytes.subarray(i, Math.min(i + 8192, len));
+      binary += String.fromCharCode.apply(null, slice);
+    }
+    return btoa(binary);
+  }
+
+  /**
+   * High-speed frame-driven video recorder exporting MP4 video with synchronized audio
+   */
+  async function exportKineticStoryVideo() {
+    if (shareState.isExportingVideo) return;
+    const btnExport = document.getElementById("btn-share-export-video");
+    const exportLabel = document.getElementById("share-export-video-text");
+    const originalText = exportLabel ? exportLabel.textContent : "Export Video (MP4)";
+
+    shareState.isExportingVideo = true;
+    if (btnExport) btnExport.disabled = true;
+
+    try {
+      if (exportLabel) exportLabel.textContent = "Preparing recording...";
+
+      if (!shareState.selectedIndices || !shareState.selectedIndices.length) {
+        if (shareState.cachedLyrics && shareState.cachedLyrics.length > 0) {
+          shareState.selectedIndices = [shareState.heroIndex !== null ? shareState.heroIndex : 0];
+        }
+      }
+
+      const selectedLyrics = (shareState.selectedIndices || [])
+        .map(i => shareState.cachedLyrics[i])
+        .filter(Boolean);
+
+      if (!selectedLyrics.length) {
+        if (typeof showToast === 'function') {
+          showToast("Please select at least 1 lyric line to export video", 3000, 'warning');
+        }
+        return;
+      }
+
+      const firstTime = selectedLyrics[0].timeMs || 0;
+      const lastLine = selectedLyrics[selectedLyrics.length - 1];
+      const lastTime = lastLine.endMs || (lastLine.timeMs ? lastLine.timeMs + 3000 : firstTime + 6000);
+      const lyricDuration = Math.max(3000, lastTime - firstTime);
+      const introDurationMs = 3500;
+      const totalDurationMs = Math.min(30000, introDurationMs + lyricDuration);
+
+      const recordCanvas = document.createElement('canvas');
+      recordCanvas.width = 720;
+      recordCanvas.height = 1280;
+
+      const RendererClass = (typeof window !== 'undefined' && window.KineticCanvasRenderer) || require('./kinetic/KineticCanvasRenderer');
+      const renderer = new RendererClass(recordCanvas, { width: 720, height: 1280 });
+
+      let dominantRgb = null;
+      if (shareState.palette && shareState.palette[0]) {
+        dominantRgb = hexToRgbObj(shareState.palette[0]);
+      }
+
+      renderer.configure({
+        shapeMode: shareState.kineticShape === 'auto' ? 'auto' : (shareState.kineticShape === 'random' ? 'random' : 'manual'),
+        shapeType: shareState.kineticShape,
+        colorMode: shareState.kineticColor === 'album_art' ? 'album_art' : 'preset',
+        presetKey: shareState.kineticColor,
+        customColors: shareState.kineticCustomColors,
+        artist: shareState.artistName,
+        title: shareState.trackTitle,
+        creatorTag: shareState.artistName ? `@${shareState.artistName.replace(/\s+/g, '').toLowerCase()}` : '',
+        artworkImage: shareState.albumImg,
+        dominantRgb,
+        lyrics: selectedLyrics,
+        startTimeMs: 0,
+        endTimeMs: totalDurationMs
+      });
+
+      const fps = 30;
+      const frameIntervalMs = 1000 / fps;
+      const totalFrames = Math.ceil(totalDurationMs / frameIntervalMs);
+
+      if (typeof recordCanvas.captureStream === 'function' && typeof MediaRecorder !== 'undefined') {
+        const stream = recordCanvas.captureStream(fps);
+        let mimeType = 'video/webm;codecs=vp9';
+        if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm;codecs=vp8';
+        if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm';
+
+        const mediaRecorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 8000000 });
+        const chunks = [];
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data && e.data.size > 0) chunks.push(e.data);
+        };
+
+        const recordPromise = new Promise((resolve, reject) => {
+          mediaRecorder.onstop = () => resolve(new Blob(chunks, { type: mimeType }));
+          mediaRecorder.onerror = (e) => reject(e);
+        });
+
+        mediaRecorder.start();
+
+        for (let f = 0; f <= totalFrames; f++) {
+          const timeMs = f * frameIntervalMs;
+          renderer.renderFrame(timeMs);
+          if (f % 5 === 0 && exportLabel) {
+            const pct = Math.round((f / totalFrames) * 85);
+            exportLabel.textContent = `Recording... ${pct}%`;
+          }
+          await new Promise(r => setTimeout(r, Math.max(16, Math.floor(frameIntervalMs))));
+        }
+
+        mediaRecorder.stop();
+        if (exportLabel) exportLabel.textContent = "Encoding MP4 video...";
+
+        const videoBlob = await recordPromise;
+        const arrayBuffer = await videoBlob.arrayBuffer();
+        const base64Video = arrayBufferToBase64(arrayBuffer);
+
+        const cleanTitle = (shareState.trackTitle || "kinetic_story").replace(/[^a-zA-Z0-9_\-]/g, "_");
+        const defaultFileName = `${cleanTitle}-KineticStory-${Date.now()}.mp4`;
+
+        if (window.electronAPI && typeof window.electronAPI.exportKineticVideo === 'function') {
+          const result = await window.electronAPI.exportKineticVideo({
+            video_base64: base64Video,
+            audio_path: null,
+            audio_base64: null,
+            start_time_sec: firstTime / 1000,
+            duration_sec: totalDurationMs / 1000,
+            output_path: defaultFileName
+          });
+
+          if (result) {
+            if (typeof showToast === 'function') {
+              showToast("Exported video to Videos/LyricFlow!", 4500, 'success');
+            }
+          } else {
+            throw new Error("Video encoding failed");
+          }
+        } else {
+          const url = URL.createObjectURL(videoBlob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `${cleanTitle}-KineticStory.webm`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          if (typeof showToast === 'function') {
+            showToast("Saved video animation!", 3000, 'success');
+          }
+        }
+      } else {
+        if (typeof showToast === 'function') {
+          showToast("MediaRecorder is not supported in this environment", 3000, 'warning');
+        }
+      }
+    } catch (err) {
+      console.error("[ShareCard] Video export failed:", err);
+      if (typeof showToast === 'function') {
+        showToast(`Video export failed: ${err.message || err}`, 4000, 'error');
+      }
+    } finally {
+      shareState.isExportingVideo = false;
+      if (btnExport) btnExport.disabled = false;
+      if (exportLabel) exportLabel.textContent = originalText;
+    }
+  }
+
   // Expose on global window object
   if (typeof window !== 'undefined') {
     window.generateShareCard = openShareModal;
@@ -3069,7 +3942,9 @@
       renderPresetPreviews,
       analyzeArtworkComposition,
       drawTimestampBadge,
-      drawWatermarkPill
+      drawWatermarkPill,
+      drawGlassContainer,
+      drawGlassBoxLayout
     };
   }
 

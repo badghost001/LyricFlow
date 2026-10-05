@@ -114,6 +114,8 @@ const {
   applyPreset,
   shareState,
   analyzeArtworkComposition,
+  drawGlassContainer,
+  drawGlassBoxLayout,
 } = mod;
 
 // ─── Test harness ─────────────────────────────────────────────────────────────
@@ -434,6 +436,111 @@ assertEqual(shareState.theme, 'classic', 'applyPreset("classic") sets shareState
 applyPreset('cinematic', false);
 assertEqual(shareState.designMode, 'cinematic', 'applyPreset("cinematic") sets shareState.designMode');
 assertEqual(shareState.theme, 'cinematic', 'applyPreset("cinematic") sets shareState.theme');
+
+applyPreset('glass', false);
+assertEqual(shareState.designMode, 'glass', 'applyPreset("glass") sets shareState.designMode');
+assertEqual(shareState.theme, 'glass', 'applyPreset("glass") sets shareState.theme');
+assertEqual(shareState.cardContent, 'lyrics_art', 'applyPreset("glass") sets shareState.cardContent to lyrics_art');
+
+console.log('\n── Frosted Glass Box Preset & Layout (Breaking The Habit Replica) ──');
+assert(typeof drawGlassContainer === 'function', 'drawGlassContainer is exported');
+let glassBoxContainerError = null;
+try {
+  drawGlassContainer(fakeCtxScrubber, 50, 50, 400, 300, 24);
+} catch (e) {
+  glassBoxContainerError = e;
+}
+assert(!glassBoxContainerError, 'drawGlassContainer executes cleanly without errors');
+
+assert(typeof drawGlassBoxLayout === 'function', 'drawGlassBoxLayout is exported');
+
+const glassTestLines = [
+  { primary: "I don't know what's worth fighting for", secondary: null, originalIndex: 0 },
+  { primary: "Or why I have to scream", secondary: null, originalIndex: 1 },
+  { primary: "I don't know why I instigate", secondary: null, originalIndex: 2 },
+  { primary: "And say what I don't mean", secondary: null, originalIndex: 3 }
+];
+
+const baseGlassState = {
+  theme: 'glass',
+  designMode: 'glass',
+  trackTitle: 'Breaking the Habit',
+  artistName: 'Linkin Park',
+  albumImg: null,
+  palette: ['#0e7490', '#3b82f6'],
+  showScrubber: true,
+  showWatermark: true,
+  currentProgressMs: 72000,
+  trackDurationMs: 198000,
+  cachedLyrics: glassTestLines,
+  selectedIndices: [0, 1, 2, 3]
+};
+
+// 1. Lyrics + Art (Vertical 9:16)
+let glassLyricsVertError = null;
+try {
+  drawGlassBoxLayout(fakeCtxScrubber, 1080, 1920, glassTestLines, {
+    ...baseGlassState,
+    format: 'story',
+    cardContent: 'lyrics_art'
+  });
+} catch (e) {
+  glassLyricsVertError = e;
+}
+assert(!glassLyricsVertError, 'drawGlassBoxLayout renders Option 1 (Lyrics + Art) in Vertical (9:16)');
+
+// 2. Lyrics + Art (Horizontal 16:9)
+let glassLyricsHorizError = null;
+try {
+  drawGlassBoxLayout(fakeCtxScrubber, 1920, 1080, glassTestLines, {
+    ...baseGlassState,
+    format: 'landscape',
+    cardContent: 'lyrics_art'
+  });
+} catch (e) {
+  glassLyricsHorizError = e;
+}
+assert(!glassLyricsHorizError, 'drawGlassBoxLayout renders Option 1 (Lyrics + Art) in Horizontal (16:9)');
+
+// 3. Art + Track (Vertical 9:16)
+let glassArtVertError = null;
+try {
+  drawGlassBoxLayout(fakeCtxScrubber, 1080, 1920, glassTestLines, {
+    ...baseGlassState,
+    format: 'story',
+    cardContent: 'art_track'
+  });
+} catch (e) {
+  glassArtVertError = e;
+}
+assert(!glassArtVertError, 'drawGlassBoxLayout renders Option 2 (Art + Track) in Vertical (9:16)');
+
+// 4. Art + Track (Horizontal 16:9)
+let glassArtHorizError = null;
+try {
+  drawGlassBoxLayout(fakeCtxScrubber, 1920, 1080, glassTestLines, {
+    ...baseGlassState,
+    format: 'landscape',
+    cardContent: 'art_track'
+  });
+} catch (e) {
+  glassArtHorizError = e;
+}
+assert(!glassArtHorizError, 'drawGlassBoxLayout renders Option 2 (Art + Track) in Horizontal (16:9)');
+
+// 5. Full renderCardContent dispatch for Glass Box
+let glassRenderError = null;
+try {
+  renderCardContent(fakeCtxScrubber, 1080, 1920, {
+    ...baseGlassState,
+    format: 'story',
+    cardContent: 'lyrics_art',
+    showGrain: true
+  });
+} catch (e) {
+  glassRenderError = e;
+}
+assert(!glassRenderError, 'renderCardContent dispatches to Glass Box layout cleanly');
 
 console.log('\n── Japanese Typography Font Fallbacks ──');
 const sansStack = getFontStack('sans');

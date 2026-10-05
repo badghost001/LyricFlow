@@ -264,6 +264,7 @@ body:not(.is-playing) .island-art-halo {
   align-items: center;
   overflow: hidden;
   position: relative;
+  z-index: 2;
 }
 
 /* COMPACT LABEL (Shown when unhovered) */
@@ -274,6 +275,8 @@ body:not(.is-playing) .island-art-halo {
   height: 100%;
   opacity: 1;
   transition: opacity 0.2s ease;
+  position: relative;
+  z-index: 2;
 }
 
 #dynamic-island:hover .island-compact-label {
@@ -480,7 +483,6 @@ body.mode-dynamic-island.is-playing .island-lyric-zone {
   white-space: nowrap;
   display: inline-block;
   line-height: 1.25;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
 }
 
 @keyframes islandFadeIn {
@@ -507,6 +509,8 @@ body.mode-dynamic-island.is-playing .island-lyric-zone {
   padding: 0 4px;
   overflow: hidden;
   transition: opacity 0.25s ease 0.05s;
+  position: relative;
+  z-index: 2;
 }
 
 #dynamic-island:hover .island-track-meta {
@@ -693,12 +697,12 @@ body.mode-dynamic-island #dynamic-island-translation.island-materializing,
   display: flex !important;
 }
 
-body.mode-dynamic-island.app-paused .dynamic-island-translation,
-body.mode-dynamic-island:not(.is-playing) .dynamic-island-translation,
-body.mode-dynamic-island.is-idle .dynamic-island-translation,
-body.mode-dynamic-island.app-paused .island-bridge,
-body.mode-dynamic-island:not(.is-playing) .island-bridge,
-body.mode-dynamic-island.is-idle .island-bridge {
+body.mode-dynamic-island.app-paused .dynamic-island-translation:not(.satellite-fusing),
+body.mode-dynamic-island:not(.is-playing) .dynamic-island-translation:not(.satellite-fusing),
+body.mode-dynamic-island.is-idle .dynamic-island-translation:not(.satellite-fusing),
+body.mode-dynamic-island.app-paused .island-bridge:not(.bridge-fusing),
+body.mode-dynamic-island:not(.is-playing) .island-bridge:not(.bridge-fusing),
+body.mode-dynamic-island.is-idle .island-bridge:not(.bridge-fusing) {
   display: none !important;
   pointer-events: none !important;
 }
@@ -956,7 +960,8 @@ body.mode-dynamic-island.is-idle #island-lyric-subline {
   transition: opacity 0.24s cubic-bezier(0.16, 1, 0.3, 1), transform 0.24s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-body.mode-dynamic-island.has-duet-active .island-duet-bridge {
+body.mode-dynamic-island.has-duet-active:not(.app-paused):not(.is-idle).is-playing .island-duet-bridge,
+.island-duet-bridge.bridge-fusing {
   display: block !important;
   animation: duetBridgeStretch 0.38s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
@@ -1012,8 +1017,21 @@ body.mode-dynamic-island.has-duet-active .island-duet-bridge {
   animation: duetLiquidPinchSplit 0.38s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-body.mode-dynamic-island.has-duet-active .island-duet-capsule {
+body.mode-dynamic-island.has-duet-active:not(.app-paused):not(.is-idle).is-playing .island-duet-capsule,
+body.mode-dynamic-island #island-duet-capsule.island-vaporizing,
+body.mode-dynamic-island #island-duet-capsule.island-materializing,
+.island-duet-capsule.duet-fusing {
   display: flex !important;
+}
+
+body.mode-dynamic-island.app-paused .island-duet-capsule:not(.duet-fusing),
+body.mode-dynamic-island:not(.is-playing) .island-duet-capsule:not(.duet-fusing),
+body.mode-dynamic-island.is-idle .island-duet-capsule:not(.duet-fusing),
+body.mode-dynamic-island.app-paused .island-duet-bridge:not(.bridge-fusing),
+body.mode-dynamic-island:not(.is-playing) .island-duet-bridge:not(.bridge-fusing),
+body.mode-dynamic-island.is-idle .island-duet-bridge:not(.bridge-fusing) {
+  display: none !important;
+  pointer-events: none !important;
 }
 
 .island-duet-capsule.duet-fusing {

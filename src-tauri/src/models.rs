@@ -118,3 +118,41 @@ pub fn base64_encode(input: &[u8]) -> String {
     }
     out
 }
+
+pub fn base64_decode(input: &str) -> Result<Vec<u8>, String> {
+    let clean = input.trim();
+    let payload = if let Some(idx) = clean.find(";base64,") {
+        &clean[idx + 8..]
+    } else {
+        clean
+    };
+    let payload = payload.replace(['\r', '\n', ' '], "");
+
+    let mut table = [255u8; 256];
+    const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    for (i, &c) in CHARSET.iter().enumerate() {
+        table[c as usize] = i as u8;
+    }
+
+    let bytes = payload.as_bytes();
+    let mut out = Vec::with_capacity((bytes.len() * 3) / 4);
+    let mut buffer = 0u32;
+    let mut bits = 0u32;
+
+    for &b in bytes {
+        if b == b'=' {
+            break;
+        }
+        let val = table[b as usize];
+        if val == 255 {
+            continue;
+        }
+        buffer = (buffer << 6) | (val as u32);
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            out.push((buffer >> bits) as u8);
+        }
+    }
+    Ok(out)
+}

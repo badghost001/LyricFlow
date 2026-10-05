@@ -18,6 +18,7 @@
     <link rel="stylesheet" href="styles/_components.css" />
     <link rel="stylesheet" href="styles/_dynamic_island.css" />
     <link rel="stylesheet" href="styles/_share_modal.css" />
+    <link rel="stylesheet" href="styles/_kinetic.css" />
     <link rel="stylesheet" href="styles.css" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'self' ipc: http://ipc.localhost https://ipc.localhost https://tauri.localhost http://tauri.localhost tauri:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https:; font-src 'self' https: data:; img-src 'self' data: blob: file: lyricflow-media: http: https:; media-src 'self' blob: file: data: lyricflow-media: http: https:; connect-src 'self' ipc: http://ipc.localhost https://ipc.localhost https://tauri.localhost http://tauri.localhost tauri: http: https:;" />
@@ -26,14 +27,19 @@
     <!-- Google Fonts (Loaded Asynchronously to eliminate render-blocking delay, strict CSP compliant) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&family=Poppins:wght@300;400;500;600;700&family=Nunito:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Raleway:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@400;700;900&display=swap">
-    <link id="async-google-fonts" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&family=Poppins:wght@300;400;500;600;700&family=Nunito:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Raleway:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet" media="print">
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&family=Poppins:wght@300;400;500;600;700&family=Nunito:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Raleway:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&family=Bodoni+Moda:ital,opsz,wght@0,6..96,400..900;1,6..96,400..900&family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Noto+Sans+JP:wght@400;700;900&display=swap">
+    <link id="async-google-fonts" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&family=Poppins:wght@300;400;500;600;700&family=Nunito:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Raleway:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&family=Bodoni+Moda:ital,opsz,wght@0,6..96,400..900;1,6..96,400..900&family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet" media="print">
     <noscript>
-      <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&family=Poppins:wght@300;400;500;600;700&family=Nunito:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Raleway:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet">
+      <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&family=Poppins:wght@300;400;500;600;700&family=Nunito:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Raleway:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&family=Bodoni+Moda:ital,opsz,wght@0,6..96,400..900;1,6..96,400..900&family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet">
     </noscript>
     <script src="modules/utils.js" defer></script>
     <script src="modules/parsers.js" defer></script>
     <script src="modules/cache-manager.js" defer></script>
+    <script src="modules/kinetic/KineticShapeMorpher.js" defer></script>
+    <script src="modules/kinetic/KineticColorEngine.js" defer></script>
+    <script src="modules/kinetic/KineticTypographyEngine.js" defer></script>
+    <script src="modules/kinetic/KineticDirector.js" defer></script>
+    <script src="modules/kinetic/KineticCanvasRenderer.js" defer></script>
     <script src="modules/share-card.js" defer></script>
     <script src="modules/news.js" defer></script>
     <script src="modules/fluid-mesh.js" defer></script>
@@ -65,12 +71,62 @@
       <div class="glow-orb orb-2" id="orb-2"></div>
     </div>
 
+    <!-- Kinetic Video Player Stage (Active when body has .mode-kinetic) -->
+    <div id="kinetic-mode-container" class="kinetic-mode-container">
+      <div class="kinetic-stage-wrapper">
+        <canvas id="kinetic-canvas" width="720" height="1280"></canvas>
+      </div>
+      <div class="kinetic-floating-bar" id="kinetic-floating-bar">
+        <div class="kinetic-control-group">
+          <span class="kinetic-control-label">Shape</span>
+          <select id="kinetic-shape-select" class="kinetic-select" title="Intro Shape Morph">
+            <option value="auto">Auto (Track-Seeded)</option>
+            <option value="random">Random</option>
+            <option value="astroid">★ Astroid Star</option>
+            <option value="diamond">◆ Diamond</option>
+            <option value="clover">✤ Clover</option>
+            <option value="rosette">✿ Rosette</option>
+            <option value="heart">♥ Heart</option>
+            <option value="hexagon">⬡ Hexagon</option>
+            <option value="circle">● Circle</option>
+          </select>
+        </div>
+        <div class="kinetic-divider"></div>
+        <div class="kinetic-control-group">
+          <span class="kinetic-control-label">Color</span>
+          <select id="kinetic-color-select" class="kinetic-select" title="Color Theme">
+            <option value="album_art">Album Art (Dynamic)</option>
+            <option value="velvet_plum">Velvet Plum</option>
+            <option value="midnight_emerald">Midnight Emerald</option>
+            <option value="obsidian_gold">Obsidian Gold</option>
+            <option value="cyberpunk_cobalt">Cyberpunk Cobalt</option>
+            <option value="crimson_noir">Crimson Noir</option>
+            <option value="vintage_sepia">Vintage Sepia</option>
+            <option value="monochrome_slate">Monochrome Slate</option>
+          </select>
+        </div>
+        <div class="kinetic-divider"></div>
+        <button id="btn-kinetic-share" class="kinetic-btn kinetic-btn-share" title="Share Kinetic Card / Video (Ctrl+Shift+S)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+          </svg>
+        </button>
+        <button id="btn-kinetic-close" class="kinetic-btn kinetic-btn-close" title="Exit Kinetic Mode (Esc)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+    </div>
+
     <!-- Main App Container -->
-    <div class="app-container" id="app-container">
+    <div class="app-container cinematic-view-active" id="app-container">
       
       <!-- Drag & HUD Header (Fades out when mouse leaves) -->
       <header class="hud-header" id="hud-header" data-tauri-drag-region>
-        <div class="drag-handle" data-tauri-drag-region title="Drag from here to move the window (or use Shift+Arrow keys)">
+        <div class="drag-handle" data-tauri-drag-region title="Drag from here to move the window">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="pointer-events: none;"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/><circle cx="19" cy="5" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="19" cy="19" r="1"/><circle cx="5" cy="5" r="1"/><circle cx="5" cy="12" r="1"/><circle cx="5" cy="19" r="1"/></svg>
           <span class="app-title" style="pointer-events: none;">LyricFlow</span>
         </div>
@@ -104,6 +160,11 @@
           </button>
           <button id="btn-dynamic-island" title="Dynamic Island Mini Mode (Ctrl+Shift+D)" class="hud-btn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="10" rx="5" ry="5"/><circle cx="7" cy="12" r="1.5" fill="currentColor"/></svg>
+          </button>
+          <button id="btn-cinematic-mode" title="Cinematic Lyrics Mode (Ctrl+Shift+C)" class="hud-btn active">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+            </svg>
           </button>
           <div class="hud-controls-divider"></div>
           <button id="btn-minimize" title="Minimize Application" class="hud-btn">
@@ -279,9 +340,7 @@
         <div class="loading-card">
           <div class="loading-logo-wrapper">
             <div class="loading-pulse-ring"></div>
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="#1DB954">
-              <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.494 17.308c-.216.354-.664.464-1.018.248-2.825-1.727-6.38-2.118-10.567-1.163-.404.093-.811-.161-.904-.565s.161-.811.565-.904c4.582-1.045 8.528-.593 11.676 1.332.354.216.464.664.248 1.018zm1.464-3.26c-.272.443-.84.584-1.283.312-3.235-1.988-8.167-2.566-12.015-1.401-.497.151-1.02-.128-1.171-.625s.128-1.02.625-1.171c4.394-1.333 9.83-.67 13.532 1.602.443.272.584.84.312 1.283zm.127-3.4c-3.88-2.304-10.283-2.516-13.993-1.417-.597.181-1.23-.153-1.41-1.229.181-.597.153-1.23 1.229-1.41 4.262-1.293 11.332-1.056 15.8 1.6.536.318.712 1.013.393 1.549s-1.013.712-1.549.393z"/>
-            </svg>
+            <img src="assets/icon.png" alt="LyricFlow Logo" class="loading-logo-img" width="46" height="46" style="position: relative; z-index: 1; object-fit: contain; filter: drop-shadow(0 4px 14px rgba(var(--accent-primary-rgb, 29, 185, 84), 0.45));" />
           </div>
           <div style="display: flex; flex-direction: column; gap: 6px;">
             <span style="font-size: 19px; font-weight: 700; letter-spacing: -0.02em; background: linear-gradient(135deg, #ffffff 0%, var(--accent-soft, #a7f3d0) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">LyricFlow</span>
@@ -415,12 +474,14 @@
               
               <!-- Opacity Slider -->
               <div style="display: flex; flex-direction: column; gap: 8px; text-align: left;">
-                <div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: 600;">
+                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13.5px; font-weight: 600;">
                   <span>Overlay Opacity (Glass Effect)</span>
-                  <span id="ob-val-opacity" style="color: #1DB954;">85%</span>
+                  <span id="ob-val-opacity" class="liquid-slider-val">85%</span>
                 </div>
-                <input type="range" id="ob-slider-opacity" min="20" max="100" value="85" style="width: 100%; accent-color: #1DB954;" />
-                <div style="display: flex; justify-content: space-between; font-size: 11px; color: rgba(255,255,255,0.4);">
+                <div class="liquid-slider-container">
+                  <input type="range" class="liquid-slider" id="ob-slider-opacity" min="20" max="100" value="85" />
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 11px; color: rgba(255,255,255,0.45);">
                   <span>Transparent (20%)</span>
                   <span>Recommended (85%)</span>
                   <span>Solid (100%)</span>
@@ -429,12 +490,14 @@
 
               <!-- Font Size Slider -->
               <div style="display: flex; flex-direction: column; gap: 8px; text-align: left;">
-                <div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: 600;">
+                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13.5px; font-weight: 600;">
                   <span>Lyrics Font Size</span>
-                  <span id="ob-val-fontsize" style="color: #1DB954;">22px</span>
+                  <span id="ob-val-fontsize" class="liquid-slider-val">22px</span>
                 </div>
-                <input type="range" id="ob-slider-fontsize" min="16" max="32" value="22" style="width: 100%; accent-color: #1DB954;" />
-                <div style="display: flex; justify-content: space-between; font-size: 11px; color: rgba(255,255,255,0.4);">
+                <div class="liquid-slider-container">
+                  <input type="range" class="liquid-slider" id="ob-slider-fontsize" min="16" max="32" value="22" />
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 11px; color: rgba(255,255,255,0.45);">
                   <span>Compact (16px)</span>
                   <span>Recommended (22px)</span>
                   <span>Large (32px)</span>
@@ -508,7 +571,7 @@
                 <div style="font-size: 24px; line-height: 1;">🖐️</div>
                 <div>
                   <h4 style="margin: 0 0 4px 0; font-size: 13.5px; font-weight: 700; color: #fff;">Moving the Window</h4>
-                  <p style="margin: 0; font-size: 11.5px; color: rgba(255,255,255,0.65); line-height: 1.4;">Drag from the <b>top-left grip handle</b> (the <i>LyricFlow</i> logo). You can also use <kbd style="background:rgba(255,255,255,0.12);padding:1px 5px;border-radius:4px;font-size:10px;color:#1DB954;">Shift+Arrows</kbd> for micro-nudges.</p>
+                  <p style="margin: 0; font-size: 11.5px; color: rgba(255,255,255,0.65); line-height: 1.4;">Drag from the <b>top-left grip handle</b> (the <i>LyricFlow</i> logo) to position the window anywhere on your screen.</p>
                 </div>
               </div>
 
@@ -567,6 +630,15 @@
 
         <!-- Lyrics Viewer -->
         <div class="lyrics-view" id="lyrics-viewport">
+          <div class="cinematic-main-stage" id="cinematic-main-stage">
+            <button id="btn-cinematic-exit" class="cinematic-exit-btn" title="Exit Cinematic Mode (Ctrl+Shift+C / Esc)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+            <canvas id="cinematic-main-canvas"></canvas>
+          </div>
           <div class="lyrics-scroll-container" id="lyrics-container">
             <!-- Lyrics will be inserted here dynamically -->
             <div class="lyric-line placeholder">Start playing Spotify...</div>
@@ -731,27 +803,53 @@
         </div>
 
         <div class="settings-tabs">
-          <button type="button" class="settings-tab active" data-tab="appearance">Appearance</button>
-          <button type="button" class="settings-tab" data-tab="lyrics">Lyrics</button>
-          <button type="button" class="settings-tab" data-tab="connections">Connections</button>
-          <button type="button" class="settings-tab" data-tab="system">System</button>
+          <button type="button" class="settings-tab active" data-tab="appearance">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+            Appearance
+          </button>
+          <button type="button" class="settings-tab" data-tab="lyrics">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+            Lyrics &amp; Sync
+          </button>
+          <button type="button" class="settings-tab" data-tab="modes">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            Display Modes
+          </button>
+          <button type="button" class="settings-tab" data-tab="system">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            System
+          </button>
         </div>
         
         <div class="settings-body">
           <!-- TAB 1: APPEARANCE -->
           <div class="settings-tab-content active" data-tab="appearance">
             <div class="settings-group">
-              <h4>Theme &amp; Colors</h4>
+              <h4>Theme &amp; Experience</h4>
               <div class="setting-row">
-                <label for="select-theme">Appearance</label>
-                <select id="select-theme">
-                  <option value="dark" selected>Dark (Obsidian)</option>
-                  <option value="oled">OLED Black</option>
-                  <option value="light">Light</option>
+                <label>Appearance Theme</label>
+                <div class="liquid-glass-bar" data-target="select-theme">
+                  <button type="button" class="liquid-bar-segment active" data-val="dark">🌙 Dark Glass</button>
+                  <button type="button" class="liquid-bar-segment" data-val="oled">⬛ OLED Black</button>
+                  <button type="button" class="liquid-bar-segment" data-val="light">☀️ Pearl Light</button>
+                </div>
+                <select id="select-theme" style="display: none;">
+                  <option value="dark" selected>dark</option>
+                  <option value="oled">oled</option>
+                  <option value="light">light</option>
                 </select>
               </div>
+
+              <div class="setting-row">
+                <label>Lyrics View Mode</label>
+                <div class="liquid-glass-bar" id="bar-cinematic-mode">
+                  <button type="button" class="liquid-bar-segment active" id="btn-mode-cinematic" data-val="cinematic">🎬 Cinematic Stage (Horizontal)</button>
+                  <button type="button" class="liquid-bar-segment" id="btn-mode-classic" data-val="classic">📜 Classic Scrolling</button>
+                </div>
+              </div>
+
               <div class="setting-row" style="flex-direction: column; align-items: flex-start; gap: 6px;">
-                <label>Accent Color</label>
+                <label>Accent Glow Color</label>
                 <div id="accent-color-swatches" class="accent-swatches">
                   <button type="button" class="accent-swatch active" data-accent="green" title="Spotify Green" style="--swatch: #1DB954"></button>
                   <button type="button" class="accent-swatch" data-accent="purple" title="Neon Purple" style="--swatch: #8b5cf6"></button>
@@ -760,17 +858,11 @@
                   <button type="button" class="accent-swatch" data-accent="orange" title="Sunset Orange" style="--swatch: #f97316"></button>
                   <button type="button" class="accent-swatch" data-accent="teal" title="Cyber Teal" style="--swatch: #14b8a6"></button>
                 </div>
-              </div>
-              <div class="setting-row">
-                <label for="select-highlight-color">Highlight Color</label>
-                <select id="select-highlight-color">
+                <!-- Hidden compatibility selector -->
+                <select id="select-highlight-color" style="display: none;">
                   <option value="dynamic" selected>Dynamic (Album Art)</option>
                   <option value="green">Spotify Green</option>
                   <option value="white">Classic White</option>
-                  <option value="blue">Electric Blue</option>
-                  <option value="purple">Neon Purple</option>
-                  <option value="midnight">Midnight Velvet</option>
-                  <option value="sunset">Sunset Orange</option>
                 </select>
               </div>
             </div>
@@ -778,72 +870,104 @@
             <div class="settings-group">
               <h4>Typography</h4>
               <div class="setting-row">
-                <label for="select-font-size">Font Size</label>
-                <select id="select-font-size">
-                  <option value="16">16px (Small)</option>
+                <label for="slider-font-size">Lyrics Font Size</label>
+                <div class="liquid-slider-container">
+                  <input type="range" class="liquid-slider" id="slider-font-size" min="16" max="36" step="2" value="22" />
+                  <span class="liquid-slider-val" id="val-font-size">22px</span>
+                </div>
+                <select id="select-font-size" style="display: none;">
+                  <option value="16">16px</option>
                   <option value="18">18px</option>
                   <option value="20">20px</option>
-                  <option value="22" selected>22px (Recommended)</option>
-                  <option value="24">24px (Medium)</option>
+                  <option value="22" selected>22px</option>
+                  <option value="24">24px</option>
                   <option value="28">28px</option>
-                  <option value="32">32px (Large)</option>
-                  <option value="36">36px (Extra Large)</option>
+                  <option value="32">32px</option>
+                  <option value="36">36px</option>
                 </select>
               </div>
+
               <div class="setting-row">
-                <label for="select-font">Font Family</label>
-                <select id="select-font">
+                <label>Font Family</label>
+                <div class="liquid-glass-bar" data-target="select-font">
+                  <button type="button" class="liquid-bar-segment active" data-val="Outfit">Outfit</button>
+                  <button type="button" class="liquid-bar-segment" data-val="Inter">Inter</button>
+                  <button type="button" class="liquid-bar-segment" data-val="Poppins">Poppins</button>
+                  <button type="button" class="liquid-bar-segment" data-val="Space Grotesk">Grotesk</button>
+                  <button type="button" class="liquid-bar-segment" data-val="JetBrains Mono">Mono</button>
+                </div>
+                <select id="select-font" style="display: none;">
                   <option value="Outfit" selected>Outfit</option>
                   <option value="Inter">Inter</option>
                   <option value="Poppins">Poppins</option>
-                  <option value="Nunito">Nunito</option>
-                  <option value="Raleway">Raleway</option>
                   <option value="Space Grotesk">Space Grotesk</option>
                   <option value="JetBrains Mono">JetBrains Mono</option>
-                  <option value="Georgia">Georgia</option>
                 </select>
               </div>
+
               <div class="setting-row">
-                <label for="select-align">Text Align</label>
-                <select id="select-align">
+                <label>Text Align</label>
+                <div class="liquid-glass-bar" data-target="select-align">
+                  <button type="button" class="liquid-bar-segment" data-val="left">⬅ Left</button>
+                  <button type="button" class="liquid-bar-segment active" data-val="center">⬌ Center</button>
+                  <button type="button" class="liquid-bar-segment" data-val="right">➡ Right</button>
+                </div>
+                <select id="select-align" style="display: none;">
                   <option value="left">Left</option>
                   <option value="center" selected>Center</option>
                   <option value="right">Right</option>
                 </select>
               </div>
+
               <div class="setting-row">
                 <label for="slider-line-spacing">Line Spacing</label>
-                <div class="slider-container">
-                  <input type="range" id="slider-line-spacing" min="4" max="28" value="11" />
-                  <span id="val-line-spacing">11px</span>
+                <div class="liquid-slider-container">
+                  <input type="range" class="liquid-slider" id="slider-line-spacing" min="4" max="28" value="11" />
+                  <span class="liquid-slider-val" id="val-line-spacing">11px</span>
                 </div>
               </div>
             </div>
 
             <div class="settings-group">
-              <h4>Background</h4>
+              <h4>Ambient Background &amp; Opacity</h4>
               <div class="setting-row">
-                <label for="select-bg-style">Ambient Background</label>
-                <select id="select-bg-style">
-                  <option value="fluid" selected>Apple Music Fluid Mesh (Liquid WebGL)</option>
-                  <option value="ambient">Glowing Orbs (Classic)</option>
+                <label>Ambient Background Style</label>
+                <div class="liquid-glass-bar" data-target="select-bg-style">
+                  <button type="button" class="liquid-bar-segment active" data-val="fluid">🌊 Fluid Mesh</button>
+                  <button type="button" class="liquid-bar-segment" data-val="ambient">✨ Ambient Glow</button>
+                  <button type="button" class="liquid-bar-segment" data-val="minimal">🔲 Minimal</button>
+                </div>
+                <select id="select-bg-style" style="display: none;">
+                  <option value="fluid" selected>Apple Music Fluid Mesh</option>
+                  <option value="ambient">Glowing Orbs</option>
                   <option value="minimal">Minimal / Transparent</option>
                 </select>
               </div>
+
               <div class="setting-row" id="setting-fluid-speed-row">
                 <label for="slider-fluid-speed">Mesh Swirl Speed</label>
-                <div class="slider-container">
-                  <input type="range" id="slider-fluid-speed" min="30" max="200" value="100" />
-                  <span id="val-fluid-speed">1.0x</span>
+                <div class="liquid-slider-container">
+                  <input type="range" class="liquid-slider" id="slider-fluid-speed" min="30" max="200" value="100" />
+                  <span class="liquid-slider-val" id="val-fluid-speed">1.0x</span>
                 </div>
               </div>
+
               <div class="setting-row">
                 <label for="slider-bg-opacity">Overlay Opacity</label>
-                <div class="slider-container">
-                  <input type="range" id="slider-bg-opacity" min="0" max="100" value="85" />
-                  <span id="val-bg-opacity">85%</span>
+                <div class="liquid-slider-container">
+                  <input type="range" class="liquid-slider" id="slider-bg-opacity" min="0" max="100" value="85" />
+                  <span class="liquid-slider-val" id="val-bg-opacity">85%</span>
                 </div>
               </div>
+
+              <div class="setting-row">
+                <label for="slider-glow">Glow Intensity</label>
+                <div class="liquid-slider-container">
+                  <input type="range" class="liquid-slider" id="slider-glow" min="0" max="100" value="65" />
+                  <span class="liquid-slider-val" id="val-glow">65%</span>
+                </div>
+              </div>
+
               <div class="setting-row" style="flex-direction: column; align-items: flex-start; gap: 4px;">
                 <label>Custom Background (Video/Image)</label>
                 <input type="file" id="input-bg-file" accept="video/mp4,video/webm,image/jpeg,image/png,image/gif" style="display: none;" />
@@ -853,6 +977,7 @@
                 </div>
                 <div id="label-bg-filename" class="file-picker-name">None selected</div>
               </div>
+
               <div class="setting-row" style="margin-top: 4px;">
                 <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Enable animated looping album art (Spotify Canvas video loops, dynamic aesthetic GIFs, or custom local GIFs)">
                   <span>Animated &amp; GIF Album Art</span>
@@ -862,26 +987,7 @@
                   </div>
                 </label>
               </div>
-              <div class="setting-row" style="flex-direction: column; align-items: flex-start; gap: 4px;">
-                <label>Custom Album Art GIF (Optional)</label>
-                <input type="file" id="input-custom-art-gif-file" accept="image/gif,video/mp4,video/webm" style="display: none;" />
-                <div class="file-picker-row">
-                  <button id="btn-pick-custom-art-gif" class="file-picker-btn">Select GIF / Loop...</button>
-                  <button id="btn-clear-custom-art-gif" class="file-picker-clear" style="display: none;">Clear</button>
-                </div>
-                <div id="label-custom-art-gif-filename" class="file-picker-name">Auto (Spotify Canvas &amp; Aesthetic GIFs)</div>
-              </div>
-            </div>
 
-            <div class="settings-group">
-              <h4>Effects</h4>
-              <div class="setting-row">
-                <label for="slider-glow">Glow Intensity</label>
-                <div class="slider-container">
-                  <input type="range" id="slider-glow" min="0" max="100" value="65" />
-                  <span id="val-glow">65%</span>
-                </div>
-              </div>
               <div class="setting-row" style="margin-top: 4px;">
                 <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Add ambient glowing borders to your screen edges synced with album art">
                   <span>Enable Screen Edge Glow</span>
@@ -891,45 +997,104 @@
                   </div>
                 </label>
               </div>
+
+              <!-- Hidden inputs for file pickers & custom art -->
+              <input type="file" id="input-custom-art-gif-file" accept="image/gif,video/mp4,video/webm" style="display: none;" />
+              <button id="btn-pick-custom-art-gif" style="display: none;"></button>
+              <button id="btn-clear-custom-art-gif" style="display: none;"></button>
+              <div id="label-custom-art-gif-filename" style="display: none;"></div>
             </div>
           </div>
 
-          <!-- TAB 2: LYRICS -->
+          <!-- TAB 2: LYRICS & SYNC -->
           <div class="settings-tab-content" data-tab="lyrics">
-
-
             <div class="settings-group">
-              <h4>Lyrics & Translation</h4>
+              <h4>Lyrics Synchronization &amp; Timing</h4>
+              
               <div class="setting-row">
-                <label for="input-sync-offset" title="Adjust this if lyrics are out of sync with the music (e.g. YouTube music videos with long intros)">Lyrics Sync Offset (ms)</label>
-                <div style="display: flex; gap: 8px;">
-                  <input type="number" id="input-sync-offset" value="0" step="100" style="width: 80px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 4px; padding: 4px; font-family: inherit;" />
-                  <button id="btn-reset-offset" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 12px; transition: background 0.2s;">Reset</button>
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Enable word-by-word karaoke highlight animations when syllable timings are available">
+                  <span>Word-by-Word Karaoke Illumination</span>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-word-by-word" checked />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+              </div>
+
+              <div class="setting-row">
+                <label>Auto-Translate Lyrics</label>
+                <div class="liquid-glass-bar" data-target="select-translate">
+                  <button type="button" class="liquid-bar-segment" data-val="none">Off</button>
+                  <button type="button" class="liquid-bar-segment active" data-val="en">English</button>
+                  <button type="button" class="liquid-bar-segment" data-val="ja">Japanese</button>
+                  <button type="button" class="liquid-bar-segment" data-val="es">Spanish</button>
+                  <button type="button" class="liquid-bar-segment" data-val="zh">Chinese</button>
+                </div>
+                <select id="select-translate" style="display: none;">
+                  <option value="none">none</option>
+                  <option value="en" selected>en</option>
+                  <option value="ja">ja</option>
+                  <option value="es">es</option>
+                  <option value="zh">zh</option>
+                </select>
+              </div>
+
+              <div class="setting-row">
+                <label for="input-sync-offset" title="Adjust this if lyrics are out of sync with the music">Lyrics Sync Offset (ms)</label>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                  <input type="number" id="input-sync-offset" value="0" step="100" style="width: 86px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); color: white; border-radius: 8px; padding: 6px 10px; font-family: var(--font-mono, monospace); font-size: 12px; outline: none;" />
+                  <button id="btn-reset-offset" class="btn-secondary" style="padding: 6px 14px; font-size: 12px; border-radius: 8px;">Reset Offset</button>
                 </div>
               </div>
-              <div style="font-size: 10px; color: rgba(255,255,255,0.4); margin-bottom: 12px; margin-top: -4px; padding-left: 2px; line-height: 1.3;">
-                Notice: If you feel a delay in the lyrics, it is usually because of bad/desynced LRC files from the public source!
+
+              <div class="setting-row" style="margin-top: 4px;">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Dynamically adapt lyric scroll easing and highlight responsiveness to track tempo">
+                  <span>Adaptive BPM Sync</span>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-adaptive-bpm" checked />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
               </div>
-              <div class="setting-row" style="margin-top: 6px;">
+
+              <div class="setting-row" style="margin-top: 4px;">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Hide non-lyric producer, composer, and writer credits from the lyrics view">
+                  <span>Filter Song Credits &amp; Metadata</span>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-filter-credits" checked />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+              </div>
+
+              <!-- Hidden backward-compat elements -->
+              <input type="checkbox" id="check-netease-word-by-word" checked style="display: none;" />
+              <select id="select-skip-lang" style="display: none;"><option value="none">none</option></select>
+              <select id="select-preferred-provider" style="display: none;"><option value="auto">auto</option></select>
+            </div>
+
+            <div class="settings-group">
+              <h4>Interactive Annotations &amp; Meaning</h4>
+              <div class="setting-row">
                 <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Show Genius 'Did you know?' song facts">
-                  <span>Show Genius Facts</span>
+                  <span>Show Genius Song Facts</span>
                   <div class="toggle-switch">
                     <input type="checkbox" id="check-show-genius" checked />
                     <span class="toggle-slider"></span>
                   </div>
                 </label>
               </div>
-              <div class="setting-row" style="margin-top: 6px;">
-                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Show crowdsourced Genius line interpretations (bulb icon and yellow highlight on lyric lines)">
-                  <span>Genius Annotations & Meaning</span>
+              <div class="setting-row">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Show crowdsourced Genius line interpretations">
+                  <span>Genius Annotations &amp; Meaning</span>
                   <div class="toggle-switch">
                     <input type="checkbox" id="check-show-annotations" checked />
                     <span class="toggle-slider"></span>
                   </div>
                 </label>
               </div>
-              <div class="setting-row" style="margin-top: 6px;">
-                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Show a floating preview pill of the line interpretation on the main display">
+              <div class="setting-row">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Show a floating preview pill of the line interpretation">
                   <span>Show Meaning Preview Pill</span>
                   <div class="toggle-switch">
                     <input type="checkbox" id="check-show-annotation-preview" />
@@ -937,136 +1102,285 @@
                   </div>
                 </label>
               </div>
-              <div class="setting-row" id="setting-genius-position-row">
-                <label for="select-genius-position">Fact Position</label>
-                <select id="select-genius-position">
-                  <option value="top-left">Top Left</option>
-                  <option value="top-center">Top Center</option>
-                  <option value="top-right">Top Right</option>
-                  <option value="bottom-left">Bottom Left</option>
-                  <option value="bottom-center">Bottom Center</option>
-                  <option value="bottom-right">Bottom Right</option>
-                </select>
+              <!-- Hidden backward-compat element -->
+              <select id="select-genius-position" style="display: none;"><option value="top-left">top-left</option></select>
+              <select id="select-dblclick-action" style="display: none;"><option value="copy">copy</option></select>
+            </div>
+
+            <div class="settings-group">
+              <h4>Playback &amp; Scrubber Seeking</h4>
+              <div class="setting-row">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Click or drag on the progress bar to seek ahead or rewind on the playing track">
+                  <span>Progress Bar Seeking &amp; Scrubbing</span>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-progress-bar-seek" checked />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
               </div>
               <div class="setting-row">
-                <label for="select-translate">Auto-Translate Lyrics</label>
-                <select id="select-translate">
-                  <option value="none">Off</option>
-                  <option value="en" selected>English</option>
-                  <option value="es">Spanish</option>
-                  <option value="ja">Japanese</option>
-                  <option value="ko">Korean</option>
-                  <option value="zh">Chinese (Simplified)</option>
-                  <option value="fr">French</option>
-                  <option value="de">German</option>
-                  <option value="hi">Hindi</option>
-                  <option value="pt">Portuguese</option>
-                  <option value="it">Italian</option>
-                  <option value="ru">Russian</option>
-                  <option value="ar">Arabic</option>
-                  <option value="vi">Vietnamese</option>
-                  <option value="id">Indonesian</option>
-                  <option value="tr">Turkish</option>
-                  <option value="th">Thai</option>
-                </select>
-              </div>
-              <div class="setting-row" style="margin-top: 6px;">
-                <label for="select-skip-lang" title="Skip translation if the original song is in this language">Skip Translation For</label>
-                <select id="select-skip-lang">
-                  <option value="none" selected>None (Translate All)</option>
-                  <option value="en">English</option>
-                  <option value="es">Spanish</option>
-                  <option value="ja">Japanese</option>
-                  <option value="ko">Korean</option>
-                  <option value="zh">Chinese (Simplified)</option>
-                  <option value="fr">French</option>
-                  <option value="de">German</option>
-                  <option value="hi">Hindi</option>
-                  <option value="pt">Portuguese</option>
-                  <option value="it">Italian</option>
-                  <option value="ru">Russian</option>
-                  <option value="ar">Arabic</option>
-                  <option value="vi">Vietnamese</option>
-                  <option value="id">Indonesian</option>
-                  <option value="tr">Turkish</option>
-                  <option value="th">Thai</option>
-                </select>
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Scroll mouse wheel over the progress bar to seek ahead (+5s) or rewind (-5s)">
+                  <span>Mouse Wheel Seeking on Progress Bar</span>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-progress-wheel-seek" checked />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
               </div>
             </div>
 
             <div class="settings-group">
-              <h4>Interactions</h4>
+              <h4>Auto-Hide Inactivity</h4>
               <div class="setting-row">
-                <label for="select-dblclick-action">Double-Click Action</label>
-                <select id="select-dblclick-action">
-                  <option value="copy" selected>Copy Lyric to Clipboard</option>
-                  <option value="taskbar">Toggle Taskbar Mode</option>
-                  <option value="none">Do Nothing</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="settings-group">
-              <h4>Auto-Hide Lyrics</h4>
-              <div class="setting-row" style="margin-top: 6px;">
-                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Automatically hide or collapse lyrics when music is inactive or has no lyrics">
-                  <span>Enable Auto-Hide</span>
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Automatically hide or collapse lyrics when music is inactive or paused">
+                  <span>Enable Auto-Hide when Paused</span>
                   <div class="toggle-switch">
                     <input type="checkbox" id="check-auto-hide-lyrics" />
                     <span class="toggle-slider"></span>
                   </div>
                 </label>
               </div>
-              <div class="setting-row" id="setting-auto-hide-trigger-row" style="display: none; margin-top: 6px;">
-                <label for="select-auto-hide-trigger">Hide Trigger</label>
-                <select id="select-auto-hide-trigger">
-                  <option value="paused" selected>When Paused / Stopped</option>
-                  <option value="no_lyrics">When No Lyrics Found</option>
-                  <option value="both">Paused or No Lyrics</option>
-                </select>
-              </div>
-              <div class="setting-row" id="setting-auto-hide-action-row" style="display: none; margin-top: 6px;">
-                <label for="select-auto-hide-action">Hide Style</label>
-                <select id="select-auto-hide-action">
-                  <option value="collapse" selected>Collapse to Mini Player</option>
-                  <option value="window">Hide Entire Window</option>
-                </select>
-              </div>
-              <div class="setting-row" id="setting-auto-hide-delay-row" style="display: none; margin-top: 6px;">
+              <div class="setting-row" id="setting-auto-hide-delay-row">
                 <label for="slider-auto-hide-delay">Hide Delay</label>
-                <div class="slider-container">
-                  <input type="range" id="slider-auto-hide-delay" min="0" max="10" value="3" step="1" />
-                  <span id="val-auto-hide-delay">3s</span>
+                <div class="liquid-slider-container">
+                  <input type="range" class="liquid-slider" id="slider-auto-hide-delay" min="1" max="10" value="3" step="1" />
+                  <span class="liquid-slider-val" id="val-auto-hide-delay">3s</span>
                 </div>
               </div>
+              <!-- Hidden backward-compat elements -->
+              <select id="select-auto-hide-trigger" style="display: none;"><option value="paused">paused</option></select>
+              <select id="select-auto-hide-action" style="display: none;"><option value="collapse">collapse</option></select>
             </div>
           </div>
 
-          <!-- TAB 3: CONNECTIONS -->
-          <div class="settings-tab-content" data-tab="connections">
+          <!-- TAB 3: DISPLAY MODES -->
+          <div class="settings-tab-content" data-tab="modes">
             <div class="settings-group">
-              <h4>Integrations & Accounts</h4>
+              <h4>Dynamic Island Mode</h4>
               <div class="setting-row">
-                <label for="select-art-source">Fallback Art Source (Local Mode)</label>
-                <select id="select-art-source">
-                  <option value="itunes" selected>Apple Music / iTunes</option>
-                  <option value="lastfm">Last.fm</option>
-                  <option value="musicbrainz">MusicBrainz</option>
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Collapse into an iOS-style Dynamic Island pill (Ctrl+Shift+D)">
+                  <span>Enable Dynamic Island (Ctrl+Shift+D)</span>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-dynamic-island" />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+              </div>
+
+              <div class="setting-row">
+                <label>Dock Position</label>
+                <div class="liquid-glass-bar" data-target="select-island-position">
+                  <button type="button" class="liquid-bar-segment" data-val="top-left">↖ Left</button>
+                  <button type="button" class="liquid-bar-segment active" data-val="top-center">⬆ Center</button>
+                  <button type="button" class="liquid-bar-segment" data-val="top-right">↗ Right</button>
+                  <button type="button" class="liquid-bar-segment" data-val="bottom-center">⬇ Bottom</button>
+                </div>
+                <select id="select-island-position" style="display: none;">
+                  <option value="top-left">top-left</option>
+                  <option value="top-center" selected>top-center</option>
+                  <option value="top-right">top-right</option>
+                  <option value="bottom-center">bottom-center</option>
                 </select>
               </div>
+
+              <div class="setting-row">
+                <label>Audio Visualizer Bars</label>
+                <div class="liquid-glass-bar" data-target="select-island-visualizer-bars">
+                  <button type="button" class="liquid-bar-segment active" data-val="4">4 Bars (Minimal)</button>
+                  <button type="button" class="liquid-bar-segment" data-val="6">6 Bars (Balanced)</button>
+                  <button type="button" class="liquid-bar-segment" data-val="8">8 Bars (Full)</button>
+                </div>
+                <select id="select-island-visualizer-bars" style="display: none;">
+                  <option value="4" selected>4</option>
+                  <option value="6">6</option>
+                  <option value="8">8</option>
+                </select>
+              </div>
+
+              <div class="setting-row">
+                <label>Visualizer Style</label>
+                <div class="liquid-glass-bar" data-target="select-island-visualizer-style">
+                  <button type="button" class="liquid-bar-segment active" data-val="bars">📊 EQ Bars</button>
+                  <button type="button" class="liquid-bar-segment" data-val="dots">🫧 Jelly Dots</button>
+                  <button type="button" class="liquid-bar-segment" data-val="wave">〰 Waveform</button>
+                </div>
+                <select id="select-island-visualizer-style" style="display: none;">
+                  <option value="bars" selected>bars</option>
+                  <option value="dots">dots</option>
+                  <option value="wave">wave</option>
+                </select>
+              </div>
+
+              <div class="setting-row">
+                <label>Island Translation Mode</label>
+                <div class="liquid-glass-bar" data-target="select-island-translation">
+                  <button type="button" class="liquid-bar-segment active" data-val="bilingual">Inline</button>
+                  <button type="button" class="liquid-bar-segment" data-val="stacked">Dual-Line</button>
+                  <button type="button" class="liquid-bar-segment" data-val="hover-only">Hover Reveal</button>
+                  <button type="button" class="liquid-bar-segment" data-val="none">None</button>
+                </div>
+                <select id="select-island-translation" style="display: none;">
+                  <option value="bilingual" selected>bilingual</option>
+                  <option value="stacked">stacked</option>
+                  <option value="hover-only">hover-only</option>
+                  <option value="none">none</option>
+                </select>
+              </div>
+
+              <div class="setting-row">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;">
+                  <span>Vocal Countdown Timer</span>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-island-vocal-countdown" checked />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+              </div>
+
+              <div class="setting-row">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;">
+                  <span>Mouse Wheel Volume &amp; Seek Gestures</span>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-island-wheel-gestures" checked />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+              </div>
+
+              <div class="setting-row">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;">
+                  <span>Duet &amp; Backing Vocal Split-Cell</span>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-island-duet-split" checked />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+              </div>
+
+              <div class="setting-row">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;">
+                  <span>Pulsing Island Beat Bloom</span>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-island-beat-bloom" checked />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+              </div>
+
+              <div class="setting-row" style="margin-top: 6px; background: rgba(255, 255, 255, 0.035); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px; padding: 10px 14px; display: flex; flex-direction: column; gap: 4px;">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                  <span style="font-size: 12px; font-weight: 600; color: #ffffff; display: flex; align-items: center; gap: 6px;">
+                    <span>👻</span> Ghost Passthrough (Click Behind Island)
+                  </span>
+                  <div style="display: flex; gap: 4px;">
+                    <kbd class="kbd-badge system" style="font-size: 10px; padding: 1px 5px;">`</kbd>
+                    <kbd class="kbd-badge system" style="font-size: 10px; padding: 1px 5px;">Ctrl+Shift+G</kbd>
+                  </div>
+                </div>
+                <div style="font-size: 11px; color: rgba(255, 255, 255, 0.55); line-height: 1.4;">
+                  Tap <b>`</b> (Tilde) or <b>Ctrl+Shift+G</b> to make the island translucent and click browser tabs directly behind it.
+                </div>
+              </div>
+
+              <!-- Hidden backward-compat elements -->
+              <input type="checkbox" id="check-island-satellite" checked style="display: none;" />
+              <input type="checkbox" id="check-island-metamorphosis" checked style="display: none;" />
+              <select id="select-island-inactivity-timeout" style="display: none;"><option value="30000">30000</option></select>
             </div>
 
-            <div class="settings-group" id="spotify-account-group">
-              <h4>Spotify Account</h4>
+            <div class="settings-group">
+              <h4>Taskbar Mode</h4>
+              <div class="setting-row">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Overlay single-line lyrics dynamically onto the Windows taskbar">
+                  <span>Enable Taskbar Mode (Ctrl+Shift+B)</span>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-taskbar-mode" />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+              </div>
+              <div class="setting-row">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;">
+                  <span>Auto-Hide When Paused</span>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-auto-hide-taskbar" checked />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+              </div>
+              <div class="setting-row">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;">
+                  <span>Show Lyrics in Fullscreen</span>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-fullscreen-lyrics" />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+              </div>
+              <!-- Hidden backward-compat elements -->
+              <select id="select-tb-align" style="display: none;"><option value="center">center</option></select>
+              <select id="select-tb-translation" style="display: none;"><option value="both">both</option></select>
+            </div>
 
-              <!-- Shown when Spotify is NOT connected (Local Mode or no credentials) -->
+            <div class="settings-group">
+              <h4>Desktop Wallpaper Mode</h4>
+              <div class="setting-row">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Maximize the app to fill your screen as an immersive desktop background">
+                  <span>Enable Wallpaper Mode (Ctrl+Shift+W)</span>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-wallpaper-mode" />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+              </div>
+
+              <div class="setting-row" id="setting-wallpaper-monitor-row">
+                <label>Target Display</label>
+                <div class="liquid-glass-bar" data-target="select-wallpaper-monitor">
+                  <button type="button" class="liquid-bar-segment active" data-val="0">Screen 1 (Primary)</button>
+                  <button type="button" class="liquid-bar-segment" data-val="all">All Screens (Span)</button>
+                </div>
+                <select id="select-wallpaper-monitor" style="display: none;">
+                  <option value="0" selected>Screen 1 (Primary)</option>
+                  <option value="all">All Screens (Span)</option>
+                </select>
+              </div>
+
+              <div class="setting-row">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;">
+                  <span>Pulsing Lyric Beat Bloom (Apple Style)</span>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-wallpaper-beat-bloom" checked />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+              </div>
+
+              <div class="setting-row" style="margin-top: 6px;">
+                <button id="btn-start-wallpaper-edit" type="button" class="btn-secondary" style="width: 100%; border-radius: 10px; padding: 8px 14px; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 8px;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+                  Interactive Drag Mode
+                </button>
+              </div>
+
+              <!-- Hidden backward-compat elements -->
+              <select id="select-wallpaper-style" style="display: none;"><option value="style2" selected>style2</option></select>
+              <select id="select-wallpaper-font-size" style="display: none;"><option value="32">32</option></select>
+            </div>
+          </div>
+
+          <!-- TAB 4: CONNECTIONS & SYSTEM -->
+          <div class="settings-tab-content" data-tab="system">
+            <div class="settings-group" id="spotify-account-group">
+              <h4>Spotify Account &amp; Integrations</h4>
+              <!-- Shown when Spotify is NOT connected -->
               <div id="spotify-setup" style="display: none; flex-direction: column; gap: 8px;">
                 <div style="font-size: 12px; color: rgba(255,255,255,0.7); line-height: 1.4;">
                   Connect your Spotify account to enable Web API sync, official timestamps, remote player controls, and offline caching.
                 </div>
-                <button id="btn-spotify-connect" class="btn-primary" style="padding: 8px; font-size: 13px;">
-                  <span style="display: flex; align-items: center; justify-content: center; gap: 6px;">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                <button id="btn-spotify-connect" class="btn-primary" style="padding: 10px; font-size: 13px; border-radius: 10px;">
+                  <span style="display: flex; align-items: center; justify-content: center; gap: 8px;">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
                       <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.485 17.303a.75.75 0 0 1-1.03.248c-2.822-1.724-6.374-2.115-10.558-1.16a.75.75 0 1 1-.334-1.462c4.582-1.046 8.528-.598 11.674 1.344a.75.75 0 0 1 .248 1.03zm1.464-3.255a.938.938 0 0 1-1.29.31c-3.23-1.986-8.156-2.56-11.977-1.4a.938.938 0 1 1-.548-1.794c4.37-1.326 9.803-.68 13.505 1.594a.938.938 0 0 1 .31 1.29zm.125-3.393c-3.874-2.3-10.264-2.512-13.972-1.386a1.125 1.125 0 1 1-.655-2.153c4.258-1.293 11.31-1.047 15.772 1.602a1.125 1.125 0 0 1-1.145 1.937z"/>
                     </svg>
                     Connect Spotify Account
@@ -1083,20 +1397,23 @@
                   </div>
                 </div>
                 <div style="display: flex; margin-top: 4px;">
-                  <button id="btn-logout" class="btn-danger" style="width: 100%; padding: 8px; font-size: 12px;">
+                  <button id="btn-logout" class="btn-danger" style="width: 100%; padding: 8px; font-size: 12px; border-radius: 8px;">
                     <span>Disconnect Spotify</span>
                   </button>
                 </div>
               </div>
+
+              <!-- Hidden backward-compat elements -->
+              <select id="select-art-source" style="display: none;"><option value="itunes">itunes</option></select>
             </div>
 
             <div class="settings-group">
               <h4>Last.fm Integration</h4>
               <div id="lastfm-setup" style="display: flex; flex-direction: column; gap: 8px;">
                 <div style="font-size: 12px; color: rgba(255,255,255,0.7); line-height: 1.4;">
-                  Connect your Last.fm account to scrobble played songs, view real-time play counts, and love tracks directly from LyricFlow.
+                  Connect your Last.fm account to scrobble played songs and love tracks directly from LyricFlow.
                 </div>
-                <button id="btn-lastfm-connect" class="btn-primary" style="padding: 8px; font-size: 13px;">
+                <button id="btn-lastfm-connect" class="btn-primary" style="padding: 8px; font-size: 13px; border-radius: 8px;">
                   <span style="display: flex; align-items: center; justify-content: center; gap: 6px;">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
                     Connect Last.fm
@@ -1110,14 +1427,14 @@
                   <span class="loading-spinner" style="width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.2); border-top-color: var(--accent-primary, #1DB954); border-radius: 50%; animation: spin 1s linear infinite;"></span>
                   <span>Authorizing in browser...</span>
                 </div>
-                <div style="font-size: 11px; color: rgba(255,255,255,0.55); line-height: 1.35;">Click <b>"Yes, allow access"</b> on the Last.fm authorization page in your browser. LyricFlow will connect automatically once approved.</div>
+                <div style="font-size: 11px; color: rgba(255,255,255,0.55); line-height: 1.35;">Click <b>"Yes, allow access"</b> on Last.fm. LyricFlow will connect automatically once approved.</div>
                 <div style="display: flex; gap: 6px; margin-top: 2px;">
-                  <button id="btn-lastfm-reopen" class="btn-secondary" style="flex: 1; padding: 6px; font-size: 11.5px;">Reopen Browser</button>
-                  <button id="btn-lastfm-cancel" class="btn-secondary" style="flex: 1; padding: 6px; font-size: 11.5px; opacity: 0.75;">Cancel</button>
+                  <button id="btn-lastfm-reopen" class="btn-secondary" style="flex: 1; padding: 6px; font-size: 11.5px; border-radius: 6px;">Reopen</button>
+                  <button id="btn-lastfm-cancel" class="btn-secondary" style="flex: 1; padding: 6px; font-size: 11.5px; opacity: 0.75; border-radius: 6px;">Cancel</button>
                 </div>
               </div>
 
-              <div id="lastfm-connected" style="display: none; flex-direction: column; gap: 8px; padding-top: 8px; color: #b3b3b3; font-size: 12.5px;">
+              <div id="lastfm-connected" style="display: none; flex-direction: column; gap: 8px; padding-top: 4px; color: #b3b3b3; font-size: 12.5px;">
                 <div style="display: flex; align-items: center; justify-content: space-between;">
                   <div style="display: flex; align-items: center; gap: 8px; color: #1DB954;">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
@@ -1131,299 +1448,13 @@
                     <span class="toggle-slider"></span>
                   </div>
                 </label>
-                <button id="btn-lastfm-disconnect" class="btn-secondary" style="padding: 6px; font-size: 12px; margin-top: 4px;">Disconnect Last.fm</button>
-              </div>
-            </div>
-          </div>
-
-          <!-- TAB 4: SYSTEM -->
-          <div class="settings-tab-content" data-tab="system">
-            <div class="settings-group">
-              <h4>Wallpaper Mode</h4>
-              <div class="setting-row" style="margin-top: 6px;">
-                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Maximize the app to fill your screen as an immersive desktop background">
-                  <span>Enable Wallpaper Mode</span>
-                  <div class="toggle-switch">
-                    <input type="checkbox" id="check-wallpaper-mode" />
-                    <span class="toggle-slider"></span>
-                  </div>
-                </label>
-              </div>
-              <div class="setting-row" style="margin-top: 8px;">
-                <label for="select-wallpaper-style">Wallpaper Style</label>
-                <select id="select-wallpaper-style">
-                  <option value="style1">Style 1 - Immersive Lyrics</option>
-                  <option value="style2">Style 2 - Apple Music</option>
-                  <option value="style3">Style 3 - Lyric Overlay</option>
-                </select>
-              </div>
-              <div class="setting-row" style="margin-top: 8px;">
-                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Audio-reactive beat bloom aura on active lyrics in sync with kick and sub-bass transients (Apple Music style)">
-                  <span>Pulsing Lyric Beat Bloom (Apple Style)</span>
-                  <div class="toggle-switch">
-                    <input type="checkbox" id="check-wallpaper-beat-bloom" checked />
-                    <span class="toggle-slider"></span>
-                  </div>
-                </label>
-              </div>
-              <div class="setting-row" id="setting-wallpaper-monitor-row" style="margin-top: 8px;">
-                <label for="select-wallpaper-monitor">Target Display</label>
-                <select id="select-wallpaper-monitor">
-                  <option value="0">Screen 1 (Primary)</option>
-                  <option value="all">All Screens (Span)</option>
-                </select>
-              </div>
-              
-              <div class="setting-row wallpaper-overlay-setting" id="setting-wallpaper-overlay-pos" style="display: none; flex-direction: column; align-items: flex-start; gap: 10px; margin-top: 15px;">
-                <label>Position Lyrics (Shortcuts & Hotkeys)</label>
-                <div style="font-size: 11px; color: rgba(255,255,255,0.6); margin-bottom: 5px;">Use <b>Ctrl+Shift+Arrow Keys</b> on your desktop to nudge lyrics perfectly into place.</div>
-                <div style="display: flex; gap: 5px; flex-wrap: wrap; margin-top: 5px;">
-                  <button id="btn-pos-tl" class="pos-preset-btn" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 11px;">Top Left</button>
-                  <button id="btn-pos-tr" class="pos-preset-btn" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 11px;">Top Right</button>
-                  <button id="btn-pos-c" class="pos-preset-btn" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 11px;">Center</button>
-                  <button id="btn-pos-bl" class="pos-preset-btn" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 11px;">Bottom Left</button>
-                  <button id="btn-pos-br" class="pos-preset-btn" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 11px;">Bottom Right</button>
-                </div>
-                <button id="btn-start-wallpaper-edit" type="button" style="margin-top: 8px; background: rgba(29, 185, 84, 0.15); border: 1px solid #1DB954; color: #1ed760; border-radius: 6px; padding: 5px 12px; font-size: 11.5px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all 0.2s;">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
-                  Interactive Drag Mode
-                </button>
-              </div>
-              
-              <div class="setting-row wallpaper-overlay-setting" id="setting-wallpaper-overlay-width" style="display: none; margin-top: 8px;">
-                <label for="slider-wallpaper-overlay-width">Overlay Width</label>
-                <div class="slider-container">
-                  <input type="range" id="slider-wallpaper-overlay-width" min="20" max="100" value="60" />
-                  <span id="val-wallpaper-overlay-width">60%</span>
-                </div>
-              </div>
-              
-              <div class="setting-row wallpaper-overlay-setting" id="setting-wallpaper-font-size-row" style="display: none; margin-top: 8px;">
-                <label for="select-wallpaper-font-size">Lyrics Font Size</label>
-                <select id="select-wallpaper-font-size">
-                  <option value="24">24px (Small)</option>
-                  <option value="28">28px</option>
-                  <option value="32" selected>32px (Medium)</option>
-                  <option value="36">36px</option>
-                  <option value="42">42px</option>
-                  <option value="48">48px (Large)</option>
-                  <option value="56">56px</option>
-                  <option value="64">64px (Extra Large)</option>
-                  <option value="72">72px (Giant)</option>
-                </select>
+                <button id="btn-lastfm-disconnect" class="btn-secondary" style="padding: 6px; font-size: 12px; margin-top: 4px; border-radius: 6px;">Disconnect Last.fm</button>
               </div>
             </div>
 
             <div class="settings-group">
-              <h4>Dynamic Island Mode</h4>
-              <div class="setting-row" style="margin-top: 6px;">
-                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Collapse into an iOS-style Dynamic Island pill (Ctrl+Shift+D)">
-                  <span>Enable Dynamic Island (Ctrl+Shift+D)</span>
-                  <div class="toggle-switch">
-                    <input type="checkbox" id="check-dynamic-island" />
-                    <span class="toggle-slider"></span>
-                  </div>
-                </label>
-              </div>
-              <div class="setting-row" style="margin-top: 6px;">
-                <label for="select-island-position">Dock Position (Fixed & Unmovable)</label>
-                <select id="select-island-position">
-                  <option value="top-center" selected>Top Center (iOS Notch)</option>
-                  <option value="top-left">Top Left</option>
-                  <option value="top-right">Top Right</option>
-                  <option value="bottom-center">Bottom Center (Above Taskbar)</option>
-                </select>
-              </div>
-              <div class="setting-row" style="margin-top: 6px;">
-                <label for="select-island-visualizer-bars">Audio Visualizer Bars</label>
-                <select id="select-island-visualizer-bars">
-                  <option value="4" selected>4 Bars (Minimal - 340px Pill)</option>
-                  <option value="6">6 Bars (Balanced - 355px Pill)</option>
-                  <option value="8">8 Bars (Full Spectrum - 370px Pill)</option>
-                </select>
-              </div>
-              <div class="setting-row" style="margin-top: 6px;">
-                <label for="select-island-visualizer-style">Visualizer Style</label>
-                <select id="select-island-visualizer-style">
-                  <option value="bars" selected>Classic EQ Bars</option>
-                  <option value="dots">Jelly Frequency Dots</option>
-                  <option value="wave">Fluid Waveform</option>
-                </select>
-              </div>
-              <div class="setting-row" style="margin-top: 6px;">
-                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Show a vocal countdown badge (e.g. 'Vocals in 0:08') during song intros and instrumental breaks">
-                  <span>Vocal Countdown Timer</span>
-                  <div class="toggle-switch">
-                    <input type="checkbox" id="check-island-vocal-countdown" checked />
-                    <span class="toggle-slider"></span>
-                  </div>
-                </label>
-              </div>
-              <div class="setting-row" style="margin-top: 6px;">
-                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Scroll mouse wheel over Dynamic Island to adjust volume, or Shift+Scroll to seek ±5s">
-                  <span>Mouse Wheel Volume & Seek Gestures</span>
-                  <div class="toggle-switch">
-                    <input type="checkbox" id="check-island-wheel-gestures" checked />
-                    <span class="toggle-slider"></span>
-                  </div>
-                </label>
-              </div>
-              <div class="setting-row" style="margin-top: 6px;">
-                <label for="select-island-translation">Translation Display Mode</label>
-                <select id="select-island-translation">
-                  <option value="bilingual" selected>Inline (Original • Translation)</option>
-                  <option value="stacked">Dual-Line Subtitle (Original & Translation)</option>
-                  <option value="hover-only">Hover Preview Only (Reveal on Mouseover)</option>
-                  <option value="translated">Translated Lyrics Only</option>
-                  <option value="none">Original Lyrics Only (No Translation)</option>
-                </select>
-              </div>
-              <div class="setting-row" style="margin-top: 6px;">
-                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Show a sleek connected satellite island capsule for translated lyrics">
-                  <span>Connected Satellite Translation Island</span>
-                  <div class="toggle-switch">
-                    <input type="checkbox" id="check-island-satellite" checked />
-                    <span class="toggle-slider"></span>
-                  </div>
-                </label>
-              </div>
-              <div class="setting-row" style="margin-top: 6px;">
-                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Enable dynamic silhouette morphing based on real-time music energy and duet vocal splits">
-                  <span>Dynamic Island Metamorphosis</span>
-                  <div class="toggle-switch">
-                    <input type="checkbox" id="check-island-metamorphosis" checked />
-                    <span class="toggle-slider"></span>
-                  </div>
-                </label>
-              </div>
-              <div class="setting-row" style="margin-top: 6px;" id="row-island-duet-split">
-                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Physically split Dynamic Island into dual liquid capsules during duets & backing vocals">
-                  <span>Duet & Backing Vocal Split-Cell</span>
-                  <div class="toggle-switch">
-                    <input type="checkbox" id="check-island-duet-split" checked />
-                    <span class="toggle-slider"></span>
-                  </div>
-                </label>
-              </div>
-              <div class="setting-row" style="margin-top: 6px;" id="row-island-beat-bloom">
-                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Silhouette & visualizer pulse with audio-reactive glow on heavy bass transients">
-                  <span>Pulsing Island Beat Bloom</span>
-                  <div class="toggle-switch">
-                    <input type="checkbox" id="check-island-beat-bloom" checked />
-                    <span class="toggle-slider"></span>
-                  </div>
-                </label>
-              </div>
-              <div class="setting-row" style="margin-top: 6px;">
-                <label for="select-island-inactivity-timeout">Inactivity Sleep Timeout</label>
-                <select id="select-island-inactivity-timeout">
-                  <option value="15000">15 Seconds</option>
-                  <option value="30000" selected>30 Seconds (Default)</option>
-                  <option value="60000">1 Minute</option>
-                  <option value="300000">5 Minutes</option>
-                  <option value="0">Never (Always Visible)</option>
-                </select>
-              </div>
-              <div class="setting-row" style="margin-top: 10px; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 5px;">
-                <div style="display: flex; align-items: center; justify-content: space-between;">
-                  <span style="font-size: 12px; font-weight: 600; color: #ffffff; display: flex; align-items: center; gap: 6px;">
-                    <span>👻</span> Ghost Passthrough (Click Behind Island)
-                  </span>
-                  <div style="display: flex; gap: 4px;">
-                    <kbd class="kbd-badge system" style="font-size: 10px; padding: 1px 5px;">`</kbd>
-                    <kbd class="kbd-badge system" style="font-size: 10px; padding: 1px 5px;">Ctrl+Shift+G</kbd>
-                  </div>
-                </div>
-                <div style="font-size: 11px; color: rgba(255, 255, 255, 0.55); line-height: 1.4;">
-                  Tap <b>`</b> (Tilde under Esc) or <b>Ctrl+Shift+G</b> to make the island translucent and click browser tabs or window controls directly behind it. Auto-restores when your mouse moves away.
-                </div>
-              </div>
-            </div>
-              <h4>Playback &amp; Scrubber</h4>
-              <div class="setting-row" style="margin-top: 6px;">
-                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Click or drag on the progress bar to seek ahead or rewind on the playing track">
-                  <span>Progress Bar Seeking &amp; Scrubbing</span>
-                  <div class="toggle-switch">
-                    <input type="checkbox" id="check-progress-bar-seek" checked />
-                    <span class="toggle-slider"></span>
-                  </div>
-                </label>
-              </div>
-              <div class="setting-row" style="margin-top: 6px;">
-                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Scroll mouse wheel over the progress bar to seek ahead (+5s) or rewind (-5s)">
-                  <span>Mouse Wheel Seeking on Progress Bar</span>
-                  <div class="toggle-switch">
-                    <input type="checkbox" id="check-progress-wheel-seek" checked />
-                    <span class="toggle-slider"></span>
-                  </div>
-                </label>
-              </div>
-            </div>
-
-            <div class="settings-group">
-              <h4>Taskbar Mode</h4>
-              <div class="setting-row" style="margin-top: 6px;">
-                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Overlay single-line lyrics dynamically onto the Windows taskbar">
-                  <span>Enable Taskbar Mode</span>
-                  <div class="toggle-switch">
-                    <input type="checkbox" id="check-taskbar-mode" />
-                    <span class="toggle-slider"></span>
-                  </div>
-                </label>
-              </div>
-              <div class="setting-row" style="margin-top: 6px;">
-                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Automatically hide lyrics on the taskbar when music is paused">
-                  <span>Auto-Hide When Paused</span>
-                  <div class="toggle-switch">
-                    <input type="checkbox" id="check-auto-hide-taskbar" checked />
-                    <span class="toggle-slider"></span>
-                  </div>
-                </label>
-              </div>
-              <div class="setting-row" style="margin-top: 6px;">
-                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Show taskbar lyrics even when a fullscreen app/game is active">
-                  <span>Show Lyrics in Fullscreen</span>
-                  <div class="toggle-switch">
-                    <input type="checkbox" id="check-fullscreen-lyrics" />
-                    <span class="toggle-slider"></span>
-                  </div>
-                </label>
-              </div>
-              <div class="setting-row" id="setting-tb-align-row" style="display: none; margin-top: 6px;">
-                <label for="select-tb-align">Taskbar Text Align</label>
-                <select id="select-tb-align">
-                  <option value="left">Left</option>
-                  <option value="center" selected>Center</option>
-                  <option value="right">Right</option>
-                </select>
-              </div>
-              <div class="setting-row" id="setting-tb-translation-row" style="display: none; margin-top: 6px;">
-                <label for="select-tb-translation">Taskbar Translation Mode</label>
-                <select id="select-tb-translation">
-                  <option value="original">Original Only</option>
-                  <option value="translated">Translated Only</option>
-                  <option value="both" selected>Original • Translated</option>
-                </select>
-              </div>
-              <div class="setting-row" id="setting-tb-offset-row" style="display: none; margin-top: 6px;">
-                <label for="slider-tb-offset">Taskbar Side Offset</label>
-                <div class="slider-container">
-                  <input type="range" id="slider-tb-offset" min="0" max="600" value="0" step="10" />
-                  <span id="val-tb-offset">0px</span>
-                </div>
-              </div>
-              <div class="setting-row" id="setting-tb-fontsize-row" style="display: none; margin-top: 6px;">
-                <label for="slider-tb-fontsize">Taskbar Font Size</label>
-                <div class="slider-container">
-                  <input type="range" id="slider-tb-fontsize" min="10" max="24" value="14" />
-                  <span id="val-tb-fontsize">14px</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="settings-group">
-              <h4>General</h4>
-              <div class="setting-row" style="margin-top: 6px;">
+              <h4>General Preferences</h4>
+              <div class="setting-row">
                 <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Starts quietly docked on your taskbar without popping up in your face">
                   <div>
                     <span>Launch on Windows Startup</span>
@@ -1435,7 +1466,8 @@
                   </div>
                 </label>
               </div>
-              <div class="setting-row" style="margin-top: 6px;">
+
+              <div class="setting-row">
                 <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Keep the app floating above all other windows">
                   <span>Always on Top</span>
                   <div class="toggle-switch">
@@ -1444,7 +1476,8 @@
                   </div>
                 </label>
               </div>
-              <div class="setting-row" style="margin-top: 6px;">
+
+              <div class="setting-row">
                 <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;">
                   <span>Show Music Controller</span>
                   <div class="toggle-switch">
@@ -1453,8 +1486,9 @@
                   </div>
                 </label>
               </div>
-              <div class="setting-row" style="margin-top: 6px;">
-                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Show a desktop notification whenever a new track begins playing">
+
+              <div class="setting-row">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;">
                   <span>Now Playing Notifications</span>
                   <div class="toggle-switch">
                     <input type="checkbox" id="check-show-next-up" checked />
@@ -1462,58 +1496,23 @@
                   </div>
                 </label>
               </div>
+
               <div class="setting-row" style="margin-top: 6px;">
-                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Dynamically adapt lyric scroll easing and highlight responsiveness to track tempo">
-                  <span>Adaptive BPM Sync</span>
-                  <div class="toggle-switch">
-                    <input type="checkbox" id="check-adaptive-bpm" checked />
-                    <span class="toggle-slider"></span>
-                  </div>
-                </label>
-              </div>
-              <div class="setting-row" style="margin-top: 6px;">
-                <label for="select-preferred-provider" style="font-size: 12.5px; color: rgba(255,255,255,0.85); display: flex; align-items: center; justify-content: space-between; width: 100%;">
-                  <span>Preferred Lyrics Provider</span>
-                  <select id="select-preferred-provider" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: #fff; border-radius: 6px; padding: 3px 8px; font-size: 12px; outline: none; cursor: pointer;">
-                    <option value="auto">Auto (Word-by-Word &gt; Line-Synced)</option>
-                    <option value="netease">NetEase Cloud Music (YRC / LRC)</option>
-                    <option value="lrclib">LRCLIB (Community LRC)</option>
-                    <option value="musixmatch">Musixmatch (RichSync)</option>
-                  </select>
-                </label>
-              </div>
-              <div class="setting-row" style="margin-top: 6px;">
-                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Enable word-by-word karaoke highlight animations when syllable timings are available">
-                  <span>Word-by-Word Karaoke Mode</span>
-                  <div class="toggle-switch">
-                    <input type="checkbox" id="check-word-by-word" checked />
-                    <span class="toggle-slider"></span>
-                  </div>
-                </label>
-              </div>
-              <div class="setting-row" style="margin-top: 6px;">
-                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Enable word-by-word syllable synchronization for NetEase Cloud Music (YRC format)">
-                  <span>NetEase Word-by-Word (YRC)</span>
-                  <div class="toggle-switch">
-                    <input type="checkbox" id="check-netease-word-by-word" checked />
-                    <span class="toggle-slider"></span>
-                  </div>
-                </label>
-              </div>
-              <div class="setting-row" style="margin-top: 6px;">
-                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Hide non-lyric producer, composer, and writer credits from the lyrics view">
-                  <span>Filter Song Credits &amp; Metadata</span>
-                  <div class="toggle-switch">
-                    <input type="checkbox" id="check-filter-credits" checked />
-                    <span class="toggle-slider"></span>
-                  </div>
-                </label>
-              </div>
-              <div class="setting-row" style="margin-top: 10px;">
-                <button id="btn-rerun-setup" class="btn-secondary" style="width: 100%; padding: 8px 12px; font-size: 12px; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer;">
+                <button id="btn-rerun-setup" class="btn-secondary" style="width: 100%; padding: 8px 12px; font-size: 12px; border-radius: 10px; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer;">
                   <span>✨ Run Setup Wizard Again</span>
                 </button>
               </div>
+            </div>
+
+            <div class="settings-group">
+              <h4>Lyrics Storage &amp; Cache</h4>
+              <div style="font-size: 12px; color: rgba(255,255,255,0.7); margin-bottom: 8px;">
+                Lyrics are cached locally for instantaneous offline playback.
+              </div>
+              <button id="btn-clear-cache" class="btn-secondary" style="width: 100%; border-color: rgba(244, 63, 94, 0.4); color: #f43f5e; border-radius: 8px; padding: 7px;">
+                <span>Clear All Cached Lyrics</span>
+              </button>
+              <div id="cache-manager-status" style="font-size: 11px; color: #1DB954; text-align: center; margin-top: 6px; display: none;"></div>
             </div>
 
             <div class="settings-group">
@@ -1521,8 +1520,12 @@
               <div class="shortcuts-grid">
                 <div class="shortcuts-category-card">
                   <div class="shortcuts-category-title">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
                     <span>Modes &amp; Overlays</span>
+                  </div>
+                  <div class="shortcut-row">
+                    <span class="shortcut-row-label">Cinematic Stage</span>
+                    <kbd class="kbd-badge system">Ctrl + Shift + C</kbd>
                   </div>
                   <div class="shortcut-row">
                     <span class="shortcut-row-label">Dynamic Island</span>
@@ -1537,21 +1540,14 @@
                     <kbd class="kbd-badge system">Ctrl + Shift + B</kbd>
                   </div>
                   <div class="shortcut-row">
-                    <span class="shortcut-row-label">Click-Through Passthrough</span>
-                    <kbd class="kbd-badge system">Ctrl + Shift + L</kbd>
-                  </div>
-                  <div class="shortcut-row">
-                    <span class="shortcut-row-label">Ghost Mode (Click Behind Island)</span>
-                    <div style="display: flex; gap: 4px;">
-                      <kbd class="kbd-badge system">`</kbd>
-                      <kbd class="kbd-badge system">Ctrl + Shift + G</kbd>
-                    </div>
+                    <span class="shortcut-row-label">Ghost Mode (Click Behind)</span>
+                    <kbd class="kbd-badge system">` / Ctrl+Shift+G</kbd>
                   </div>
                 </div>
 
                 <div class="shortcuts-category-card">
                   <div class="shortcuts-category-title">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path><polyline points="16 6 12 2 8 6"></polyline><line x1="12" y1="2" x2="12" y2="15"></line></svg>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path><polyline points="16 6 12 2 8 6"></polyline><line x1="12" y1="2" x2="12" y2="15"></line></svg>
                     <span>Lyrics &amp; Sharing</span>
                   </div>
                   <div class="shortcut-row">
@@ -1567,18 +1563,14 @@
                     <kbd class="kbd-badge navigation">Ctrl + F</kbd>
                   </div>
                   <div class="shortcut-row">
-                    <span class="shortcut-row-label">Move Overlay Position</span>
-                    <kbd class="kbd-badge navigation">Shift + Arrows</kbd>
-                  </div>
-                  <div class="shortcut-row">
-                    <span class="shortcut-row-label">Refetch / Alternative Lyrics</span>
+                    <span class="shortcut-row-label">Refetch Alternative Lyrics</span>
                     <kbd class="kbd-badge navigation">Ctrl + R / F5</kbd>
                   </div>
                 </div>
 
                 <div class="shortcuts-category-card">
                   <div class="shortcuts-category-title">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
                     <span>Playback &amp; Sync</span>
                   </div>
                   <div class="shortcut-row">
@@ -1586,39 +1578,23 @@
                     <kbd class="kbd-badge playback">Ctrl + Alt + Space</kbd>
                   </div>
                   <div class="shortcut-row">
-                    <span class="shortcut-row-label">Next / Previous Song</span>
-                    <kbd class="kbd-badge playback">Ctrl + Alt + →/←</kbd>
+                    <span class="shortcut-row-label">Next / Prev Song</span>
+                    <kbd class="kbd-badge playback">Ctrl + Alt + → / ←</kbd>
                   </div>
                   <div class="shortcut-row">
-                    <span class="shortcut-row-label">Adjust Sync Offset</span>
-                    <kbd class="kbd-badge playback">Alt + [ / ]</kbd>
+                    <span class="shortcut-row-label">Nudge Sync Offset (±100ms)</span>
+                    <kbd class="kbd-badge playback">Shift + Arrows</kbd>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div class="settings-group">
-              <h4>Listening History</h4>
-              <div id="history-container" style="display: flex; flex-direction: column; gap: 8px; max-height: 200px; overflow-y: auto; padding-right: 4px;">
-                <!-- History items will be populated here -->
-                <div style="font-size: 11px; color: rgba(255,255,255,0.4);">No history yet...</div>
-              </div>
-            </div>
-
-            <div class="settings-group">
-              <h4>Lyrics Storage & Cache</h4>
-              <div style="font-size: 12px; color: rgba(255,255,255,0.7); margin-bottom: 12px;">
-                Lyrics for played songs are automatically cached locally for instantaneous, offline-ready playback.
-              </div>
-              <button id="btn-clear-cache" class="btn-secondary" style="width: 100%; border-color: #f43f5e; color: #f43f5e;">
-                <span>Clear All Cached Lyrics</span>
-              </button>
-              <div id="cache-manager-status" style="font-size: 11px; color: #1DB954; text-align: center; margin-top: 8px; display: none;"></div>
-            </div>
+            <!-- Listening History Container -->
+            <div id="history-container" style="display: none;"></div>
           </div>
           
-          <div style="text-align: center; margin-top: 24px; margin-bottom: 12px; font-size: 12px; color: rgba(255,255,255,0.5);">
-            -made with love by badghost001 ❤️
+          <div style="text-align: center; margin-top: 20px; margin-bottom: 8px; font-size: 11.5px; color: rgba(255,255,255,0.45);">
+            LyricFlow • Liquid Glass Edition
           </div>
         </div>
       </div>
@@ -1700,8 +1676,23 @@
                   <span class="share-preset-active-indicator" id="share-preset-status">Design 1 Active</span>
                 </div>
                 <div class="share-presets-row">
+                  <!-- Design 0: Glass Box (Frosted Glass Floating Card) -->
+                  <button type="button" class="share-preset-card active" data-design="glass" id="preset-card-glass" title="Featured: Frosted glass floating box on aesthetic background">
+                    <div class="share-preset-thumb-wrapper">
+                      <canvas class="share-preset-preview-canvas" id="preset-preview-glass" width="108" height="192"></canvas>
+                      <div class="share-preset-badge">Featured</div>
+                    </div>
+                    <div class="share-preset-info">
+                      <span class="share-preset-title">Glass Box</span>
+                      <span class="share-preset-desc">Aesthetic frosted card</span>
+                    </div>
+                    <div class="share-preset-check">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    </div>
+                  </button>
+
                   <!-- Design 1: Classic (Spotify / Apple Music Inspired Poster) -->
-                  <button type="button" class="share-preset-card active" data-design="classic" id="preset-card-classic" title="Design 1: Classic Spotify-inspired poster layout">
+                  <button type="button" class="share-preset-card" data-design="classic" id="preset-card-classic" title="Design 1: Classic Spotify-inspired poster layout">
                     <div class="share-preset-thumb-wrapper">
                       <canvas class="share-preset-preview-canvas" id="preset-preview-classic" width="108" height="192"></canvas>
                       <div class="share-preset-badge">Design 1</div>
@@ -1729,6 +1720,52 @@
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                     </div>
                   </button>
+
+                  <!-- Design 3: Kinetic (Animated Lyric Video) -->
+                  <button type="button" class="share-preset-card" data-design="kinetic" id="preset-card-kinetic" title="Design 3: Editorial kinetic typography video">
+                    <div class="share-preset-thumb-wrapper">
+                      <canvas class="share-preset-preview-canvas" id="preset-preview-kinetic" width="108" height="192"></canvas>
+                      <div class="share-preset-badge">Design 3</div>
+                    </div>
+                    <div class="share-preset-info">
+                      <span class="share-preset-title">Kinetic</span>
+                      <span class="share-preset-desc">Animated video</span>
+                    </div>
+                    <div class="share-preset-check">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    </div>
+                  </button>
+                </div>
+
+                <!-- Readymade Static Share Card Options (Content & Orientation) -->
+                <div class="share-glass-options-row" id="share-glass-options-row">
+                  <div class="share-option-col">
+                    <span class="share-control-label">Card Content</span>
+                    <div class="share-pill-selector" id="share-content-type-selector">
+                      <button type="button" class="share-pill-btn active" data-content="lyrics_art" id="btn-content-lyrics-art" title="Lyrics with Album Art thumbnail at bottom">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                        <span>Lyrics + Art</span>
+                      </button>
+                      <button type="button" class="share-pill-btn" data-content="art_track" id="btn-content-art-track" title="Prominent Album Artwork with Track Name & Artist">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                        <span>Art + Track</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="share-option-col">
+                    <span class="share-control-label">Orientation</span>
+                    <div class="share-pill-selector" id="share-orientation-toggle-selector">
+                      <button type="button" class="share-pill-btn active" data-orientation="story" id="btn-orient-vertical" title="Vertical 9:16 Story (Mobile / Stories)">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="3"/></svg>
+                        <span>Vertical</span>
+                      </button>
+                      <button type="button" class="share-pill-btn" data-orientation="landscape" id="btn-orient-horizontal" title="Horizontal 16:9 Landscape (Desktop / Widescreen)">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/></svg>
+                        <span>Horizontal</span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
                 <!-- Custom Mode (Separate Customization Mode) -->
@@ -1938,6 +1975,10 @@
                 <button type="button" id="btn-share-download-img" class="share-action-btn btn-secondary-glass" title="Download PNG Image (Ctrl+S)">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                   <span>Save Image</span>
+                </button>
+                <button type="button" id="btn-share-export-video" class="share-action-btn btn-secondary-glass" title="Export MP4 Video Story">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                  <span id="share-export-video-text">Export Video (MP4)</span>
                 </button>
                 <button type="button" id="btn-share-copy-text" class="share-action-btn btn-secondary-glass" title="Copy Selected Lyrics as Formatted Text">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>

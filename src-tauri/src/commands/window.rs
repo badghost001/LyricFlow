@@ -1363,5 +1363,63 @@ pub fn reset_window_size(window: WebviewWindow) -> Result<(), String> {
     Ok(())
 }
 
+static SAVED_CINEMATIC_MAIN_POS: OnceLock<Mutex<Option<(i32, i32)>>> = OnceLock::new();
+static SAVED_CINEMATIC_MAIN_SIZE: OnceLock<Mutex<Option<(u32, u32)>>> = OnceLock::new();
+
+#[tauri::command]
+pub async fn set_cinematic_mode(window: WebviewWindow, enabled: bool) -> Result<(), String> {
+    let scale = window.scale_factor().unwrap_or(1.0);
+
+    if enabled {
+        let pos_lock = SAVED_CINEMATIC_MAIN_POS.get_or_init(|| Mutex::new(None));
+        let size_lock = SAVED_CINEMATIC_MAIN_SIZE.get_or_init(|| Mutex::new(None));
+
+        if let (Ok(pos), Ok(size)) = (window.outer_position(), window.inner_size()) {
+            if let Ok(mut p) = pos_lock.lock() {
+                if p.is_none() {
+                    *p = Some((pos.x, pos.y));
+                }
+            }
+            if let Ok(mut s) = size_lock.lock() {
+                if s.is_none() {
+                    *s = Some((size.width, size.height));
+                }
+            }
+        }
+
+        // Expand to cinematic window size (~1260 x 860 logical pixels), clamped to monitor
+        let mut target_w = (1260.0 * scale) as u32;
+        let mut target_h = (860.0 * scale) as u32;
+        if let Ok(Some(monitor)) = window.current_monitor() {
+            let m_size = monitor.size();
+            target_w = target_w.min((m_size.width as f64 * 0.92) as u32);
+            target_h = target_h.min((m_size.height as f64 * 0.90) as u32);
+        }
+
+        let _ = window.set_resizable(true);
+        let _ = window.set_size(tauri::PhysicalSize::new(target_w, target_h));
+        let _ = window.center();
+    } else {
+        let pos_lock = SAVED_CINEMATIC_MAIN_POS.get_or_init(|| Mutex::new(None));
+        let size_lock = SAVED_CINEMATIC_MAIN_SIZE.get_or_init(|| Mutex::new(None));
+
+        let saved_pos = pos_lock.lock().ok().and_then(|mut p| p.take());
+        let saved_size = size_lock.lock().ok().and_then(|mut s| s.take());
+
+        if let (Some((x, y)), Some((w, h))) = (saved_pos, saved_size) {
+            let _ = window.set_size(tauri::PhysicalSize::new(w, h));
+            let _ = window.set_position(tauri::PhysicalPosition::new(x, y));
+        } else {
+            let def_w = (780.0 * scale) as u32;
+            let def_h = (560.0 * scale) as u32;
+            let _ = window.set_size(tauri::PhysicalSize::new(def_w, def_h));
+            let _ = window.center();
+        }
+    }
+
+    Ok(())
+}
+
+
 
 
