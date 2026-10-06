@@ -102,6 +102,32 @@ impl MediaSessionBackend for MacOSMediaBackend {
                     tell application "Music" to previous track
                 end if
             "#,
+            "volume-up" => r#"
+                if application "Spotify" is running then
+                    tell application "Spotify" to set sound volume to (sound volume + 5)
+                else if application "Music" is running then
+                    tell application "Music" to set sound volume to (sound volume + 5)
+                end if
+            "#,
+            "volume-down" => r#"
+                if application "Spotify" is running then
+                    tell application "Spotify" to set sound volume to (sound volume - 5)
+                else if application "Music" is running then
+                    tell application "Music" to set sound volume to (sound volume - 5)
+                end if
+            "#,
+            "volume" | "set-volume" => {
+                let vol = position_ms.min(100);
+                let s = format!(r#"
+                    if application "Spotify" is running then
+                        tell application "Spotify" to set sound volume to {vol}
+                    else if application "Music" is running then
+                        tell application "Music" to set sound volume to {vol}
+                    end if
+                "#);
+                let _ = Command::new("osascript").args(["-e", &s]).output();
+                return;
+            }
             "seek" => {
                 let secs = position_ms as f64 / 1000.0;
                 let s = format!(r#"

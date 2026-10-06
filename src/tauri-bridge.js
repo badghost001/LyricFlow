@@ -200,6 +200,8 @@
     minimizeApp: () => safeInvoke('minimize_app', {}, null),
     showMainWindow: () => safeInvoke('show_main_window', {}, null),
     resetWindowSize: () => safeInvoke('reset_window_size', {}, null),
+    getSavedWindowBounds: () => safeInvoke('get_saved_window_bounds', {}, null),
+    setSavedWindowBounds: (bounds) => safeInvoke('set_saved_window_bounds', { bounds }, null),
     setCinematicMode: (enabled) => safeInvoke('set_cinematic_mode', { enabled }, null),
     openExternal: (url) => safeInvoke('open_external', { url }, null),
     lastfmApi: (method, params = {}, apiKey = '', apiSecret = '', sessionKey = '') =>
@@ -229,6 +231,10 @@
     getLocalPlayback: () => safeInvoke('get_local_playback', {}, null),
     triggerLocalPlaybackControl: (action, position = 0) =>
       safeInvoke('trigger_playback_control', { action, positionMs: position, position_ms: position }, false),
+    getMusicAppVolume: () => safeInvoke('get_music_app_volume', {}, null),
+    adjustMusicAppVolume: (delta = null, target = null) =>
+      safeInvoke('adjust_music_app_volume', { delta, target }, null),
+    toggleMusicAppMute: () => safeInvoke('toggle_music_app_mute', {}, null),
     selectBackgroundFile: () => safeInvoke('select_background_file', {}, null),
     selectAnimatedArtFile: () => safeInvoke('select_animated_art_file', {}, null),
     convertFileSrc: (filePath) => {
@@ -300,12 +306,14 @@
     // Event Listeners
     onToggleClickThrough: (cb) => safeListen('toggle-click-through-shortcut', () => cb()),
     onToggleDynamicIslandShortcut: (cb) => safeListen('toggle-dynamic-island-shortcut', () => cb()),
+    onToggleCinematicModeShortcut: (cb) => safeListen('toggle-cinematic-mode-shortcut', () => cb()),
     onToggleKineticModeShortcut: (cb) => safeListen('toggle-kinetic-mode-shortcut', () => cb()),
     onToggleWallpaperModeShortcut: (cb) => safeListen('toggle-wallpaper-mode-shortcut', () => cb()),
     onToggleTaskbarModeShortcut: (cb) => safeListen('toggle-taskbar-mode-shortcut', () => cb()),
     onWindowRestored: (cb) => safeListen('window-restored', () => cb()),
     onForceNormalMode: (cb) => safeListen('force-normal-mode', () => cb()),
     onWallpaperModeState: (cb) => safeListen('set-wallpaper-mode-state', (payload) => cb(payload)),
+    onWallpaperFocusChanged: (cb) => safeListen('wallpaper-focus-changed', (payload) => cb(payload)),
     onWallpaperEditStarted: (cb) => safeListen('wallpaper-edit-started', () => cb()),
     onWallpaperEditEnded: (cb) => safeListen('wallpaper-edit-ended', () => cb()),
     startWallpaperEdit: () => safeInvoke('start_wallpaper_edit'),
@@ -345,6 +353,7 @@
     onAudioSpectrum: (cb) => safeListen('audio-visualizer-bands', (payload) => cb(payload)),
     onIslandGhostMode: (cb) => safeListen('island-ghost-mode', (payload) => cb(payload)),
     toggleDynamicIslandGhost: () => safeInvoke('cmd_toggle_dynamic_island_ghost', {}, null),
+    setAudioVisualizerActive: (active) => safeInvoke('set_audio_visualizer_active', { active }, null),
     exportKineticVideo: (payload) => safeInvoke('export_kinetic_video', { payload }, null),
     saveCardImage: (payload) => safeInvoke('save_card_image', { payload }, null),
   };

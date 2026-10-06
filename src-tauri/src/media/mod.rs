@@ -25,6 +25,13 @@ pub fn set_cached_playback_state(state: SpotifyPlaybackState) {
     }
 }
 
+pub fn clear_cached_playback_state() {
+    let lock = CURRENT_PLAYBACK_STATE.get_or_init(|| RwLock::new(None));
+    if let Ok(mut guard) = lock.write() {
+        *guard = None;
+    }
+}
+
 pub trait MediaSessionBackend: Send + Sync {
     fn poll_playback(&self) -> Option<TrackMetadata>;
     fn trigger_control(&self, action: &str, position_ms: u64);

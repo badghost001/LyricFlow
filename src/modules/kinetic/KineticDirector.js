@@ -11,12 +11,27 @@
 
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) {
-    module.exports = factory();
+    module.exports = factory(
+      require('./CinematicConcept'),
+      require('./CinematicMotif'),
+      require('./CinematicComposition'),
+      require('./CinematicScene')
+    );
   } else {
-    root.KineticDirector = factory();
+    root.KineticDirector = factory(
+      root.CinematicConcept,
+      root.CinematicMotif,
+      root.CinematicComposition,
+      root.CinematicScene
+    );
   }
-})(typeof self !== 'undefined' ? self : this, function () {
+})(typeof self !== 'undefined' ? self : this, function (CinematicConcept, CinematicMotif, CinematicComposition, CinematicScene) {
   'use strict';
+
+  const ConceptEngine = CinematicConcept || (typeof window !== 'undefined' && window.CinematicConcept) || (typeof require === 'function' ? (() => { try { return require('./CinematicConcept'); } catch (_) { return null; } })() : null);
+  const MotifEngine = CinematicMotif || (typeof window !== 'undefined' && window.CinematicMotif) || (typeof require === 'function' ? (() => { try { return require('./CinematicMotif'); } catch (_) { return null; } })() : null);
+  const CompositionEngine = CinematicComposition || (typeof window !== 'undefined' && window.CinematicComposition) || (typeof require === 'function' ? (() => { try { return require('./CinematicComposition'); } catch (_) { return null; } })() : null);
+  const SceneClass = CinematicScene || (typeof window !== 'undefined' && window.CinematicScene) || (typeof require === 'function' ? (() => { try { return require('./CinematicScene'); } catch (_) { return null; } })() : null);
 
   /**
    * Cleans punctuation and whitespace from lyric token.
@@ -177,6 +192,108 @@
   }
 
   /**
+   * Partitions long word arrays for Cinematic Mode into balanced clause phrases (6+ words),
+   * preserving cohesive sentences for art-directed typography.
+   */
+  function chunkIntoCinematicPhrases(tokens) {
+    if (!tokens || tokens.length <= 12) return [tokens];
+    const mid = Math.floor(tokens.length / 2);
+    let splitIdx = -1;
+    for (let i = Math.max(4, mid - 3); i <= Math.min(tokens.length - 4, mid + 3); i++) {
+      const text = typeof tokens[i] === 'string' ? tokens[i] : (tokens[i].text || '');
+      if (/[,;:—-]/.test(text)) {
+        splitIdx = i + 1;
+        break;
+      }
+    }
+    if (splitIdx === -1) splitIdx = mid;
+    return [tokens.slice(0, splitIdx), tokens.slice(splitIdx)];
+  }
+
+  const CINEMATIC_STOP_WORDS = new Set([
+    'a', 'an', 'and', 'are', 'as', 'at', 'be', 'by', 'for', 'from', 'has', 'he',
+    'in', 'is', 'it', 'its', 'of', 'on', 'or', 'that', 'the', 'to', 'was', 'were',
+    'will', 'with', 'i', 'me', 'my', 'myself', 'we', 'our', 'ours', 'you', 'your',
+    'yours', 'him', 'his', 'she', 'her', 'hers', 'they', 'them', 'their',
+    'so', 'if', 'but', 'not', 'no', 'oh', 'yeah', 'la', 'na', 'ooh', 'who', 'what',
+    'when', 'where', 'why', 'how', 'all', 'any', 'both', 'each', 'few', 'more',
+    'most', 'other', 'some', 'such', 'than', 'too', 'very', 'up', 'down', 'out', 'off'
+  ]);
+
+  function stringHash(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = ((hash << 5) - hash) + str.charCodeAt(i);
+      hash |= 0;
+    }
+    return Math.abs(hash);
+  }
+
+  /**
+   * Deterministically assigns enlarged punch word multipliers (1.55x - 1.85x)
+   * to 1-2 impactful words in a lyric line for Cinematic Mode typography.
+   */
+  function assignCinematicPunchWords(words, trackKey = '', sceneIndex = 0) {
+    if (!words || !words.length) return [];
+
+    const annotated = words.map(w => ({
+      ...w,
+      scaleMultiplier: 1.0,
+      isPunchWord: false
+    }));
+
+    if (annotated.length < 3) {
+      return annotated;
+    }
+
+    const candidates = [];
+    for (let idx = 0; idx < annotated.length; idx++) {
+      const w = annotated[idx];
+      const clean = (w.text || '').replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, '').trim().toLowerCase();
+      if (clean.length >= 3 && !CINEMATIC_STOP_WORDS.has(clean)) {
+        const h = stringHash(`${trackKey}_${sceneIndex}_${idx}_${clean}`);
+        const score = clean.length * 10 + (h % 50);
+        candidates.push({ idx, clean, h, score });
+      }
+    }
+
+    if (candidates.length === 0) {
+      let bestIdx = -1, maxLen = 3;
+      for (let idx = 0; idx < annotated.length; idx++) {
+        const clean = (annotated[idx].text || '').replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, '').trim();
+        if (clean.length > maxLen) {
+          maxLen = clean.length;
+          bestIdx = idx;
+        }
+      }
+      if (bestIdx >= 0) {
+        const h = stringHash(`${trackKey}_${sceneIndex}_${bestIdx}`);
+        annotated[bestIdx].isPunchWord = true;
+        annotated[bestIdx].scaleMultiplier = +(1.55 + ((h % 31) / 100)).toFixed(2);
+      }
+      return annotated;
+    }
+
+    candidates.sort((a, b) => b.score - a.score);
+
+    const targetCount = (annotated.length >= 8 && candidates.length >= 2) ? 2 : 1;
+    const selectedIndices = [candidates[0].idx];
+    const punch1Hash = candidates[0].h;
+    annotated[candidates[0].idx].isPunchWord = true;
+    annotated[candidates[0].idx].scaleMultiplier = +(1.55 + ((punch1Hash % 31) / 100)).toFixed(2);
+
+    if (targetCount === 2) {
+      const second = candidates.slice(1).find(c => Math.abs(c.idx - selectedIndices[0]) > 1) || candidates[1];
+      if (second) {
+        annotated[second.idx].isPunchWord = true;
+        annotated[second.idx].scaleMultiplier = +(1.55 + ((second.h % 31) / 100)).toFixed(2);
+      }
+    }
+
+    return annotated;
+  }
+
+  /**
    * Builds an executable timeline of scenes from a slice of lyrics.
    * options:
    *   startTimeMs: start of video or segment (default 0)
@@ -333,10 +450,20 @@
 
       const isClimaxLine = (i === climaxIdx);
 
+      // Semantic concept and phrase analysis for the line
+      const lineAnalysis = ConceptEngine
+        ? ConceptEngine.analyzeLyric(line.text, line.words, { allowEmphasis: ((i % 3 === 0) || isClimaxLine) })
+        : { concept: null, strength: 'none', matchedPhrase: null, matchedKeyword: null, tonalTint: null, emphasizedWord: null, emphasizedWordIndex: -1 };
+
       if (hasTimedWords) {
-        const wordChunks = chunkIntoPhrases(line.words);
+        const wordChunks = options.isCinematic
+          ? (line.words.length > 12 ? chunkIntoCinematicPhrases(line.words) : [line.words])
+          : chunkIntoPhrases(line.words);
         for (let c = 0; c < wordChunks.length; c++) {
-          const cWords = wordChunks[c];
+          let cWords = wordChunks[c];
+          if (options.isCinematic) {
+            cWords = assignCinematicPunchWords(cWords, `${artist || ''}_${title || ''}`, i * 10 + c);
+          }
           const cStart = (typeof cWords[0].timeMs === 'number') ? cWords[0].timeMs : lineVocalStart;
           
           let cEnd;
@@ -354,9 +481,31 @@
 
           const cText = cWords.map(w => w.text).join(' ');
           const isClimax = (isClimaxLine && c === wordChunks.length - 1) || cText.includes('?');
-          const classification = classifyPhrase(cText, cWords, isClimax);
+          const classification = (options.isCinematic && cWords.length >= 2)
+            ? { style: 'styleA', primaryText: cText.toLowerCase(), secondaryText: '' }
+            : classifyPhrase(cText, cWords, isClimax);
 
-          scenes.push({
+          const chunkAnalysis = ConceptEngine
+            ? ConceptEngine.analyzeLyric(cText, cWords, {
+                allowEmphasis: Boolean(lineAnalysis.emphasizedWord && cText.toUpperCase().includes(lineAnalysis.emphasizedWord))
+              })
+            : lineAnalysis;
+
+          const activeConcept = chunkAnalysis.concept || lineAnalysis.concept || null;
+          const activeStrength = chunkAnalysis.concept ? chunkAnalysis.strength : (lineAnalysis.concept ? lineAnalysis.strength : 'none');
+          const activeTint = chunkAnalysis.tonalTint || lineAnalysis.tonalTint || null;
+          const activeEmphasizedWord = chunkAnalysis.emphasizedWord || (lineAnalysis.emphasizedWord && cText.toUpperCase().includes(lineAnalysis.emphasizedWord) ? lineAnalysis.emphasizedWord : null);
+
+          const trackKey = `${artist || ''}_${title || ''}`;
+          const motifVariation = (MotifEngine && activeConcept)
+            ? MotifEngine.getVariationIndex(activeConcept, trackKey, i)
+            : 0;
+
+          const composition = (CompositionEngine && activeConcept)
+            ? CompositionEngine.resolveComposition(activeConcept, activeStrength, options.bounds || null, trackKey, i, activeEmphasizedWord)
+            : (CompositionEngine ? CompositionEngine.resolveComposition(null, 'none', options.bounds || null, trackKey, i, activeEmphasizedWord) : null);
+
+          const sceneData = {
             id: `scene_lyric_${i}_${c}`,
             index: i,
             chunkIndex: c,
@@ -369,8 +518,19 @@
             secondaryPosition: classification.secondaryPosition || 'below',
             creatorTag: creatorTag || (artist ? `@${artist.replace(/\s+/g, '').toLowerCase()}` : ''),
             rawText: cText,
-            words: cWords
-          });
+            words: cWords,
+            concept: activeConcept,
+            conceptStrength: activeStrength,
+            matchedPhrase: chunkAnalysis.matchedPhrase || lineAnalysis.matchedPhrase || null,
+            matchedKeyword: chunkAnalysis.matchedKeyword || lineAnalysis.matchedKeyword || null,
+            emphasizedWord: activeEmphasizedWord,
+            tonalTint: activeTint,
+            motifVariation,
+            composition,
+            typographyLayout: (composition && composition.typographyLayout) || 'horizontal_fluid',
+            isCinematic: Boolean(options.isCinematic)
+          };
+          scenes.push(SceneClass ? new SceneClass(sceneData) : sceneData);
         }
       } else {
         // Plain LRC line (no word timestamps)
@@ -378,7 +538,18 @@
         if (rawTokens.length <= 3) {
           // 1 to 3 words: single scene
           const classification = classifyPhrase(line.text, [], isClimaxLine);
-          scenes.push({
+          const activeConcept = lineAnalysis.concept || null;
+          const activeStrength = lineAnalysis.strength || 'none';
+          const trackKey = `${artist || ''}_${title || ''}`;
+          const motifVariation = (MotifEngine && activeConcept)
+            ? MotifEngine.getVariationIndex(activeConcept, trackKey, i)
+            : 0;
+
+          const composition = (CompositionEngine && activeConcept)
+            ? CompositionEngine.resolveComposition(activeConcept, activeStrength, options.bounds || null, trackKey, i, lineAnalysis.emphasizedWord)
+            : (CompositionEngine ? CompositionEngine.resolveComposition(null, 'none', options.bounds || null, trackKey, i, lineAnalysis.emphasizedWord) : null);
+
+          const sceneData = {
             id: `scene_lyric_${i}`,
             index: i,
             chunkIndex: 0,
@@ -391,8 +562,19 @@
             secondaryPosition: classification.secondaryPosition || 'below',
             creatorTag: creatorTag || (artist ? `@${artist.replace(/\s+/g, '').toLowerCase()}` : ''),
             rawText: line.text,
-            words: line.words || []
-          });
+            words: [], // Plain LRC: strictly empty, no fake word sync
+            concept: activeConcept,
+            conceptStrength: activeStrength,
+            matchedPhrase: lineAnalysis.matchedPhrase || null,
+            matchedKeyword: lineAnalysis.matchedKeyword || null,
+            emphasizedWord: lineAnalysis.emphasizedWord || null,
+            tonalTint: lineAnalysis.tonalTint || null,
+            motifVariation,
+            composition,
+            typographyLayout: (composition && composition.typographyLayout) || 'horizontal_fluid',
+            isCinematic: Boolean(options.isCinematic)
+          };
+          scenes.push(SceneClass ? new SceneClass(sceneData) : sceneData);
         } else {
           // Partition rawTokens into 1 to 3 words
           const tokenChunks = chunkIntoPhrases(rawTokens);
@@ -411,27 +593,31 @@
             const cEnd = (c === tokenChunks.length - 1) ? Math.max(cStart + 350, end) : (cursor + dur);
             cursor = cEnd;
 
-            // Synthesize timed words for word-level highlight
-            const cDur = Math.max(1, cEnd - cStart);
-            let wCur = cStart;
-            const cWords = cTokens.map((tok, wIdx) => {
-              const wDur = Math.round(cDur * (tok.length / Math.max(1, chunkChars)));
-              const wStart = wCur;
-              const wEnd = (wIdx === cTokens.length - 1) ? cEnd : (wCur + wDur);
-              wCur = wEnd;
-              return {
-                text: tok,
-                timeMs: wStart,
-                endMs: wEnd,
-                hasSpace: (wIdx < cTokens.length - 1)
-              };
-            });
-
             const cText = cTokens.join(' ');
             const isClimax = (isClimaxLine && c === tokenChunks.length - 1) || cText.includes('?');
-            const classification = classifyPhrase(cText, cWords, isClimax);
+            const classification = classifyPhrase(cText, [], isClimax);
 
-            scenes.push({
+            const chunkAnalysis = ConceptEngine
+              ? ConceptEngine.analyzeLyric(cText, [], {
+                  allowEmphasis: Boolean(lineAnalysis.emphasizedWord && cText.toUpperCase().includes(lineAnalysis.emphasizedWord))
+                })
+              : lineAnalysis;
+
+            const activeConcept = chunkAnalysis.concept || lineAnalysis.concept || null;
+            const activeStrength = chunkAnalysis.concept ? chunkAnalysis.strength : (lineAnalysis.concept ? lineAnalysis.strength : 'none');
+            const activeTint = chunkAnalysis.tonalTint || lineAnalysis.tonalTint || null;
+            const activeEmphasizedWord = chunkAnalysis.emphasizedWord || (lineAnalysis.emphasizedWord && cText.toUpperCase().includes(lineAnalysis.emphasizedWord) ? lineAnalysis.emphasizedWord : null);
+
+            const trackKey = `${artist || ''}_${title || ''}`;
+            const motifVariation = (MotifEngine && activeConcept)
+              ? MotifEngine.getVariationIndex(activeConcept, trackKey, i)
+              : 0;
+
+            const composition = (CompositionEngine && activeConcept)
+              ? CompositionEngine.resolveComposition(activeConcept, activeStrength, options.bounds || null, trackKey, i, activeEmphasizedWord)
+              : (CompositionEngine ? CompositionEngine.resolveComposition(null, 'none', options.bounds || null, trackKey, i, activeEmphasizedWord) : null);
+
+            const sceneData = {
               id: `scene_lyric_${i}_${c}`,
               index: i,
               chunkIndex: c,
@@ -444,8 +630,19 @@
               secondaryPosition: classification.secondaryPosition || 'below',
               creatorTag: creatorTag || (artist ? `@${artist.replace(/\s+/g, '').toLowerCase()}` : ''),
               rawText: cText,
-              words: cWords
-            });
+              words: [], // Plain LRC: strictly empty, no fake word sync
+              concept: activeConcept,
+              conceptStrength: activeStrength,
+              matchedPhrase: chunkAnalysis.matchedPhrase || lineAnalysis.matchedPhrase || null,
+              matchedKeyword: chunkAnalysis.matchedKeyword || lineAnalysis.matchedKeyword || null,
+              emphasizedWord: activeEmphasizedWord,
+              tonalTint: activeTint,
+              motifVariation,
+              composition,
+              typographyLayout: (composition && composition.typographyLayout) || 'horizontal_fluid',
+              isCinematic: Boolean(options.isCinematic)
+            };
+            scenes.push(SceneClass ? new SceneClass(sceneData) : sceneData);
           }
         }
       }
@@ -477,6 +674,16 @@
 
     // Sort by startTimeMs and ensure continuity
     scenes.sort((a, b) => a.startTimeMs - b.startTimeMs);
+
+    // Set continuity flags between consecutive scenes
+    for (let s = 0; s < scenes.length; s++) {
+      const cur = scenes[s];
+      const prev = (s > 0) ? scenes[s - 1] : null;
+      const next = (s < scenes.length - 1) ? scenes[s + 1] : null;
+
+      cur.sharesConceptWithPrev = Boolean(prev && prev.concept && cur.concept && prev.concept === cur.concept);
+      cur.sharesConceptWithNext = Boolean(next && next.concept && cur.concept && next.concept === cur.concept);
+    }
 
     return scenes;
   }
@@ -514,6 +721,10 @@
     cleanToken,
     classifyPhrase,
     chunkIntoPhrases,
+    chunkIntoCinematicPhrases,
+    assignCinematicPunchWords,
+    CINEMATIC_STOP_WORDS,
+    stringHash,
     buildTimeline,
     getSceneAt
   };

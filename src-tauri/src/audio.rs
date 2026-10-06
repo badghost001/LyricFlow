@@ -12,6 +12,16 @@ use windows::{
 const FFT_SIZE: usize = 1024;
 const NUM_BANDS: usize = 8;
 
+pub static AUDIO_VISUALIZER_ACTIVE: AtomicBool = AtomicBool::new(false);
+
+pub fn set_visualizer_active(active: bool) {
+    AUDIO_VISUALIZER_ACTIVE.store(active, Ordering::SeqCst);
+}
+
+pub fn is_visualizer_active() -> bool {
+    AUDIO_VISUALIZER_ACTIVE.load(Ordering::Relaxed)
+}
+
 pub struct AudioVisualizer {
     running: Arc<AtomicBool>,
 }
@@ -273,6 +283,41 @@ fn run_capture_loop(app: AppHandle, running: Arc<AtomicBool>) {
         let mut should_reconnect = false;
 
         while running.load(Ordering::Relaxed) {
+            if !AUDIO_VISUALIZER_ACTIVE.load(Ordering::Relaxed) {
+                if !was_already_all_zero {
+                    envelope = [0.0; NUM_BANDS];
+                    was_already_all_zero = true;
+                    let _ = app.emit("audio-visualizer-bands", envelope.to_vec());
+                }
+                std::thread::sleep(Duration::from_millis(150));
+                continue;
+            }
+
+            if was_already_all_zero {
+                was_already_all_zero = false;
+                // Drain any stale packets accumulated in the buffer while inactive
+                while let Ok(sz) = unsafe { session.capture_client.GetNextPacketSize() } {
+                    if sz == 0 { break; }
+                    let mut data_ptr: *mut u8 = std::ptr::null_mut();
+                    let mut num_frames_read = 0u32;
+                    let mut flags = 0u32;
+                    let hr = unsafe {
+                        session.capture_client.GetBuffer(
+                            &mut data_ptr,
+                            &mut num_frames_read,
+                            &mut flags,
+                            None,
+                            None,
+                        )
+                    };
+                    if hr.is_ok() {
+                        let _ = unsafe { session.capture_client.ReleaseBuffer(num_frames_read) };
+                    } else {
+                        break;
+                    }
+                }
+            }
+
             let mut packet_size = match unsafe { session.capture_client.GetNextPacketSize() } {
                 Ok(sz) => sz,
                 Err(_) => {
@@ -385,13 +430,12 @@ fn run_capture_loop(app: AppHandle, running: Arc<AtomicBool>) {
                 consecutive_silence = consecutive_silence.saturating_add(1);
             }
 
-            // Check if default audio endpoint changed:
-            // Fast check (every 150ms) when quiet or switching, periodic check (every 800ms) during active playback.
+            // Check if default audio endpoint changed periodically (every 1.5s - 2.5s)
             let now = Instant::now();
             let check_interval = if consecutive_silence > 6 {
-                Duration::from_millis(150)
+                Duration::from_millis(2500)
             } else {
-                Duration::from_millis(800)
+                Duration::from_millis(1500)
             };
 
             if now.duration_since(last_device_check) >= check_interval {
@@ -494,7 +538,13 @@ fn run_capture_loop(app: AppHandle, running: Arc<AtomicBool>) {
                 }
             }
 
-            std::thread::sleep(Duration::from_millis(8));
+            if consecutive_silence > 10 {
+                std::thread::sleep(Duration::from_millis(60));
+            } else if consecutive_silence > 2 {
+                std::thread::sleep(Duration::from_millis(25));
+            } else {
+                std::thread::sleep(Duration::from_millis(16));
+            }
         }
 
         unsafe {
@@ -524,5 +574,13 @@ impl AudioVisualizer {
     }
     pub fn start(&self, _app: tauri::AppHandle) {}
     pub fn stop(&self) {}
+}
+
+#[tauri::command]
+pub fn set_audio_visualizer_active(active: bool) {
+    #[cfg(target_os = "windows")]
+    set_visualizer_active(active);
+    #[cfg(not(target_os = "windows"))]
+    let _ = active;
 }
 

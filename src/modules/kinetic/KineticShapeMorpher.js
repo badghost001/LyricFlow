@@ -67,6 +67,16 @@
 
   const SHAPE_KEYS = Object.keys(SHAPES);
 
+  const SHAPE_TO_CONCEPT = {
+    astroid: 'night',
+    heart: 'love',
+    clover: 'dream',
+    diamond: 'memory',
+    rosette: 'love',
+    hexagon: 'home',
+    circle: 'time'
+  };
+
   /**
    * Deterministic 32-bit FNV-1a string hash for track-seeded auto selection.
    */
@@ -309,7 +319,13 @@
       shadowBlur = 32,
       shadowOffsetY = 16,
       showAccentStar = true,
-      starColor = '#d2b7c0'
+      starColor = '#d2b7c0',
+      concept = null,
+      motifEngine = null,
+      motifVariation = 0,
+      drift = 0,
+      reducedMotion = false,
+      hasActiveMotifLayer = false
     } = options;
 
     if (!bounds || !bounds.width || !bounds.height) return;
@@ -338,31 +354,37 @@
         ctx.stroke();
       }
 
-      // Draw subtle editorial watermark contour of the parametric shape inside the card
+      // Draw subtle editorial watermark of the keyword illustration inside the card
       try {
-        const watermarkPoints = getMorphedPoints(shapeType, 0.0, {
-          x: bounds.x + bounds.width * 0.16,
-          y: bounds.y + bounds.height * 0.16,
-          width: bounds.width * 0.68,
-          height: bounds.height * 0.68
-        });
-        if (watermarkPoints && watermarkPoints.length > 2) {
-          ctx.save();
-          ctx.shadowColor = 'transparent';
-          ctx.beginPath();
-          ctx.moveTo(watermarkPoints[0].x, watermarkPoints[0].y);
-          for (let i = 1; i < watermarkPoints.length; i++) {
-            ctx.lineTo(watermarkPoints[i].x, watermarkPoints[i].y);
+        if (!hasActiveMotifLayer) {
+          const activeConcept = concept || SHAPE_TO_CONCEPT[shapeType] || 'night';
+          const engine = motifEngine
+            || (typeof window !== 'undefined' && window.CinematicMotif)
+            || (typeof require === 'function' ? (() => { try { return require('./CinematicMotif'); } catch (_) { return null; } })() : null);
+
+          if (engine && typeof engine.drawMotif === 'function') {
+            const cx = bounds.x + bounds.width / 2;
+            const cy = bounds.y + bounds.height / 2;
+            const minDim = Math.min(bounds.width, bounds.height);
+            const rx = minDim * 0.38;
+            const ry = minDim * 0.38;
+            ctx.save();
+            ctx.shadowColor = 'transparent';
+            engine.drawMotif(ctx, {
+              concept: activeConcept,
+              variation: motifVariation || 0,
+              cx,
+              cy,
+              rx,
+              ry,
+              strokeColor: starColor,
+              alpha: 0.14,
+              strokeWidth: 1.5,
+              drift: drift || 0,
+              reducedMotion: Boolean(reducedMotion)
+            });
+            ctx.restore();
           }
-          ctx.closePath();
-          ctx.fillStyle = starColor;
-          ctx.globalAlpha = 0.045;
-          ctx.fill();
-          ctx.strokeStyle = starColor;
-          ctx.globalAlpha = 0.12;
-          ctx.lineWidth = 1.5;
-          ctx.stroke();
-          ctx.restore();
         }
       } catch (_) {}
     } else {
@@ -398,8 +420,9 @@
       ctx.fillStyle = starColor;
       ctx.font = '700 16px "Bodoni Moda", serif, "Segoe UI Emoji"';
       ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(sealIcon, cx, bottomY);
+      if (typeof ctx.fillText === 'function') {
+        ctx.fillText(sealIcon, cx, bottomY);
+      }
       ctx.restore();
     }
   }
@@ -407,6 +430,7 @@
   return {
     SHAPES,
     SHAPE_KEYS,
+    SHAPE_TO_CONCEPT,
     hashString,
     getShapeForTrack,
     easeInOutCubic,

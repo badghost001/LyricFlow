@@ -28,8 +28,12 @@ body.bg-style-minimal .ambient-glow {
   display: none !important;
 }
 
-body.taskbar-mode .fluid-mesh-canvas {
+body.taskbar-mode .fluid-mesh-canvas,
+body.cinematic-view-active .fluid-mesh-canvas,
+.cinematic-view-active .fluid-mesh-canvas {
   display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
 }
 
 body:not(.is-playing) .fluid-mesh-canvas,

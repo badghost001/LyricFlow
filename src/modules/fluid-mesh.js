@@ -40,6 +40,11 @@ class FluidMeshGradient {
     this.targetMouse = [0.5, 0.5];
     this.currentMouse = [0.5, 0.5];
 
+    // Frame-rate governor: unthrottled native compositor cadence during playback, 15 FPS when paused
+    this._lastRenderTime = 0;
+    this._targetFps = 0;
+    this._minFrameInterval = 0; // Native compositor cadence when playing
+
     this.init();
   }
 
@@ -300,10 +305,11 @@ class FluidMeshGradient {
   handleResize() {
     if (!this.canvas) return;
     const dpr = Math.min(window.devicePixelRatio || 1, 1.25);
-    // Render at half-res for maximum GPU efficiency (bilinear upscaling gives natural blur)
-    const scale = 0.5 * dpr;
-    this.width = Math.max(320, Math.floor(window.innerWidth * scale));
-    this.height = Math.max(240, Math.floor(window.innerHeight * scale));
+    // Render at optimized resolution: bilinear upscaling and CSS filter provide silky smooth fluid gradient.
+    // Clamping to max 540x320 eliminates GPU fill-rate spikes on 4K/high-DPI displays.
+    const scale = Math.min(0.35 * dpr, 0.40);
+    this.width = Math.min(540, Math.max(280, Math.floor(window.innerWidth * scale)));
+    this.height = Math.min(320, Math.max(180, Math.floor(window.innerHeight * scale)));
 
     if (this.canvas.width !== this.width || this.canvas.height !== this.height) {
       this.canvas.width = this.width;
@@ -332,6 +338,10 @@ class FluidMeshGradient {
   setPlaybackState(isPlaying, bpmProfile = 'normal', speedSlider = 1.0) {
     this.isPlaying = Boolean(isPlaying);
 
+    // Dynamic frame-rate target: native compositor cadence (unthrottled) when playing, 15 FPS when paused
+    this._targetFps = this.isPlaying ? 0 : 15;
+    this._minFrameInterval = this.isPlaying ? 0 : 64;
+
     // BPM speed factor
     if (bpmProfile === 'high') {
       this.bpmFactor = 1.35;
@@ -350,9 +360,11 @@ class FluidMeshGradient {
   }
 
   start() {
+    this.handleResize();
     if (this.running) return;
     this.running = true;
     this.lastTime = performance.now();
+    this._lastRenderTime = 0;
     this.loop();
   }
 
@@ -364,12 +376,27 @@ class FluidMeshGradient {
     }
   }
 
+  isRunning() {
+    return Boolean(this.running);
+  }
+
   loop() {
     if (!this.running) return;
 
     const now = performance.now();
-    const dt = Math.min((now - this.lastTime) / 1000, 0.1);
+
+    // Frame-rate throttling: skip rendering only when paused/inactive and below minimum frame interval
+    if (!this.isPlaying && this._minFrameInterval > 0) {
+      const elapsedSinceLastRender = now - this._lastRenderTime;
+      if (elapsedSinceLastRender < this._minFrameInterval) {
+        this.animId = requestAnimationFrame(() => this.loop());
+        return;
+      }
+    }
+
+    const dt = Math.min((now - (this.lastTime || now)) / 1000, 0.1);
     this.lastTime = now;
+    this._lastRenderTime = now;
 
     // Smooth speed interpolation (lerp)
     this.currentSpeed += (this.targetSpeed - this.currentSpeed) * 0.06;

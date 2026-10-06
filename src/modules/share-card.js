@@ -199,11 +199,12 @@
    * Opens the Interactive Share Preview Modal
    */
   function openShareModal(preferredIndex = null) {
+    if (typeof showToast === 'function') {
+      showToast("Lyric Share Card is coming soon!", 2200, 'info');
+    }
+
     const currentLyrics = (typeof lyrics !== 'undefined' && Array.isArray(lyrics)) ? lyrics : [];
     if (!currentLyrics || currentLyrics.length === 0) {
-      if (typeof showToast === 'function') {
-        showToast("No active lyrics to share!", 2000, 'warning');
-      }
       return;
     }
 
@@ -1025,6 +1026,12 @@
     // Close button
     const closeBtn = document.getElementById("share-modal-close");
     if (closeBtn) closeBtn.addEventListener("click", closeShareModal);
+
+    // Coming soon overlay buttons
+    const csCloseBtn = document.getElementById("btn-share-cs-close");
+    if (csCloseBtn) csCloseBtn.addEventListener("click", closeShareModal);
+    const csDismissBtn = document.getElementById("btn-share-cs-dismiss");
+    if (csDismissBtn) csDismissBtn.addEventListener("click", closeShareModal);
 
     // Backdrop click
     const backdrop = document.getElementById("share-modal-backdrop");
@@ -3646,6 +3653,8 @@
       const KMorph = (typeof window !== 'undefined' && window.KineticShapeMorpher) || ShapeMorpher;
       const KTypo = (typeof window !== 'undefined' && window.KineticTypographyEngine) || TypographyEngine;
       const KDir = (typeof window !== 'undefined' && window.KineticDirector) || Director;
+      const KConcept = (typeof window !== 'undefined' && window.CinematicConcept) || (typeof CinematicConcept !== 'undefined' ? CinematicConcept : null);
+      const KMotif = (typeof window !== 'undefined' && window.CinematicMotif) || (typeof CinematicMotif !== 'undefined' ? CinematicMotif : null);
 
       ctx.fillStyle = '#000000';
       ctx.fillRect(0, 0, width, height);
@@ -3679,13 +3688,25 @@
       const heroLine = formattedLines[state.heroIndex !== null ? state.heroIndex : 0] || formattedLines[0] || { primary: '' };
       const isClimax = (heroLine.primary || '').includes('?');
 
+      let lineConcept = null;
+      if (KConcept && typeof KConcept.detectConcept === 'function') {
+        const detected = KConcept.detectConcept(heroLine.primary || '');
+        lineConcept = detected ? detected.concept : null;
+      }
+      if (!lineConcept && KConcept && typeof KConcept.analyzeLyric === 'function') {
+        const analysis = KConcept.analyzeLyric(heroLine.primary || '');
+        lineConcept = (analysis && analysis.concept) ? analysis.concept : null;
+      }
+
       KMorph.drawMorphedCard(ctx, {
         shapeType: state.kineticShape === 'auto' ? KMorph.getShapeForTrack(state.artistName, state.trackTitle) : (state.kineticShape || 'astroid'),
         progress: 1.0,
         bounds: cardBounds,
         fillColor: palette.cardColor,
         showAccentStar: !isClimax,
-        starColor: palette.textColor
+        starColor: palette.textColor,
+        concept: lineConcept,
+        motifEngine: KMotif
       });
 
       if (KDir && typeof KDir.classifyPhrase === 'function') {

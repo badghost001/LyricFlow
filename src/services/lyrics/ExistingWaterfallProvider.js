@@ -37,10 +37,21 @@
         if (!item || !item.text) continue;
 
         const startSec = Math.max(0, (Number(item.timeMs || item.start * 1000 || 0)) / 1000);
-        let endSec = startSec + 4.0;
+        let nextVocalSec = Infinity;
+        if (i < parsedLines.length - 1 && parsedLines[i + 1]) {
+          const nextLine = parsedLines[i + 1];
+          if (Array.isArray(nextLine.words) && nextLine.words.length > 0) {
+            const firstW = nextLine.words[0];
+            const fwStart = (firstW.start != null ? Number(firstW.start) : (firstW.timeMs != null ? Number(firstW.timeMs) / 1000 : null));
+            nextVocalSec = (fwStart != null && !isNaN(fwStart)) ? fwStart : (Number(nextLine.timeMs || 0) / 1000);
+          } else if (nextLine.timeMs !== undefined) {
+            nextVocalSec = Number(nextLine.timeMs) / 1000;
+          }
+        }
 
-        if (i < parsedLines.length - 1 && parsedLines[i + 1]?.timeMs !== undefined) {
-          endSec = Math.max(startSec + 0.5, parsedLines[i + 1].timeMs / 1000);
+        let endSec = startSec + 4.0;
+        if (Number.isFinite(nextVocalSec)) {
+          endSec = Math.max(startSec + 0.5, nextVocalSec);
         }
 
         let words = undefined;
@@ -65,7 +76,11 @@
             } else {
               const wordLen = (w.text || '').trim().length;
               const naturalSec = Math.max(0.45, Math.min(2.0, wordLen * 0.16 + 0.35));
-              wEnd = Math.min(endSec, wStart + naturalSec);
+              if (Number.isFinite(nextVocalSec) && nextVocalSec > wStart) {
+                wEnd = Math.max(wStart + 0.35, Math.min(nextVocalSec, wStart + naturalSec));
+              } else {
+                wEnd = wStart + naturalSec;
+              }
             }
             words.push(createLyricWord(w.text, wStart, wEnd));
           }

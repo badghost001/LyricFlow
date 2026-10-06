@@ -26,11 +26,15 @@ function runWindowRestoreTests() {
 
   const windowRsPath = path.resolve(__dirname, '../src-tauri/src/commands/window.rs');
   const libRsPath = path.resolve(__dirname, '../src-tauri/src/lib.rs');
+  const configRsPath = path.resolve(__dirname, '../src-tauri/src/commands/config.rs');
+  const tauriConfPath = path.resolve(__dirname, '../src-tauri/tauri.conf.json');
   const tauriBridgePath = path.resolve(__dirname, '../src/tauri-bridge.js');
   const rendererPath = path.resolve(__dirname, '../src/renderer.js');
 
   const windowRs = fs.readFileSync(windowRsPath, 'utf8');
   const libRs = fs.readFileSync(libRsPath, 'utf8');
+  const configRs = fs.readFileSync(configRsPath, 'utf8');
+  const tauriConf = fs.readFileSync(tauriConfPath, 'utf8');
   const tauriBridge = fs.readFileSync(tauriBridgePath, 'utf8');
   const renderer = fs.readFileSync(rendererPath, 'utf8');
 
@@ -50,7 +54,7 @@ function runWindowRestoreTests() {
     );
   });
 
-  // Test 2: Window restoration in window.rs clamps to safe dimensions (680x480 minimum, 780x560 default)
+  // Test 2: Window restoration in window.rs clamps to safe dimensions (680x480 minimum, 960x600 default)
   test('2. set_dynamic_island_mode exit clamps restored size to safe minimums', () => {
     assert.ok(
       windowRs.includes('let min_w = (680.0 * scale) as u32;'),
@@ -70,19 +74,19 @@ function runWindowRestoreTests() {
     );
   });
 
-  // Test 3: reset_window_size command exists in window.rs and sets standard 780x560 dimensions
-  test('3. reset_window_size command exists in window.rs and sets standard 780x560 dimensions', () => {
+  // Test 3: reset_window_size command exists in window.rs and sets standard ideal 960x600 dimensions
+  test('3. reset_window_size command exists in window.rs and sets standard ideal 960x600 dimensions', () => {
     assert.ok(
       windowRs.includes('pub fn reset_window_size(window: WebviewWindow) -> Result<(), String>'),
       'Must define pub fn reset_window_size'
     );
     assert.ok(
-      windowRs.includes('let sw = (780.0 * scale) as u32;'),
-      'Must set width to 780 scaled'
+      windowRs.includes('let sw = (960.0 * scale) as u32;'),
+      'Must set width to 960 scaled'
     );
     assert.ok(
-      windowRs.includes('let sh = (560.0 * scale) as u32;'),
-      'Must set height to 560 scaled'
+      windowRs.includes('let sh = (600.0 * scale) as u32;'),
+      'Must set height to 600 scaled'
     );
     assert.ok(
       windowRs.includes('window.set_size(tauri::PhysicalSize::new(sw, sh))'),
@@ -127,6 +131,65 @@ function runWindowRestoreTests() {
     assert.ok(
       renderer.includes("e.ctrlKey && e.altKey") && renderer.includes("KeyR"),
       'Must listen for Ctrl+Alt+R key combination'
+    );
+  });
+
+  // Test 8: Window position persistence queues on Move/Resize and saves to config.json
+  test('8. window.rs implements queue_save_window_bounds and flush_save_window_bounds', () => {
+    assert.ok(
+      windowRs.includes('pub fn queue_save_window_bounds'),
+      'Must define queue_save_window_bounds'
+    );
+    assert.ok(
+      windowRs.includes('pub fn flush_save_window_bounds'),
+      'Must define flush_save_window_bounds'
+    );
+    assert.ok(
+      configRs.includes('pub fn save_window_bounds'),
+      'Must define save_window_bounds in config.rs'
+    );
+    assert.ok(
+      configRs.includes('pub fn load_saved_window_bounds'),
+      'Must define load_saved_window_bounds in config.rs'
+    );
+  });
+
+  // Test 9: lib.rs restores saved window bounds or centers 960x600 default size
+  test('9. lib.rs restores saved window bounds with monitor clamping on launch', () => {
+    assert.ok(
+      libRs.includes('commands::config::load_saved_window_bounds()'),
+      'Must load saved bounds on launch in lib.rs'
+    );
+    assert.ok(
+      libRs.includes('let default_w = (960.0 * scale) as u32;'),
+      'Must define default_w as 960 scaled'
+    );
+    assert.ok(
+      libRs.includes('let default_h = (600.0 * scale) as u32;'),
+      'Must define default_h as 600 scaled'
+    );
+  });
+
+  // Test 10: tauri.conf.json sets default 960x600 dimensions and visible: false
+  test('10. tauri.conf.json defines 960x600 window size and invisible creation', () => {
+    const conf = JSON.parse(tauriConf);
+    const mainWin = conf.app.windows.find(w => w.label === 'main');
+    assert.strictEqual(mainWin.width, 960, 'Default width must be 960');
+    assert.strictEqual(mainWin.height, 600, 'Default height must be 600');
+    assert.strictEqual(mainWin.visible, false, 'Window must start invisible to prevent snap');
+  });
+
+  // Test 11: renderer.js pre-populates lyrics before dismissing loading screen
+  test('11. renderer.js pre-populates lyrics during startup loading screen', () => {
+    assert.ok(
+      renderer.includes('// Flush any pending track switch debounce timer immediately during startup') ||
+      renderer.includes('trackSwitchDebounceTimer = null;'),
+      'Must immediately flush track debounce on startup'
+    );
+    assert.ok(
+      renderer.includes('while (Date.now() - waitStart < 2500)') &&
+      renderer.includes('lyrics && lyrics.length > 0'),
+      'Must await lyrics population before dismissing loading screen'
     );
   });
 

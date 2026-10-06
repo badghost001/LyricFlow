@@ -758,16 +758,7 @@ async function extractColorPalette(imgUrl) {
 }
 
 function forceRecalculateDragRegions() {
-  const dragHandles = document.querySelectorAll('.drag-handle');
-  dragHandles.forEach(el => {
-    el.style.webkitAppRegion = 'none';
-  });
-  document.body.offsetHeight; // Force reflow
-  setTimeout(() => {
-    dragHandles.forEach(el => {
-      el.style.webkitAppRegion = 'drag';
-    });
-  }, 100);
+  // In Tauri v2, data-tauri-drag-region is handled natively; forced DOM reflow is unnecessary.
 }
 
 const ACCENT_COLOR_MAP = {

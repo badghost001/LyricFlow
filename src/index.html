@@ -38,6 +38,11 @@
     <script src="modules/kinetic/KineticShapeMorpher.js" defer></script>
     <script src="modules/kinetic/KineticColorEngine.js" defer></script>
     <script src="modules/kinetic/KineticTypographyEngine.js" defer></script>
+    <script src="modules/kinetic/CinematicConcept.js" defer></script>
+    <script src="modules/kinetic/CinematicMotif.js" defer></script>
+    <script src="modules/kinetic/CinematicComposition.js" defer></script>
+    <script src="modules/kinetic/CinematicTransition.js" defer></script>
+    <script src="modules/kinetic/CinematicScene.js" defer></script>
     <script src="modules/kinetic/KineticDirector.js" defer></script>
     <script src="modules/kinetic/KineticCanvasRenderer.js" defer></script>
     <script src="modules/share-card.js" defer></script>
@@ -69,6 +74,26 @@
     <div class="ambient-glow" id="ambient-glow">
       <div class="glow-orb orb-1" id="orb-1"></div>
       <div class="glow-orb orb-2" id="orb-2"></div>
+    </div>
+
+    <!-- Aesthetic Liquid Glass On-Entry Wallpaper Mode Selector Panel -->
+    <div id="wallpaper-mode-selector-panel" class="wallpaper-selector-panel" style="display: none;">
+      <div class="wallpaper-selector-glass">
+        <div class="wallpaper-selector-header">
+          <span class="wallpaper-selector-title">Wallpaper Mode</span>
+          <span class="wallpaper-selector-hint">Ctrl+Shift+C Switch Style • Ctrl+Shift+W Exit</span>
+        </div>
+        <div class="wallpaper-selector-options">
+          <button id="btn-wall-opt-cinematic" class="wallpaper-opt-btn active" data-style="cinematic">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            <span>Cinematic Lyrics</span>
+          </button>
+          <button id="btn-wall-opt-classic" class="wallpaper-opt-btn" data-style="style2">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
+            <span>Classic Split View</span>
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- Kinetic Video Player Stage (Active when body has .mode-kinetic) -->
@@ -106,7 +131,7 @@
           </select>
         </div>
         <div class="kinetic-divider"></div>
-        <button id="btn-kinetic-share" class="kinetic-btn kinetic-btn-share" title="Share Kinetic Card / Video (Ctrl+Shift+S)">
+        <button id="btn-kinetic-share" class="kinetic-btn kinetic-btn-share" title="Share Lyric Card (Coming Soon)">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
             <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
@@ -161,7 +186,7 @@
           <button id="btn-dynamic-island" title="Dynamic Island Mini Mode (Ctrl+Shift+D)" class="hud-btn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="10" rx="5" ry="5"/><circle cx="7" cy="12" r="1.5" fill="currentColor"/></svg>
           </button>
-          <button id="btn-cinematic-mode" title="Cinematic Lyrics Mode (Ctrl+Shift+C)" class="hud-btn active">
+          <button id="btn-cinematic-mode" title="Cinematic Lyrics Mode (Ctrl+Shift+C)" class="hud-btn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
             </svg>
@@ -631,12 +656,22 @@
         <!-- Lyrics Viewer -->
         <div class="lyrics-view" id="lyrics-viewport">
           <div class="cinematic-main-stage" id="cinematic-main-stage">
-            <button id="btn-cinematic-exit" class="cinematic-exit-btn" title="Exit Cinematic Mode (Ctrl+Shift+C / Esc)">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-              </svg>
-            </button>
+            <div class="cinematic-top-actions">
+              <button id="btn-cinematic-set-wallpaper" class="cinematic-wallpaper-btn" title="Set as Desktop Wallpaper (Ctrl+Shift+W)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                  <line x1="8" y1="21" x2="16" y2="21"></line>
+                  <line x1="12" y1="17" x2="12" y2="21"></line>
+                </svg>
+                <span>Set as Wallpaper</span>
+              </button>
+              <button id="btn-cinematic-exit" class="cinematic-exit-btn" title="Exit Cinematic Mode (Ctrl+Shift+C / Esc)">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
             <canvas id="cinematic-main-canvas"></canvas>
           </div>
           <div class="lyrics-scroll-container" id="lyrics-container">
@@ -724,7 +759,7 @@
             <button id="btn-reload-lyrics" class="widget-ctrl-btn" title="Find Alternative Lyrics / Reload (Ctrl+R)">
               <svg class="reload-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
             </button>
-            <button id="btn-share-lyric" class="widget-ctrl-btn" title="Share Lyric Card (Ctrl+Shift+S)">
+            <button id="btn-share-lyric" class="widget-ctrl-btn" title="Share Lyric Card (Coming Soon)">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
             </button>
             <button id="btn-prev" class="widget-ctrl-btn" title="Previous Track">
@@ -1363,8 +1398,17 @@
                 </button>
               </div>
 
-              <!-- Hidden backward-compat elements -->
-              <select id="select-wallpaper-style" style="display: none;"><option value="style2" selected>style2</option></select>
+              <div class="setting-row" id="setting-wallpaper-style-row">
+                <label>Wallpaper Presentation</label>
+                <div class="liquid-glass-bar" data-target="select-wallpaper-style">
+                  <button type="button" class="liquid-bar-segment active" data-val="cinematic">Cinematic Lyrics</button>
+                  <button type="button" class="liquid-bar-segment" data-val="style2">Classic Split View</button>
+                </div>
+                <select id="select-wallpaper-style" style="display: none;">
+                  <option value="cinematic" selected>Cinematic Lyrics</option>
+                  <option value="style2">Classic Split View</option>
+                </select>
+              </div>
               <select id="select-wallpaper-font-size" style="display: none;"><option value="32">32</option></select>
             </div>
           </div>
@@ -1523,23 +1567,23 @@
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
                     <span>Modes &amp; Overlays</span>
                   </div>
-                  <div class="shortcut-row">
+                  <div class="shortcut-row" data-shortcut-action="cinematic" role="button" tabindex="0" title="Click to toggle Cinematic Stage">
                     <span class="shortcut-row-label">Cinematic Stage</span>
                     <kbd class="kbd-badge system">Ctrl + Shift + C</kbd>
                   </div>
-                  <div class="shortcut-row">
+                  <div class="shortcut-row" data-shortcut-action="island" role="button" tabindex="0" title="Click to toggle Dynamic Island">
                     <span class="shortcut-row-label">Dynamic Island</span>
                     <kbd class="kbd-badge system">Ctrl + Shift + D</kbd>
                   </div>
-                  <div class="shortcut-row">
+                  <div class="shortcut-row" data-shortcut-action="wallpaper" role="button" tabindex="0" title="Click to toggle Wallpaper Mode">
                     <span class="shortcut-row-label">Wallpaper Mode</span>
                     <kbd class="kbd-badge system">Ctrl + Shift + W</kbd>
                   </div>
-                  <div class="shortcut-row">
+                  <div class="shortcut-row" data-shortcut-action="taskbar" role="button" tabindex="0" title="Click to toggle Taskbar Mode">
                     <span class="shortcut-row-label">Taskbar Mode</span>
                     <kbd class="kbd-badge system">Ctrl + Shift + B</kbd>
                   </div>
-                  <div class="shortcut-row">
+                  <div class="shortcut-row" data-shortcut-action="ghost" role="button" tabindex="0" title="Click to toggle Ghost Mode">
                     <span class="shortcut-row-label">Ghost Mode (Click Behind)</span>
                     <kbd class="kbd-badge system">` / Ctrl+Shift+G</kbd>
                   </div>
@@ -1550,19 +1594,19 @@
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path><polyline points="16 6 12 2 8 6"></polyline><line x1="12" y1="2" x2="12" y2="15"></line></svg>
                     <span>Lyrics &amp; Sharing</span>
                   </div>
-                  <div class="shortcut-row">
-                    <span class="shortcut-row-label">Share Card Studio</span>
+                  <div class="shortcut-row" data-shortcut-action="share" role="button" tabindex="0" title="Share Lyric Card (Coming Soon)">
+                    <span class="shortcut-row-label">Share Card Studio <span class="badge-coming-soon">Coming Soon</span></span>
                     <kbd class="kbd-badge navigation">Ctrl + Shift + S</kbd>
                   </div>
-                  <div class="shortcut-row">
+                  <div class="shortcut-row" data-shortcut-action="copy" role="button" tabindex="0" title="Click to copy active lyric text">
                     <span class="shortcut-row-label">Copy Active Lyric</span>
-                    <kbd class="kbd-badge navigation">Ctrl + Shift + C</kbd>
+                    <kbd class="kbd-badge navigation">Ctrl + Alt + C</kbd>
                   </div>
-                  <div class="shortcut-row">
+                  <div class="shortcut-row" data-shortcut-action="search" role="button" tabindex="0" title="Click to open Search Lyrics">
                     <span class="shortcut-row-label">Search Lyrics</span>
                     <kbd class="kbd-badge navigation">Ctrl + F</kbd>
                   </div>
-                  <div class="shortcut-row">
+                  <div class="shortcut-row" data-shortcut-action="refetch" role="button" tabindex="0" title="Click to refetch / cycle alternative lyrics">
                     <span class="shortcut-row-label">Refetch Alternative Lyrics</span>
                     <kbd class="kbd-badge navigation">Ctrl + R / F5</kbd>
                   </div>
@@ -1573,15 +1617,15 @@
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
                     <span>Playback &amp; Sync</span>
                   </div>
-                  <div class="shortcut-row">
+                  <div class="shortcut-row" data-shortcut-action="playpause" role="button" tabindex="0" title="Click to Play / Pause">
                     <span class="shortcut-row-label">Play / Pause</span>
                     <kbd class="kbd-badge playback">Ctrl + Alt + Space</kbd>
                   </div>
-                  <div class="shortcut-row">
+                  <div class="shortcut-row" data-shortcut-action="nextprev" role="button" tabindex="0" title="Click for Next Track">
                     <span class="shortcut-row-label">Next / Prev Song</span>
                     <kbd class="kbd-badge playback">Ctrl + Alt + → / ←</kbd>
                   </div>
-                  <div class="shortcut-row">
+                  <div class="shortcut-row" data-shortcut-action="nudgesync" role="button" tabindex="0" title="Click to adjust sync offset">
                     <span class="shortcut-row-label">Nudge Sync Offset (±100ms)</span>
                     <kbd class="kbd-badge playback">Shift + Arrows</kbd>
                   </div>
@@ -1633,6 +1677,53 @@
       <div id="share-card-modal" class="share-card-modal">
         <div class="share-modal-backdrop" id="share-modal-backdrop"></div>
         <div class="share-modal-dialog">
+          <!-- Luxury "Coming Soon" Experience Overlay -->
+          <div class="share-coming-soon-overlay" id="share-coming-soon-overlay">
+            <button type="button" class="share-cs-close-btn" id="btn-share-cs-close" title="Close (Esc)">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+            <div class="share-cs-badge">
+              <span class="share-cs-badge-dot"></span>
+              <span>COMING SOON</span>
+            </div>
+            <div class="share-cs-icon-halo">
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+              </svg>
+            </div>
+            <h2 class="share-cs-title">Lyric Share Studio</h2>
+            <p class="share-cs-subtitle">
+              Stunning lyric quote cards, animated kinetic stories, and high-resolution video exports for Apple Music, Spotify, and social media are currently in craftsmanship.
+            </p>
+            <div class="share-cs-features-grid">
+              <div class="share-cs-feature-card">
+                <div class="share-cs-feature-icon">✨</div>
+                <div class="share-cs-feature-title">Editorial Presets</div>
+                <div class="share-cs-feature-desc">Glass box, classic vinyl, &amp; poster designs</div>
+              </div>
+              <div class="share-cs-feature-card">
+                <div class="share-cs-feature-icon">🎬</div>
+                <div class="share-cs-feature-title">Kinetic Stories</div>
+                <div class="share-cs-feature-desc">Animated MP4 video stories synced to lyrics</div>
+              </div>
+              <div class="share-cs-feature-card">
+                <div class="share-cs-feature-icon">📐</div>
+                <div class="share-cs-feature-title">Multi-Format</div>
+                <div class="share-cs-feature-desc">9:16 Story, 1:1 Square, 4:5 Feed &amp; 16:9 Landscape</div>
+              </div>
+              <div class="share-cs-feature-card">
+                <div class="share-cs-feature-icon">💎</div>
+                <div class="share-cs-feature-title">4K Ultra-HD</div>
+                <div class="share-cs-feature-desc">Razor-sharp rasterization ready for Instagram &amp; X</div>
+              </div>
+            </div>
+            <div class="share-cs-actions">
+              <button type="button" class="share-cs-dismiss-btn" id="btn-share-cs-dismiss">
+                <span>Got It</span>
+              </button>
+            </div>
+          </div>
           <div class="share-modal-header">
             <div class="share-modal-title">
               <div class="share-modal-icon-badge">

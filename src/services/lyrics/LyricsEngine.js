@@ -176,7 +176,7 @@
         // Prevent premature cutoff: do not advance to next line while current line's vocal is still singing
         // unless the next line's words have actually started.
         const switchPoint = nextLine
-          ? Math.max(curVocalEnd, Math.min(nextLine.start, nextVocalStart))
+          ? ((curVocalEnd <= nextVocalStart) ? Math.max(curVocalEnd, Math.min(nextLine.start, nextVocalStart)) : nextVocalStart)
           : (curVocalEnd + 2.0);
 
         const isPastStart = time >= curLine.start;

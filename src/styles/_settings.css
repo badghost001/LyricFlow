@@ -549,8 +549,30 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 0;
+  padding: 6px 8px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
+  user-select: none;
+}
+
+.shortcut-row:hover {
+  background: rgba(255, 255, 255, 0.08);
+  transform: translateX(2px);
+}
+
+.shortcut-row:active {
+  transform: scale(0.99);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+[data-theme="light"] .shortcut-row:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="light"] .shortcut-row:active {
+  background: rgba(0, 0, 0, 0.08);
 }
 
 .shortcut-row:last-child {
@@ -565,6 +587,21 @@
 
 [data-theme="light"] .shortcut-row-label {
   color: rgba(0, 0, 0, 0.8);
+}
+
+.badge-coming-soon {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(29, 185, 84, 0.15);
+  color: #1ed760;
+  border: 1px solid rgba(29, 185, 84, 0.3);
+  margin-left: 6px;
+  vertical-align: middle;
 }
 
 .kbd-badge {

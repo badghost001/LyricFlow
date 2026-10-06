@@ -116,7 +116,7 @@
   class LyricsPlusService {
     constructor(options = {}) {
       this.endpoint = options.endpoint || API_ENDPOINT;
-      this.timeoutMs = options.timeoutMs || 8000;
+      this.timeoutMs = options.timeoutMs || 2500;
     }
 
     /**

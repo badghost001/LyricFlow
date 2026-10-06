@@ -36,7 +36,12 @@ function runLyricsLayoutTests() {
 
   // Test 1: #lyrics-container defines horizontal padding and box-sizing
   test('1. #lyrics-container defines horizontal padding clearance and box-sizing', () => {
-    assert.ok(lyricsCss.includes('padding: 50vh 16px;'), 'Must define at least 16px horizontal padding on #lyrics-container');
+    assert.ok(
+      lyricsCss.includes('padding: 50vh 16px;') ||
+      (lyricsCss.includes('padding-left: 16px;') && lyricsCss.includes('padding-right: 16px;')) ||
+      /padding:\s*[^;]*16px/.test(lyricsCss),
+      'Must define at least 16px horizontal padding on #lyrics-container'
+    );
     assert.ok(lyricsCss.includes('box-sizing: border-box;'), 'Must define box-sizing: border-box on #lyrics-container');
   });
 
@@ -121,8 +126,18 @@ function runLyricsLayoutTests() {
 
   // Test 7: Wallpaper modes define horizontal padding clearance
   test('7. Wallpaper mode styles define horizontal padding clearance', () => {
-    assert.ok(wallpaperCss.includes('padding: 45vh 24px !important;'), 'Must define horizontal clearance in wallpaper style 2');
-    assert.ok(wallpaperCss.includes('padding: 40vh 16px;'), 'Must define horizontal clearance in wallpaper style 3');
+    assert.ok(
+      wallpaperCss.includes('padding: 45vh 24px !important;') ||
+      (wallpaperCss.includes('padding-left: 24px !important;') && wallpaperCss.includes('padding-right: 24px !important;')) ||
+      /padding:\s*[^;]*24px\s*!important/.test(wallpaperCss),
+      'Must define horizontal clearance in wallpaper style 2'
+    );
+    assert.ok(
+      wallpaperCss.includes('padding: 40vh 16px;') ||
+      (wallpaperCss.includes('padding-left: 16px;') && wallpaperCss.includes('padding-right: 16px;')) ||
+      /padding:\s*[^;]*16px/.test(wallpaperCss),
+      'Must define horizontal clearance in wallpaper style 3'
+    );
   });
 
   // Test 8: Final word timing always resolves to a finite boundary

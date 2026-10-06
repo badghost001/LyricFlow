@@ -20,6 +20,7 @@ dist-ssr
 *.suo
 *.ntvs*
 *.njsproj
-*.sln
 *.sw?
 .agents/
+.agent/
+scratch/

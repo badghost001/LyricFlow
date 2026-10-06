@@ -392,12 +392,12 @@ function runEnhancedLrcSyncTests() {
     assert.ok(rendererCode.includes('requestAnimationFrame(updatePlayhead)'), 'Must refresh playhead frame on pause');
   });
 
-  // Test 26: renderer.js handlePlaybackData incorporates drift convergence for drift > 80ms
-  test('26. renderer.js handlePlaybackData incorporates drift convergence for drift > 80ms', () => {
+  // Test 26: renderer.js handlePlaybackData incorporates drift convergence for drift > 20ms
+  test('26. renderer.js handlePlaybackData incorporates drift convergence for drift > 20ms', () => {
     const fs = require('fs');
     const path = require('path');
     const rendererCode = fs.readFileSync(path.join(__dirname, '../src/renderer.js'), 'utf8');
-    assert.ok(rendererCode.includes('absDrift > 80'), 'Must contain 80ms threshold for smooth drift convergence');
+    assert.ok(rendererCode.includes('absDrift > 20'), 'Must contain 20ms threshold for smooth drift convergence');
     assert.ok(rendererCode.includes('currentProgress - adjustment'), 'Must smoothly adjust currentProgress toward reported position');
   });
 

@@ -30,7 +30,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      white-space: nowrap;
+      white-space: pre;
       font-size: 13px;
       font-weight: 500;
       color: #ffffff;
@@ -58,6 +58,15 @@
       transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
       display: inline-block;
       pointer-events: auto;
+    }
+
+    .tb-word-space {
+      display: inline-block;
+      width: 0.32em;
+      min-width: 3px;
+      flex-shrink: 0;
+      pointer-events: none;
+      user-select: none;
     }
 
     .tb-lyric-word.lyric-word-active {
@@ -125,13 +134,22 @@
     body.pos-right #tb-lyric {
       writing-mode: vertical-rl;
       text-orientation: mixed;
-      white-space: nowrap;
+      white-space: pre;
       left: 0;
       right: 0;
       top: 50%;
       bottom: auto;
       transform: translateY(-50%);
       padding: 8px 0;
+    }
+
+    body.pos-left .tb-word-space,
+    body.pos-right .tb-word-space {
+      display: inline-block;
+      width: auto;
+      height: 0.32em;
+      min-height: 3px;
+      flex-shrink: 0;
     }
 
     body.pos-left #tb-lyric {

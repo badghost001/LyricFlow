@@ -197,4 +197,43 @@ function computeBandRanges(sampleRate) {
   console.log("  ✓ 6. audio.rs verified to contain complete endpoint tracking and reconnection logic");
 }
 
-console.log("\nResults: 6/6 tests passed.\n");
+// Test 7: Verify renderer.js synchronizes visualizer state across all lifecycle events
+{
+  const rendererPath = path.join(__dirname, '..', 'src', 'renderer.js');
+  const rendererCode = fs.readFileSync(rendererPath, 'utf8');
+
+  // Verify syncAudioVisualizerState is called on mode transitions, sleep, wake, bootstrap, and playback changes
+  assert(rendererCode.includes('function bootstrapApp()'), "Must define bootstrapApp");
+  assert(rendererCode.includes('syncAudioVisualizerState();\n  console.log(\'[LF-STARTUP] Bootstrap completed.\');'), "bootstrapApp must synchronize visualizer state");
+  assert(rendererCode.includes('applyIslandVisualizerStyle(settings.islandVisualizerStyle || \'bars\');\n      syncAudioVisualizerState();'), "transitionToMode must synchronize on island entry");
+  assert(rendererCode.includes('isIslandSleeping = true;'), "Must handle island sleep");
+  assert(rendererCode.includes('syncAudioVisualizerState();\n}\n\nfunction wakeDynamicIsland()'), "sleepDynamicIsland must synchronize visualizer state");
+  assert(rendererCode.includes('document.body.classList.remove("island-sleeping");\n  syncAudioVisualizerState();'), "wakeDynamicIsland must synchronize visualizer state");
+  console.log("  ✓ 7. renderer.js hooks syncAudioVisualizerState across bootstrap, island transition, sleep, wake, and playback");
+}
+
+// Test 8: Verify checkVisualizerFallback settles visualizer to clean resting baseline without fake CSS animations
+{
+  const rendererPath = path.join(__dirname, '..', 'src', 'renderer.js');
+  const rendererCode = fs.readFileSync(rendererPath, 'utf8');
+
+  assert(rendererCode.includes('islandWave.classList.add("is-resting");'), "checkVisualizerFallback must add is-resting when audio is quiet or silent");
+  assert(rendererCode.includes('bar.style.transform = visStyle === \'dots\' ? \'scale(0.8) translateY(0px)\' : \'scaleY(0.14)\';'), "checkVisualizerFallback must settle bars to resting baseline");
+  assert(rendererCode.includes('islandWave.classList.remove("is-resting");'), "onAudioSpectrum must remove is-resting when live energy returns");
+  console.log("  ✓ 8. checkVisualizerFallback settles visualizer to resting baseline without fake canned animations");
+}
+
+// Test 9: Verify _dynamic_island.css provides resting baseline without fake canned animations
+{
+  const islandCssPath = path.join(__dirname, '..', 'src', 'styles', '_dynamic_island.css');
+  const islandCss = fs.readFileSync(islandCssPath, 'utf8');
+
+  assert(islandCss.includes('.island-wave-visualizer .wave-bar'), "Must style wave bars");
+  assert(islandCss.includes('.island-wave-visualizer.is-resting .wave-bar'), "Must style resting wave bars");
+  assert(!islandCss.includes('@keyframes appleEqBar1'), "Must not contain fake appleEqBar1 keyframes");
+  assert(!islandCss.includes('@keyframes appleDotBounce1'), "Must not contain fake appleDotBounce1 keyframes");
+  assert(islandCss.includes('body:not(.is-playing) .wave-bar'), "Must stop visualizer animations when paused");
+  console.log("  ✓ 9. _dynamic_island.css provides resting baseline styles and strictly eliminates fake canned keyframes");
+}
+
+console.log("\nResults: 9/9 tests passed.\n");

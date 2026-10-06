@@ -409,6 +409,63 @@ test('1f. All 7 shapes have unique icons and drawMorphedCard uses dynamic shape 
   assert.ok(heartCall, 'drawMorphedCard with shapeType heart must render ♥ seal');
 });
 
+test('1g. drawMorphedCard renders keyword illustration in card background using active concept', () => {
+  assert.strictEqual(ShapeMorpher.SHAPE_TO_CONCEPT.heart, 'love');
+  assert.strictEqual(ShapeMorpher.SHAPE_TO_CONCEPT.astroid, 'night');
+  assert.strictEqual(ShapeMorpher.SHAPE_TO_CONCEPT.clover, 'dream');
+  assert.strictEqual(ShapeMorpher.SHAPE_TO_CONCEPT.diamond, 'memory');
+
+  let motifCall = null;
+  const mockMotifEngine = {
+    drawMotif: (ctx, opts) => {
+      motifCall = opts;
+    }
+  };
+  const mockCtx = {
+    save: () => {},
+    restore: () => {},
+    beginPath: () => {},
+    roundRect: () => {},
+    fill: () => {},
+    stroke: () => {},
+    fillText: () => {}
+  };
+
+  // 1. With explicit lyric concept
+  ShapeMorpher.drawMorphedCard(mockCtx, {
+    shapeType: 'astroid',
+    progress: 1.0,
+    bounds: { x: 0, y: 0, width: 800, height: 600, cornerRadius: 24 },
+    concept: 'rain',
+    motifEngine: mockMotifEngine
+  });
+  assert.ok(motifCall, 'drawMotif must be called');
+  assert.strictEqual(motifCall.concept, 'rain', 'Motif concept must be rain');
+
+  // 2. Fallback to SHAPE_TO_CONCEPT mapping when concept not provided
+  motifCall = null;
+  ShapeMorpher.drawMorphedCard(mockCtx, {
+    shapeType: 'heart',
+    progress: 1.0,
+    bounds: { x: 0, y: 0, width: 800, height: 600, cornerRadius: 24 },
+    motifEngine: mockMotifEngine
+  });
+  assert.ok(motifCall, 'drawMotif must be called with mapped concept');
+  assert.strictEqual(motifCall.concept, 'love', 'Heart shapeType must map to love concept illustration');
+
+  // 3. When hasActiveMotifLayer is true, watermark in card background is skipped to avoid duplication
+  motifCall = null;
+  ShapeMorpher.drawMorphedCard(mockCtx, {
+    shapeType: 'astroid',
+    progress: 1.0,
+    bounds: { x: 0, y: 0, width: 800, height: 600, cornerRadius: 24 },
+    concept: 'night',
+    motifEngine: mockMotifEngine,
+    hasActiveMotifLayer: true
+  });
+  assert.strictEqual(motifCall, null, 'When hasActiveMotifLayer is true, background watermark must not duplicate foreground motif');
+});
+
 test('5b. KineticCanvasRenderer exposes triggerShapePreview and animates preview morph', () => {
   const mockCanvas = { getContext: () => ({ fillStyle: '', fillRect: () => {}, save: () => {}, restore: () => {}, beginPath: () => {}, roundRect: () => {}, fill: () => {}, stroke: () => {}, fillText: () => {} }) };
   const renderer = new KineticCanvasRenderer(mockCanvas, { width: 720, height: 1280 });

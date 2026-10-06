@@ -108,25 +108,9 @@ body.wallpaper-mode.wallpaper-style-2 .app-container {
 body.wallpaper-mode.wallpaper-style-2 .wallpaper-album-bg {
   display: block;
   opacity: 1 !important;
-  filter: blur(80px) saturate(2) brightness(0.45);
-  transform: scale(1.15);
-  animation: appleMusicBgPan 30s infinite alternate ease-in-out;
-}
-
-body.wallpaper-mode.wallpaper-style-2.bg-style-fluid .fluid-mesh-canvas {
-  display: block !important;
-  opacity: 1 !important;
-  z-index: -2 !important;
-}
-
-body.wallpaper-mode.wallpaper-style-2.bg-style-fluid .wallpaper-album-bg {
-  display: none !important;
-}
-
-@keyframes appleMusicBgPan {
-  0% { transform: scale(1.15) translate(0, 0); }
-  50% { transform: scale(1.25) translate(-2%, 2%); }
-  100% { transform: scale(1.15) translate(2%, -2%); }
+  filter: blur(32px) saturate(1.8) brightness(0.45);
+  transform: scale(1.08) translate3d(0, 0, 0);
+  will-change: opacity;
 }
 
 body.wallpaper-mode.wallpaper-style-2 #screen-lyrics {
@@ -153,6 +137,22 @@ body.wallpaper-mode.wallpaper-style-2 .wallpaper-now-playing {
   flex-shrink: 0 !important;
   width: 100% !important;
   max-width: 400px !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+body.wallpaper-mode.wallpaper-style-2 .cinematic-main-stage {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+body.wallpaper-mode.wallpaper-style-2 .lyrics-scroll-container,
+body.wallpaper-mode.wallpaper-style-2 #lyrics-container {
+  display: block !important;
+  opacity: 1 !important;
+  visibility: visible !important;
 }
 
 body.wallpaper-mode .wallpaper-art-shell {
@@ -221,15 +221,23 @@ body.wallpaper-mode .wallpaper-track-artist {
 }
 
 body.wallpaper-mode.wallpaper-style-2 .lyrics-view {
+  display: flex !important;
+  position: relative !important;
+  inset: auto !important;
   width: 100% !important;
   height: 100% !important;
   min-width: 0 !important;
+  overflow: hidden !important;
+  z-index: 2 !important;
   -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%) !important;
   mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%) !important;
 }
 
 body.wallpaper-mode.wallpaper-style-2 #lyrics-container {
-  padding: 45vh 24px !important;
+  padding-top: 40vh !important;
+  padding-bottom: 14vh !important;
+  padding-left: 24px !important;
+  padding-right: 24px !important;
   width: 100% !important;
   box-sizing: border-box !important;
 }
@@ -337,7 +345,10 @@ body.wallpaper-style-3 #lyrics-mask {
 }
 
 body.wallpaper-style-3 #lyrics-container {
-  padding: 40vh 16px;
+  padding-top: 38vh;
+  padding-bottom: 12vh;
+  padding-left: 16px;
+  padding-right: 16px;
   box-sizing: border-box;
 }
 
@@ -399,11 +410,11 @@ body.wallpaper-style-3.has-beat-bloom .lyric-line.active {
     0 2px 24px rgba(0, 0, 0, 0.85),
     0 0 16px rgba(0, 0, 0, 0.95),
     0 4px 30px rgba(0, 0, 0, 0.5) !important;
-  transition: transform 0.08s cubic-bezier(0.1, 0.9, 0.2, 1), text-shadow 0.12s ease-out !important;
+  transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.25, 1), text-shadow 0.28s cubic-bezier(0.2, 0.8, 0.25, 1) !important;
 }
 
 body.wallpaper-mode .lyric-word.lyric-word-active {
-  transition: transform 0.18s cubic-bezier(0.175, 0.885, 0.32, 1.25), color 0.18s ease !important;
+  transition: transform 0.20s cubic-bezier(0.175, 0.885, 0.32, 1.25), color 0.20s ease !important;
 }
 
 body.wallpaper-mode.has-beat-bloom.wbw-active .lyric-line.active .lyric-word.lyric-word-active,
@@ -413,7 +424,7 @@ body.wallpaper-mode.wallpaper-style-2.has-beat-bloom.wbw-active .lyric-line.acti
     0 0 var(--wb-bloom-glow, 18px) rgba(var(--art-color-1-rgb, 255, 255, 255), var(--wb-bloom-alpha, 0.85)),
     0 0 calc(var(--wb-bloom-glow, 18px) * 2.2) rgba(var(--art-color-2-rgb, 56, 189, 248), calc(var(--wb-bloom-alpha, 0.85) * 0.85)),
     0 4px 22px rgba(0, 0, 0, 0.9) !important;
-  transition: transform 0.08s cubic-bezier(0.1, 0.9, 0.2, 1), text-shadow 0.12s ease-out !important;
+  transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.25, 1), text-shadow 0.28s cubic-bezier(0.2, 0.8, 0.25, 1) !important;
 }
 
 @media (max-width: 900px) {
@@ -455,5 +466,167 @@ body.wallpaper-mode #wallpaper-album-bg-video {
 
 body.wallpaper-mode.custom-bg-active #wallpaper-album-bg-video {
   display: none !important;
+}
+
+/* ==========================================================
+   CINEMATIC WALLPAPER MODE & LIQUID GLASS SELECTOR PANEL
+   ========================================================== */
+
+/* Fullscreen Cinematic Wallpaper Presentation (WorkerW) */
+body.wallpaper-mode.wallpaper-style-cinematic {
+  background-color: #050507 !important;
+  background: #050507 !important;
+}
+
+body.wallpaper-mode.wallpaper-style-cinematic .wallpaper-now-playing,
+body.wallpaper-mode.wallpaper-style-cinematic .lyrics-scroll-container,
+body.wallpaper-mode.wallpaper-style-cinematic #lyrics-container,
+body.wallpaper-mode.wallpaper-style-cinematic .cinematic-exit-btn,
+body.wallpaper-mode.wallpaper-style-cinematic .cinematic-wallpaper-btn,
+body.wallpaper-mode.wallpaper-style-cinematic #btn-cinematic-exit,
+body.wallpaper-mode.wallpaper-style-cinematic #btn-cinematic-set-wallpaper {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+body.wallpaper-mode.wallpaper-style-cinematic #screen-lyrics {
+  display: block !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+body.wallpaper-mode .cinematic-main-stage {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+body.wallpaper-mode.wallpaper-style-cinematic .lyrics-view {
+  display: block !important;
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  -webkit-mask-image: none !important;
+  mask-image: none !important;
+  overflow: visible !important;
+  z-index: 1 !important;
+}
+
+body.wallpaper-mode.wallpaper-style-cinematic .cinematic-main-stage {
+  display: flex !important;
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 2 !important;
+  opacity: 1 !important;
+  background: transparent !important;
+  pointer-events: none !important;
+  border: none !important;
+}
+
+body.wallpaper-mode.wallpaper-style-cinematic #cinematic-main-canvas {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+}
+
+/* On-Entry Aesthetic Liquid Glass Wallpaper Style Selector Panel */
+.wallpaper-selector-panel {
+  position: fixed;
+  top: 26px;
+  left: 50%;
+  transform: translateX(-50%) translateY(-12px);
+  z-index: 999999;
+  pointer-events: auto;
+  opacity: 0;
+  transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1), transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.wallpaper-selector-panel.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.wallpaper-selector-glass {
+  background: rgba(18, 18, 24, 0.85);
+  backdrop-filter: blur(36px) saturate(200%);
+  -webkit-backdrop-filter: blur(36px) saturate(200%);
+  border: 1.5px solid rgba(255, 255, 255, 0.18);
+  border-radius: 20px;
+  padding: 10px 16px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.75), 0 0 20px rgba(29, 185, 84, 0.15), inset 0 1px 1px rgba(255, 255, 255, 0.25);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.wallpaper-selector-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0 4px;
+}
+
+.wallpaper-selector-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.wallpaper-selector-hint {
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.08);
+  padding: 2px 7px;
+  border-radius: 5px;
+}
+
+.wallpaper-selector-options {
+  display: flex;
+  gap: 8px;
+}
+
+.wallpaper-opt-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.8);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.22s ease;
+  outline: none;
+}
+
+.wallpaper-opt-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.28);
+  transform: translateY(-1px);
+}
+
+.wallpaper-opt-btn.active {
+  background: rgba(29, 185, 84, 0.28);
+  border-color: rgba(29, 185, 84, 0.75);
+  color: #ffffff;
+  box-shadow: 0 0 16px rgba(29, 185, 84, 0.45);
 }
 

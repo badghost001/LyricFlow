@@ -13,6 +13,13 @@ pub struct LyricBounds {
 static TASKBAR_MODE_ACTIVE: AtomicBool = AtomicBool::new(false);
 static TASKBAR_DRAGGING: AtomicBool = AtomicBool::new(false);
 static TASKBAR_IS_CLICKTHROUGH: AtomicBool = AtomicBool::new(true);
+pub static WALLPAPER_MODE_ACTIVE: AtomicBool = AtomicBool::new(false);
+static WALLPAPER_FOCUS_MONITOR_ACTIVE: AtomicBool = AtomicBool::new(false);
+static WALLPAPER_FOCUS_MONITOR_SPAWNED: AtomicBool = AtomicBool::new(false);
+
+pub fn is_wallpaper_mode_active() -> bool {
+    WALLPAPER_MODE_ACTIVE.load(Ordering::SeqCst)
+}
 
 fn get_lyric_bounds() -> &'static Mutex<Option<LyricBounds>> {
     static CELL: OnceLock<Mutex<Option<LyricBounds>>> = OnceLock::new();
@@ -812,6 +819,7 @@ mod workerw {
 pub async fn set_wallpaper_mode(app: AppHandle, enabled: bool, monitor_target: Option<String>) -> Result<(), String> {
     use tauri::Emitter;
     crate::log_to_file(&format!("[Wallpaper Command] set_wallpaper_mode(enabled={}) called", enabled));
+    WALLPAPER_MODE_ACTIVE.store(enabled, Ordering::SeqCst);
 
     if let Some(main_win) = app.get_webview_window("main") {
         #[cfg(target_os = "windows")]
@@ -884,11 +892,76 @@ pub async fn set_wallpaper_mode(app: AppHandle, enabled: bool, monitor_target: O
                 workerw::attach_to_workerw(hwnd);
                 let _ = main_win.set_ignore_cursor_events(true);
                 let _ = main_win.show();
+
+                // 5. Spawn background monitor thread to detect desktop focus shifts
+                // When wallpaper is not focused (user is in other apps/games), canvas suspends to drop GPU to 0%
+                WALLPAPER_FOCUS_MONITOR_ACTIVE.store(true, Ordering::SeqCst);
+                if !WALLPAPER_FOCUS_MONITOR_SPAWNED.swap(true, Ordering::SeqCst) {
+                    let app_focus = app.clone();
+                    std::thread::Builder::new()
+                        .name("wallpaper-focus-monitor".to_string())
+                        .spawn(move || {
+                            let mut last_focused: Option<bool> = None;
+                            while WALLPAPER_FOCUS_MONITOR_ACTIVE.load(Ordering::SeqCst) && WALLPAPER_MODE_ACTIVE.load(Ordering::SeqCst) {
+                                std::thread::sleep(std::time::Duration::from_millis(250));
+                                if !WALLPAPER_FOCUS_MONITOR_ACTIVE.load(Ordering::SeqCst) || !WALLPAPER_MODE_ACTIVE.load(Ordering::SeqCst) {
+                                    break;
+                                }
+                                #[cfg(target_os = "windows")]
+                                {
+                                    use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetClassNameW, IsZoomed};
+                                    let is_focused = unsafe {
+                                        let fg = GetForegroundWindow();
+                                        if fg.0.is_null() || fg.is_invalid() {
+                                            true
+                                        } else {
+                                            let mut class_buf = [0u16; 256];
+                                            let len = GetClassNameW(fg, &mut class_buf);
+                                            if len > 0 {
+                                                let class_name = String::from_utf16_lossy(&class_buf[..len as usize]);
+                                                let is_desktop_shell = class_name == "Progman"
+                                                    || class_name == "WorkerW"
+                                                    || class_name == "Shell_TrayWnd"
+                                                    || class_name == "Shell_SecondaryTrayWnd"
+                                                    || class_name == "SysListView32"
+                                                    || class_name == "Windows.UI.Core.CoreWindow";
+                                                if is_desktop_shell {
+                                                    true
+                                                } else {
+                                                    // Suspend wallpaper rendering only if the active foreground app is fully maximized
+                                                    !IsZoomed(fg).as_bool()
+                                                }
+                                            } else {
+                                                true
+                                            }
+                                        }
+                                    };
+                                    if last_focused != Some(is_focused) {
+                                        last_focused = Some(is_focused);
+                                        let _ = app_focus.emit("wallpaper-focus-changed", is_focused);
+                                    }
+                                }
+                            }
+                            WALLPAPER_FOCUS_MONITOR_SPAWNED.store(false, Ordering::SeqCst);
+                            let _ = app_focus.emit("wallpaper-focus-changed", true);
+                        })
+                        .ok();
+                }
+
+                // Global wallpaper exit shortcut is Ctrl+Shift+W
             } else {
+                WALLPAPER_FOCUS_MONITOR_ACTIVE.store(false, Ordering::SeqCst);
+                let _ = app.emit("wallpaper-focus-changed", true);
+
                 // 1. Detach from WorkerW
                 workerw::detach_from_workerw(hwnd);
 
-                // 2. Restore normal window mode and position
+                // 2. Hide wallpaper-hud escape pill
+                if let Some(hud_win) = app.get_webview_window("wallpaper-hud") {
+                    let _ = hud_win.hide();
+                }
+
+                // 3. Restore normal window mode and position
                 let _ = main_win.set_ignore_cursor_events(false);
                 let _ = main_win.set_skip_taskbar(false);
                 let _ = main_win.set_always_on_top(false);
@@ -899,8 +972,12 @@ pub async fn set_wallpaper_mode(app: AppHandle, enabled: bool, monitor_target: O
                 if let (Some((px, py)), Some((sw, sh))) = (saved_pos, saved_size) {
                     let _ = main_win.set_size(tauri::PhysicalSize::new(sw, sh));
                     let _ = main_win.set_position(tauri::PhysicalPosition::new(px, py));
+                } else if let Some(bounds) = crate::commands::config::load_saved_window_bounds() {
+                    let _ = main_win.set_size(tauri::PhysicalSize::new(bounds.width, bounds.height));
+                    let _ = main_win.set_position(tauri::PhysicalPosition::new(bounds.x, bounds.y));
                 } else {
-                    let _ = main_win.set_size(tauri::PhysicalSize::new(780, 560));
+                    let scale = main_win.scale_factor().unwrap_or(1.0);
+                    let _ = main_win.set_size(tauri::PhysicalSize::new((960.0 * scale) as u32, (600.0 * scale) as u32));
                     let _ = main_win.center();
                 }
 
@@ -929,6 +1006,9 @@ pub async fn start_wallpaper_edit(app: AppHandle) -> Result<(), String> {
         let _ = main_win.set_always_on_top(true);
         let _ = main_win.set_ignore_cursor_events(false);
         let _ = main_win.set_focus();
+    }
+    if let Some(hud_win) = app.get_webview_window("wallpaper-hud") {
+        let _ = hud_win.hide();
     }
     let _ = app.emit("wallpaper-edit-started", ());
     Ok(())
@@ -1291,8 +1371,8 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
         let saved_size = SAVED_ISLAND_MAIN_SIZE.get_or_init(|| Mutex::new(None)).lock().ok().and_then(|mut g| g.take());
 
         let scale = window.scale_factor().unwrap_or(1.0);
-        let default_w = (780.0 * scale) as u32;
-        let default_h = (560.0 * scale) as u32;
+        let default_w = (960.0 * scale) as u32;
+        let default_h = (600.0 * scale) as u32;
         let min_w = (680.0 * scale) as u32;
         let min_h = (480.0 * scale) as u32;
 
@@ -1300,6 +1380,10 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
             let w = if sw < min_w { default_w } else { sw };
             let h = if sh < min_h { default_h } else { sh };
             (px, py, w, h)
+        } else if let Some(bounds) = crate::commands::config::load_saved_window_bounds() {
+            let w = if bounds.width < min_w { default_w } else { bounds.width };
+            let h = if bounds.height < min_h { default_h } else { bounds.height };
+            (bounds.x, bounds.y, w, h)
         } else {
             (100, 100, default_w, default_h)
         };
@@ -1351,73 +1435,82 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
 
 #[tauri::command]
 pub fn reset_window_size(window: WebviewWindow) -> Result<(), String> {
+    if WALLPAPER_MODE_ACTIVE.load(Ordering::SeqCst) {
+        crate::log_to_file("[Window Command] reset_window_size ignored: WALLPAPER_MODE_ACTIVE is true");
+        return Ok(());
+    }
     let scale = window.scale_factor().unwrap_or(1.0);
-    let sw = (780.0 * scale) as u32;
-    let sh = (560.0 * scale) as u32;
+    let sw = (960.0 * scale) as u32;
+    let sh = (600.0 * scale) as u32;
     let _ = window.set_resizable(true);
     let _ = window.set_size(tauri::PhysicalSize::new(sw, sh));
     let _ = window.center();
     let _ = window.show();
     let _ = window.unminimize();
     let _ = window.set_focus();
+
+    if let Ok(pos) = window.outer_position() {
+        let _ = crate::commands::config::save_window_bounds(crate::commands::config::WindowBounds {
+            x: pos.x,
+            y: pos.y,
+            width: sw,
+            height: sh,
+        });
+        crate::log_to_file(&format!("[Window Bounds] Saved reset bounds: pos=({}, {}), size=({}x{})", pos.x, pos.y, sw, sh));
+    }
     Ok(())
 }
 
-static SAVED_CINEMATIC_MAIN_POS: OnceLock<Mutex<Option<(i32, i32)>>> = OnceLock::new();
-static SAVED_CINEMATIC_MAIN_SIZE: OnceLock<Mutex<Option<(u32, u32)>>> = OnceLock::new();
-
 #[tauri::command]
 pub async fn set_cinematic_mode(window: WebviewWindow, enabled: bool) -> Result<(), String> {
-    let scale = window.scale_factor().unwrap_or(1.0);
+    if WALLPAPER_MODE_ACTIVE.load(Ordering::SeqCst) {
+        crate::log_to_file("[Window Command] set_cinematic_mode ignored: WALLPAPER_MODE_ACTIVE is true");
+        return Ok(());
+    }
+    crate::log_to_file(&format!("[Window Command] set_cinematic_mode(enabled={}) — preserved stable window bounds", enabled));
+    use tauri::Emitter;
+    let _ = window.emit("cinematic-mode-changed", enabled);
+    Ok(())
+}
 
-    if enabled {
-        let pos_lock = SAVED_CINEMATIC_MAIN_POS.get_or_init(|| Mutex::new(None));
-        let size_lock = SAVED_CINEMATIC_MAIN_SIZE.get_or_init(|| Mutex::new(None));
+static PENDING_WINDOW_BOUNDS: OnceLock<Mutex<Option<(i32, i32, u32, u32)>>> = OnceLock::new();
+static SAVE_WINDOW_BOUNDS_DEBOUNCE_TIMER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
-        if let (Ok(pos), Ok(size)) = (window.outer_position(), window.inner_size()) {
-            if let Ok(mut p) = pos_lock.lock() {
-                if p.is_none() {
-                    *p = Some((pos.x, pos.y));
-                }
-            }
-            if let Ok(mut s) = size_lock.lock() {
-                if s.is_none() {
-                    *s = Some((size.width, size.height));
-                }
-            }
+pub fn queue_save_window_bounds(x: i32, y: i32, width: u32, height: u32) {
+    if let Ok(mut lock) = PENDING_WINDOW_BOUNDS.get_or_init(|| Mutex::new(None)).lock() {
+        *lock = Some((x, y, width, height));
+    }
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0);
+    SAVE_WINDOW_BOUNDS_DEBOUNCE_TIMER.store(now, Ordering::SeqCst);
+
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        let last = SAVE_WINDOW_BOUNDS_DEBOUNCE_TIMER.load(Ordering::SeqCst);
+        let cur_now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0);
+        if cur_now.saturating_sub(last) >= 450 {
+            flush_save_window_bounds();
         }
+    });
+}
 
-        // Expand to cinematic window size (~1260 x 860 logical pixels), clamped to monitor
-        let mut target_w = (1260.0 * scale) as u32;
-        let mut target_h = (860.0 * scale) as u32;
-        if let Ok(Some(monitor)) = window.current_monitor() {
-            let m_size = monitor.size();
-            target_w = target_w.min((m_size.width as f64 * 0.92) as u32);
-            target_h = target_h.min((m_size.height as f64 * 0.90) as u32);
-        }
-
-        let _ = window.set_resizable(true);
-        let _ = window.set_size(tauri::PhysicalSize::new(target_w, target_h));
-        let _ = window.center();
-    } else {
-        let pos_lock = SAVED_CINEMATIC_MAIN_POS.get_or_init(|| Mutex::new(None));
-        let size_lock = SAVED_CINEMATIC_MAIN_SIZE.get_or_init(|| Mutex::new(None));
-
-        let saved_pos = pos_lock.lock().ok().and_then(|mut p| p.take());
-        let saved_size = size_lock.lock().ok().and_then(|mut s| s.take());
-
-        if let (Some((x, y)), Some((w, h))) = (saved_pos, saved_size) {
-            let _ = window.set_size(tauri::PhysicalSize::new(w, h));
-            let _ = window.set_position(tauri::PhysicalPosition::new(x, y));
-        } else {
-            let def_w = (780.0 * scale) as u32;
-            let def_h = (560.0 * scale) as u32;
-            let _ = window.set_size(tauri::PhysicalSize::new(def_w, def_h));
-            let _ = window.center();
+pub fn flush_save_window_bounds() {
+    if let Ok(mut lock) = PENDING_WINDOW_BOUNDS.get_or_init(|| Mutex::new(None)).lock() {
+        if let Some((x, y, width, height)) = lock.take() {
+            let _ = crate::commands::config::save_window_bounds(crate::commands::config::WindowBounds {
+                x,
+                y,
+                width,
+                height,
+            });
+            crate::log_to_file(&format!("[Window Bounds] Persisted window: pos=({}, {}), size=({}x{})", x, y, width, height));
         }
     }
-
-    Ok(())
 }
 
 

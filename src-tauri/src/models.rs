@@ -45,6 +45,14 @@ pub struct SmtcPlaybackStatus {
     pub playback_rate: f64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MusicAppVolumeInfo {
+    pub volume_percent: u32,
+    pub is_muted: bool,
+    pub app_name: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct TrackMetadata {

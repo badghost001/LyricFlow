@@ -26,16 +26,26 @@
 
 ---
 
-## 🌟 What's New in v1.42.0
+## 🌟 What's New in v1.43.0
 
-- 🎤 **Real-Time Word-by-Word Karaoke Lyrics:** Syllable-by-syllable acoustic vocal tracking with progressive word illumination across the main overlay, Cinematic Mode, and Dynamic Island. Parses Enhanced LRC (`<mm:ss.xx>`) and YRC word timing with millisecond precision.
-- 🎬 **Immersive Kinetic & Cinematic Live Mode:** Turn your desktop into an art-directed music visualizer with horizontal widescreen typography, 1-to-3 word rapid rhythmic phrase cuts, and zero ambient blur distractions.
-- 📐 **Parametric Shape Morph Transitions:** 7 curated geometric shapes (*Astroid, Rosette, Clover, Diamond, Pill, Heart, and Editorial Seal*) that smoothly contract, rotate, and expand during musical breaks (`gap >= 1.8s`) right before upcoming vocals.
-- ⚡ **Enhanced LRC Word-by-Word Acoustic Synchronization:** Strict 1:1 acoustic playhead synchronization with zero artificial lead, clamped polling latency, and smooth anti-drift clock convergence.
-- 🔤 **Clean Punctuation & Typography Formatting:** Automated double-bracket stripping, contraction syllable preservation, clean Hanzi/Kana character spacing, and ad-lib formatting.
-- 🔄 **Dynamic Island Alternative Lyrics Refetch:** Instant right-click context menu and hover button to cycle through alternative lyric providers directly from the floating island pill.
-- 🛡️ **Zero-Distraction Stage & Resilient Transitions:** Complete suppression of resync buttons and ambient background bleed in cinematic view, with seamless track transitions that never get stuck on song headings.
-- 🚧 **Kinetic Share Card Export:** *(Under Active Development)* Kinetic typography video card export with dynamic shape morphs is currently under active development and preview testing.
+- 🖼️ **Dual Wallpaper Modes (Style 1 & Style 2):**
+  - **Cinematic Wallpaper (Style 1):** Fullscreen animated canvas typography and ambient reactive motifs pinned directly to your Windows desktop beneath your icons.
+  - **Apple Music Split-View Wallpaper (Style 2):** Left-side high-resolution artwork and metadata card paired with right-side smooth scrolling synchronized lyrics and progressive karaoke highlights.
+  - Quick toggle via `Ctrl+Shift+C` inside wallpaper mode or from the desktop Escape HUD.
+- 🚀 **Zero-Pop-In Startup Lyric Pre-Loading:**
+  - Track metadata and synchronized lyrics are now pre-loaded and rendered in the DOM behind the splash screen before it dissolves.
+  - Real-time startup progress indicator showing active track detection, lyric sync status, and stage composition.
+- 📐 **Canonical Golden Desktop Window Size (960 x 600):**
+  - Standardized on a 16:10 aspect ratio companion overlay (exactly 50% width on 1080p).
+  - Eliminates all jarring window resizing and snapping when switching between Classic and Cinematic modes.
+- 💾 **Window Position & Geometry Persistence (Respawn):**
+  - Remembers your custom window desktop coordinates and dimensions across restarts.
+  - Safe multi-monitor boundary clamping prevents windows from spawning off-screen if external monitors are disconnected.
+- 🏝️ **Dynamic Island Enhancements & Sound Source Volume:**
+  - Mouse wheel gestures over the island adjust active player volume with per-app HUD feedback.
+  - Complete isolation from wallpaper and cinematic dark themes for a crystal-clear floating glass aesthetic.
+- 🎬 **Kinetic Typography Dynamic Baseline Alignment:**
+  - Automatic optical baseline alignment for punch words and surrounding lyrics with zero overlaps or vertical jitter.
 
 ---
 

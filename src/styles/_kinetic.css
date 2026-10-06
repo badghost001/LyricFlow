@@ -172,10 +172,9 @@
    HORIZONTAL CINEMATIC MAIN APP STAGE (FULLSCREEN IMMERSIVE)
    ========================================================== */
 /* When cinematic view is active, ensure the app container, screens, and lyrics viewport completely strip borders, padding, shadows, and backdrop-filters so zero white blur or bleed-through occurs from the background */
-.cinematic-view-active #app-container,
-#app-container.cinematic-view-active,
-body.cinematic-view-active #app-container,
-body.cinematic-view-active {
+body.cinematic-view-active:not(.mode-dynamic-island):not(.wallpaper-mode):not(.taskbar-mode) #app-container,
+body:not(.mode-dynamic-island):not(.wallpaper-mode):not(.taskbar-mode) #app-container.cinematic-view-active,
+body.cinematic-view-active:not(.mode-dynamic-island):not(.wallpaper-mode):not(.taskbar-mode) {
   background: #000000 !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
@@ -222,8 +221,7 @@ body.cinematic-view-active .lyrics-view {
   transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.cinematic-view-active .cinematic-main-stage,
-body.cinematic-view-active .cinematic-main-stage {
+body.cinematic-view-active:not(.mode-dynamic-island):not(.wallpaper-mode) .cinematic-main-stage {
   position: absolute !important;
   inset: 0 !important;
   width: 100% !important;
@@ -233,6 +231,14 @@ body.cinematic-view-active .cinematic-main-stage {
   opacity: 1;
   pointer-events: auto;
   border: none !important;
+}
+
+body.mode-dynamic-island .cinematic-main-stage,
+body.mode-dynamic-island #cinematic-main-stage {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
 }
 
 /* Hide all surrounding HUD, bottom widgets, glow orbs, fluid mesh WebGL canvas, particle emitters, wallpaper art, resync buttons, and scroll container when cinematic mode is active */
@@ -263,6 +269,39 @@ body.cinematic-view-active .lyrics-scroll-container {
   opacity: 0 !important;
   visibility: hidden !important;
   pointer-events: none !important;
+}
+
+/* Wallpaper Mode Isolations (Overrides any cinematic hiding or black background) */
+body.wallpaper-mode .cinematic-main-stage {
+  background-color: transparent !important;
+  background: transparent !important;
+}
+
+body.wallpaper-mode:not(.wallpaper-style-cinematic) .cinematic-main-stage {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+body.wallpaper-mode.wallpaper-style-2 .lyrics-scroll-container,
+body.wallpaper-mode.wallpaper-style-2 #lyrics-container {
+  display: block !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+}
+
+body.wallpaper-mode.wallpaper-style-2 #wallpaper-album-bg {
+  display: block !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+body.wallpaper-mode.wallpaper-style-2 .wallpaper-now-playing {
+  display: flex !important;
+  opacity: 1 !important;
+  visibility: visible !important;
 }
 
 #cinematic-main-canvas {
@@ -307,5 +346,58 @@ body.cinematic-view-active .lyrics-scroll-container {
 .cinematic-exit-btn:active {
   transform: scale(0.95);
 }
+
+/* Cinematic Top-Right Actions Cluster (Wallpaper & Exit) */
+.cinematic-top-actions {
+  position: absolute;
+  top: 20px;
+  right: 22px;
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  -webkit-app-region: no-drag;
+}
+
+.cinematic-top-actions .cinematic-exit-btn {
+  position: static !important;
+  top: auto !important;
+  right: auto !important;
+}
+
+.cinematic-wallpaper-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 38px;
+  padding: 0 16px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: rgba(255, 255, 255, 0.9);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  outline: none;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  -webkit-app-region: no-drag;
+}
+
+.cinematic-wallpaper-btn:hover {
+  background: rgba(255, 255, 255, 0.24);
+  border-color: rgba(255, 255, 255, 0.42);
+  color: #ffffff;
+  transform: translateY(-1px) scale(1.03);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.55);
+}
+
+.cinematic-wallpaper-btn:active {
+  transform: scale(0.96);
+}
+
 
 

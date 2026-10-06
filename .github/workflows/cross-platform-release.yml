@@ -61,7 +61,32 @@ jobs:
           projectPath: "./src-tauri"
           tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
           releaseName: "LyricFlow ${{ github.ref_name }}"
-          releaseBody: "LyricFlow Rust (Tauri v2) Release"
+          releaseBody: |
+            ### 🌟 LyricFlow ${{ github.ref_name }} — Wallpaper Modes, Startup Lyric Pre-Loading & Window Persistence
+
+            #### 🖼️ Dual Wallpaper Modes (Style 1 & Style 2)
+            - **Cinematic Wallpaper (Style 1):** Fullscreen animated canvas typography and ambient reactive motifs pinned directly to your Windows desktop beneath your icons.
+            - **Apple Music Split-View Wallpaper (Style 2):** Left-side high-resolution artwork and metadata card paired with right-side smooth scrolling synchronized lyrics and progressive karaoke highlights.
+            - Instant toggle via `Ctrl+Shift+C` in wallpaper mode or via the floating desktop Escape HUD.
+
+            #### 🚀 Zero-Pop-In Startup Lyric Pre-Loading
+            - Synchronized lyrics and artwork are pre-loaded behind the splash screen before it dissolves.
+            - Real-time startup progress indicator showing track detection, lyric sync status, and stage composition.
+
+            #### 📐 Canonical Golden Desktop Window Size (960 x 600)
+            - Standardized on a 16:10 aspect ratio companion overlay (exactly 50% width on 1080p).
+            - Eliminates all jarring window resizing and snapping when switching between Classic and Cinematic modes.
+
+            #### 💾 Window Position & Geometry Persistence (Respawn)
+            - Remembers custom window desktop coordinates and dimensions across app restarts.
+            - Multi-monitor boundary safety clamping prevents windows from spawning off-screen if external monitors are disconnected.
+
+            #### 🏝️ Dynamic Island Enhancements & Sound Source Volume
+            - Mouse wheel gestures over the island adjust active music source volume with per-app HUD feedback.
+            - Complete style isolation from wallpaper and cinematic themes for a crystal-clear floating glass aesthetic.
+
+            #### 🎬 Kinetic Typography Dynamic Baseline Alignment
+            - Automatic optical baseline alignment for punch words and surrounding lyrics with zero overlaps or vertical jitter.
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}

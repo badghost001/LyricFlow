@@ -41,6 +41,61 @@ pub fn save_config(config: serde_json::Value) -> Result<(), String> {
     Ok(())
 }
 
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, Debug)]
+pub struct WindowBounds {
+    pub x: i32,
+    pub y: i32,
+    pub width: u32,
+    pub height: u32,
+}
+
+pub fn save_window_bounds(bounds: WindowBounds) -> Result<(), String> {
+    let path = get_config_path();
+    let mut json: serde_json::Value = if path.exists() {
+        let data = fs::read_to_string(&path).unwrap_or_default();
+        serde_json::from_str(&data).unwrap_or_else(|_| serde_json::json!({}))
+    } else {
+        serde_json::json!({})
+    };
+    if !json.is_object() {
+        json = serde_json::json!({});
+    }
+    json["window"] = serde_json::json!({
+        "x": bounds.x,
+        "y": bounds.y,
+        "width": bounds.width,
+        "height": bounds.height,
+    });
+    let data = serde_json::to_string_pretty(&json).map_err(|e| e.to_string())?;
+    fs::write(&path, data).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+pub fn load_saved_window_bounds() -> Option<WindowBounds> {
+    let path = get_config_path();
+    if !path.exists() {
+        return None;
+    }
+    let data = fs::read_to_string(&path).ok()?;
+    let json: serde_json::Value = serde_json::from_str(&data).ok()?;
+    let win = json.get("window").or_else(|| json.get("window_bounds"))?;
+    let x = win.get("x")?.as_i64()? as i32;
+    let y = win.get("y")?.as_i64()? as i32;
+    let width = win.get("width")?.as_u64()? as u32;
+    let height = win.get("height")?.as_u64()? as u32;
+    Some(WindowBounds { x, y, width, height })
+}
+
+#[tauri::command]
+pub fn get_saved_window_bounds() -> Result<Option<WindowBounds>, String> {
+    Ok(load_saved_window_bounds())
+}
+
+#[tauri::command]
+pub fn set_saved_window_bounds(bounds: WindowBounds) -> Result<(), String> {
+    save_window_bounds(bounds)
+}
+
 #[tauri::command]
 pub fn reset_config() -> Result<Option<serde_json::Value>, String> {
     let path = get_config_path();

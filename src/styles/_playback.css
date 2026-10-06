@@ -635,11 +635,16 @@
 }
 
 .album-art-modal-media-wrapper {
-  width: min(380px, 78vw);
-  height: min(380px, 78vw);
-  border-radius: 22px;
+  max-width: min(560px, 85vw);
+  max-height: min(480px, 68vh);
+  width: max-content;
+  height: max-content;
+  border-radius: 20px;
   overflow: hidden;
   position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.18);
   box-shadow:
@@ -650,15 +655,18 @@
 
 .album-art-modal-img,
 .album-art-modal-video {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  max-width: min(560px, 85vw);
+  max-height: min(480px, 68vh);
+  width: auto;
+  height: auto;
+  object-fit: contain;
   display: block;
+  border-radius: inherit;
 }
 
 .album-art-modal-info {
   text-align: center;
-  max-width: min(380px, 78vw);
+  max-width: min(560px, 85vw);
   overflow: hidden;
 }
 

@@ -5,7 +5,8 @@
   "windows": [
     "main",
     "taskbar",
-    "edge-glow"
+    "edge-glow",
+    "wallpaper-hud"
   ],
   "permissions": [
     "core:default",

@@ -230,6 +230,24 @@ function sanitizeTaskbarHtml(rawHtml) {
         }
       }
     });
+
+    // Ensure whitespace text nodes between tb-lyric-word elements become tb-word-space elements
+    // so CSS flexbox will never collapse or drop them
+    const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, null);
+    const textNodes = [];
+    while (walker.nextNode()) textNodes.push(walker.currentNode);
+    for (const node of textNodes) {
+      if (node.nodeValue === ' ' || /^\s+$/.test(node.nodeValue)) {
+        const prev = node.previousElementSibling || node.previousSibling;
+        if (prev && prev.nodeType === 1 && prev.classList && prev.classList.contains('tb-lyric-word')) {
+          const spaceSpan = doc.createElement('span');
+          spaceSpan.className = 'tb-word-space';
+          spaceSpan.textContent = ' ';
+          node.parentNode.replaceChild(spaceSpan, node);
+        }
+      }
+    }
+
     return doc.body.innerHTML;
   } catch (_) {
     return '';
@@ -327,3 +345,11 @@ try {
     window.__TAURI__.event.emit('taskbar-mode-ready', {});
   }
 } catch (_) {}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    sanitizeTaskbarHtml,
+    handleTaskbarData,
+    handleTaskbarConfig
+  };
+}

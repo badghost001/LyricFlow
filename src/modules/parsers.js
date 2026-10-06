@@ -347,8 +347,10 @@ function parseLRC(lrcText) {
             lastW.duration = Math.max(50, lastW.endMs - lastW.timeMs);
           }
         } else {
-          lastW.endMs = Math.min(lastW.endMs || (lastW.timeMs + 1500), nextVocalStart);
-          lastW.duration = Math.max(100, lastW.endMs - lastW.timeMs);
+          if (nextVocalStart > lastW.timeMs) {
+            lastW.endMs = Math.max(lastW.timeMs + 350, Math.min(lastW.endMs || (lastW.timeMs + 1500), nextVocalStart));
+            lastW.duration = Math.max(100, lastW.endMs - lastW.timeMs);
+          }
         }
       }
       delete lastW._explicitEnd;
