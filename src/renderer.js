@@ -197,12 +197,13 @@ let lastUserSeekTimestamp = 0;
 let lastUserSeekTargetMs = 0;
 
 // Acoustic Lead Calibration (ms)
-// Set to 0 so internal playhead matches exact acoustic track timestamps without racing ahead.
-// Fine-tuning offset can still be adjusted by user via settings.syncOffsetMs.
+// Calibrated Desktop Acoustic Lead Offset:
+// Compensates for Windows WASAPI audio output buffer (~100-140ms) and Bluetooth queues
 const SPOTIFY_ACOUSTIC_LEAD_MS = 0;
 
 function getAcousticSyncProgress() {
-  return currentProgress + (settings.syncOffsetMs || 0) + SPOTIFY_ACOUSTIC_LEAD_MS;
+  const leadOffset = (settings.bluetoothAcousticLead ? 240 : (settings.acousticLeadMs != null ? settings.acousticLeadMs : 140));
+  return currentProgress + (settings.syncOffsetMs || 0) + SPOTIFY_ACOUSTIC_LEAD_MS + leadOffset;
 }
 
 function onTaskbarDragMove(e) {
@@ -2373,7 +2374,9 @@ function updateDynamicIslandLyric(targetIndex, lineData, syncProgress, isInstrum
         : getLyricWordEndMs(words, currentActiveWord, lineData, targetIndex);
       const wEnd = getLyricWordEndMs(words, currentActiveWord, lineData, targetIndex);
       const wDur = Math.max(50, wEnd - wStart);
-      currentActiveWordProgress = Math.min(1, Math.max(0, (syncProgress - wStart) / wDur));
+      const rawProgress = Math.min(1, Math.max(0, (syncProgress - wStart) / wDur));
+      const prevProg = parseFloat(spans[currentActiveWord]?.style.getPropertyValue('--word-progress') || '0');
+      currentActiveWordProgress = (isPlaying && rawProgress < prevProg) ? prevProg : rawProgress;
 
       activeWordSpan = spans[currentActiveWord];
       lastIslandActiveWordSpan = activeWordSpan;
@@ -3381,6 +3384,9 @@ function updateStudioSidebar(track, albumArtUrl) {
   const albumEl = document.getElementById("studio-track-album");
   const artImg = document.getElementById("studio-art-img");
   const artFallback = document.getElementById("studio-art-fallback");
+  const badgesRow = document.getElementById("studio-badges-row") || document.querySelector(".studio-badges-row");
+  const badgeProvider = document.getElementById("studio-badge-provider");
+  const badgeQuality = document.getElementById("studio-badge-quality");
   const badgeText = document.getElementById("studio-badge-text");
 
   if (!track) {
@@ -3389,6 +3395,18 @@ function updateStudioSidebar(track, albumArtUrl) {
     if (albumEl) albumEl.textContent = "";
     if (artImg) artImg.style.display = "none";
     if (artFallback) artFallback.style.display = "flex";
+    if (badgesRow) {
+      badgesRow.style.display = "none";
+      badgesRow.classList.remove("has-badges");
+    }
+    if (badgeProvider) {
+      badgeProvider.style.display = "none";
+      badgeProvider.classList.remove("is-confirmed");
+    }
+    if (badgeQuality) {
+      badgeQuality.style.display = "none";
+      badgeQuality.classList.remove("is-confirmed");
+    }
     return;
   }
 
@@ -3421,9 +3439,26 @@ function updateStudioSidebar(track, albumArtUrl) {
     if (artFallback) artFallback.style.display = "flex";
   }
 
-  if (badgeText) {
-    const isWbw = Boolean(lyrics && lyrics.length > 0 && lyrics[0].words && lyrics[0].words.length > 0);
-    badgeText.textContent = isWbw ? "Word-Synced" : (lyrics && lyrics.length > 0 ? "Synced" : "Live");
+  // Update Synced badge ONLY if state is confirmed (lyrics loaded and synced Level 2 or 3)
+  const isConfirmedSynced = Boolean(lyrics && lyrics.length > 0 && currentSourceLevel >= 2);
+  if (isConfirmedSynced && badgeProvider && badgeText) {
+    const isWbw = currentSourceLevel === 3 || Boolean(lyrics[0].words && lyrics[0].words.length > 0);
+    badgeText.textContent = isWbw ? "Word-Synced" : "Synced";
+    badgeProvider.style.display = "inline-flex";
+    badgeProvider.classList.add("is-confirmed");
+  } else if (badgeProvider) {
+    badgeProvider.style.display = "none";
+    badgeProvider.classList.remove("is-confirmed");
+  }
+
+  // Check if quality badge is confirmed
+  const isQualityVisible = Boolean(badgeQuality && badgeQuality.classList.contains("is-confirmed"));
+
+  // Show badges row only if at least one badge is confirmed and visible
+  if (badgesRow) {
+    const shouldShowRow = Boolean(isConfirmedSynced || isQualityVisible);
+    badgesRow.style.display = shouldShowRow ? "flex" : "none";
+    badgesRow.classList.toggle("has-badges", shouldShowRow);
   }
 }
 window.updateStudioSidebar = updateStudioSidebar;
@@ -9676,8 +9711,21 @@ function handleEmptyPlayback() {
     }
   } catch (e) {}
 
+  // Clean up any running Flow Beats mini-game
+  if (window.FlowBeatsGame && typeof window.FlowBeatsGame.destroy === 'function') {
+    window.FlowBeatsGame.destroy();
+  }
+
   lyricsContainer.style.transform = 'translateY(0px)';
-  lyricsContainer.innerHTML = `
+
+  if (window.FlowBeatsGame && typeof window.FlowBeatsGame.mount === 'function' && !settings.taskbarMode && !isDynamicIslandMode) {
+    lyricsContainer.innerHTML = '<div class="flow-game-container" id="flow-game-container"></div>';
+    const flowContainer = document.getElementById('flow-game-container');
+    if (flowContainer) {
+      window.FlowBeatsGame.mount(flowContainer);
+    }
+  } else {
+    lyricsContainer.innerHTML = `
     <div class="lyrics-idle-hero">
       <div class="idle-visual-wrapper">
         <div class="idle-vinyl-disc"></div>
@@ -9713,6 +9761,7 @@ function handleEmptyPlayback() {
       </div>
     </div>
   `;
+  }
 
   // Attach event listeners to chips
   const openSpotBtn = lyricsContainer.querySelector('#btn-idle-open-spotify');
@@ -10021,6 +10070,11 @@ async function handlePlaybackData(data) {
   const perfNow = getHighResTime();
   const prevRate = window._currentPlaybackRate || 1.0;
 
+  // Teardown Flow Beats idle mini-game if active
+  if (isCurrentlyPlaying && window.FlowBeatsGame && typeof window.FlowBeatsGame.destroy === 'function' && window.FlowBeatsGame.isRunning) {
+    window.FlowBeatsGame.destroy();
+  }
+
   // 1. Detect explicit playback rate from data (from SMTC reader or custom player)
   const isExplicitRateSource = data.source === 'windows-smtc' || (typeof data.playback_rate === 'number' && data.playback_rate > 0);
   if (typeof data.playback_rate === 'number' && data.playback_rate > 0) {
@@ -10060,6 +10114,7 @@ async function handlePlaybackData(data) {
       currentProgress = progressMs;
       window._pllRateMultiplier = 1.0;
       window._pllFilteredDrift = 0;
+      window._pllIntegralDrift = 0;
       window._candidateRate = null;
       window._candidateRateHits = 0;
     } else if (!isZeroReset && isCurrentlyPlaying) {
@@ -10074,6 +10129,7 @@ async function handlePlaybackData(data) {
         lastPollTimestamp = perfNow;
         window._pllRateMultiplier = 1.0;
         window._pllFilteredDrift = 0;
+        window._pllIntegralDrift = 0;
       } else {
         const isRecentSeek = (now - lastUserSeekTimestamp) < 1200;
         if (isRecentSeek && Math.abs(progressMs - lastUserSeekTargetMs) > 1500) {
@@ -10100,37 +10156,45 @@ async function handlePlaybackData(data) {
             currentProgress = progressMs;
             window._pllRateMultiplier = 1.0;
             window._pllFilteredDrift = 0;
+            window._pllIntegralDrift = 0;
             window._allowClockConvergence = true;
-          } else if (absDrift > 600) {
-            // Zone C: Medium drift (600ms - 1500ms):
-            // Slew-limited convergence: adjust clock smoothly
-            // combined with maximum rate steering (±4%) to avoid visual jumping or freezing
+          } else if (absDrift > 400) {
+            // Zone C: Medium drift (400ms - 1500ms):
+            // Slew-limited convergence: adjust clock smoothly toward ground truth
             let adjustment = drift * 0.35;
-            if (Math.abs(adjustment) > 35) {
-              adjustment = Math.sign(adjustment) * 35;
+            if (Math.abs(adjustment) > 30) {
+              adjustment = Math.sign(adjustment) * 30;
             }
             currentProgress = currentProgress - adjustment;
             lastPollProgress = currentProgress;
             lastPollTimestamp = perfNow;
             const pllDirection = Math.sign(drift);
-            window._pllRateMultiplier = 1.0 - (pllDirection * 0.04);
+            window._pllRateMultiplier = 1.0 - (pllDirection * 0.025);
             window._allowClockConvergence = true;
           } else if (absDrift > 20) {
-            // Zone B: Micro drift (20ms - 600ms):
-            // Continuous Phase-Locked Loop (PLL) rate steering!
-            // Adjust clock rate by ±1% to ±3.5% instead of stepping position.
-            // Closes a 100ms drift over ~2.5s smoothly with ZERO frame stutters,
-            // ZERO backward jumps, and ZERO monotonic clock clamps!
-            const pllAdjustment = Math.max(-0.035, Math.min(0.035, drift / 2500));
-            window._pllRateMultiplier = 1.0 - pllAdjustment;
-            lastPollProgress = currentProgress;
+            // Zone B: Standard polling drift (20ms - 400ms):
+            // Critically damped Proportional-Integral (PI) Clock Filter!
+            // Maintains stable ground-truth phase anchor and steers rate smoothly
+            if (window._pllIntegralDrift == null || !Number.isFinite(window._pllIntegralDrift)) {
+              window._pllIntegralDrift = 0;
+            }
+            window._pllIntegralDrift += drift * 0.05;
+            window._pllIntegralDrift = Math.max(-500, Math.min(500, window._pllIntegralDrift));
+
+            const propTerm = drift / 2500;
+            const Kp = 0.00015;
+            const Ki = 0.00003;
+            const deltaRate = (Kp * drift) + (Ki * window._pllIntegralDrift);
+            const clampedDeltaRate = Math.max(-0.025, Math.min(0.025, deltaRate));
+            window._pllRateMultiplier = 1.0 - clampedDeltaRate;
+            lastPollProgress = progressMs;
             lastPollTimestamp = perfNow;
           } else {
-            // Zone A: Sub-20ms drift: within single frame accuracy (16.6ms at 60Hz)
-            // Micro-trim rate (±0.15%) to gently bleed off residual sub-20ms offset toward 0ms
+            // Zone A: Sub-25ms drift: within single video frame accuracy (16.6ms at 60Hz)
+            // Micro-trim rate (±0.2%) to bleed residual offset toward 0ms
             const microTrim = Math.max(-0.0015, Math.min(0.0015, drift / 10000));
             window._pllRateMultiplier = 1.0 - microTrim;
-            lastPollProgress = currentProgress;
+            lastPollProgress = progressMs;
             lastPollTimestamp = perfNow;
           }
         }
@@ -10251,6 +10315,37 @@ async function handlePlaybackData(data) {
     }
     updateAnimatedAlbumArt(track, albumArtUrl);
     updateStudioSidebar(track, albumArtUrl);
+  }
+
+  // Audio quality verification: strictly pop up Lossless badge only when verified
+  const badgeQuality = document.getElementById("studio-badge-quality");
+  const badgesRow = document.getElementById("studio-badges-row") || document.querySelector(".studio-badges-row");
+  const badgeProvider = document.getElementById("studio-badge-provider");
+
+  const isLossless = Boolean(
+    data.audio_quality === 'lossless' ||
+    data.is_lossless ||
+    (track.encoding && /flac|alac|wav|aiff|dsd/i.test(track.encoding)) ||
+    (typeof data.bit_depth === 'number' && data.bit_depth >= 16 && typeof data.sample_rate === 'number' && data.sample_rate >= 44100 && /flac|alac|wav|lossless/i.test(data.encoding || ''))
+  );
+
+  if (badgeQuality) {
+    if (isLossless) {
+      badgeQuality.textContent = (data.bit_depth && data.bit_depth > 16) ? "Hi-Res Lossless" : "Lossless";
+      badgeQuality.style.display = "inline-flex";
+      badgeQuality.classList.add("is-confirmed");
+      if (badgesRow) {
+        badgesRow.style.display = "flex";
+        badgesRow.classList.add("has-badges");
+      }
+    } else {
+      badgeQuality.style.display = "none";
+      badgeQuality.classList.remove("is-confirmed");
+      if (badgesRow && (!badgeProvider || !badgeProvider.classList.contains("is-confirmed"))) {
+        badgesRow.style.display = "none";
+        badgesRow.classList.remove("has-badges");
+      }
+    }
   }
 
   const artModal = document.getElementById("album-art-modal");
@@ -10449,11 +10544,17 @@ async function handlePlaybackData(data) {
       });
     };
 
-    if (hasCachedLyrics) {
+    const nowTs = Date.now();
+    window._recentTrackSkips = (window._recentTrackSkips || []).filter(t => (nowTs - t) < 300);
+    window._recentTrackSkips.push(nowTs);
+    const isRapidScrubbing = window._recentTrackSkips.length > 2;
+
+    if (hasCachedLyrics || !isRapidScrubbing) {
+      // Zero-delay dispatch: single skips and song progressions execute immediately (0ms)!
       executeTrackFetches();
     } else {
-      // Debounce network requests by 120ms to keep up with rapid song skips!
-      trackSwitchDebounceTimer = setTimeout(executeTrackFetches, 120);
+      // Throttle network requests by 80ms ONLY during rapid scrubbing (>2 skips within 300ms)
+      trackSwitchDebounceTimer = setTimeout(executeTrackFetches, 80);
     }
   }
 }
@@ -10997,6 +11098,29 @@ async function _executeFetchLyrics(trackId, trackName, artistName, durationMs, i
         syncCinematicState();
       }
 
+      // Pop up studio synced badge ONLY on confirmed state (sourceLevel >= 2)
+      const badgesRow = document.getElementById("studio-badges-row") || document.querySelector(".studio-badges-row");
+      const badgeProvider = document.getElementById("studio-badge-provider");
+      const badgeQuality = document.getElementById("studio-badge-quality");
+      const badgeText = document.getElementById("studio-badge-text");
+
+      if (sourceLevel >= 2 && badgeProvider && badgeText) {
+        badgeText.textContent = (sourceLevel === 3) ? "Word-Synced" : "Synced";
+        badgeProvider.style.display = "inline-flex";
+        badgeProvider.classList.add("is-confirmed");
+        if (badgesRow) {
+          badgesRow.style.display = "flex";
+          badgesRow.classList.add("has-badges");
+        }
+      } else if (badgeProvider) {
+        badgeProvider.style.display = "none";
+        badgeProvider.classList.remove("is-confirmed");
+        if (badgesRow && (!badgeQuality || !badgeQuality.classList.contains("is-confirmed"))) {
+          badgesRow.style.display = "none";
+          badgesRow.classList.remove("has-badges");
+        }
+      }
+
       const btnHide = document.getElementById("btn-hide-lyrics");
       if (btnHide) btnHide.style.display = "inline-flex";
 
@@ -11172,31 +11296,38 @@ async function _executeFetchLyrics(trackId, trackName, artistName, durationMs, i
             ? [originalTrackName, cleanTrack]
             : [cleanTrack];
 
+          const exactPromises = [];
           for (const aName of artistVariants) {
-            if (exactResult) break;
             for (const tName of trackVariants) {
-              try {
-                const params = new URLSearchParams({ artist_name: aName, track_name: tName });
-                if (durationSec > 0) params.set("duration", durationSec);
-                const res = await fetch(`https://lrclib.net/api/get?${params}`, { signal });
-                if (res.ok) {
-                  const d = await res.json();
-                  if (d && (hasLrcTimestamps(d.syncedLyrics) || d.plainLyrics)) {
-                    const lrc = d.syncedLyrics || d.plainLyrics;
-                    const parsed = parseLRC(lrc);
-                    if (!isPollutedYeatLyrics(parsed)) {
-                      const sig = getLinesSignature(parsed);
-                      if (!rejectedLyricsSignatures[trackId]?.has(sig)) {
-                        exactResult = d;
-                        console.debug(`[LF-DEBUG] LRCLIB exact GET matched with artist="${aName}", track="${tName}"`);
-                        break;
+              const params = new URLSearchParams({ artist_name: aName, track_name: tName });
+              if (durationSec > 0) params.set("duration", durationSec);
+              exactPromises.push(
+                fetch(`https://lrclib.net/api/get?${params}`, { signal })
+                  .then(async (res) => {
+                    if (!res.ok) return null;
+                    const d = await res.json();
+                    if (d && (hasLrcTimestamps(d.syncedLyrics) || d.plainLyrics)) {
+                      const lrc = d.syncedLyrics || d.plainLyrics;
+                      const parsed = parseLRC(lrc);
+                      if (!isPollutedYeatLyrics(parsed)) {
+                        const sig = getLinesSignature(parsed);
+                        if (!rejectedLyricsSignatures[trackId]?.has(sig)) {
+                          return d;
+                        }
                       }
-                    } else {
-                      console.debug(`[LF-DEBUG] LRCLIB exact GET rejected polluted Yeat lyrics for artist="${aName}", track="${tName}"`);
                     }
-                  }
-                }
-              } catch (e) { /* continue */ }
+                    return null;
+                  })
+                  .catch(() => null)
+              );
+            }
+          }
+
+          if (exactPromises.length > 0) {
+            const results = await Promise.all(exactPromises);
+            exactResult = results.find(r => r && hasLrcTimestamps(r.syncedLyrics)) || results.find(Boolean) || null;
+            if (exactResult) {
+              console.debug(`[LF-DEBUG] LRCLIB parallel exact GET matched in 1 RTT`);
             }
           }
         }
@@ -11346,10 +11477,20 @@ async function _executeFetchLyrics(trackId, trackName, artistName, durationMs, i
       ? lyricsPlusFetch()
       : Promise.resolve(false);
 
-    // Fast-path: whichever returns first with Level 3 (word-synced) immediately settles
+    // Fast-path: eager first-synced resolution (Level 2 or Level 3)
+    // Whichever promise returns first with valid synced lyrics immediately renders!
     const firstResult = await Promise.race([rustPromise, lpPromise]);
-    if (firstResult && currentSourceLevel >= 3) {
+    if (firstResult && currentSourceLevel >= 2 && lyrics.length > 0) {
       manageLyricsCache(cacheKey);
+      // If we got Level 2 (line-synced) and the secondary provider might return Level 3 (word-by-word),
+      // allow it to settle in the background without blocking the UI
+      if (currentSourceLevel === 2) {
+        Promise.allSettled([rustPromise, lpPromise]).then(() => {
+          if (trackId === currentTrackId && lyrics.length > 0) {
+            manageLyricsCache(cacheKey);
+          }
+        }).catch(() => {});
+      }
       return;
     }
 
@@ -12570,6 +12711,25 @@ if (typeof document !== 'undefined' && document.fonts) {
 
 // Tap to Ghost Passthrough mode: hover + ` (Tilde) or Ctrl+Shift+G to toggle
 window.addEventListener('keydown', (e) => {
+  // Micro-trim sync offset with Ctrl+[ (subtract 25ms) and Ctrl+] (add 25ms)
+  if (e.ctrlKey && !e.shiftKey && (e.key === '[' || e.key === ']' || e.code === 'BracketLeft' || e.code === 'BracketRight')) {
+    if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable)) {
+      return;
+    }
+    e.preventDefault();
+    const step = (e.key === '[' || e.code === 'BracketLeft') ? -25 : 25;
+    if (typeof adjustSyncOffset === 'function') {
+      adjustSyncOffset(step);
+      const displayMs = `${settings.syncOffsetMs > 0 ? '+' : ''}${settings.syncOffsetMs}ms`;
+      if (typeof showToast === 'function') {
+        showToast(`Sync Offset: ${displayMs}`, 1500, 'info');
+      } else if (typeof showIslandHud === 'function') {
+        showIslandHud({ icon: "⏱", text: `Offset: ${displayMs}`, showBar: false });
+      }
+    }
+    return;
+  }
+
   if (isDynamicIslandMode) {
     if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable)) {
       return;
@@ -13086,7 +13246,9 @@ function updatePlayhead() {
                     const wStart = (activeW.start != null ? activeW.start * 1000 : activeW.timeMs) || 0;
                     const wEnd = getLyricWordEndMs(lineData.words, activeWi, lineData, activeIndex);
                     const wDur = Math.max(50, wEnd - wStart);
-                    const wordProgress = Math.min(1, Math.max(0, (syncProgress - wStart) / wDur));
+                    const rawProgress = Math.min(1, Math.max(0, (syncProgress - wStart) / wDur));
+                    const prevProg = parseFloat(wordSpans[activeWi]?.style.getPropertyValue('--word-progress') || '0');
+                    const wordProgress = (isPlaying && rawProgress < prevProg) ? prevProg : rawProgress;
                     setLyricWordProgress(wordSpans[activeWi], wordProgress);
                   }
                 } else {
@@ -13141,7 +13303,9 @@ function updatePlayhead() {
                       : getLyricWordEndMs(lineData.words, currentActiveWord, lineData, activeIndex);
                     const wEnd = getLyricWordEndMs(lineData.words, currentActiveWord, lineData, activeIndex);
                     const wDur = Math.max(50, wEnd - wStart);
-                    const wordProgress = Math.min(1, Math.max(0, (syncProgress - wStart) / wDur));
+                    const rawProgress = Math.min(1, Math.max(0, (syncProgress - wStart) / wDur));
+                    const prevProg = parseFloat(wordSpans[currentActiveWord]?.style.getPropertyValue('--word-progress') || '0');
+                    const wordProgress = (isPlaying && rawProgress < prevProg) ? prevProg : rawProgress;
                     setLyricWordProgress(wordSpans[currentActiveWord], wordProgress);
                   }
                 }

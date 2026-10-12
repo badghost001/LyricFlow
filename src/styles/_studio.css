@@ -181,16 +181,21 @@ body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mo
 }
 
 /* Studio Audio Badges */
+/* Studio Audio Badges */
 .studio-badges-row {
-  display: flex;
+  display: none; /* Hidden until confirmed badge state */
   align-items: center;
   justify-content: center;
   gap: 8px;
   flex-wrap: wrap;
 }
 
+.studio-badges-row.has-badges {
+  display: flex;
+}
+
 .studio-badge {
-  display: inline-flex;
+  display: none; /* Hidden by default until verified */
   align-items: center;
   gap: 6px;
   padding: 3px 9px;
@@ -204,6 +209,26 @@ body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mo
   color: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+}
+
+.studio-badge.is-confirmed {
+  display: inline-flex;
+  animation: badgePopIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+}
+
+@keyframes badgePopIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.82) translateY(3px);
+  }
+  65% {
+    opacity: 1;
+    transform: scale(1.05) translateY(-1px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 
 .studio-badge-provider .studio-badge-dot {

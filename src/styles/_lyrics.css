@@ -771,3 +771,197 @@ body.wbw-active .lyric-line.active .lyric-word.lyric-word-upcoming {
   font-variant-numeric: tabular-nums;
 }
 
+/* ==========================================================================
+   Flow Beats Mini-Game & Spotify Idle Launcher
+   ========================================================================== */
+.flow-game-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 18px 16px;
+  user-select: none;
+  animation: flowGameFadeIn 0.45s ease-out both;
+}
+
+@keyframes flowGameFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.flow-game-card {
+  position: relative;
+  width: 100%;
+  box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 24px;
+  padding: 22px 24px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  text-align: center;
+}
+
+.flow-game-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+}
+
+.flow-game-tag {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent-primary, #1ed760);
+  background: rgba(30, 215, 96, 0.12);
+  border: 1px solid rgba(30, 215, 96, 0.25);
+  padding: 3px 10px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.flow-game-prompt-title {
+  font-family: var(--font-family, -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif);
+  font-size: 23px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+  margin-top: 2px;
+}
+
+.flow-game-prompt-sub {
+  font-size: 13px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.62);
+  max-width: 420px;
+  line-height: 1.45;
+}
+
+.flow-game-score-bar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+  margin-top: 4px;
+}
+
+.flow-score-pill {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px 14px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 12px;
+  min-width: 60px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.flow-score-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.flow-score-val {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: #ffffff;
+  font-variant-numeric: tabular-nums;
+}
+
+.flow-streak-pill.is-hot .flow-score-val {
+  color: #f72585;
+  text-shadow: 0 0 8px rgba(247, 37, 133, 0.7);
+}
+
+.flow-game-canvas-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  border-radius: 18px;
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 100%, rgba(30, 215, 96, 0.07) 0%, rgba(12, 12, 16, 0.8) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.55), 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+#flow-game-canvas {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 480 / 260;
+  display: block;
+  cursor: crosshair;
+}
+
+.flow-game-hud-overlay {
+  position: absolute;
+  bottom: 8px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  pointer-events: none;
+}
+
+.flow-game-hint {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.42);
+  letter-spacing: 0.02em;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+}
+
+.flow-game-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 4px;
+}
+
+.btn-flow-spotify {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  background: linear-gradient(135deg, #1ed760 0%, #159e43 100%);
+  color: #000000;
+  font-family: var(--font-family, -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  padding: 11px 26px;
+  border-radius: 999px;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 18px rgba(30, 215, 96, 0.38), inset 0 1px 1px rgba(255, 255, 255, 0.4);
+  transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.2s ease;
+}
+
+.btn-flow-spotify:hover {
+  transform: scale(1.035) translateY(-1px);
+  box-shadow: 0 6px 24px rgba(30, 215, 96, 0.58), inset 0 1px 1px rgba(255, 255, 255, 0.5);
+}
+
+.btn-flow-spotify:active {
+  transform: scale(0.97);
+}
+
+

@@ -56,6 +56,7 @@
     <script src="services/lyrics/index.js" defer></script>
     <script src="lastfm.js" defer></script>
     <script src="modules/ca-emitter.js" defer></script>
+    <script src="modules/flow-game.js" defer></script>
     <script src="renderer.js" defer></script>
   </head>
   <body>
@@ -685,12 +686,12 @@
             </div>
           </div>
 
-          <div class="studio-badges-row">
-            <span class="studio-badge studio-badge-provider" id="studio-badge-provider">
+          <div class="studio-badges-row" id="studio-badges-row" style="display: none;">
+            <span class="studio-badge studio-badge-provider" id="studio-badge-provider" style="display: none;">
               <span class="studio-badge-dot"></span>
               <span id="studio-badge-text">Synced</span>
             </span>
-            <span class="studio-badge studio-badge-quality" id="studio-badge-quality">Lossless</span>
+            <span class="studio-badge studio-badge-quality" id="studio-badge-quality" style="display: none;">Lossless</span>
           </div>
         </aside>
 

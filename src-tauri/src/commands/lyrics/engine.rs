@@ -18,34 +18,84 @@ pub async fn query_all_candidates(
     let clean_a = clean_artist(artist);
     let duration_sec = duration_ms / 1000;
 
-    // --- TIER 1: Simultaneous Multi Query (Cloudflare Proxy + LRCLIB + Musixmatch + NetEase) ---
-    let proxy_task = search_cloudflare_proxy(
-        client,
-        &clean_t,
-        &clean_a,
-        duration_sec,
-        options.spotify_token.as_deref(),
-    );
-    let mxm_task = search_musixmatch(
-        client,
-        &clean_t,
-        &clean_a,
-        options.musixmatch_token.as_deref(),
-    );
-    let lrclib_task = search_lrclib(client, &clean_t, &clean_a, duration_sec);
-    let netease_task = search_netease(client, &clean_t, &clean_a, options.netease_word_by_word);
-
-    let (proxy_res, mxm_res, lrclib_res, netease_res) = tokio::join!(proxy_task, mxm_task, lrclib_task, netease_task);
-
+    // --- TIER 1: Multi Query (Cloudflare Proxy + LRCLIB + Musixmatch + NetEase) ---
     let mut tier1_candidates: Vec<LyricsCandidate> = Vec::new();
-    if let Some(proxy_cand) = proxy_res {
-        tier1_candidates.push(proxy_cand);
+
+    if options.candidate_index == 0 {
+        // Fast-path priority race: Cloudflare Proxy + LRCLIB (sub-250ms)
+        let fast_race = async {
+            let (p, l) = tokio::join!(
+                search_cloudflare_proxy(
+                    client,
+                    &clean_t,
+                    &clean_a,
+                    duration_sec,
+                    options.spotify_token.as_deref(),
+                ),
+                search_lrclib(client, &clean_t, &clean_a, duration_sec)
+            );
+            (p, l)
+        };
+
+        let slow_queries = async {
+            let (m, n) = tokio::join!(
+                search_musixmatch(
+                    client,
+                    &clean_t,
+                    &clean_a,
+                    options.musixmatch_token.as_deref(),
+                ),
+                search_netease(client, &clean_t, &clean_a, options.netease_word_by_word)
+            );
+            (m, n)
+        };
+
+        // Run fast race, capping slow queries to 650ms deadline
+        let (fast_res, slow_res) = tokio::join!(
+            fast_race,
+            tokio::time::timeout(std::time::Duration::from_millis(650), slow_queries)
+        );
+
+        let (proxy_res, lrclib_res) = fast_res;
+        if let Some(proxy_cand) = proxy_res {
+            tier1_candidates.push(proxy_cand);
+        }
+        tier1_candidates.extend(lrclib_res);
+
+        if let Ok((mxm_res, netease_res)) = slow_res {
+            if let Some(mxm_cand) = mxm_res {
+                tier1_candidates.push(mxm_cand);
+            }
+            tier1_candidates.extend(netease_res);
+        }
+    } else {
+        let proxy_task = search_cloudflare_proxy(
+            client,
+            &clean_t,
+            &clean_a,
+            duration_sec,
+            options.spotify_token.as_deref(),
+        );
+        let mxm_task = search_musixmatch(
+            client,
+            &clean_t,
+            &clean_a,
+            options.musixmatch_token.as_deref(),
+        );
+        let lrclib_task = search_lrclib(client, &clean_t, &clean_a, duration_sec);
+        let netease_task = search_netease(client, &clean_t, &clean_a, options.netease_word_by_word);
+
+        let (proxy_res, mxm_res, lrclib_res, netease_res) = tokio::join!(proxy_task, mxm_task, lrclib_task, netease_task);
+
+        if let Some(proxy_cand) = proxy_res {
+            tier1_candidates.push(proxy_cand);
+        }
+        if let Some(mxm_cand) = mxm_res {
+            tier1_candidates.push(mxm_cand);
+        }
+        tier1_candidates.extend(lrclib_res);
+        tier1_candidates.extend(netease_res);
     }
-    if let Some(mxm_cand) = mxm_res {
-        tier1_candidates.push(mxm_cand);
-    }
-    tier1_candidates.extend(lrclib_res);
-    tier1_candidates.extend(netease_res);
 
     let has_tier1_synced = tier1_candidates
         .iter()

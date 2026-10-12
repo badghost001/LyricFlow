@@ -15,7 +15,10 @@ static HTTP_CLIENT: OnceLock<Client> = OnceLock::new();
 fn get_client() -> &'static Client {
     HTTP_CLIENT.get_or_init(|| {
         Client::builder()
-            .timeout(std::time::Duration::from_secs(8))
+            .timeout(std::time::Duration::from_millis(2500))
+            .connect_timeout(std::time::Duration::from_millis(1500))
+            .pool_idle_timeout(std::time::Duration::from_secs(90))
+            .tcp_keepalive(std::time::Duration::from_secs(60))
             .build()
             .unwrap_or_else(|_| Client::new())
     })

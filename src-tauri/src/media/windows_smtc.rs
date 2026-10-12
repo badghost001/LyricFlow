@@ -12,7 +12,7 @@ static CACHED_MANAGER: Mutex<Option<GlobalSystemMediaTransportControlsSessionMan
 static CACHED_TRACK: Mutex<Option<TrackMetadata>> = Mutex::new(None);
 static CACHED_THUMBNAIL: Mutex<Option<(String, String)>> = Mutex::new(None);
 static CONSECUTIVE_NO_SESSION_COUNT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
-static LAST_SMTC_SAMPLE: Mutex<Option<(u64, i64, u64)>> = Mutex::new(None);
+static LAST_SMTC_SAMPLE: Mutex<Option<(u64, i64, u64, std::time::Instant)>> = Mutex::new(None);
 
 fn extract_thumbnail(props: &windows::Media::Control::GlobalSystemMediaTransportControlsSessionMediaProperties, title: &str, artist: &str) -> Option<String> {
     if title.is_empty() {
@@ -308,11 +308,12 @@ impl MediaSessionBackend for WindowsSmtcBackend {
                     // Windows epoch (1601-01-01) is 11,644,473,600 seconds before Unix epoch (1970-01-01)
                     const UNIX_EPOCH_100NS: i64 = 11_644_473_600 * 10_000_000;
                     if last_updated.UniversalTime > UNIX_EPOCH_100NS {
-                        let now = std::time::SystemTime::now()
+                        let now_instant = std::time::Instant::now();
+                        let now_system = std::time::SystemTime::now()
                             .duration_since(std::time::UNIX_EPOCH)
                             .unwrap_or_default();
-                        let now_100ns = (now.as_secs() as i64 + 11_644_473_600) * 10_000_000
-                            + (now.subsec_nanos() as i64 / 100);
+                        let now_100ns = (now_system.as_secs() as i64 + 11_644_473_600) * 10_000_000
+                            + (now_system.subsec_nanos() as i64 / 100);
                         let elapsed_100ns = (now_100ns - last_updated.UniversalTime).max(0);
                         let elapsed_ms = (elapsed_100ns / 10_000) as u64;
                         // Bound elapsed_ms to 10 seconds to prevent unconstrained extrapolation if player is paused or lagging
@@ -321,14 +322,23 @@ impl MediaSessionBackend for WindowsSmtcBackend {
                         // If media player already actively advances base_pos on its own with a static LastUpdatedTime,
                         // do not stack bounded_elapsed_ms on top of an already live position!
                         let effective_elapsed_ms = if let Ok(mut sample_lock) = LAST_SMTC_SAMPLE.lock() {
-                            let is_self_advancing = if let Some((prev_base, prev_ts, _)) = *sample_lock {
-                                prev_ts == last_updated.UniversalTime && base_pos > prev_base
+                            let (el, is_self_advancing) = if let Some((prev_base, prev_ts, _, prev_instant)) = *sample_lock {
+                                if prev_ts == last_updated.UniversalTime {
+                                    if base_pos > prev_base {
+                                        (0, true)
+                                    } else {
+                                        let mono_elapsed = (now_instant.duration_since(prev_instant).as_millis() as u64).min(10_000);
+                                        (bounded_elapsed_ms.max(mono_elapsed), false)
+                                    }
+                                } else {
+                                    (bounded_elapsed_ms, false)
+                                }
                             } else {
-                                false
+                                (bounded_elapsed_ms, false)
                             };
-                            let el = if is_self_advancing { 0 } else { bounded_elapsed_ms };
-                            *sample_lock = Some((base_pos, last_updated.UniversalTime, base_pos + el));
-                            el
+                            let final_el = if is_self_advancing { 0 } else { el };
+                            *sample_lock = Some((base_pos, last_updated.UniversalTime, base_pos + final_el, now_instant));
+                            final_el
                         } else {
                             bounded_elapsed_ms
                         };
