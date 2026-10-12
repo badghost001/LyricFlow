@@ -10,27 +10,28 @@ body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mo
   grid-template-rows: 1fr auto !important;
   column-gap: 36px !important;
   row-gap: 16px !important;
-  padding: 12px 28px 16px 28px !important;
+  padding: 16px 28px 20px 28px !important;
   height: 100% !important;
   box-sizing: border-box !important;
   overflow: hidden !important;
 }
 
-/* Left Column: Studio Sidebar */
+/* Left Column: Studio Sidebar (Artwork + Metadata + Badges) */
 .studio-sidebar {
   display: none;
   grid-column: 1 / 2;
   grid-row: 1 / 2;
   flex-direction: column;
   justify-content: center;
-  align-items: flex-start;
-  gap: 20px;
+  align-items: center;
+  gap: 14px;
   width: 100%;
   height: 100%;
   box-sizing: border-box;
   position: relative;
   z-index: 4;
   user-select: none;
+  overflow: hidden;
   animation: studioFadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -52,19 +53,20 @@ body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mo
 /* Studio Album Artwork Container & Concentric Squircle */
 .studio-art-container {
   position: relative;
-  width: 100%;
-  max-width: 300px;
+  width: clamp(190px, 28vh, 270px);
+  max-width: 270px;
   aspect-ratio: 1;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 
 .studio-art-wrapper {
   position: relative;
   width: 100%;
   height: 100%;
-  border-radius: 24px;
+  border-radius: 22px;
   overflow: hidden;
   background:
     linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.02) 100%),
@@ -123,18 +125,21 @@ body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mo
   max-width: 320px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  align-items: center;
+  text-align: center;
+  gap: 3px;
 }
 
 .studio-title-wrapper {
   width: 100%;
   overflow: hidden;
+  text-align: center;
 }
 
 .studio-track-title {
   margin: 0;
   font-family: var(--font-family, -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif);
-  font-size: 22px;
+  font-size: 21px;
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1.25;
@@ -149,10 +154,11 @@ body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mo
 .studio-album-wrapper {
   width: 100%;
   overflow: hidden;
+  text-align: center;
 }
 
 .studio-track-artist {
-  font-size: 15px;
+  font-size: 14.5px;
   font-weight: 500;
   color: rgba(255, 255, 255, 0.78);
   letter-spacing: -0.01em;
@@ -163,7 +169,7 @@ body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mo
 }
 
 .studio-track-album {
-  font-size: 13px;
+  font-size: 12.5px;
   color: rgba(255, 255, 255, 0.45);
   white-space: nowrap;
   overflow: hidden;
@@ -175,6 +181,7 @@ body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mo
 .studio-badges-row {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   flex-wrap: wrap;
 }
@@ -185,7 +192,7 @@ body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mo
   gap: 6px;
   padding: 3px 9px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 600;
   letter-spacing: 0.02em;
   text-transform: uppercase;
@@ -210,10 +217,10 @@ body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mo
   font-size: 10px;
 }
 
-/* Right Column: Lyrics Viewport in Split Mode */
+/* Right Column: Lyrics Viewport in Split Mode (Full-height edge-to-edge) */
 body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode) .lyrics-view {
   grid-column: 2 / 3 !important;
-  grid-row: 1 / 2 !important;
+  grid-row: 1 / -1 !important; /* Full height across both rows! */
   height: 100% !important;
   width: 100% !important;
 }
@@ -229,13 +236,150 @@ body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mo
   transform-origin: left center !important;
 }
 
-/* Persistent Player Bar across the bottom in Split Mode */
+/* ==========================================================================
+   Left Column: Sleek, Related Liquid Glass Player Dock
+   ========================================================================== */
+
+/* The liquid glass controls bar docks directly beneath track info in Column 1 */
 body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode) .playback-widget {
-  grid-column: 1 / -1 !important;
+  grid-column: 1 / 2 !important;
   grid-row: 2 / 3 !important;
-  margin: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 10px !important;
   width: 100% !important;
+  max-width: 320px !important;
+  margin: 0 auto !important;
+  padding: 12px 16px !important;
   box-sizing: border-box !important;
+  border-radius: 20px !important;
+  background: var(--glass-liquid-bg, rgba(18, 18, 28, 0.68)) !important;
+  backdrop-filter: blur(36px) saturate(190%) contrast(105%) !important;
+  -webkit-backdrop-filter: blur(36px) saturate(190%) contrast(105%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  box-shadow:
+    0 18px 44px -6px rgba(0, 0, 0, 0.55),
+    inset 0 1.5px 0.5px rgba(255, 255, 255, 0.28),
+    inset 0 -1px 0.5px rgba(0, 0, 0, 0.35) !important;
+  z-index: 10 !important;
+  opacity: 1 !important;
+  transform: translateY(0) !important;
+}
+
+/* In Split View: Hide duplicate small album art thumbnail & duplicate track title/artist */
+body.layout-split .playback-widget .widget-art-container,
+body.layout-split .playback-widget .track-details {
+  display: none !important;
+}
+
+/* Liquid Scrubber Bar in Split View */
+body.layout-split .playback-widget .widget-info {
+  width: 100% !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+body.layout-split .playback-widget .progress-bar-container {
+  width: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+}
+
+body.layout-split .playback-widget .progress-bar-bg {
+  width: 100% !important;
+  height: 5px !important;
+  border-radius: 999px !important;
+  background: rgba(255, 255, 255, 0.14) !important;
+  position: relative !important;
+  cursor: pointer !important;
+  overflow: visible !important;
+  transition: height 0.18s ease, background 0.2s ease !important;
+}
+
+body.layout-split .playback-widget .progress-bar-bg:hover {
+  height: 7px !important;
+  background: rgba(255, 255, 255, 0.22) !important;
+}
+
+body.layout-split .playback-widget .progress-bar-fill {
+  border-radius: 999px !important;
+  background: linear-gradient(90deg, var(--accent-primary, #1db954) 0%, var(--accent-bright, #22c55e) 100%) !important;
+  box-shadow: 0 0 10px rgba(var(--accent-primary-rgb, 29, 185, 84), 0.45) !important;
+}
+
+body.layout-split .playback-widget .progress-time {
+  display: flex !important;
+  justify-content: space-between !important;
+  width: 100% !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  font-variant-numeric: tabular-nums !important;
+  color: rgba(255, 255, 255, 0.62) !important;
+  user-select: none !important;
+}
+
+body.layout-split .playback-widget .progress-time-separator {
+  display: none !important;
+}
+
+/* Sleek Liquid Glass Transport Row */
+body.layout-split .playback-widget .widget-controls {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 2px 0 0 0 !important;
+}
+
+body.layout-split .playback-widget .widget-ctrl-btn {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  color: rgba(255, 255, 255, 0.85) !important;
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: 50% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  box-shadow: inset 0 1px 0.5px rgba(255, 255, 255, 0.2) !important;
+  flex-shrink: 0 !important;
+}
+
+body.layout-split .playback-widget .widget-ctrl-btn:hover {
+  background: rgba(255, 255, 255, 0.18) !important;
+  border-color: rgba(255, 255, 255, 0.28) !important;
+  color: #ffffff !important;
+  transform: scale(1.08) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3), inset 0 1px 0.5px rgba(255, 255, 255, 0.35) !important;
+}
+
+body.layout-split .playback-widget #btn-play-pause {
+  width: 40px !important;
+  height: 40px !important;
+  background: rgba(255, 255, 255, 0.22) !important;
+  border: 1px solid rgba(255, 255, 255, 0.35) !important;
+  color: #ffffff !important;
+  box-shadow:
+    0 6px 20px rgba(0, 0, 0, 0.45),
+    0 0 18px rgba(var(--accent-primary-rgb, 29, 185, 84), 0.3),
+    inset 0 1.5px 1px rgba(255, 255, 255, 0.45) !important;
+}
+
+body.layout-split .playback-widget #btn-play-pause:hover {
+  transform: scale(1.1) !important;
+  background: rgba(255, 255, 255, 0.32) !important;
+  border-color: rgba(255, 255, 255, 0.55) !important;
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.55),
+    0 0 24px rgba(var(--accent-primary-rgb, 29, 185, 84), 0.55),
+    inset 0 1.5px 1px rgba(255, 255, 255, 0.6) !important;
 }
 
 /* Responsive fallback for narrow windows: stack into single column */
@@ -250,5 +394,13 @@ body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mo
   }
   body.layout-split .lyrics-view {
     flex: 1 !important;
+  }
+  body.layout-split .playback-widget {
+    flex-direction: row !important;
+    max-width: none !important;
+  }
+  body.layout-split .playback-widget .widget-art-container,
+  body.layout-split .playback-widget .track-details {
+    display: flex !important;
   }
 }

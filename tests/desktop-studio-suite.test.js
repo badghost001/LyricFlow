@@ -86,6 +86,33 @@ assert.ok(
 );
 console.log('  ✓ 1e. toggleStudioSplit, updateStudioSidebar, click listener, and Ctrl+Alt+S shortcut wired');
 
+// 1f. Sleek liquid glass controls dock in Column 1
+assert.ok(
+  studioCss.includes('body.layout-split') && studioCss.includes('grid-column: 1 / 2 !important') && studioCss.includes('grid-row: 2 / 3 !important'),
+  '_studio.css must dock .playback-widget in Column 1 below track info in Split-View'
+);
+assert.ok(
+  studioCss.includes('flex-direction: column !important'),
+  '_studio.css must structure liquid player dock with vertical column layout in Split-View'
+);
+console.log('  ✓ 1f. Liquid glass controls dock integrated directly into Column 1 beneath metadata');
+
+// 1g. Hide duplicate album art thumbnail and track details in split view
+assert.ok(
+  studioCss.includes('body.layout-split .playback-widget .widget-art-container') &&
+  studioCss.includes('body.layout-split .playback-widget .track-details') &&
+  studioCss.includes('display: none !important'),
+  '_studio.css must hide redundant album art and track details in Split-View'
+);
+console.log('  ✓ 1g. Redundant mini album art thumbnail and track title hidden in Split-View');
+
+// 1h. Full-height edge-to-edge lyrics in right column
+assert.ok(
+  studioCss.includes('grid-column: 2 / 3 !important') && studioCss.includes('grid-row: 1 / -1 !important'),
+  '_studio.css must allow right column lyrics to span full height from top to bottom'
+);
+console.log('  ✓ 1h. Lyrics viewport spans full window height in right column without bottom bar obstruction');
+
 // -------------------------------------------------------------
 // Section 2: Option B — Persistent Player Bar & HUD Verification
 // -------------------------------------------------------------
