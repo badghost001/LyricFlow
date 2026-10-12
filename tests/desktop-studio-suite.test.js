@@ -165,6 +165,26 @@ assert.ok(
 );
 console.log('  ✓ 2d. Progress bar features 26px expanded hit zone and instant seek feedback');
 
+// 2e. Inline Scrubber row and unclipped thumb geometry in Split-View
+assert.ok(
+  studioCss.includes('body.layout-split .playback-widget .progress-bar-container') &&
+  studioCss.includes('flex-direction: row !important') &&
+  studioCss.includes('align-items: center !important'),
+  '_studio.css must lay out Split-View progress-bar-container as an inline row centered between timestamps'
+);
+assert.ok(
+  studioCss.includes('body.layout-split .playback-widget .widget-info') &&
+  studioCss.includes('overflow: visible !important'),
+  '_studio.css must set overflow: visible on widget-info to eliminate scrubber thumb clipping'
+);
+assert.ok(
+  studioCss.includes('order: 1 !important') &&
+  studioCss.includes('order: 2 !important') &&
+  studioCss.includes('order: 3 !important'),
+  '_studio.css must arrange current time (order 1), track (order 2), and duration (order 3)'
+);
+console.log('  ✓ 2e. Sleek inline scrubber row layout and unclipped thumb geometry verified');
+
 // -------------------------------------------------------------
 // Section 3: Option C — Karaoke Vocal Cursor Bead & Solo Stage
 // -------------------------------------------------------------
@@ -237,4 +257,4 @@ assert.ok(
 );
 console.log('  ✓ 4c. Desktop defaults to Apple Music Studio Split-View layout');
 
-console.log('\nAll 13/13 Desktop Studio Suite tests passed successfully!\n');
+console.log('\nAll 14/14 Desktop Studio Suite tests passed successfully!\n');
