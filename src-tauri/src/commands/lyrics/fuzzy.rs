@@ -41,11 +41,21 @@ pub fn clean_title(title: &str) -> String {
         }
     }
 
-    // Strip "feat." or "ft." clauses inside parentheses e.g. "(feat. Drake)"
+    // Strip "feat.", "ft.", "from", "soundtrack", "theme" clauses inside parentheses e.g. "(feat. Drake)", "(from GTAVI...)"
     if let Some(start) = s.find('(') {
         if let Some(end) = s[start..].find(')') {
             let inner = s[start + 1..start + end].to_lowercase();
-            if inner.starts_with("feat.") || inner.starts_with("feat ") || inner.starts_with("ft.") || inner.starts_with("ft ") || inner.starts_with("with ") {
+            if inner.starts_with("feat.")
+                || inner.starts_with("feat ")
+                || inner.starts_with("ft.")
+                || inner.starts_with("ft ")
+                || inner.starts_with("with ")
+                || inner.starts_with("from ")
+                || inner.starts_with("music from ")
+                || inner.starts_with("soundtrack")
+                || inner.starts_with("theme ")
+                || inner == "ost"
+            {
                 s.replace_range(start..=start + end, " ");
             }
         }
@@ -60,6 +70,7 @@ pub fn clean_title(title: &str) -> String {
             || after_dash.contains("acoustic")
             || after_dash.contains("single version")
             || after_dash.contains("instrumental")
+            || after_dash.starts_with("from ")
         {
             s.truncate(dash_idx);
         }
@@ -167,6 +178,7 @@ mod tests {
         assert_eq!(clean_title("God's Plan (feat. Drake)"), "God's Plan");
         assert_eq!(clean_title("In the End [Remastered 2021]"), "In the End");
         assert_eq!(clean_title("Blinding Lights - Radio Edit"), "Blinding Lights");
+        assert_eq!(clean_title("RHYNO (from GTAVI: The Album)"), "RHYNO");
     }
 
     #[test]

@@ -74,6 +74,7 @@ let checkNeteaseWordByWord;
 let checkFilterCredits;
 let selectPreferredProvider;
 let isWallpaperDesktopFocused = true;
+let currentSourceLevel = 0;
 
 // Typography System - Standardized Safe Font Stacks with Fallbacks
 const FONT_FAMILY_STACKS = {
@@ -3469,114 +3470,118 @@ window.toggleStudioSplit = toggleStudioSplit;
  * Option A: Update Left Column Studio Sidebar
  */
 function updateStudioSidebar(track, albumArtUrl) {
-  const titleEl = document.getElementById("studio-track-title");
-  const artistEl = document.getElementById("studio-track-artist");
-  const albumEl = document.getElementById("studio-track-album");
-  const artImg = document.getElementById("studio-art-img");
-  const artFallback = document.getElementById("studio-art-fallback");
-  const badgesRow = document.getElementById("studio-badges-row") || document.querySelector(".studio-badges-row");
-  const badgeProvider = document.getElementById("studio-badge-provider");
-  const badgeQuality = document.getElementById("studio-badge-quality");
-  const badgeText = document.getElementById("studio-badge-text");
+  try {
+    const titleEl = document.getElementById("studio-track-title");
+    const artistEl = document.getElementById("studio-track-artist");
+    const albumEl = document.getElementById("studio-track-album");
+    const artImg = document.getElementById("studio-art-img");
+    const artFallback = document.getElementById("studio-art-fallback");
+    const badgesRow = document.getElementById("studio-badges-row") || document.querySelector(".studio-badges-row");
+    const badgeProvider = document.getElementById("studio-badge-provider");
+    const badgeQuality = document.getElementById("studio-badge-quality");
+    const badgeText = document.getElementById("studio-badge-text");
 
-  if (!track) {
-    if (titleEl) titleEl.textContent = "Ready to Flow";
-    if (artistEl) artistEl.textContent = "Waiting for music...";
-    if (albumEl) albumEl.textContent = "";
-    if (artImg) artImg.style.display = "none";
-    if (artFallback) artFallback.style.display = "flex";
-    if (badgesRow) {
-      badgesRow.style.display = "none";
-      badgesRow.classList.remove("has-badges");
+    if (!track) {
+      if (titleEl) titleEl.textContent = "Ready to Flow";
+      if (artistEl) artistEl.textContent = "Waiting for music...";
+      if (albumEl) albumEl.textContent = "";
+      if (artImg) artImg.style.display = "none";
+      if (artFallback) artFallback.style.display = "flex";
+      if (badgesRow) {
+        badgesRow.style.display = "none";
+        badgesRow.classList.remove("has-badges");
+      }
+      if (badgeProvider) {
+        badgeProvider.style.display = "none";
+        badgeProvider.classList.remove("is-confirmed");
+      }
+      if (badgeQuality) {
+        badgeQuality.style.display = "none";
+        badgeQuality.classList.remove("is-confirmed");
+      }
+      const badgeLive = document.getElementById("studio-badge-live");
+      if (badgeLive) {
+        badgeLive.style.display = "none";
+        badgeLive.classList.remove("is-confirmed");
+      }
+      const playerLiveVis = document.getElementById("player-live-visualizer");
+      if (playerLiveVis) {
+        playerLiveVis.style.display = "none";
+      }
+      return;
     }
-    if (badgeProvider) {
+
+    const trackName = track.name || "Ready to Flow";
+    const artistText = Array.isArray(track.artists) ? track.artists.map(a => a.name).join(", ") : (track.artist || "LyricFlow Studio");
+    const albumText = (track.album && track.album.name) ? track.album.name : (typeof track.album === 'string' ? track.album : "");
+
+    if (titleEl) {
+      titleEl.textContent = trackName;
+      titleEl.title = trackName;
+    }
+    if (artistEl) {
+      artistEl.textContent = artistText;
+      artistEl.title = artistText;
+    }
+    if (albumEl) {
+      albumEl.textContent = albumText;
+      albumEl.title = albumText;
+    }
+
+    const effectiveArt = albumArtUrl || currentStaticAlbumArtUrl;
+    if (effectiveArt) {
+      if (artImg) {
+        artImg.src = effectiveArt;
+        artImg.style.display = "block";
+      }
+      if (artFallback) artFallback.style.display = "none";
+    } else {
+      if (artImg) artImg.style.display = "none";
+      if (artFallback) artFallback.style.display = "flex";
+    }
+
+    // Update Synced badge ONLY if state is confirmed (lyrics loaded and synced Level 2 or 3)
+    const isConfirmedSynced = Boolean(lyrics && lyrics.length > 0 && currentSourceLevel >= 2);
+    if (isConfirmedSynced && badgeProvider && badgeText) {
+      const isWbw = currentSourceLevel === 3 || Boolean(lyrics[0].words && lyrics[0].words.length > 0);
+      badgeText.textContent = isWbw ? "Word-Synced" : "Synced";
+      badgeProvider.style.display = "inline-flex";
+      badgeProvider.classList.add("is-confirmed");
+    } else if (badgeProvider) {
       badgeProvider.style.display = "none";
       badgeProvider.classList.remove("is-confirmed");
     }
-    if (badgeQuality) {
-      badgeQuality.style.display = "none";
-      badgeQuality.classList.remove("is-confirmed");
-    }
+
+    // Check if quality badge is confirmed
+    const isQualityVisible = Boolean(badgeQuality && badgeQuality.classList.contains("is-confirmed"));
+
+    // Update live visualizers (Studio badge + Player bar)
+    const isPlayingActive = Boolean(isPlaying || document.body.classList.contains("is-playing"));
     const badgeLive = document.getElementById("studio-badge-live");
     if (badgeLive) {
-      badgeLive.style.display = "none";
-      badgeLive.classList.remove("is-confirmed");
+      if (isPlayingActive) {
+        badgeLive.style.display = "inline-flex";
+        badgeLive.classList.add("is-confirmed");
+      } else {
+        badgeLive.style.display = "none";
+        badgeLive.classList.remove("is-confirmed");
+      }
     }
+    const isLiveVisible = Boolean(badgeLive && badgeLive.classList.contains("is-confirmed"));
+
     const playerLiveVis = document.getElementById("player-live-visualizer");
     if (playerLiveVis) {
-      playerLiveVis.style.display = "none";
+      playerLiveVis.style.display = isPlayingActive ? "inline-flex" : "none";
     }
-    return;
-  }
 
-  const trackName = track.name || "Ready to Flow";
-  const artistText = Array.isArray(track.artists) ? track.artists.map(a => a.name).join(", ") : (track.artist || "LyricFlow Studio");
-  const albumText = (track.album && track.album.name) ? track.album.name : (typeof track.album === 'string' ? track.album : "");
-
-  if (titleEl) {
-    titleEl.textContent = trackName;
-    titleEl.title = trackName;
-  }
-  if (artistEl) {
-    artistEl.textContent = artistText;
-    artistEl.title = artistText;
-  }
-  if (albumEl) {
-    albumEl.textContent = albumText;
-    albumEl.title = albumText;
-  }
-
-  const effectiveArt = albumArtUrl || currentStaticAlbumArtUrl;
-  if (effectiveArt) {
-    if (artImg) {
-      artImg.src = effectiveArt;
-      artImg.style.display = "block";
+    // Show badges row only if at least one badge is confirmed and visible
+    if (badgesRow) {
+      const shouldShowRow = Boolean(isConfirmedSynced || isQualityVisible || isLiveVisible);
+      badgesRow.style.display = shouldShowRow ? "flex" : "none";
+      badgesRow.classList.toggle("has-badges", shouldShowRow);
     }
-    if (artFallback) artFallback.style.display = "none";
-  } else {
-    if (artImg) artImg.style.display = "none";
-    if (artFallback) artFallback.style.display = "flex";
-  }
-
-  // Update Synced badge ONLY if state is confirmed (lyrics loaded and synced Level 2 or 3)
-  const isConfirmedSynced = Boolean(lyrics && lyrics.length > 0 && currentSourceLevel >= 2);
-  if (isConfirmedSynced && badgeProvider && badgeText) {
-    const isWbw = currentSourceLevel === 3 || Boolean(lyrics[0].words && lyrics[0].words.length > 0);
-    badgeText.textContent = isWbw ? "Word-Synced" : "Synced";
-    badgeProvider.style.display = "inline-flex";
-    badgeProvider.classList.add("is-confirmed");
-  } else if (badgeProvider) {
-    badgeProvider.style.display = "none";
-    badgeProvider.classList.remove("is-confirmed");
-  }
-
-  // Check if quality badge is confirmed
-  const isQualityVisible = Boolean(badgeQuality && badgeQuality.classList.contains("is-confirmed"));
-
-  // Update live visualizers (Studio badge + Player bar)
-  const isPlayingActive = Boolean(isPlaying || document.body.classList.contains("is-playing"));
-  const badgeLive = document.getElementById("studio-badge-live");
-  if (badgeLive) {
-    if (isPlayingActive) {
-      badgeLive.style.display = "inline-flex";
-      badgeLive.classList.add("is-confirmed");
-    } else {
-      badgeLive.style.display = "none";
-      badgeLive.classList.remove("is-confirmed");
-    }
-  }
-  const isLiveVisible = Boolean(badgeLive && badgeLive.classList.contains("is-confirmed"));
-
-  const playerLiveVis = document.getElementById("player-live-visualizer");
-  if (playerLiveVis) {
-    playerLiveVis.style.display = isPlayingActive ? "inline-flex" : "none";
-  }
-
-  // Show badges row only if at least one badge is confirmed and visible
-  if (badgesRow) {
-    const shouldShowRow = Boolean(isConfirmedSynced || isQualityVisible || isLiveVisible);
-    badgesRow.style.display = shouldShowRow ? "flex" : "none";
-    badgesRow.classList.toggle("has-badges", shouldShowRow);
+  } catch (err) {
+    console.warn("[Studio] Error updating sidebar:", err);
   }
 }
 window.updateStudioSidebar = updateStudioSidebar;
@@ -10414,7 +10419,11 @@ async function handlePlaybackData(data) {
     if (trackWrap) {
       updateMarqueeOverflow(trackWrap, widgetTrackName);
     }
-    updateStudioSidebar(track, albumArtUrl);
+    try {
+      updateStudioSidebar(track, albumArtUrl);
+    } catch (e) {
+      console.warn("[Studio] Error updating sidebar:", e);
+    }
   }
 
   // 2. Only update Album Art & Animated Art when song or art URL changes
@@ -10432,7 +10441,11 @@ async function handlePlaybackData(data) {
       setWallpaperAlbumArt(null);
     }
     updateAnimatedAlbumArt(track, albumArtUrl);
-    updateStudioSidebar(track, albumArtUrl);
+    try {
+      updateStudioSidebar(track, albumArtUrl);
+    } catch (e) {
+      console.warn("[Studio] Error updating sidebar:", e);
+    }
   }
 
   // Audio quality verification: strictly pop up Lossless badge only when verified
@@ -10514,6 +10527,7 @@ async function handlePlaybackData(data) {
       console.warn("[History] Failed to log track history:", e);
     }
     lyrics = [];
+    currentSourceLevel = 0;
     if (isKineticMode && kineticRendererInstance) {
       syncKineticState();
     }
@@ -10968,8 +10982,8 @@ async function _executeFetchLyrics(trackId, trackName, artistName, durationMs, i
   const cleanArtist = artistName.replace(/VEVO$/i, '').replace(/- Topic$/i, '').replace(/Official$/i, '').trim() || artistName;
   const cleanTrack = trackName
     .replace(/\[.*?\]/g, '')
-    .replace(/\(.*?(Official|Audio|Video|feat\.|ft\.|with).*?\)/ig, '')
-    .replace(/ - (Remastered|Radio Edit|Live|Instrumental|Acoustic|Single Version).*/i, '')
+    .replace(/\(.*?(Official|Audio|Video|feat\.|ft\.|with|from|soundtrack|theme|ost).*?\)/ig, '')
+    .replace(/ - (Remastered|Radio Edit|Live|Instrumental|Acoustic|Single Version|From .*).*/i, '')
     .replace(/\s+(feat\.|ft\.).*$/i, '')
     .trim() || trackName;
 
@@ -11019,6 +11033,7 @@ async function _executeFetchLyrics(trackId, trackName, artistName, durationMs, i
           lyrics._hasTranslation = loadedLyrics.some(l => l.subText && l.subText.trim().length > 0 && l.subText.trim().toLowerCase() !== (l.text || '').trim().toLowerCase());
           if (cachedData.noTransNeeded) lyrics._noTransNeeded = true;
           isFetchingLyrics = false;
+          currentSourceLevel = cachedData.level || 2;
           updateTimingStatus(cachedData.level || 2, cachedData.source || "", cachedData.candidateInfo || "");
 
           // Reconcile timed words with typography and punctuation rules for cached lyrics
@@ -11073,7 +11088,7 @@ async function _executeFetchLyrics(trackId, trackName, artistName, durationMs, i
   try {
     updateTimingStatus(0); // "Checking..."
 
-    let currentSourceLevel = 0;
+    currentSourceLevel = 0;
 
     const hasLrcTimestamps = (text) => {
       if (!text || typeof text !== 'string') return false;
@@ -11498,9 +11513,10 @@ async function _executeFetchLyrics(trackId, trackName, artistName, durationMs, i
             if (isPollutedYeatLyrics(lines)) return false;
             const rArtist = (r.artistName || "").toLowerCase();
             const rTrack = (r.trackName || "").toLowerCase();
-            return rArtist.includes(sArtist) || sArtist.includes(rArtist) ||
-                   rArtist.includes(sAllArtists) || sAllArtists.includes(rArtist) ||
-                   rTrack.includes(sTrack) || sTrack.includes(rTrack);
+            const artistMatches = rArtist.includes(sArtist) || sArtist.includes(rArtist) ||
+                                  (sAllArtists && (rArtist.includes(sAllArtists) || sAllArtists.includes(rArtist)));
+            const trackMatches = rTrack.includes(sTrack) || sTrack.includes(rTrack);
+            return artistMatches && trackMatches;
           });
 
           // Sort synced candidates by composite score: title/artist match quality first, then duration proximity.
@@ -11658,6 +11674,9 @@ async function _executeFetchLyrics(trackId, trackName, artistName, durationMs, i
 }
 
 function updateTimingStatus(level, sourceName = "", candidateInfo = "") {
+  if (typeof level === 'number') {
+    currentSourceLevel = level > 0 ? level : 0;
+  }
   const badge = document.getElementById("timing-status-badge");
   if (!badge) return;
 
