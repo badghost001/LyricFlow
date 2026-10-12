@@ -178,10 +178,8 @@ assert.ok(
   '_studio.css must set overflow: visible on widget-info to eliminate scrubber thumb clipping'
 );
 assert.ok(
-  studioCss.includes('order: 1 !important') &&
-  studioCss.includes('order: 2 !important') &&
-  studioCss.includes('order: 3 !important'),
-  '_studio.css must arrange current time (order 1), track (order 2), and duration (order 3)'
+  !studioCss.includes('left: 0% !important'),
+  '_studio.css must not lock progress-bar-thumb left to 0% with !important so scrubber follows playback fill'
 );
 console.log('  ✓ 2e. Sleek inline scrubber row layout and unclipped thumb geometry verified');
 

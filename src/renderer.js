@@ -10528,6 +10528,7 @@ async function handlePlaybackData(data) {
     }
     lyrics = [];
     currentSourceLevel = 0;
+    window._lastFillPercent = -1;
     if (isKineticMode && kineticRendererInstance) {
       syncKineticState();
     }

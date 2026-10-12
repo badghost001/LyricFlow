@@ -416,7 +416,6 @@ body.layout-split .playback-widget .progress-bar-hover {
 body.layout-split .playback-widget .progress-bar-thumb {
   position: absolute !important;
   top: 50% !important;
-  left: 0% !important;
   transform: translate(-50%, -50%) scale(1) !important;
   width: 11px !important;
   height: 11px !important;
