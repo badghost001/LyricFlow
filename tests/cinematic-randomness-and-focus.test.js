@@ -315,7 +315,7 @@ test('4b. tauri-bridge.js exposes onWallpaperFocusChanged listener', () => {
 });
 
 test('4c. renderer.js suspends cinematic canvas seek and DOM lyric scrolling when wallpaper is unfocused', () => {
-  const code = fs.readFileSync(path.join(__dirname, '../src/renderer.js'), 'utf8');
+  const code = fs.readFileSync(path.join(__dirname, '../src/renderer.js'), 'utf8').replace(/\r\n/g, '\n');
   assert.ok(code.includes('let isWallpaperDesktopFocused = true;'), 'Must track isWallpaperDesktopFocused');
   assert.ok(code.includes('window.electronAPI.onWallpaperFocusChanged'), 'Must listen to onWallpaperFocusChanged');
   assert.ok(code.includes('isWallpaperSuspended && !isDynamicIslandMode'), 'Must gate DOM lyric scrolling on wallpaper suspension');

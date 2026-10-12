@@ -200,7 +200,7 @@ function computeBandRanges(sampleRate) {
 // Test 7: Verify renderer.js synchronizes visualizer state across all lifecycle events
 {
   const rendererPath = path.join(__dirname, '..', 'src', 'renderer.js');
-  const rendererCode = fs.readFileSync(rendererPath, 'utf8');
+  const rendererCode = fs.readFileSync(rendererPath, 'utf8').replace(/\r\n/g, '\n');
 
   // Verify syncAudioVisualizerState is called on mode transitions, sleep, wake, bootstrap, and playback changes
   assert(rendererCode.includes('function bootstrapApp()'), "Must define bootstrapApp");

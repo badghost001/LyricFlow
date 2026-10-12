@@ -39,7 +39,7 @@ console.log('\n--- Running Fluid Mesh Startup Palette & WebGL Acquisition Tests 
 console.log('1. Static Code Analysis:');
 
 const fluidMeshSource = fs.readFileSync(path.join(__dirname, '../src/modules/fluid-mesh.js'), 'utf8');
-const rendererSource = fs.readFileSync(path.join(__dirname, '../src/renderer.js'), 'utf8');
+const rendererSource = fs.readFileSync(path.join(__dirname, '../src/renderer.js'), 'utf8').replace(/\r\n/g, '\n');
 
 test('1a. fluid-mesh.js declares _isFirstPalette flag in constructor', () => {
   assert.ok(fluidMeshSource.includes('this._isFirstPalette = true;'), 'Must initialize _isFirstPalette in constructor');

@@ -131,7 +131,7 @@ test('1b. FluidMeshGradient clamps canvas dimensions to maximum 540x320 to avoid
 
 test('1c. src/renderer.js stops FluidMeshGradient on entering Cinematic View and guards against restarts', () => {
   const rendererPath = path.join(__dirname, '../src/renderer.js');
-  const rendererCode = fs.readFileSync(rendererPath, 'utf8');
+  const rendererCode = fs.readFileSync(rendererPath, 'utf8').replace(/\r\n/g, '\n');
 
   assert.ok(rendererCode.includes('if (isCinematicView) {\n    if (fluidMeshGradientInstance) {\n      fluidMeshGradientInstance.stop();'), 'Must stop fluid mesh when entering cinematic view');
   assert.ok(rendererCode.includes('if (shouldRunMesh && !isCinematicView)'), 'applyVisualSettings must guard fluid mesh on !isCinematicView');
