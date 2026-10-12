@@ -749,6 +749,21 @@ body.wbw-active .lyric-line.active .lyric-word.lyric-word-upcoming {
   }
 }
 
+/* Real Live Audio Spectrum Reactor for Instrumental Breaks */
+.solo-visualizer-wave.is-live-audio .solo-bar {
+  animation: none !important;
+  transform-origin: center center;
+  transition: transform 0.035s cubic-bezier(0.2, 0.9, 0.3, 1), opacity 0.15s ease;
+  will-change: transform;
+}
+
+.solo-visualizer-wave.is-resting .solo-bar {
+  animation: none !important;
+  transform: scaleY(0.20) !important;
+  opacity: 0.40 !important;
+  box-shadow: none !important;
+}
+
 .solo-meta {
   display: flex;
   flex-direction: column;

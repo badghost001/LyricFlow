@@ -629,25 +629,55 @@ let lastAudioEnergyTimestamp = 0;
 let isVisualizerResting = false;
 
 function checkVisualizerFallback() {
-  if (!isDynamicIslandMode || isIslandSleeping) return;
-  const islandWave = document.getElementById("island-wave");
-  if (!islandWave) return;
-  if (islandWave.classList.contains("is-fallback")) {
-    islandWave.classList.remove("is-fallback");
-  }
-  const isAudioActive = Boolean(isPlaying) || document.body.classList.contains("is-playing");
-  const msSinceEnergy = Date.now() - lastAudioEnergyTimestamp;
+  const islandWave = isDynamicIslandMode ? document.getElementById("island-wave") : null;
+  if (islandWave) {
+    if (islandWave.classList.contains("is-fallback")) {
+      islandWave.classList.remove("is-fallback");
+    }
+    const isAudioActive = Boolean(isPlaying) || document.body.classList.contains("is-playing");
+    const msSinceEnergy = Date.now() - lastAudioEnergyTimestamp;
 
-  const silenceThreshold = !isAudioActive ? 350 : 260;
-  if (msSinceEnergy > silenceThreshold) {
-    if (isVisualizerResting) return;
-    isVisualizerResting = true;
-    islandWave.classList.add("is-resting");
-    const bars = lastSpectrumBars || islandWave.querySelectorAll(".wave-bar");
-    const visStyle = settings.islandVisualizerStyle || 'bars';
-    bars.forEach(bar => {
-      bar.style.transform = visStyle === 'dots' ? 'scale(0.8) translateY(0px)' : 'scaleY(0.14)';
-    });
+    const silenceThreshold = !isAudioActive ? 350 : 260;
+    if (msSinceEnergy > silenceThreshold) {
+      if (!isVisualizerResting) {
+        isVisualizerResting = true;
+        islandWave.classList.add("is-resting");
+        const bars = lastSpectrumBars || islandWave.querySelectorAll(".wave-bar");
+        const visStyle = settings.islandVisualizerStyle || 'bars';
+        bars.forEach(bar => {
+          bar.style.transform = visStyle === 'dots' ? 'scale(0.8) translateY(0px)' : 'scaleY(0.14)';
+        });
+      }
+    }
+  }
+
+  // Settle Instrumental Solo Stage and Desktop Live Visualizers during quiet passages
+  const msSinceEnergyAll = Date.now() - lastAudioEnergyTimestamp;
+  const isAudioActiveAll = Boolean(isPlaying) || document.body.classList.contains("is-playing");
+  if (msSinceEnergyAll > (!isAudioActiveAll ? 350 : 260)) {
+    const soloStage = document.getElementById("instrumental-solo-stage");
+    if (soloStage) {
+      const soloWave = soloStage.querySelector(".solo-visualizer-wave");
+      if (soloWave && !soloWave.classList.contains("is-resting")) {
+        soloWave.classList.add("is-resting");
+        soloWave.classList.remove("is-live-audio");
+        const soloBars = soloWave.querySelectorAll(".solo-bar");
+        soloBars.forEach(b => {
+          b.style.transform = 'scaleY(0.20)';
+          b.style.opacity = '0.40';
+        });
+      }
+    }
+    const playerVis = document.getElementById("player-live-visualizer");
+    if (playerVis && !playerVis.classList.contains("is-resting")) {
+      playerVis.classList.add("is-resting");
+      playerVis.querySelectorAll(".player-vis-bar").forEach(b => { b.style.transform = 'scaleY(0.18)'; });
+    }
+    const studioBadgeLive = document.getElementById("studio-badge-live");
+    if (studioBadgeLive && !studioBadgeLive.classList.contains("is-resting")) {
+      studioBadgeLive.classList.add("is-resting");
+      studioBadgeLive.querySelectorAll(".studio-vis-bar").forEach(b => { b.style.transform = 'scaleY(0.18)'; });
+    }
   }
 }
 
@@ -658,7 +688,8 @@ function syncAudioVisualizerState() {
   const isWallpaperModeActive = Boolean(typeof settings !== 'undefined' && settings.wallpaperMode);
   const isWallpaperBloomActive = Boolean(isWallpaperModeActive && settings.wallpaperBeatBloom !== false);
   const isVisible = document.visibilityState !== 'hidden' || isDynamicIslandMode || isWallpaperModeActive;
-  const shouldBeActive = (isIslandActive || isWallpaperBloomActive) && isVisible;
+  const isDesktopActive = Boolean(!isDynamicIslandMode && !isWallpaperModeActive && (Boolean(isPlaying) || Boolean(currentTitle) || Boolean(document.body.classList.contains("is-playing"))));
+  const shouldBeActive = Boolean((isIslandActive || isWallpaperBloomActive || isDesktopActive) && isVisible);
 
   if (_currentAudioVisualizerActiveState !== shouldBeActive) {
     _currentAudioVisualizerActiveState = shouldBeActive;
@@ -672,7 +703,8 @@ function syncAudioVisualizerState() {
 // Low-overhead watchdog ensuring bars smoothly settle to resting baseline during quiet passages
 let visualizerFallbackInterval = null;
 function ensureVisualizerFallbackWatchdog() {
-  if (isDynamicIslandMode && !isIslandSleeping) {
+  const isAnyActive = (isDynamicIslandMode && !isIslandSleeping) || (!isDynamicIslandMode && (Boolean(isPlaying) || Boolean(currentTitle)));
+  if (isAnyActive) {
     if (!visualizerFallbackInterval) {
       visualizerFallbackInterval = setInterval(checkVisualizerFallback, 140);
     }
@@ -689,11 +721,13 @@ let hasLoggedSpectrumTelemetry = false;
 if (window.electronAPI && typeof window.electronAPI.onAudioSpectrum === 'function') {
   window.electronAPI.onAudioSpectrum((bands) => {
     if (!Array.isArray(bands) || bands.length === 0) return;
-    // Execution Gating: if neither Dynamic Island nor Wallpaper Beat Bloom is active, skip all DOM processing
-    if (!isDynamicIslandMode && (!settings.wallpaperMode || settings.wallpaperBeatBloom === false)) return;
+    // Execution Gating: verify at least one target visualizer UI or wallpaper beat bloom is active
+    const soloStage = document.getElementById("instrumental-solo-stage");
+    const isSoloStageActive = Boolean(soloStage && (soloStage.classList.contains("active") || soloStage.style.display !== 'none'));
+    const isDesktopUiActive = Boolean(!isDynamicIslandMode && !settings.wallpaperMode && (isPlaying || currentTitle || isSoloStageActive));
+    if (!isDynamicIslandMode && (!settings.wallpaperMode || settings.wallpaperBeatBloom === false) && !isSoloStageActive && !isDesktopUiActive) return;
 
     const islandWave = isDynamicIslandMode ? document.getElementById("island-wave") : null;
-    if (isDynamicIslandMode && !islandWave) return;
 
     if (!hasLoggedSpectrumTelemetry) {
       hasLoggedSpectrumTelemetry = true;
@@ -734,6 +768,7 @@ if (window.electronAPI && typeof window.electronAPI.onAudioSpectrum === 'functio
               isVisualizerResting = true;
             }
           }
+          checkVisualizerFallback();
           if (isDynamicIslandMode) updateIslandEnergyMorph([0, 0, 0, 0]);
           if (settings.wallpaperMode) updateWallpaperLyricBeatBloom(0);
           return;
@@ -746,6 +781,8 @@ if (window.electronAPI && typeof window.electronAPI.onAudioSpectrum === 'functio
         return;
       }
     }
+
+    // 1. Dynamic Island Visualizer (Bars, Dots, Wave)
     if (isDynamicIslandMode && islandWave && bars && bars.length > 0) {
       if (islandWave.classList.contains("is-fallback")) {
         islandWave.classList.remove("is-fallback");
@@ -803,10 +840,63 @@ if (window.electronAPI && typeof window.electronAPI.onAudioSpectrum === 'functio
       updateIslandEnergyMorph(bands);
     }
 
-    // Apple-Style Wallpaper Lyric Beat Bloom
+    // 2. Apple-Style Wallpaper Lyric Beat Bloom
     if (settings.wallpaperMode && settings.wallpaperBeatBloom !== false) {
       const subBass = Math.max((bands && bands[0]) || 0, (bands && bands[1]) || 0);
       updateWallpaperLyricBeatBloom(subBass);
+    }
+
+    // 3. Instrumental Solo Stage Visualizer (Real WASAPI Audio Reactor)
+    if (soloStage && (isSoloStageActive || soloStage.classList.contains("active"))) {
+      const soloWave = soloStage.querySelector(".solo-visualizer-wave");
+      if (soloWave) {
+        const soloBars = soloWave.querySelectorAll(".solo-bar");
+        if (soloBars && soloBars.length === 5) {
+          soloWave.classList.add("is-live-audio");
+          soloWave.classList.remove("is-resting");
+          const s0 = Math.max(bands[0] || 0, bands[1] || 0) * 1.15;
+          const s1 = (bands[2] || 0) * 1.30;
+          const s2 = Math.max(bands[3] || 0, bands[4] || 0) * 1.50;
+          const s3 = (bands[5] || 0) * 1.65;
+          const s4 = Math.max(bands[6] || 0, bands[7] || 0) * 1.85;
+          const soloValues = [s0, s1, s2, s3, s4];
+
+          for (let i = 0; i < 5; i++) {
+            let v = soloValues[i] || 0;
+            v = Math.min(1.0, Math.pow(Math.max(0, v), 0.72));
+            if (v < 0.015) v = v * (v / 0.015);
+            const scale = Math.min(2.8, Math.max(0.20, 0.20 + v * 2.35));
+            soloBars[i].style.transform = `scaleY(${scale.toFixed(3)})`;
+            soloBars[i].style.opacity = Math.min(1.0, 0.55 + v * 0.45).toFixed(2);
+          }
+        }
+      }
+    }
+
+    // 4. Desktop Live Equalizer (Player Bar & Studio Dock)
+    const desktopLive = document.getElementById("player-live-visualizer");
+    const studioLive = document.getElementById("studio-badge-live");
+    if (desktopLive || studioLive) {
+      const d0 = Math.max(bands[0] || 0, bands[1] || 0) * 1.10;
+      const d1 = (bands[2] || 0) * 1.25;
+      const d2 = Math.max(bands[4] || 0, bands[5] || 0) * 1.45;
+      const d3 = Math.max(bands[6] || 0, bands[7] || 0) * 1.75;
+      const dVals = [d0, d1, d2, d3];
+
+      [desktopLive, studioLive].forEach(visContainer => {
+        if (visContainer && visContainer.style.display !== 'none') {
+          visContainer.classList.add("is-live-audio");
+          visContainer.classList.remove("is-resting");
+          const dBars = visContainer.querySelectorAll(".player-vis-bar, .studio-vis-bar");
+          for (let i = 0; i < Math.min(dBars.length, 4); i++) {
+            let v = dVals[i] || 0;
+            v = Math.min(1.0, Math.pow(Math.max(0, v), 0.72));
+            if (v < 0.015) v = v * (v / 0.015);
+            const clamped = Math.min(1.0, Math.max(0.18, 0.18 + v * 0.82));
+            dBars[i].style.transform = `scaleY(${clamped.toFixed(3)})`;
+          }
+        }
+      });
     }
   });
 }
@@ -3407,6 +3497,15 @@ function updateStudioSidebar(track, albumArtUrl) {
       badgeQuality.style.display = "none";
       badgeQuality.classList.remove("is-confirmed");
     }
+    const badgeLive = document.getElementById("studio-badge-live");
+    if (badgeLive) {
+      badgeLive.style.display = "none";
+      badgeLive.classList.remove("is-confirmed");
+    }
+    const playerLiveVis = document.getElementById("player-live-visualizer");
+    if (playerLiveVis) {
+      playerLiveVis.style.display = "none";
+    }
     return;
   }
 
@@ -3454,9 +3553,28 @@ function updateStudioSidebar(track, albumArtUrl) {
   // Check if quality badge is confirmed
   const isQualityVisible = Boolean(badgeQuality && badgeQuality.classList.contains("is-confirmed"));
 
+  // Update live visualizers (Studio badge + Player bar)
+  const isPlayingActive = Boolean(isPlaying || document.body.classList.contains("is-playing"));
+  const badgeLive = document.getElementById("studio-badge-live");
+  if (badgeLive) {
+    if (isPlayingActive) {
+      badgeLive.style.display = "inline-flex";
+      badgeLive.classList.add("is-confirmed");
+    } else {
+      badgeLive.style.display = "none";
+      badgeLive.classList.remove("is-confirmed");
+    }
+  }
+  const isLiveVisible = Boolean(badgeLive && badgeLive.classList.contains("is-confirmed"));
+
+  const playerLiveVis = document.getElementById("player-live-visualizer");
+  if (playerLiveVis) {
+    playerLiveVis.style.display = isPlayingActive ? "inline-flex" : "none";
+  }
+
   // Show badges row only if at least one badge is confirmed and visible
   if (badgesRow) {
-    const shouldShowRow = Boolean(isConfirmedSynced || isQualityVisible);
+    const shouldShowRow = Boolean(isConfirmedSynced || isQualityVisible || isLiveVisible);
     badgesRow.style.display = shouldShowRow ? "flex" : "none";
     badgesRow.classList.toggle("has-badges", shouldShowRow);
   }
@@ -13191,7 +13309,10 @@ function updatePlayhead() {
           const soloStage = document.getElementById("instrumental-solo-stage");
           if (soloStage) {
             if (isInstrumentalBreak || isIntroPrelude) {
-              soloStage.classList.add("active");
+              if (!soloStage.classList.contains("active")) {
+                soloStage.classList.add("active");
+                syncAudioVisualizerState();
+              }
               const soloCountdown = document.getElementById("solo-countdown");
               if (soloCountdown) {
                 if (isIntroPrelude) {
@@ -13203,7 +13324,14 @@ function updatePlayhead() {
                 }
               }
             } else {
-              soloStage.classList.remove("active");
+              if (soloStage.classList.contains("active")) {
+                soloStage.classList.remove("active");
+                const soloWave = soloStage.querySelector(".solo-visualizer-wave");
+                if (soloWave) {
+                  soloWave.classList.remove("is-live-audio");
+                  soloWave.classList.add("is-resting");
+                }
+              }
             }
           }
 

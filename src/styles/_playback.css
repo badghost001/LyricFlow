@@ -170,6 +170,38 @@ body.auto-hide-controls .app-container:hover .playback-widget {
   color: #1d1d1f;
 }
 
+/* Authentic Apple-style Live Equalizer in Bottom Player Bar */
+.player-live-visualizer {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 12px;
+  margin-left: 5px;
+  padding: 0 2px;
+  vertical-align: middle;
+  user-select: none;
+  pointer-events: none;
+  flex-shrink: 0;
+}
+
+.player-vis-bar {
+  width: 2.2px;
+  height: 12px;
+  border-radius: 99px;
+  background: var(--accent-primary, #1db954);
+  box-shadow: 0 0 6px rgba(var(--accent-primary-rgb, 29, 185, 84), 0.45);
+  transform-origin: bottom center;
+  transform: scaleY(0.20);
+  transition: transform 0.035s cubic-bezier(0.2, 0.9, 0.3, 1), background 0.3s ease;
+  will-change: transform;
+}
+
+.player-live-visualizer.is-resting .player-vis-bar {
+  transform: scaleY(0.18) !important;
+  opacity: 0.40;
+  box-shadow: none;
+}
+
 .timing-status-badge {
   display: inline-flex;
   align-items: center;
