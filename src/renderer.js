@@ -3754,7 +3754,44 @@ function initDOMElements() {
     });
   }
 
-  // Click on Album Art to Enlarge Lightbox Modal
+  // Click on Album Art to Enlarge Lightbox Modal (Studio sidebar & Widget)
+  const studioArtContainer = document.querySelector(".studio-art-container");
+  const studioArtWrapper = document.getElementById("studio-art-wrapper");
+  const studioTarget = studioArtWrapper || studioArtContainer;
+  if (studioTarget) {
+    studioTarget.title = "Click to enlarge (Right-click to refetch album artwork)";
+    studioTarget.addEventListener("click", (e) => {
+      e.stopPropagation();
+      showAlbumArtModal();
+    });
+    studioTarget.addEventListener("contextmenu", async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const trackObj = currentPlayingTrackObj || currentTrack;
+      if (!trackObj || !trackObj.name) return;
+      const artist = trackObj.artists?.[0]?.name || trackObj.artist || '';
+      if (currentTrackId) delete localArtCache[currentTrackId];
+      const dualKey = `${artist}:::${trackObj.name}`.toLowerCase().trim();
+      delete localArtCache[dualKey];
+      try {
+        const artUrl = await fetchFallbackAlbumArt(trackObj.name, artist, trackObj.album?.name || '');
+        if (artUrl) {
+          saveArtToCache(currentTrackId, artUrl, trackObj.name, artist);
+          if (widgetAlbumArt) {
+            widgetAlbumArt.src = artUrl;
+            widgetAlbumArt.style.display = 'block';
+          }
+          if (typeof updateStudioSidebar === 'function') {
+            updateStudioSidebar(trackObj, artUrl);
+          }
+          setWallpaperAlbumArt(artUrl);
+          updateDynamicArtColor(artUrl);
+          currentStaticAlbumArtUrl = artUrl;
+        }
+      } catch (err) {}
+    });
+  }
+
   const artContainer = document.querySelector(".widget-art-container");
   if (artContainer) {
     artContainer.title = "Click to enlarge (Right-click to refetch album artwork)";
@@ -5426,13 +5463,50 @@ function seekPlayback(targetMs) {
   lastPollProgress = seekMs;
   lastPollTimestamp = getHighResTime();
 
+  // Optimistic Instant UI Feedback: immediately update progress bar and time labels
+  if (widgetProgressFill && trackDuration > 0) {
+    const pct = (seekMs / trackDuration) * 100;
+    widgetProgressFill.style.width = `${pct}%`;
+    window._lastFillPercent = pct;
+    if (!window._cachedMainThumb) {
+      window._cachedMainThumb = document.getElementById("main-progress-thumb");
+    }
+    if (window._cachedMainThumb) {
+      window._cachedMainThumb.style.left = `${pct}%`;
+    }
+  }
+  if (widgetTimeCurrent) {
+    widgetTimeCurrent.textContent = formatTime(seekMs);
+  }
+  if (widgetTimeDuration && trackDuration > 0) {
+    widgetTimeDuration.textContent = window._showRemainingTime
+      ? `-${formatTime(Math.max(0, trackDuration - seekMs))}`
+      : formatTime(trackDuration);
+  }
+
+  // Native Local / Windows SMTC Playback Control
   if (window.electronAPI && window.electronAPI.triggerLocalPlaybackControl) {
     window.electronAPI.triggerLocalPlaybackControl("seek", seekMs);
   }
-  if (config && config.access_token && !config.localMode) {
+
+  // Spotify Web API Control: always trigger when token is available to control Spotify desktop / web reliably
+  if (config && config.access_token) {
     fetch('https://api.spotify.com/v1/me/player/seek?position_ms=' + seekMs, {
       method: 'PUT',
       headers: { 'Authorization': 'Bearer ' + config.access_token }
+    }).then(async (res) => {
+      if (res.status === 401 && config.refresh_token && window.electronAPI && window.electronAPI.refreshToken) {
+        try {
+          const newToken = await window.electronAPI.refreshToken();
+          if (newToken) {
+            config.access_token = newToken;
+            fetch('https://api.spotify.com/v1/me/player/seek?position_ms=' + seekMs, {
+              method: 'PUT',
+              headers: { 'Authorization': 'Bearer ' + newToken }
+            }).catch(() => {});
+          }
+        } catch (_) {}
+      }
     }).catch(err => console.warn("Seek error:", err));
   }
 }
@@ -6702,6 +6776,16 @@ function setupUIHandlers() {
 
     trackEl.addEventListener("pointerup", commitSeek);
     trackEl.addEventListener("pointercancel", commitSeek);
+
+    trackEl.addEventListener("click", (e) => {
+      if (e.button !== 0 || trackDuration <= 0) return;
+      if (settings.progressBarSeek === false) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const ratio = getRatio(e);
+      const seekMs = Math.round(ratio * trackDuration);
+      seekPlayback(seekMs);
+    });
 
     trackEl.addEventListener("pointerleave", () => {
       if (!isScrubbing && hoverEl) {
@@ -8372,6 +8456,21 @@ function setupUIHandlers() {
     timeCurrentEl: document.getElementById("widget-time-current"),
     isIsland: false
   });
+
+  const mainProgressContainer = document.querySelector(".playback-widget .progress-bar-container");
+  if (mainProgressContainer) {
+    mainProgressContainer.addEventListener("pointerdown", (e) => {
+      if (e.target.closest(".progress-time")) return;
+      const track = document.getElementById("main-progress-track");
+      if (!track || e.target === track || track.contains(e.target)) return;
+      if (trackDuration <= 0) return;
+      const rect = track.getBoundingClientRect();
+      if (!rect.width) return;
+      const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      const seekMs = Math.round(ratio * trackDuration);
+      seekPlayback(seekMs);
+    });
+  }
 
   // Keyboard Shortcuts for Modes, Playback, Sync Nudging & Reload
   document.addEventListener("keydown", (e) => {
@@ -11706,15 +11805,25 @@ function showAlbumArtModal() {
   const artistEl = document.getElementById('album-art-modal-artist');
   if (!modal || !imgEl) return;
 
-  const isVideoActive = widgetAlbumArtVideo && widgetAlbumArtVideo.style.display !== 'none' && widgetAlbumArtVideo.src;
-  // Always strictly prioritize the exact artwork currently visible in the minimized widget thumbnail
-  const visibleArt = (widgetAlbumArt && widgetAlbumArt.src && widgetAlbumArt.style.display !== 'none')
-    ? widgetAlbumArt.src
-    : (currentStaticAlbumArtUrl || (widgetAlbumArt && widgetAlbumArt.src ? widgetAlbumArt.src : ''));
+  const studioArtImg = document.getElementById("studio-art-img");
+  const studioArtVideo = document.getElementById("studio-art-video");
 
-  if (isVideoActive && vidEl) {
-    if (vidEl.src !== widgetAlbumArtVideo.src) {
-      vidEl.src = widgetAlbumArtVideo.src;
+  const isVideoActive = (widgetAlbumArtVideo && widgetAlbumArtVideo.style.display !== 'none' && widgetAlbumArtVideo.src) ||
+                        (studioArtVideo && studioArtVideo.style.display !== 'none' && studioArtVideo.src);
+  const activeVideoSrc = (studioArtVideo && studioArtVideo.src && studioArtVideo.style.display !== 'none')
+    ? studioArtVideo.src
+    : (widgetAlbumArtVideo && widgetAlbumArtVideo.src ? widgetAlbumArtVideo.src : '');
+
+  // Prioritize active studio artwork or widget thumbnail or cached artwork URL
+  const visibleArt = (studioArtImg && studioArtImg.src && studioArtImg.style.display !== 'none')
+    ? studioArtImg.src
+    : ((widgetAlbumArt && widgetAlbumArt.src && widgetAlbumArt.style.display !== 'none')
+      ? widgetAlbumArt.src
+      : (currentStaticAlbumArtUrl || (widgetAlbumArt && widgetAlbumArt.src ? widgetAlbumArt.src : '')));
+
+  if (isVideoActive && vidEl && activeVideoSrc) {
+    if (vidEl.src !== activeVideoSrc) {
+      vidEl.src = activeVideoSrc;
     }
     vidEl.style.display = 'block';
     vidEl.play().catch(() => {});
@@ -11732,12 +11841,20 @@ function showAlbumArtModal() {
     return;
   }
 
-  const trackName = (widgetTrackName && widgetTrackName.textContent !== "Not Playing")
-    ? widgetTrackName.textContent
-    : ((typeof currentTrackName !== 'undefined' ? currentTrackName : '') || "Unknown Track");
-  const artistName = (widgetArtistName && widgetArtistName.textContent !== "Spotify")
-    ? widgetArtistName.textContent
-    : ((typeof currentArtistName !== 'undefined' ? currentArtistName : '') || "Unknown Artist");
+  const studioTitle = document.getElementById("studio-track-title");
+  const studioArtist = document.getElementById("studio-track-artist");
+
+  const trackName = (studioTitle && studioTitle.textContent && studioTitle.textContent !== "Not Playing")
+    ? studioTitle.textContent
+    : ((widgetTrackName && widgetTrackName.textContent !== "Not Playing")
+      ? widgetTrackName.textContent
+      : ((typeof currentTrackName !== 'undefined' ? currentTrackName : '') || currentPlayingTrackObj?.name || "Unknown Track"));
+
+  const artistName = (studioArtist && studioArtist.textContent && studioArtist.textContent !== "LyricFlow Studio")
+    ? studioArtist.textContent
+    : ((widgetArtistName && widgetArtistName.textContent !== "Spotify")
+      ? widgetArtistName.textContent
+      : ((typeof currentArtistName !== 'undefined' ? currentArtistName : '') || currentPlayingTrackObj?.artists?.[0]?.name || "Unknown Artist"));
 
   if (titleEl) titleEl.textContent = trackName;
   if (artistEl) artistEl.textContent = artistName;

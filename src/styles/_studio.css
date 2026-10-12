@@ -60,6 +60,7 @@ body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mo
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  cursor: pointer;
 }
 
 .studio-art-wrapper {
@@ -78,14 +79,15 @@ body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mo
     inset 0 1.5px 1px rgba(255, 255, 255, 0.35),
     inset 0 -1px 1px rgba(0, 0, 0, 0.4);
   z-index: 2;
+  cursor: pointer;
   transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .studio-art-wrapper:hover {
-  transform: scale(1.02);
+  transform: scale(1.035);
   box-shadow:
-    0 30px 72px rgba(0, 0, 0, 0.75),
-    0 6px 24px rgba(var(--accent-primary-rgb, 29, 185, 84), 0.3),
+    0 32px 80px rgba(0, 0, 0, 0.75),
+    0 8px 30px rgba(var(--accent-primary-rgb, 29, 185, 84), 0.4),
     inset 0 1.5px 1px rgba(255, 255, 255, 0.45);
 }
 
@@ -93,6 +95,8 @@ body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mo
 .studio-art-video {
   width: 100%;
   height: 100%;
+  cursor: pointer;
+}
   object-fit: cover;
   display: block;
 }
@@ -286,28 +290,53 @@ body.layout-split .playback-widget .progress-bar-container {
   display: flex !important;
   flex-direction: column !important;
   gap: 6px !important;
+  cursor: pointer !important;
 }
 
 body.layout-split .playback-widget .progress-bar-bg {
   width: 100% !important;
-  height: 5px !important;
+  height: 6px !important;
   border-radius: 999px !important;
-  background: rgba(255, 255, 255, 0.14) !important;
+  background: rgba(255, 255, 255, 0.16) !important;
   position: relative !important;
   cursor: pointer !important;
   overflow: visible !important;
   transition: height 0.18s ease, background 0.2s ease !important;
 }
 
-body.layout-split .playback-widget .progress-bar-bg:hover {
-  height: 7px !important;
-  background: rgba(255, 255, 255, 0.22) !important;
+/* Generous 26px invisible hit target padding so clicks above/below never miss */
+body.layout-split .playback-widget .progress-bar-bg::before,
+.progress-bar-bg::before {
+  content: '';
+  position: absolute;
+  top: -10px;
+  bottom: -10px;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  cursor: pointer;
+}
+
+body.layout-split .playback-widget .progress-bar-bg:hover,
+body.layout-split .playback-widget .progress-bar-bg.is-scrubbing {
+  height: 8px !important;
+  background: rgba(255, 255, 255, 0.26) !important;
 }
 
 body.layout-split .playback-widget .progress-bar-fill {
+  height: 100% !important;
   border-radius: 999px !important;
   background: linear-gradient(90deg, var(--accent-primary, #1db954) 0%, var(--accent-bright, #22c55e) 100%) !important;
   box-shadow: 0 0 10px rgba(var(--accent-primary-rgb, 29, 185, 84), 0.45) !important;
+  pointer-events: none !important;
+}
+
+body.layout-split .playback-widget .progress-bar-hover {
+  pointer-events: none !important;
+}
+
+body.layout-split .playback-widget .progress-bar-thumb {
+  pointer-events: none !important;
 }
 
 body.layout-split .playback-widget .progress-time {

@@ -113,6 +113,17 @@ assert.ok(
 );
 console.log('  ✓ 1h. Lyrics viewport spans full window height in right column without bottom bar obstruction');
 
+// 1i. Studio sidebar album art click enlargement and cursor styling
+assert.ok(
+  studioCss.includes('.studio-art-container') && studioCss.includes('cursor: pointer'),
+  '_studio.css must set cursor: pointer on studio album artwork container'
+);
+assert.ok(
+  rendererJs.includes('studioTarget.addEventListener("click"') || rendererJs.includes("studioTarget.addEventListener('click'"),
+  'renderer.js must wire click listener on studio album art to showAlbumArtModal'
+);
+console.log('  ✓ 1i. Studio sidebar album art supports click-to-enlarge lightbox modal');
+
 // -------------------------------------------------------------
 // Section 2: Option B — Persistent Player Bar & HUD Verification
 // -------------------------------------------------------------
@@ -142,6 +153,17 @@ assert.ok(
   '_hud.css must support body.auto-hide-controls'
 );
 console.log('  ✓ 2c. body.auto-hide-controls preserves optional hover-only behavior');
+
+// 2d. Scrubber generous hit target and instant seek feedback
+assert.ok(
+  studioCss.includes('.playback-widget .progress-bar-bg::before') && studioCss.includes('cursor: pointer'),
+  '_studio.css must provide generous pseudo-element touch/click expander on progress-bar-bg'
+);
+assert.ok(
+  rendererJs.includes('widgetProgressFill.style.width = `${pct}%`'),
+  'renderer.js seekPlayback must immediately apply optimistic visual update'
+);
+console.log('  ✓ 2d. Progress bar features 26px expanded hit zone and instant seek feedback');
 
 // -------------------------------------------------------------
 // Section 3: Option C — Karaoke Vocal Cursor Bead & Solo Stage

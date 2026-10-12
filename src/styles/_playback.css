@@ -342,6 +342,7 @@ body.auto-hide-controls .app-container:hover .playback-widget {
   box-shadow: 0 0 10px rgba(var(--accent-primary-rgb), 0.5), inset 0 1px 0.5px rgba(255, 255, 255, 0.4);
   animation: progressPulse 2.5s ease-in-out infinite;
   z-index: 2;
+  pointer-events: none;
 }
 
 .progress-bar-bg.is-scrubbing .progress-bar-fill {

@@ -482,7 +482,11 @@ impl MediaSessionBackend for WindowsSmtcBackend {
                 "previous" => { let _ = session.TrySkipPreviousAsync(); },
                 "seek" => {
                     let requested_pos = (position_ms as i64) * 10_000;
-                    let _ = session.TryChangePlaybackPositionAsync(requested_pos);
+                    if let Ok(op) = session.TryChangePlaybackPositionAsync(requested_pos) {
+                        std::thread::spawn(move || {
+                            let _ = op.get();
+                        });
+                    }
                 },
                 _ => {}
             }
