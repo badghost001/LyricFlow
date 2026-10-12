@@ -236,13 +236,14 @@ function parseLRC(lrcText) {
                   words[words.length - 1].hasSpace = true;
                 }
               } else {
-                if (words.length > 0 && hasLeadingSpace) {
+                const isHyphenated = /[-–—]$/.test(wordText);
+                if (words.length > 0 && hasLeadingSpace && !/[-–—]$/.test(words[words.length - 1].text)) {
                   words[words.length - 1].hasSpace = true;
                 }
                 words.push({
                   text: wordText,
                   timeMs: curTag.timeMs,
-                  hasSpace: hasTrailingSpace
+                  hasSpace: isHyphenated ? false : hasTrailingSpace
                 });
               }
             } else if (words.length > 0) {
@@ -267,7 +268,8 @@ function parseLRC(lrcText) {
             const totalMs = Math.max(0, (min * 60 + sec) * 1000 + ms + offsetMs);
             if (wordText) {
               const hasTrailingSpace = /\s$/.test(wordRaw);
-              words.push({ text: wordText, timeMs: totalMs, hasSpace: hasTrailingSpace });
+              const isHyphenated = /[-–—]$/.test(wordText);
+              words.push({ text: wordText, timeMs: totalMs, hasSpace: isHyphenated ? false : hasTrailingSpace });
             } else if (words.length > 0) {
               words[words.length - 1].endMs = totalMs;
               words[words.length - 1].duration = Math.max(50, totalMs - words[words.length - 1].timeMs);
@@ -315,15 +317,53 @@ function parseLRC(lrcText) {
       const rawClean = afterLineTags
         .replace(/<(\d{1,2}):(\d{2})(?:[.:](\d{2,3}))?>/g, '')
         .replace(/\[(\d{1,2}):(\d{2})(?:[.:](\d{2,3}))?\]/g, '');
-      const cleanText = cleanLyricText(rawClean);
+
+      // R4: Before collapsing multiple spaces, detect brackets preceded by 2+ spaces or a tab
+      const secBracketMatch = rawClean.match(/^(.*?)(?:[ \t]{2,}|\t)([\(\[\{（【][^\(\[\]\)\}）】]+[\)\]\}）】])\s*$/);
+      let cleanText = '';
+      let subText = undefined;
+      let primaryWords = words;
+
+      if (secBracketMatch) {
+        cleanText = cleanLyricText(secBracketMatch[1]);
+        subText = cleanLyricText(secBracketMatch[2]);
+
+        // Map line.words to the primary vocal words
+        if (words.length > 0) {
+          let splitIdx = -1;
+          for (let i = 1; i <= words.length; i++) {
+            const candidate = cleanLyricText(words.slice(0, i).map(w => cleanWordPunctuation(w.text)).join(' '));
+            if (candidate === cleanText) {
+              splitIdx = i;
+              break;
+            }
+          }
+          if (splitIdx === -1) {
+            for (let i = 0; i < words.length; i++) {
+              const wt = cleanWordPunctuation(words[i].text).trim();
+              if (/^[\(\[\{（【]/.test(wt)) {
+                splitIdx = i;
+                break;
+              }
+            }
+          }
+          if (splitIdx > 0) {
+            primaryWords = words.slice(0, splitIdx);
+          }
+        }
+      } else {
+        cleanText = cleanLyricText(rawClean);
+      }
 
       if (cleanText && !isLyricMetadataOrCreditLine(cleanText)) {
         for (const timeMs of lineTimestamps) {
-          const lineWords = words.map(w => ({
+          const lineWords = primaryWords.map(w => ({
             ...w,
             text: cleanWordPunctuation(w.text)
           }));
-          parsed.push({ timeMs, text: cleanText, words: lineWords });
+          const lineEntry = { timeMs, text: cleanText, words: lineWords };
+          if (subText) lineEntry.subText = subText;
+          parsed.push(lineEntry);
         }
       }
     }
@@ -431,7 +471,43 @@ function parseLyricsPlus(data) {
         text = line.syllables.map(s => s.text || "").join("");
     }
 
-    return { timeMs: lineTimeMs, text: text.trim(), words };
+    // R4: Before collapsing multiple spaces, detect brackets preceded by 2+ spaces or a tab
+    const secBracketMatch = text.match(/^(.*?)(?:[ \t]{2,}|\t)([\(\[\{（【][^\(\[\]\)\}）】]+[\)\]\}）】])\s*$/);
+    let lineSubText = typeof line.subText === 'string' ? line.subText.trim() : undefined;
+    let primaryWords = words;
+
+    if (secBracketMatch) {
+      text = secBracketMatch[1].trim();
+      lineSubText = secBracketMatch[2].trim();
+
+      if (words.length > 0) {
+        let splitIdx = -1;
+        for (let i = 1; i <= words.length; i++) {
+          const candidate = words.slice(0, i).map(w => w.text).join(' ').trim();
+          if (candidate === text) {
+            splitIdx = i;
+            break;
+          }
+        }
+        if (splitIdx === -1) {
+          for (let i = 0; i < words.length; i++) {
+            if (/^[\(\[\{（【]/.test((words[i].text || '').trim())) {
+              splitIdx = i;
+              break;
+            }
+          }
+        }
+        if (splitIdx > 0) {
+          primaryWords = words.slice(0, splitIdx);
+        }
+      }
+    } else {
+      text = text.trim();
+    }
+
+    const result = { timeMs: lineTimeMs, text, words: primaryWords };
+    if (lineSubText) result.subText = lineSubText;
+    return result;
   }).filter(l => l.text !== "" && !isLyricMetadataOrCreditLine(l.text));
 }
 

@@ -27,6 +27,7 @@ class FluidMeshGradient {
     // Current interpolated colors (for smooth cross-fade between tracks)
     this.currentColors = JSON.parse(JSON.stringify(this.defaultPalette));
     this.targetColors = JSON.parse(JSON.stringify(this.defaultPalette));
+    this._isFirstPalette = true;
 
     // Dynamic animation parameters reacting to playback and BPM
     this.baseSpeed = 1.0;
@@ -75,7 +76,9 @@ class FluidMeshGradient {
     }
 
     this.handleResize();
-    window.addEventListener('resize', () => this.handleResize(), { passive: true });
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resize', () => this.handleResize(), { passive: true });
+    }
 
     // Automatically pause WebGL rendering when window is hidden/minimized to save GPU and battery
     if (typeof document !== 'undefined') {
@@ -95,10 +98,12 @@ class FluidMeshGradient {
     }
 
     // Subtle interactive mouse influence
-    window.addEventListener('pointermove', (e) => {
-      this.targetMouse[0] = Math.max(0, Math.min(1, e.clientX / (window.innerWidth || 1)));
-      this.targetMouse[1] = Math.max(0, Math.min(1, 1.0 - (e.clientY / (window.innerHeight || 1))));
-    }, { passive: true });
+    if (typeof window !== 'undefined') {
+      window.addEventListener('pointermove', (e) => {
+        this.targetMouse[0] = Math.max(0, Math.min(1, e.clientX / (window.innerWidth || 1)));
+        this.targetMouse[1] = Math.max(0, Math.min(1, 1.0 - (e.clientY / (window.innerHeight || 1))));
+      }, { passive: true });
+    }
   }
 
   initShaders() {
@@ -321,18 +326,62 @@ class FluidMeshGradient {
     }
   }
 
-  setPalette(palette) {
+  setPalette(palette, immediate = false) {
     if (!Array.isArray(palette) || palette.length < 5) return;
-    // Map normalized [0, 1] RGB
-    this.targetColors = palette.map(c => [
-      Math.max(0, Math.min(255, c.r)) / 255,
-      Math.max(0, Math.min(255, c.g)) / 255,
-      Math.max(0, Math.min(255, c.b)) / 255,
-    ]);
+
+    // Check if palette is in 0..255 scale (any channel value > 1.0)
+    let is255Scale = false;
+    for (let i = 0; i < 5; i++) {
+      const c = palette[i];
+      if (!c) continue;
+      const r = Array.isArray(c) ? c[0] : c.r;
+      const g = Array.isArray(c) ? c[1] : c.g;
+      const b = Array.isArray(c) ? c[2] : c.b;
+      if (r > 1.0 || g > 1.0 || b > 1.0) {
+        is255Scale = true;
+        break;
+      }
+    }
+
+    // Map normalized [0, 1] RGB from objects {r, g, b} or arrays [r, g, b]
+    this.targetColors = palette.slice(0, 5).map(c => {
+      let r = 0, g = 0, b = 0;
+      if (Array.isArray(c)) {
+        r = c[0] ?? 0;
+        g = c[1] ?? 0;
+        b = c[2] ?? 0;
+      } else if (c && typeof c === 'object') {
+        r = c.r ?? 0;
+        g = c.g ?? 0;
+        b = c.b ?? 0;
+      }
+      r = Number(r) || 0;
+      g = Number(g) || 0;
+      b = Number(b) || 0;
+      if (is255Scale) {
+        return [
+          Math.max(0, Math.min(255, r)) / 255,
+          Math.max(0, Math.min(255, g)) / 255,
+          Math.max(0, Math.min(255, b)) / 255,
+        ];
+      } else {
+        return [
+          Math.max(0, Math.min(1.0, r)),
+          Math.max(0, Math.min(1.0, g)),
+          Math.max(0, Math.min(1.0, b)),
+        ];
+      }
+    });
+
+    if (immediate || this._isFirstPalette) {
+      this.currentColors = JSON.parse(JSON.stringify(this.targetColors));
+      this._isFirstPalette = false;
+    }
   }
 
   resetToDefault() {
     this.targetColors = JSON.parse(JSON.stringify(this.defaultPalette));
+    this._isFirstPalette = true;
   }
 
   setPlaybackState(isPlaying, bpmProfile = 'normal', speedSlider = 1.0) {
@@ -485,7 +534,11 @@ class FluidMeshGradient {
   }
 }
 
-// Export to global window namespace
+// Export to global window namespace and CommonJS module for testing
 if (typeof window !== 'undefined') {
   window.FluidMeshGradient = FluidMeshGradient;
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { FluidMeshGradient };
 }

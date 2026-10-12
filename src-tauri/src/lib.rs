@@ -500,13 +500,6 @@ pub fn run() {
                     let mut consecutive_empty = 0u32;
 
                     loop {
-                        let sleep_duration = if consecutive_empty > 4 {
-                            Duration::from_millis(1000)
-                        } else {
-                            Duration::from_millis(250)
-                        };
-                        std::thread::sleep(sleep_duration);
-
                         if let Some(track) = backend.poll_playback() {
                             consecutive_empty = 0;
                             let current_id = format!("{}_{}", track.artist, track.title);
@@ -532,6 +525,12 @@ pub fn run() {
                                         is_playing: track.is_playing,
                                         position: track.position_ms,
                                         playback_rate: track.playback_rate,
+                                        timestamp_ms: Some(
+                                            std::time::SystemTime::now()
+                                                .duration_since(std::time::UNIX_EPOCH)
+                                                .map(|d| d.as_millis() as u64)
+                                                .unwrap_or(0),
+                                        ),
                                     },
                                 );
                             }
@@ -541,6 +540,13 @@ pub fn run() {
                                 media::clear_cached_playback_state();
                             }
                         }
+
+                        let sleep_duration = if consecutive_empty > 4 {
+                            Duration::from_millis(1000)
+                        } else {
+                            Duration::from_millis(250)
+                        };
+                        std::thread::sleep(sleep_duration);
                     }
                 })
                 .expect("Failed to spawn SMTC background thread");

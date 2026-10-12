@@ -2,6 +2,7 @@ const { ipcMain, BrowserWindow, app, session, shell } = require('electron');
 const { spawn } = require('child_process');
 const http = require('http');
 const fs = require('fs');
+const crypto = require('crypto');
 const { getScriptPath, getConfigPath } = require('../utils/paths');
 const compilers = require('../compilers');
 
@@ -212,17 +213,59 @@ function registerPlaybackIpc(context) {
 
   ipcMain.handle('get-access-token', async (event, spDc) => {
     try {
-      const res = await fetch('https://open.spotify.com/get_access_token?reason=transport&productType=web_player', {
+      const secret = ',7/*F("rLJ2oxaKL^f+E1xvP@N';
+      const version = '61';
+      const r = secret.split("").map((ch, idx) => ch.charCodeAt(0) ^ (idx % 33 + 9));
+      const keyBytes = Buffer.from(r.join(""), "utf8");
+
+      const generateTotp = (ts = Date.now()) => {
+        const counter = Math.floor(ts / 1000 / 30);
+        const buf = Buffer.alloc(8);
+        buf.writeBigInt64BE(BigInt(counter));
+        const hmac = crypto.createHmac('sha1', keyBytes).update(buf).digest();
+        const offset = hmac[hmac.length - 1] & 0xf;
+        const code = (hmac.readUInt32BE(offset) & 0x7fffffff) % 1000000;
+        return code.toString().padStart(6, '0');
+      };
+
+      const totp = generateTotp();
+      let totpServer = 'unavailable';
+
+      try {
+        const stRes = await fetch('https://open.spotify.com/api/server-time', {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36',
+            'Cookie': `sp_dc=${spDc}`
+          }
+        });
+        if (stRes.ok) {
+          const stData = await stRes.json();
+          if (stData && stData.serverTime) {
+            totpServer = generateTotp(stData.serverTime * 1000);
+          }
+        }
+      } catch (_) {}
+
+      const params = new URLSearchParams({
+        reason: 'transport',
+        productType: 'web_player',
+        totp,
+        totpServer,
+        totpVer: version
+      });
+
+      const res = await fetch(`https://open.spotify.com/api/token?${params.toString()}`, {
         headers: {
           'Cookie': `sp_dc=${spDc}`,
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36',
           'Accept': 'application/json',
-          'App-Platform': 'WebPlayer'
+          'Referer': 'https://open.spotify.com/',
+          'app-platform': 'WebPlayer'
         }
       });
       if (res.ok) {
         const data = await res.json();
-        return data.accessToken;
+        return data.accessToken || data.access_token || null;
       }
       return null;
     } catch (err) {

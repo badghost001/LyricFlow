@@ -194,7 +194,7 @@ unsafe fn init_wasapi_capture(enumerator: &IMMDeviceEnumerator) -> Option<Wasapi
     let hr = client.Initialize(
         AUDCLNT_SHAREMODE_SHARED,
         AUDCLNT_STREAMFLAGS_LOOPBACK,
-        2000000, // 200ms buffer in 100ns units
+        5000000, // 500ms buffer in 100ns units (resilient headroom against overruns)
         0,
         pwfx,
         None,
@@ -273,6 +273,7 @@ fn run_capture_loop(app: AppHandle, running: Arc<AtomicBool>) {
             unsafe {
                 let _ = session.client.Stop();
             }
+            enumerator = None;
             std::thread::sleep(Duration::from_millis(300));
             continue;
         }
@@ -320,6 +321,7 @@ fn run_capture_loop(app: AppHandle, running: Arc<AtomicBool>) {
 
             let mut packet_size = match unsafe { session.capture_client.GetNextPacketSize() } {
                 Ok(sz) => sz,
+                Err(ref e) if e.code() == AUDCLNT_E_BUFFER_ERROR => 0,
                 Err(_) => {
                     should_reconnect = true;
                     break;
@@ -344,10 +346,15 @@ fn run_capture_loop(app: AppHandle, running: Arc<AtomicBool>) {
                     )
                 };
 
-                if hr.is_err() {
+                if let Err(ref e) = hr {
                     // Do NOT call ReleaseBuffer if GetBuffer failed (MSDN specification)
-                    capture_error = true;
-                    break;
+                    if e.code() == AUDCLNT_E_BUFFER_ERROR {
+                        // Transient buffer error: drain/recover without terminating session
+                        break;
+                    } else {
+                        capture_error = true;
+                        break;
+                    }
                 }
 
                 let is_silent_buffer = (flags & (AUDCLNT_BUFFERFLAGS_SILENT.0 as u32)) != 0;
@@ -412,6 +419,7 @@ fn run_capture_loop(app: AppHandle, running: Arc<AtomicBool>) {
                 let _ = unsafe { session.capture_client.ReleaseBuffer(num_frames_read) };
                 packet_size = match unsafe { session.capture_client.GetNextPacketSize() } {
                     Ok(sz) => sz,
+                    Err(ref e) if e.code() == AUDCLNT_E_BUFFER_ERROR => 0,
                     Err(_) => {
                         capture_error = true;
                         0
@@ -469,9 +477,6 @@ fn run_capture_loop(app: AppHandle, running: Arc<AtomicBool>) {
                         if all_zero {
                             was_already_all_zero = true;
                         }
-                    }
-                    if all_zero {
-                        std::thread::sleep(Duration::from_millis(100));
                     }
                 } else {
                     was_already_all_zero = false;
@@ -539,9 +544,9 @@ fn run_capture_loop(app: AppHandle, running: Arc<AtomicBool>) {
             }
 
             if consecutive_silence > 10 {
-                std::thread::sleep(Duration::from_millis(60));
+                std::thread::sleep(Duration::from_millis(28));
             } else if consecutive_silence > 2 {
-                std::thread::sleep(Duration::from_millis(25));
+                std::thread::sleep(Duration::from_millis(24));
             } else {
                 std::thread::sleep(Duration::from_millis(16));
             }
@@ -553,6 +558,7 @@ fn run_capture_loop(app: AppHandle, running: Arc<AtomicBool>) {
 
         // Settling delay before reconnecting to let Windows audio engine finalize device route
         if should_reconnect {
+            enumerator = None;
             std::thread::sleep(Duration::from_millis(150));
         } else {
             std::thread::sleep(Duration::from_millis(50));

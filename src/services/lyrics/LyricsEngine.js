@@ -173,10 +173,15 @@
           if (fw && fw.start != null) nextVocalStart = fw.start;
         }
 
+        // Advance lead window (280ms): when next vocal is imminent and current vocal has finished,
+        // advance line focus smoothly 280ms before next vocal onset so scrolling centers ahead of phonation
+        const leadSec = (nextVocalStart - curVocalEnd >= 0.4) ? 0.28 : 0;
+        const effectiveNextStart = Math.max(curVocalEnd, nextVocalStart - leadSec);
+
         // Prevent premature cutoff: do not advance to next line while current line's vocal is still singing
         // unless the next line's words have actually started.
         const switchPoint = nextLine
-          ? ((curVocalEnd <= nextVocalStart) ? Math.max(curVocalEnd, Math.min(nextLine.start, nextVocalStart)) : nextVocalStart)
+          ? ((curVocalEnd <= effectiveNextStart) ? Math.max(curVocalEnd, Math.min(nextLine.start, effectiveNextStart)) : effectiveNextStart)
           : (curVocalEnd + 2.0);
 
         const isPastStart = time >= curLine.start;
@@ -279,7 +284,10 @@
       return line.words.map((w, i) => {
         const nextW = (i < count - 1) ? line.words[i + 1] : null;
         if (time < w.start) return 'upcoming';
-        if (nextW ? (time >= w.start && time < nextW.start && time <= w.end) : (time >= w.start && time <= w.end)) {
+        const wordEnd = (w.end != null && !isNaN(w.end)) ? w.end : w.start;
+        // Keep active syllable state continuous across intra-word micro-gaps up to nextWord.start (or word.end + 0.15)
+        const activeEnd = nextW ? Math.min(nextW.start, wordEnd + 0.15) : wordEnd;
+        if (time >= w.start && (nextW ? (time < nextW.start && time <= activeEnd) : (time <= activeEnd))) {
           return 'active';
         }
         return 'completed';

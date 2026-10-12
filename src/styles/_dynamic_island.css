@@ -231,7 +231,7 @@ body.mode-dynamic-island #dynamic-island:hover {
 }
 
 #dynamic-island:hover .island-art-tile {
-  border-radius: 10px;
+  border-radius: 16px;
   border-color: rgba(255, 255, 255, 0.32);
   box-shadow:
     inset 0 1px 0.5px rgba(255, 255, 255, 0.45),
@@ -249,7 +249,7 @@ body.mode-dynamic-island #dynamic-island:hover {
 .island-art-halo {
   position: absolute;
   inset: -3px;
-  border-radius: 10px;
+  border-radius: 16px;
   background: radial-gradient(circle, var(--ambient-glow-color, rgba(255, 255, 255, 0.25)) 0%, transparent 70%);
   pointer-events: none;
   filter: blur(6px);
@@ -258,6 +258,7 @@ body.mode-dynamic-island #dynamic-island:hover {
 }
 
 #dynamic-island:hover .island-art-halo {
+  border-radius: 16px;
   inset: -6px;
   filter: blur(9px);
   opacity: 0.65;
@@ -365,9 +366,20 @@ body:not(.is-playing) .island-art-halo {
 
 .island-lyric-line .lyric-word {
   display: inline-block;
-  margin-right: 3px;
+  margin-right: 0;
+  contain: layout;
+  transform-origin: center bottom;
   transition: color 0.14s ease, transform 0.14s cubic-bezier(0.25, 1, 0.5, 1), text-shadow 0.14s ease;
   color: rgba(255, 255, 255, 0.42);
+}
+
+.island-word-space {
+  display: inline-block;
+  width: 0.32em;
+  min-width: 3px;
+  flex-shrink: 0;
+  pointer-events: none;
+  user-select: none;
 }
 
 .island-lyric-line .lyric-word.lyric-word-active {
@@ -602,8 +614,8 @@ body.mode-dynamic-island.is-playing .island-lyric-zone {
   align-items: center;
   min-height: 17px;
   padding: 0 2px;
-  mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 12px), transparent 100%);
-  -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 12px), transparent 100%);
+  mask-image: none;
+  -webkit-mask-image: none;
 }
 
 .island-stage-lyric {
@@ -883,8 +895,8 @@ body.mode-dynamic-island.is-idle #island-lyric-subline {
   overflow: hidden;
   white-space: nowrap;
   position: relative;
-  mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 10px), transparent 100%);
-  -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 10px), transparent 100%);
+  mask-image: none;
+  -webkit-mask-image: none;
 }
 
 .island-trans-text,
@@ -1011,7 +1023,7 @@ body.mode-dynamic-island.has-duet-active:not(.app-paused):not(.is-idle).is-playi
   border: 1px solid rgba(var(--art-color-2-rgb, 56, 189, 248), 0.35);
   box-shadow:
     inset 0 1px 0.5px rgba(255, 255, 255, 0.28),
-    0 10px 24px -4px rgba(0, 0, 0, 0.75),
+    0 4px 14px rgba(0, 0, 0, 0.45),
     0 0 16px rgba(var(--art-color-2-rgb, 56, 189, 248), 0.25);
   padding: 2px 12px 2px 8px;
   box-sizing: border-box;
@@ -1152,7 +1164,7 @@ body.mode-dynamic-island.is-idle .island-duet-bridge:not(.bridge-fusing) {
     transform: translateY(2px) scale(1.03, 0.97);
     box-shadow:
       inset 0 1px 0.5px rgba(255, 255, 255, 0.28),
-      0 10px 24px -4px rgba(0, 0, 0, 0.75),
+      0 4px 14px rgba(0, 0, 0, 0.45),
       0 0 16px rgba(var(--art-color-2-rgb, 56, 189, 248), 0.25);
     animation-timing-function: cubic-bezier(0.33, 1, 0.68, 1);
   }
@@ -1161,7 +1173,7 @@ body.mode-dynamic-island.is-idle .island-duet-bridge:not(.bridge-fusing) {
     transform: translateY(0) scale(1, 1);
     box-shadow:
       inset 0 1px 0.5px rgba(255, 255, 255, 0.28),
-      0 10px 24px -4px rgba(0, 0, 0, 0.75),
+      0 4px 14px rgba(0, 0, 0, 0.45),
       0 0 16px rgba(var(--art-color-2-rgb, 56, 189, 248), 0.25);
   }
 }
@@ -1210,8 +1222,8 @@ body.mode-dynamic-island.is-idle .island-duet-bridge:not(.bridge-fusing) {
   overflow: hidden;
   white-space: nowrap;
   position: relative;
-  mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 10px), transparent 100%);
-  -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 10px), transparent 100%);
+  mask-image: none;
+  -webkit-mask-image: none;
 }
 
 .island-duet-text {
@@ -1486,7 +1498,7 @@ body:not(.is-playing) .island-wave-visualizer.visualizer-style-dots .wave-bar {
   background: #ffffff;
   border-radius: 99px;
   box-shadow: 0 0 6px rgba(255, 255, 255, 0.65);
-  transition: width 0.12s linear;
+  transition: none;
   position: relative;
   z-index: 2;
 }
@@ -1529,6 +1541,7 @@ body:not(.is-playing) .island-wave-visualizer.visualizer-style-dots .wave-bar {
   border-radius: 5px;
   font-size: 10px;
   font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
   font-weight: 600;
   pointer-events: none;
   opacity: 0;
@@ -1555,6 +1568,7 @@ body:not(.is-playing) .island-wave-visualizer.visualizer-style-dots .wave-bar {
 }
 
 .island-btn {
+  position: relative;
   width: 26px;
   height: 26px;
   border-radius: 50%;
@@ -1570,6 +1584,20 @@ body:not(.is-playing) .island-wave-visualizer.visualizer-style-dots .wave-bar {
   cursor: pointer;
   transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
   -webkit-app-region: none !important;
+}
+
+/* Apple HIG Fitts's Law: 44x44pt decoupled hit target area */
+.island-btn::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  min-width: 44px;
+  min-height: 44px;
+  width: 100%;
+  height: 100%;
+  pointer-events: auto;
 }
 
 .island-btn:hover {
@@ -2137,6 +2165,7 @@ body.mode-dynamic-island.island-sleeping .island-duet-bridge {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Outfit", "Inter", sans-serif;
   font-size: 11px;
   font-weight: 650;
+  font-variant-numeric: tabular-nums;
   color: #ffffff;
   letter-spacing: -0.01em;
   white-space: nowrap;
@@ -2155,7 +2184,7 @@ body.mode-dynamic-island.island-sleeping .island-duet-bridge {
   height: 100%;
   background: #ffffff;
   border-radius: 99px;
-  transition: width 0.08s ease-out;
+  transition: none;
 }
 
 @keyframes islandHudPop {
@@ -2300,4 +2329,127 @@ body.mode-dynamic-island.island-ghost-mode .island-wave-visualizer,
 body.mode-dynamic-island.island-ghost-mode .island-top-actions {
   opacity: 0 !important;
   transition: opacity 0.14s ease !important;
+}
+
+/* ==========================================================
+   LIQUID GLASS MATERIAL (FROSTED REFRACTIVE CAPSULES)
+   - Translucent dark glass substrate: rgba(18, 18, 24, 0.52)
+   - High-dispersion optical refraction: blur(28px) saturate(190%) contrast(105%)
+   - Specular top rim illumination: inset 0 1.5px 1px rgba(255, 255, 255, 0.45)
+   - Prismatic tint dispersion reacting to active track album art
+   ========================================================== */
+body.mode-dynamic-island.island-glass-mode #dynamic-island {
+  background:
+    radial-gradient(130% 120% at 50% -20%, rgba(var(--art-color-dominant-rgb, 255, 255, 255), 0.16) 0%, rgba(var(--art-color-1-rgb, 18, 18, 24), 0.10) 42%, transparent 75%),
+    rgba(18, 18, 24, 0.52) !important;
+  backdrop-filter: blur(28px) saturate(190%) contrast(105%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(190%) contrast(105%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+  box-shadow:
+    inset 0 1.5px 1px rgba(255, 255, 255, 0.45),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.25),
+    inset 0 0 24px -4px rgba(var(--art-color-dominant-rgb, 255, 255, 255), 0.18),
+    0 16px 36px -6px rgba(0, 0, 0, 0.55),
+    0 0 var(--island-bloom-radius, 0px) rgba(var(--art-color-1-rgb, 255, 255, 255), var(--island-bloom-alpha, 0)),
+    0 0 0 1px rgba(var(--art-color-1-rgb, 255, 255, 255), 0.12),
+    0 0 0 1px rgba(255, 255, 255, 0.08) !important;
+}
+
+body.mode-dynamic-island.island-glass-mode #dynamic-island:hover {
+  background:
+    radial-gradient(130% 120% at 50% -20%, rgba(var(--art-color-dominant-rgb, 255, 255, 255), 0.24) 0%, rgba(var(--art-color-1-rgb, 24, 24, 32), 0.15) 45%, transparent 75%),
+    rgba(18, 18, 24, 0.65) !important;
+  backdrop-filter: blur(36px) saturate(200%) !important;
+  -webkit-backdrop-filter: blur(36px) saturate(200%) !important;
+  border-color: rgba(255, 255, 255, 0.34) !important;
+  box-shadow:
+    inset 0 2px 1.2px rgba(255, 255, 255, 0.55),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.30),
+    inset 0 0 30px -2px rgba(var(--art-color-dominant-rgb, 255, 255, 255), 0.26),
+    0 24px 54px -4px rgba(0, 0, 0, 0.75),
+    0 0 24px rgba(var(--art-color-1-rgb, 255, 255, 255), 0.22),
+    0 0 0 1px rgba(var(--art-color-1-rgb, 255, 255, 255), 0.18),
+    0 0 0 1px rgba(255, 255, 255, 0.12) !important;
+}
+
+body.mode-dynamic-island.island-glass-mode #island-duet-capsule {
+  background:
+    radial-gradient(110% 100% at 20% -20%, rgba(var(--art-color-2-rgb, var(--art-color-dominant-rgb, 255, 255, 255)), 0.16) 0%, transparent 68%),
+    rgba(18, 18, 24, 0.54) !important;
+  backdrop-filter: blur(24px) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(190%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.24) !important;
+  box-shadow:
+    inset 0 1.5px 0.8px rgba(255, 255, 255, 0.45),
+    inset 0 0 16px -3px rgba(var(--art-color-2-rgb, var(--art-color-dominant-rgb, 255, 255, 255)), 0.16),
+    0 8px 24px -2px rgba(0, 0, 0, 0.50),
+    0 0 14px rgba(var(--art-color-1-rgb, 255, 255, 255), 0.16),
+    0 0 0 1px rgba(var(--art-color-1-rgb, 255, 255, 255), 0.10) !important;
+}
+
+body.mode-dynamic-island.island-glass-mode #dynamic-island-translation {
+  background:
+    radial-gradient(110% 100% at 80% -20%, rgba(var(--art-color-dominant-rgb, 255, 255, 255), 0.16) 0%, transparent 68%),
+    rgba(18, 18, 24, 0.54) !important;
+  backdrop-filter: blur(24px) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(190%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.24) !important;
+  box-shadow:
+    inset 0 1.5px 0.8px rgba(255, 255, 255, 0.45),
+    inset 0 0 16px -3px rgba(var(--art-color-dominant-rgb, 255, 255, 255), 0.16),
+    0 8px 24px -2px rgba(0, 0, 0, 0.50),
+    0 0 14px rgba(var(--art-color-1-rgb, 255, 255, 255), 0.16),
+    0 0 0 1px rgba(var(--art-color-1-rgb, 255, 255, 255), 0.10) !important;
+}
+
+body.mode-dynamic-island.island-glass-mode .island-bridge,
+body.mode-dynamic-island.island-glass-mode .island-duet-bridge {
+  background:
+    linear-gradient(180deg, rgba(var(--art-color-1-rgb, 255, 255, 255), 0.10) 0%, rgba(18, 18, 24, 0.44) 100%) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border-left: 1px solid rgba(255, 255, 255, 0.18) !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.18) !important;
+  box-shadow:
+    inset 0 0 8px rgba(255, 255, 255, 0.12),
+    inset 0 0 12px -2px rgba(var(--art-color-1-rgb, 255, 255, 255), 0.14) !important;
+}
+
+body.mode-dynamic-island.island-glass-mode .island-btn {
+  background: rgba(255, 255, 255, 0.16) !important;
+  border: 1px solid rgba(255, 255, 255, 0.28) !important;
+  backdrop-filter: blur(14px) !important;
+  -webkit-backdrop-filter: blur(14px) !important;
+  box-shadow:
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.45),
+    0 2px 8px rgba(0, 0, 0, 0.35) !important;
+}
+
+body.mode-dynamic-island.island-glass-mode .island-btn:hover {
+  background: rgba(255, 255, 255, 0.28) !important;
+  border-color: rgba(255, 255, 255, 0.48) !important;
+  box-shadow:
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.65),
+    0 4px 14px rgba(0, 0, 0, 0.45) !important;
+}
+
+body.mode-dynamic-island.island-glass-mode .island-btn.island-btn-play {
+  background: rgba(255, 255, 255, 0.94) !important;
+  color: #000000 !important;
+  box-shadow:
+    0 2px 10px rgba(0, 0, 0, 0.4),
+    0 0 16px rgba(255, 255, 255, 0.35) !important;
+}
+
+body.mode-dynamic-island.island-glass-mode .island-trans-chip {
+  background: rgba(255, 255, 255, 0.14) !important;
+  border: 1px solid rgba(255, 255, 255, 0.25) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+}
+
+body.mode-dynamic-island.island-glass-mode .island-scrubber-track,
+body.mode-dynamic-island.island-glass-mode .island-vol-track {
+  background: rgba(255, 255, 255, 0.16) !important;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3) !important;
 }

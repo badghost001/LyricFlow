@@ -18,7 +18,19 @@ fn get_shared_client() -> &'static reqwest::Client {
 pub fn get_local_playback() -> Result<Option<SpotifyPlaybackState>, String> {
     // Fast-path: read instantaneous atomic in-memory cache populated by dedicated SMTC background thread
     // This eliminates blocking WinRT COM calls on Tauri IPC worker threads and guarantees <1µs latency with zero thread deadlock.
-    Ok(crate::media::get_cached_playback_state())
+    if let Some(state) = crate::media::get_cached_playback_state() {
+        return Ok(Some(state));
+    }
+    // Startup fast-path: if background thread has not yet completed its initial poll cycle,
+    // query platform backend immediately to avoid race conditions during application boot.
+    let backend = crate::media::get_platform_backend();
+    if let Some(track) = backend.poll_playback() {
+        if let Some(playback_state) = track.to_spotify_playback_state() {
+            crate::media::set_cached_playback_state(playback_state.clone());
+            return Ok(Some(playback_state));
+        }
+    }
+    Ok(None)
 }
 
 #[tauri::command]
@@ -290,38 +302,225 @@ pub async fn fetch_music_news(query: String) -> Result<String, String> {
     Ok(text)
 }
 
-#[tauri::command]
-pub async fn get_access_token(sp_dc: String) -> Result<Option<String>, String> {
-    crate::log_to_file(&format!("[Spotify Auth] Fetching access token with sp_dc length={}", sp_dc.len()));
-    let client = get_shared_client();
-    let res = client.get("https://open.spotify.com/get_access_token?reason=transport&productType=web_player")
+struct TotpSecret {
+    secret: &'static str,
+    version: u32,
+}
+
+const KNOWN_TOTP_SECRETS: &[TotpSecret] = &[
+    TotpSecret { secret: ",7/*F(\"rLJ2oxaKL^f+E1xvP@N", version: 61 },
+    TotpSecret { secret: "OmE{ZA.J^\":0FG\\Uz?[@WW", version: 60 },
+    TotpSecret { secret: "{iOFn;4}<1PFYKPV?5{%u14]M>/V0hDH", version: 59 },
+];
+
+pub fn generate_spotify_totp(secret: &str, timestamp_ms: u64) -> String {
+    let mut key_str = String::with_capacity(secret.len() * 3);
+    for (idx, ch) in secret.chars().enumerate() {
+        let transformed = (ch as u32) ^ ((idx as u32 % 33) + 9);
+        key_str.push_str(&transformed.to_string());
+    }
+
+    let counter = timestamp_ms / 1000 / 30;
+    let counter_bytes = counter.to_be_bytes();
+
+    let key = ring::hmac::Key::new(ring::hmac::HMAC_SHA1_FOR_LEGACY_USE_ONLY, key_str.as_bytes());
+    let tag = ring::hmac::sign(&key, &counter_bytes);
+    let bytes = tag.as_ref();
+
+    let offset = (bytes[bytes.len() - 1] & 0x0f) as usize;
+    let binary = (((bytes[offset] & 0x7f) as u32) << 24)
+        | (((bytes[offset + 1] as u32)) << 16)
+        | (((bytes[offset + 2] as u32)) << 8)
+        | (bytes[offset + 3] as u32);
+
+    let code = binary % 1_000_000;
+    format!("{:06}", code)
+}
+
+async fn fetch_spotify_server_time(client: &reqwest::Client, sp_dc: &str) -> Option<u64> {
+    let res = client.get("https://open.spotify.com/api/server-time")
         .header("Cookie", format!("sp_dc={sp_dc}"))
         .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36")
         .header("Accept", "application/json")
-        .header("App-Platform", "WebPlayer")
         .header("Referer", "https://open.spotify.com/")
         .send()
         .await
+        .ok()?;
+
+    if res.status().is_success() {
+        let json: serde_json::Value = res.json().await.ok()?;
+        json.get("serverTime").and_then(|v| v.as_u64())
+    } else {
+        None
+    }
+}
+
+async fn fetch_dynamic_totp_secrets(client: &reqwest::Client) -> Vec<(String, u32)> {
+    let index_res = match client.get("https://open.spotify.com/")
+        .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36")
+        .send()
+        .await {
+            Ok(r) => r,
+            Err(_) => return Vec::new(),
+        };
+
+    let html = match index_res.text().await {
+        Ok(t) => t,
+        Err(_) => return Vec::new(),
+    };
+
+    let script_url = if let Some(start) = html.find("https://open.spotifycdn.com/cdn/build/web-player/web-player.") {
+        if let Some(end) = html[start..].find(".js") {
+            &html[start..start + end + 3]
+        } else {
+            return Vec::new();
+        }
+    } else {
+        return Vec::new();
+    };
+
+    let script_res = match client.get(script_url)
+        .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36")
+        .send()
+        .await {
+            Ok(r) => r,
+            Err(_) => return Vec::new(),
+        };
+
+    let js = match script_res.text().await {
+        Ok(t) => t,
+        Err(_) => return Vec::new(),
+    };
+
+    let mut results = Vec::new();
+    if let Some(pos) = js.find("let ej=[") {
+        let slice = &js[pos + 8..];
+        if let Some(end_bracket) = slice.find(']') {
+            let ej_content = &slice[..end_bracket];
+            for part in ej_content.split('{') {
+                if part.is_empty() { continue; }
+                let secret = if let Some(s_idx) = part.find("secret:") {
+                    let after = &part[s_idx + 7..];
+                    let quote = after.chars().next().unwrap_or('\'');
+                    if quote == '\'' || quote == '"' {
+                        let inner = &after[1..];
+                        if let Some(q_end) = inner.find(quote) {
+                            &inner[..q_end]
+                        } else { "" }
+                    } else { "" }
+                } else { "" };
+
+                let version: Option<u32> = if let Some(v_idx) = part.find("version:") {
+                    let after = &part[v_idx + 8..];
+                    let digits: String = after.chars().take_while(|c| c.is_ascii_digit()).collect();
+                    digits.parse().ok()
+                } else { None };
+
+                if !secret.is_empty() && version.is_some() {
+                    results.push((secret.to_string(), version.unwrap()));
+                }
+            }
+        }
+    }
+
+    results
+}
+
+async fn try_request_spotify_token(
+    client: &reqwest::Client,
+    sp_dc: &str,
+    secret: &str,
+    version: u32,
+    server_time: Option<u64>,
+) -> Result<Option<String>, String> {
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0);
+
+    let totp = generate_spotify_totp(secret, now_ms);
+    let totp_server = if let Some(st) = server_time {
+        generate_spotify_totp(secret, st * 1000)
+    } else {
+        "unavailable".to_string()
+    };
+
+    let url = format!(
+        "https://open.spotify.com/api/token?reason=transport&productType=web_player&totp={}&totpServer={}&totpVer={}",
+        totp, totp_server, version
+    );
+
+    let res = client.get(&url)
+        .header("Cookie", format!("sp_dc={sp_dc}"))
+        .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36")
+        .header("Accept", "application/json")
+        .header("Referer", "https://open.spotify.com/")
+        .header("app-platform", "WebPlayer")
+        .header("sec-ch-ua", "\"Not(A:Brand\";v=\"99\", \"Google Chrome\";v=\"133\", \"Chromium\";v=\"133\"")
+        .header("sec-ch-ua-mobile", "?0")
+        .header("sec-ch-ua-platform", "\"Windows\"")
+        .header("sec-fetch-dest", "empty")
+        .header("sec-fetch-mode", "cors")
+        .header("sec-fetch-site", "same-origin")
+        .send()
+        .await
         .map_err(|e| {
-            crate::log_to_file(&format!("[Spotify Auth] Request error: {e}"));
+            crate::log_to_file(&format!("[Spotify Auth] /api/token request error: {e}"));
             e.to_string()
         })?;
 
     let status = res.status();
-    crate::log_to_file(&format!("[Spotify Auth] get_access_token HTTP status: {status}"));
+    crate::log_to_file(&format!("[Spotify Auth] /api/token (ver {version}) HTTP status: {status}"));
 
     if status.is_success() {
         let json: serde_json::Value = res.json().await.map_err(|e| e.to_string())?;
-        if let Some(tok) = json["accessToken"].as_str() {
-            crate::log_to_file("[Spotify Auth] Successfully extracted accessToken!");
+        if let Some(tok) = json.get("accessToken").and_then(|v| v.as_str()).or_else(|| json.get("access_token").and_then(|v| v.as_str())) {
+            crate::log_to_file("[Spotify Auth] Successfully extracted accessToken via /api/token!");
             return Ok(Some(tok.to_string()));
         } else {
-            crate::log_to_file(&format!("[Spotify Auth] 'accessToken' not found in response: {json:?}"));
+            crate::log_to_file(&format!("[Spotify Auth] 'accessToken' not found in /api/token response: {json:?}"));
         }
     } else {
         let err_body = res.text().await.unwrap_or_default();
-        crate::log_to_file(&format!("[Spotify Auth] Error response body: {err_body}"));
+        crate::log_to_file(&format!("[Spotify Auth] /api/token error body: {err_body}"));
     }
+
+    Ok(None)
+}
+
+#[tauri::command]
+pub async fn get_access_token(sp_dc: String) -> Result<Option<String>, String> {
+    crate::log_to_file(&format!("[Spotify Auth] Fetching access token with sp_dc length={}", sp_dc.len()));
+    let client = get_shared_client();
+
+    let server_time = fetch_spotify_server_time(&client, &sp_dc).await;
+
+    // 1. Try known TOTP secrets (starting from latest version)
+    for s in KNOWN_TOTP_SECRETS {
+        if let Ok(Some(token)) = try_request_spotify_token(&client, &sp_dc, s.secret, s.version, server_time).await {
+            // Update stored config access_token if config exists
+            if let Ok(Some(mut cfg)) = crate::commands::config::load_config() {
+                cfg["access_token"] = serde_json::json!(token);
+                let _ = crate::commands::config::save_config(cfg);
+            }
+            return Ok(Some(token));
+        }
+    }
+
+    // 2. Try dynamically extracted secrets from live web-player bundle
+    crate::log_to_file("[Spotify Auth] Known TOTP secrets failed, attempting dynamic extraction from web-player bundle...");
+    let dynamic_secrets = fetch_dynamic_totp_secrets(&client).await;
+    for (sec, ver) in dynamic_secrets {
+        if let Ok(Some(token)) = try_request_spotify_token(&client, &sp_dc, &sec, ver, server_time).await {
+            if let Ok(Some(mut cfg)) = crate::commands::config::load_config() {
+                cfg["access_token"] = serde_json::json!(token);
+                let _ = crate::commands::config::save_config(cfg);
+            }
+            return Ok(Some(token));
+        }
+    }
+
+    crate::log_to_file("[Spotify Auth] All TOTP /api/token attempts exhausted; returning None");
     Ok(None)
 }
 
@@ -1390,6 +1589,14 @@ mod tests {
             &["Justin Bieber".to_string()]
         );
         assert!(!passes);
+    }
+
+    #[test]
+    fn test_generate_spotify_totp() {
+        let secret = ",7/*F(\"rLJ2oxaKL^f+E1xvP@N";
+        let timestamp_ms = 1791468347000u64;
+        let totp = generate_spotify_totp(secret, timestamp_ms);
+        assert_eq!(totp, "253733");
     }
 }
 

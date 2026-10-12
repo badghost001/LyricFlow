@@ -12,6 +12,7 @@ static CACHED_MANAGER: Mutex<Option<GlobalSystemMediaTransportControlsSessionMan
 static CACHED_TRACK: Mutex<Option<TrackMetadata>> = Mutex::new(None);
 static CACHED_THUMBNAIL: Mutex<Option<(String, String)>> = Mutex::new(None);
 static CONSECUTIVE_NO_SESSION_COUNT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+static LAST_SMTC_SAMPLE: Mutex<Option<(u64, i64, u64)>> = Mutex::new(None);
 
 fn extract_thumbnail(props: &windows::Media::Control::GlobalSystemMediaTransportControlsSessionMediaProperties, title: &str, artist: &str) -> Option<String> {
     if title.is_empty() {
@@ -304,20 +305,46 @@ impl MediaSessionBackend for WindowsSmtcBackend {
 
             let pos = if is_playing && playback_rate > 0.0 {
                 if let Ok(last_updated) = t.LastUpdatedTime() {
-                    let now = std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap_or_default();
                     // Windows epoch (1601-01-01) is 11,644,473,600 seconds before Unix epoch (1970-01-01)
-                    let now_100ns = (now.as_secs() as i64 + 11_644_473_600) * 10_000_000
-                        + (now.subsec_nanos() as i64 / 100);
-                    let elapsed_100ns = (now_100ns - last_updated.UniversalTime).max(0);
-                    let elapsed_ms = (elapsed_100ns / 10_000) as u64;
-                    let interpolated = base_pos + (elapsed_ms as f64 * playback_rate) as u64;
-                    if dur > 0 { interpolated.min(dur) } else { interpolated }
+                    const UNIX_EPOCH_100NS: i64 = 11_644_473_600 * 10_000_000;
+                    if last_updated.UniversalTime > UNIX_EPOCH_100NS {
+                        let now = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .unwrap_or_default();
+                        let now_100ns = (now.as_secs() as i64 + 11_644_473_600) * 10_000_000
+                            + (now.subsec_nanos() as i64 / 100);
+                        let elapsed_100ns = (now_100ns - last_updated.UniversalTime).max(0);
+                        let elapsed_ms = (elapsed_100ns / 10_000) as u64;
+                        // Bound elapsed_ms to 10 seconds to prevent unconstrained extrapolation if player is paused or lagging
+                        let bounded_elapsed_ms = elapsed_ms.min(10_000);
+
+                        // If media player already actively advances base_pos on its own with a static LastUpdatedTime,
+                        // do not stack bounded_elapsed_ms on top of an already live position!
+                        let effective_elapsed_ms = if let Ok(mut sample_lock) = LAST_SMTC_SAMPLE.lock() {
+                            let is_self_advancing = if let Some((prev_base, prev_ts, _)) = *sample_lock {
+                                prev_ts == last_updated.UniversalTime && base_pos > prev_base
+                            } else {
+                                false
+                            };
+                            let el = if is_self_advancing { 0 } else { bounded_elapsed_ms };
+                            *sample_lock = Some((base_pos, last_updated.UniversalTime, base_pos + el));
+                            el
+                        } else {
+                            bounded_elapsed_ms
+                        };
+
+                        let interpolated = base_pos + (effective_elapsed_ms as f64 * playback_rate) as u64;
+                        if dur > 0 { interpolated.min(dur) } else { interpolated }
+                    } else {
+                        base_pos
+                    }
                 } else {
                     base_pos
                 }
             } else {
+                if let Ok(mut sample_lock) = LAST_SMTC_SAMPLE.lock() {
+                    *sample_lock = None;
+                }
                 base_pos
             };
 

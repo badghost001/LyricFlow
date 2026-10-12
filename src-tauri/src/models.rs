@@ -34,6 +34,8 @@ pub struct SpotifyPlaybackState {
     pub is_playing: bool,
     pub progress_ms: u64,
     pub playback_rate: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub timestamp_ms: Option<u64>,
     pub item: SpotifyItem,
 }
 
@@ -43,6 +45,8 @@ pub struct SmtcPlaybackStatus {
     pub is_playing: bool,
     pub position: u64,
     pub playback_rate: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub timestamp_ms: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -87,10 +91,16 @@ impl TrackMetadata {
             });
         }
 
+        let current_unix_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0);
+
         Some(SpotifyPlaybackState {
             is_playing: self.is_playing,
             progress_ms: self.position_ms,
             playback_rate: if self.playback_rate > 0.0 { self.playback_rate } else { 1.0 },
+            timestamp_ms: if current_unix_ms > 0 { Some(current_unix_ms) } else { None },
             item: SpotifyItem {
                 id: track_id,
                 name: self.title.clone(),
