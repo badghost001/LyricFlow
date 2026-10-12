@@ -15,9 +15,19 @@
     inset 0 1.5px 0.5px rgba(255, 255, 255, 0.22),
     inset 0 -1px 0.5px rgba(0, 0, 0, 0.35);
   z-index: 10;
-  opacity: 0; /* Hidden by default, fades in on hover */
-  transform: translateY(6px);
+  opacity: 1; /* Persistent frosted glass bar by default (Option B) */
+  transform: translateY(0);
   transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1), transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), background 0.3s ease;
+}
+
+body.auto-hide-controls .playback-widget {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+body.auto-hide-controls .app-container:hover .playback-widget {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 [data-theme="light"] .playback-widget {
@@ -27,11 +37,6 @@
     0 12px 28px -4px rgba(0, 0, 0, 0.12),
     inset 0 1.5px 0.5px rgba(255, 255, 255, 0.65),
     inset 0 -1px 0.5px rgba(0, 0, 0, 0.08);
-}
-
-.app-container:hover .playback-widget {
-  opacity: 1;
-  transform: translateY(0);
 }
 
 .widget-art-container {

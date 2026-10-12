@@ -1,0 +1,254 @@
+/**
+ * LyricFlow Desktop — Apple Music Studio Split-View Stylesheet (Option A)
+ * Authentic Two-Column Studio Experience inspired by Apple Music macOS
+ */
+
+/* Split-View enabled when body.layout-split is active (Default Desktop Layout) */
+body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode) #screen-lyrics {
+  display: grid !important;
+  grid-template-columns: minmax(320px, 380px) 1fr !important;
+  grid-template-rows: 1fr auto !important;
+  column-gap: 36px !important;
+  row-gap: 16px !important;
+  padding: 12px 28px 16px 28px !important;
+  height: 100% !important;
+  box-sizing: border-box !important;
+  overflow: hidden !important;
+}
+
+/* Left Column: Studio Sidebar */
+.studio-sidebar {
+  display: none;
+  grid-column: 1 / 2;
+  grid-row: 1 / 2;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 20px;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  position: relative;
+  z-index: 4;
+  user-select: none;
+  animation: studioFadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode) .studio-sidebar {
+  display: flex !important;
+}
+
+@keyframes studioFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Studio Album Artwork Container & Concentric Squircle */
+.studio-art-container {
+  position: relative;
+  width: 100%;
+  max-width: 300px;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.studio-art-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 24px;
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.02) 100%),
+    rgba(16, 16, 24, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.65),
+    0 4px 18px rgba(0, 0, 0, 0.4),
+    inset 0 1.5px 1px rgba(255, 255, 255, 0.35),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.4);
+  z-index: 2;
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.studio-art-wrapper:hover {
+  transform: scale(1.02);
+  box-shadow:
+    0 30px 72px rgba(0, 0, 0, 0.75),
+    0 6px 24px rgba(var(--accent-primary-rgb, 29, 185, 84), 0.3),
+    inset 0 1.5px 1px rgba(255, 255, 255, 0.45);
+}
+
+.studio-art-img,
+.studio-art-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.studio-art-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.28);
+}
+
+/* Ambient Halo Glow behind artwork */
+.studio-art-glow {
+  position: absolute;
+  inset: -12%;
+  border-radius: 36px;
+  background: radial-gradient(circle, rgba(var(--accent-primary-rgb, 29, 185, 84), 0.35) 0%, transparent 72%);
+  filter: blur(28px);
+  z-index: 1;
+  opacity: 0.85;
+  pointer-events: none;
+  transition: opacity 0.5s ease, background 0.6s ease;
+}
+
+/* Studio Track Metadata */
+.studio-track-meta {
+  width: 100%;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.studio-title-wrapper {
+  width: 100%;
+  overflow: hidden;
+}
+
+.studio-track-title {
+  margin: 0;
+  font-family: var(--font-family, -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  color: #ffffff;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.7);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.studio-artist-wrapper,
+.studio-album-wrapper {
+  width: 100%;
+  overflow: hidden;
+}
+
+.studio-track-artist {
+  font-size: 15px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.78);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+}
+
+.studio-track-album {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.45);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+}
+
+/* Studio Audio Badges */
+.studio-badges-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.studio-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.studio-badge-provider .studio-badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-primary, #1db954);
+  box-shadow: 0 0 6px var(--accent-primary, #1db954);
+}
+
+.studio-badge-quality {
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 10px;
+}
+
+/* Right Column: Lyrics Viewport in Split Mode */
+body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode) .lyrics-view {
+  grid-column: 2 / 3 !important;
+  grid-row: 1 / 2 !important;
+  height: 100% !important;
+  width: 100% !important;
+}
+
+body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode) #lyrics-container {
+  padding-left: 24px !important;
+  padding-right: 24px !important;
+  text-align: left !important;
+}
+
+body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode) .lyric-line {
+  text-align: left !important;
+  transform-origin: left center !important;
+}
+
+/* Persistent Player Bar across the bottom in Split Mode */
+body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode) .playback-widget {
+  grid-column: 1 / -1 !important;
+  grid-row: 2 / 3 !important;
+  margin: 0 !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+/* Responsive fallback for narrow windows: stack into single column */
+@media (max-width: 768px) {
+  body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode) #screen-lyrics {
+    display: flex !important;
+    flex-direction: column !important;
+    padding: 8px 12px !important;
+  }
+  body.layout-split .studio-sidebar {
+    display: none !important;
+  }
+  body.layout-split .lyrics-view {
+    flex: 1 !important;
+  }
+}

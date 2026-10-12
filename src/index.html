@@ -146,8 +146,8 @@
       </div>
     </div>
 
-    <!-- Main App Container -->
-    <div class="app-container cinematic-view-active" id="app-container">
+    <!-- Main App Container (Modes supported: cinematic-view-active (Ctrl+Shift+C), layout-split (Ctrl+Alt+S)) -->
+    <div class="app-container" id="app-container">
       
       <!-- Drag & HUD Header (Fades out when mouse leaves) -->
       <header class="hud-header" id="hud-header" data-tauri-drag-region>
@@ -191,6 +191,13 @@
               <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
             </svg>
           </button>
+          <button id="btn-layout-split" title="Toggle Split-View Layout (Ctrl+Alt+S)" class="hud-btn active">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+              <line x1="10" y1="3" x2="10" y2="21"/>
+            </svg>
+          </button>
+
           <div class="hud-controls-divider"></div>
           <button id="btn-minimize" title="Minimize Application" class="hud-btn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -653,6 +660,40 @@
           </div>
         </div>
 
+        <!-- Apple Music Studio Sidebar (Split-View Mode) -->
+        <aside class="studio-sidebar" id="studio-sidebar">
+          <div class="studio-art-container">
+            <div class="studio-art-wrapper" id="studio-art-wrapper">
+              <img src="" id="studio-art-img" class="studio-art-img" alt="Album Artwork" style="display: none;" />
+              <video id="studio-art-video" class="studio-art-video" loop muted autoplay playsinline style="display: none;"></video>
+              <div class="studio-art-fallback" id="studio-art-fallback">
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+              </div>
+            </div>
+            <div class="studio-art-glow" id="studio-art-glow"></div>
+          </div>
+
+          <div class="studio-track-meta">
+            <div class="studio-title-wrapper" id="studio-title-wrapper">
+              <h1 id="studio-track-title" class="studio-track-title">Not Playing</h1>
+            </div>
+            <div class="studio-artist-wrapper" id="studio-artist-wrapper">
+              <span id="studio-track-artist" class="studio-track-artist">LyricFlow Studio</span>
+            </div>
+            <div class="studio-album-wrapper" id="studio-album-wrapper">
+              <span id="studio-track-album" class="studio-track-album"></span>
+            </div>
+          </div>
+
+          <div class="studio-badges-row">
+            <span class="studio-badge studio-badge-provider" id="studio-badge-provider">
+              <span class="studio-badge-dot"></span>
+              <span id="studio-badge-text">Synced</span>
+            </span>
+            <span class="studio-badge studio-badge-quality" id="studio-badge-quality">Lossless</span>
+          </div>
+        </aside>
+
         <!-- Lyrics Viewer -->
         <div class="lyrics-view" id="lyrics-viewport">
           <div class="cinematic-main-stage" id="cinematic-main-stage">
@@ -674,6 +715,22 @@
             </div>
             <canvas id="cinematic-main-canvas"></canvas>
           </div>
+
+          <!-- Instrumental Solo & Break Visualizer Stage (Option C) -->
+          <div class="instrumental-solo-stage" id="instrumental-solo-stage" style="display: none;">
+            <div class="solo-visualizer-wave">
+              <span class="solo-bar bar-1"></span>
+              <span class="solo-bar bar-2"></span>
+              <span class="solo-bar bar-3"></span>
+              <span class="solo-bar bar-4"></span>
+              <span class="solo-bar bar-5"></span>
+            </div>
+            <div class="solo-meta">
+              <span class="solo-badge">✦ INSTRUMENTAL</span>
+              <span class="solo-countdown" id="solo-countdown">Solo break</span>
+            </div>
+          </div>
+
           <div class="lyrics-scroll-container" id="lyrics-container">
             <!-- Lyrics will be inserted here dynamically -->
             <div class="lyric-line placeholder">Start playing Spotify...</div>

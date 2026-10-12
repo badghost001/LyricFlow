@@ -2566,7 +2566,7 @@ let isTransitioningMode = false;
 let isKineticMode = false;
 let kineticRendererInstance = null;
 let kineticIdleTimeout = null;
-let isCinematicView = true;
+let isCinematicView = false;
 let cinematicMainRendererInstance = null;
 
 let currentMusicAppName = "Music";
@@ -3266,7 +3266,11 @@ function toggleCinematicView(forceState) {
 
   const target = (typeof forceState === 'boolean') ? forceState : !isCinematicView;
   isCinematicView = target;
-  settings.cinematicMode = target;
+  if (target) {
+    settings.cinematicMode = true;
+  } else {
+    settings.cinematicMode = false;
+  }
 
   const appContainer = document.getElementById("app-container");
   const btnCinematic = document.getElementById("btn-cinematic-mode") || document.getElementById("btn-kinetic-mode");
@@ -3343,6 +3347,86 @@ function toggleCinematicView(forceState) {
   saveLocalSettings();
   updateModeButtonsState();
 }
+
+/**
+ * Option A: Apple Music Studio Split-View Layout Toggle
+ */
+function toggleStudioSplit(forceState) {
+  const target = (typeof forceState === 'boolean') ? forceState : !document.body.classList.contains('layout-split');
+  settings.layoutSplit = target;
+  document.body.classList.toggle('layout-split', target);
+  const appContainer = document.getElementById("app-container");
+  if (appContainer) {
+    appContainer.classList.toggle('layout-split', target);
+  }
+  const btn = document.getElementById('btn-layout-split');
+  if (btn) {
+    btn.classList.toggle('active', target);
+    btn.setAttribute('title', target ? 'Switch to Centered Layout (Ctrl+Alt+S)' : 'Switch to Split-View Layout (Ctrl+Alt+S)');
+  }
+  saveLocalSettings();
+  if (typeof updateStudioSidebar === 'function') {
+    updateStudioSidebar(currentPlayingTrackObj, currentStaticAlbumArtUrl);
+  }
+  invalidateLyricMetrics(true);
+}
+window.toggleStudioSplit = toggleStudioSplit;
+
+/**
+ * Option A: Update Left Column Studio Sidebar
+ */
+function updateStudioSidebar(track, albumArtUrl) {
+  const titleEl = document.getElementById("studio-track-title");
+  const artistEl = document.getElementById("studio-track-artist");
+  const albumEl = document.getElementById("studio-track-album");
+  const artImg = document.getElementById("studio-art-img");
+  const artFallback = document.getElementById("studio-art-fallback");
+  const badgeText = document.getElementById("studio-badge-text");
+
+  if (!track) {
+    if (titleEl) titleEl.textContent = "Ready to Flow";
+    if (artistEl) artistEl.textContent = "Waiting for music...";
+    if (albumEl) albumEl.textContent = "";
+    if (artImg) artImg.style.display = "none";
+    if (artFallback) artFallback.style.display = "flex";
+    return;
+  }
+
+  const trackName = track.name || "Ready to Flow";
+  const artistText = Array.isArray(track.artists) ? track.artists.map(a => a.name).join(", ") : (track.artist || "LyricFlow Studio");
+  const albumText = (track.album && track.album.name) ? track.album.name : (typeof track.album === 'string' ? track.album : "");
+
+  if (titleEl) {
+    titleEl.textContent = trackName;
+    titleEl.title = trackName;
+  }
+  if (artistEl) {
+    artistEl.textContent = artistText;
+    artistEl.title = artistText;
+  }
+  if (albumEl) {
+    albumEl.textContent = albumText;
+    albumEl.title = albumText;
+  }
+
+  const effectiveArt = albumArtUrl || currentStaticAlbumArtUrl;
+  if (effectiveArt) {
+    if (artImg) {
+      artImg.src = effectiveArt;
+      artImg.style.display = "block";
+    }
+    if (artFallback) artFallback.style.display = "none";
+  } else {
+    if (artImg) artImg.style.display = "none";
+    if (artFallback) artFallback.style.display = "flex";
+  }
+
+  if (badgeText) {
+    const isWbw = Boolean(lyrics && lyrics.length > 0 && lyrics[0].words && lyrics[0].words.length > 0);
+    badgeText.textContent = isWbw ? "Word-Synced" : (lyrics && lyrics.length > 0 ? "Synced" : "Live");
+  }
+}
+window.updateStudioSidebar = updateStudioSidebar;
 
 function syncKineticState() {
   syncCinematicState();
@@ -4243,7 +4327,10 @@ function loadLocalSettings(skipIPC = false) {
   isDynamicIslandMode = false;
 
   if (typeof settings.cinematicMode === 'undefined') {
-    settings.cinematicMode = true;
+    settings.cinematicMode = false;
+  }
+  if (typeof settings.layoutSplit === 'undefined') {
+    settings.layoutSplit = true;
   }
   if (typeof settings.wallpaperCinematic === 'undefined') {
     settings.wallpaperCinematic = true;
@@ -4774,6 +4861,19 @@ function applyVisualSettings(fromTray = false, skipIPC = false) {
     appContainer.classList.toggle("cinematic-view-active", isCinematicActive);
   }
   document.body.classList.toggle("cinematic-view-active", isCinematicActive);
+
+  // Apple Music Studio Split-View Layout Sync (Option A)
+  const isSplitLayout = (settings.layoutSplit !== false);
+  document.body.classList.toggle('layout-split', isSplitLayout);
+  if (appContainer) appContainer.classList.toggle('layout-split', isSplitLayout);
+  const btnLayoutSplit = document.getElementById("btn-layout-split");
+  if (btnLayoutSplit) {
+    btnLayoutSplit.classList.toggle("active", isSplitLayout);
+    btnLayoutSplit.setAttribute("title", isSplitLayout ? "Switch to Centered Layout (Ctrl+Alt+S)" : "Switch to Split-View Layout (Ctrl+Alt+S)");
+  }
+  if (typeof updateStudioSidebar === 'function') {
+    updateStudioSidebar(currentPlayingTrackObj, currentStaticAlbumArtUrl);
+  }
 
   // Dynamic Island Liquid Glass Material Sync
   document.body.classList.toggle('island-glass-mode', Boolean(settings.islandGlassMode));
@@ -6327,6 +6427,14 @@ function setupUIHandlers() {
     });
   }
 
+  // Option A: Split-View Layout HUD button listener
+  const btnLayoutSplit = document.getElementById("btn-layout-split");
+  if (btnLayoutSplit) {
+    btnLayoutSplit.addEventListener("click", () => {
+      toggleStudioSplit();
+    });
+  }
+
   // Dynamic Island hover controls
   const islandBtnPrev = document.getElementById("island-btn-prev");
   if (islandBtnPrev) {
@@ -7346,6 +7454,11 @@ function setupUIHandlers() {
       if (window.electronAPI && typeof window.electronAPI.resetWindowSize === 'function') {
         window.electronAPI.resetWindowSize();
       }
+    }
+    // Ctrl+Alt+S to toggle Studio Split-View Layout (Option A)
+    if (e.ctrlKey && e.altKey && (e.code === 'KeyS' || e.key.toLowerCase() === 's')) {
+      e.preventDefault();
+      toggleStudioSplit();
     }
     // Ctrl+Shift+S to open Share Card Studio (Coming Soon)
     if (e.ctrlKey && e.shiftKey && (e.code === 'KeyS' || e.key.toLowerCase() === 's')) {
@@ -9413,6 +9526,7 @@ function handleEmptyPlayback() {
   if (wallpaperTrackTitle) wallpaperTrackTitle.textContent = "Ready to Flow";
   if (wallpaperTrackArtist) wallpaperTrackArtist.textContent = "Waiting for music...";
   setWallpaperAlbumArt(null);
+  updateStudioSidebar(null, null);
   if (widgetPlaycount) widgetPlaycount.style.display = "none";
   widgetAlbumArt.style.display = "none";
   widgetArtFallback.style.display = "flex";
@@ -10019,6 +10133,7 @@ async function handlePlaybackData(data) {
     if (trackWrap) {
       updateMarqueeOverflow(trackWrap, widgetTrackName);
     }
+    updateStudioSidebar(track, albumArtUrl);
   }
 
   // 2. Only update Album Art & Animated Art when song or art URL changes
@@ -10036,6 +10151,7 @@ async function handlePlaybackData(data) {
       setWallpaperAlbumArt(null);
     }
     updateAnimatedAlbumArt(track, albumArtUrl);
+    updateStudioSidebar(track, albumArtUrl);
   }
 
   const artModal = document.getElementById("album-art-modal");
@@ -12773,6 +12889,7 @@ function updatePlayhead() {
         // Genuine Instrumental Break Detection for main view & taskbar:
         // If current vocal has finished and next line is >= 4s away, enter resting instrumental state
         let isInstrumentalBreak = false;
+        let msUntilNextVocal = 0;
         if (activeIndex >= 0 && activeIndex < lyrics.length - 1 && !isUnsynced) {
           const curLine = lyrics[activeIndex];
           const curVocalEnd = getLineVocalEndMs(curLine, activeIndex);
@@ -12781,6 +12898,7 @@ function updatePlayhead() {
           const totalGap = nextStart - curVocalEnd;
           if (totalGap >= 4000 && syncProgress > (curVocalEnd + 1200) && syncProgress < (nextStart - 280)) {
             isInstrumentalBreak = true;
+            msUntilNextVocal = Math.max(0, nextStart - syncProgress);
           }
         }
 
@@ -12791,6 +12909,26 @@ function updatePlayhead() {
         const effectiveDisplayIndex = (isInstrumentalBreak || isIntroPrelude) ? -1 : activeIndex;
         if (shouldScrollMainLyrics) {
           scrollLyrics(effectiveDisplayIndex);
+
+          // Option C: Update Instrumental Solo Stage (Waveform & Countdown)
+          const soloStage = document.getElementById("instrumental-solo-stage");
+          if (soloStage) {
+            if (isInstrumentalBreak || isIntroPrelude) {
+              soloStage.classList.add("active");
+              const soloCountdown = document.getElementById("solo-countdown");
+              if (soloCountdown) {
+                if (isIntroPrelude) {
+                  const sRem = Math.ceil(Math.max(0, firstLineStart - syncProgress) / 1000);
+                  soloCountdown.textContent = sRem > 0 ? `Intro (${sRem}s)` : `Intro prelude`;
+                } else {
+                  const sRem = Math.ceil(msUntilNextVocal / 1000);
+                  soloCountdown.textContent = sRem > 0 ? `Solo break (${sRem}s)` : `Instrumental break`;
+                }
+              }
+            } else {
+              soloStage.classList.remove("active");
+            }
+          }
 
           // Word-by-Word karaoke highlight
           if ((settings.wordByWord !== false) && effectiveDisplayIndex >= 0) {

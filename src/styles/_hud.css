@@ -12,14 +12,19 @@
   -webkit-backdrop-filter: none !important;
   height: 38px;
   z-index: 10;
-  opacity: 0; /* Hidden by default, fades in on hover */
-  transform: translateY(-4px);
+  opacity: 1; /* Persistent by default (Option B) */
+  transform: translateY(0);
   transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1), transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   -webkit-app-region: none;
   pointer-events: none; /* Allow interaction through the open middle space */
 }
 
-.app-container:hover .hud-header {
+body.auto-hide-controls .hud-header {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+body.auto-hide-controls .app-container:hover .hud-header {
   opacity: 1;
   transform: translateY(0);
 }
