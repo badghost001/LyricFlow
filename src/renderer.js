@@ -55,6 +55,7 @@ let customBgVideo, customBgImg, wallpaperAlbumBg, inputBgFile, btnPickBg, btnCle
 let widgetAlbumArtVideo, wallpaperStyleArtVideo, wallpaperAlbumBgVideo;
 let checkAnimatedAlbumArt, inputCustomArtGif, btnPickCustomArtGif, btnClearCustomArtGif, labelCustomArtGifFilename;
 let currentPlayingTrackObj = null;
+let currentTrack = null;
 let currentStaticAlbumArtUrl = null;
 let currentTitle = "";
 let wallpaperStyleArt, wallpaperArtFallback, wallpaperTrackTitle, wallpaperTrackArtist;
@@ -4219,20 +4220,21 @@ function initDOMElements() {
     artContainer.addEventListener("contextmenu", async (e) => {
       e.preventDefault();
       e.stopPropagation();
-      if (!currentTrack || !currentTrack.name) return;
-      console.log("[Artwork] Manual refetch triggered for", currentTrack.name);
+      const trackObj = currentPlayingTrackObj || currentTrack;
+      if (!trackObj || !trackObj.name) return;
+      console.log("[Artwork] Manual refetch triggered for", trackObj.name);
 
       if (currentTrackId) delete localArtCache[currentTrackId];
-      const artist = currentTrack.artists?.[0]?.name || '';
-      const dualKey = `${artist}:::${currentTrack.name}`.toLowerCase().trim();
+      const artist = trackObj.artists?.[0]?.name || trackObj.artist || '';
+      const dualKey = `${artist}:::${trackObj.name}`.toLowerCase().trim();
       delete localArtCache[dualKey];
 
       if (widgetAlbumArt) widgetAlbumArt.style.opacity = '0.5';
 
       try {
-        const artUrl = await fetchFallbackAlbumArt(currentTrack.name, artist, currentTrack.album?.name || '');
+        const artUrl = await fetchFallbackAlbumArt(trackObj.name, artist, trackObj.album?.name || '');
         if (artUrl) {
-          saveArtToCache(currentTrackId, artUrl, currentTrack.name, artist);
+          saveArtToCache(currentTrackId, artUrl, trackObj.name, artist);
           if (widgetAlbumArt) {
             widgetAlbumArt.src = artUrl;
             widgetAlbumArt.style.display = 'block';
@@ -10176,6 +10178,7 @@ function handleEmptyPlayback() {
   lastPollTimestamp = getHighResTime();
   currentTrackId = null;
   currentPlayingTrackObj = null;
+  currentTrack = null;
   currentTitle = "";
   currentStaticAlbumArtUrl = null;
   setAnimatedAlbumArt(null, null);
@@ -10860,6 +10863,7 @@ async function handlePlaybackData(data) {
 
   const albumArtUrl = track.album?.images?.[0]?.url || track.album?.images?.[1]?.url || track.album?.images?.[2]?.url;
   currentPlayingTrackObj = track;
+  currentTrack = track;
   currentTitle = (track && (track.name || track.title)) || "";
   currentStaticAlbumArtUrl = albumArtUrl;
 
