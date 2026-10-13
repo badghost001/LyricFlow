@@ -22,7 +22,7 @@ void main() {
 
 const ISLAND_DISSOLVE_FRAGMENT_SHADER = `
 #ifdef GL_ES
-precision medium float;
+precision mediump float;
 #endif
 
 varying vec2 v_texCoord;

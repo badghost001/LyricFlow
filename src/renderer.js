@@ -56,6 +56,7 @@ let widgetAlbumArtVideo, wallpaperStyleArtVideo, wallpaperAlbumBgVideo;
 let checkAnimatedAlbumArt, inputCustomArtGif, btnPickCustomArtGif, btnClearCustomArtGif, labelCustomArtGifFilename;
 let currentPlayingTrackObj = null;
 let currentStaticAlbumArtUrl = null;
+let currentTitle = "";
 let wallpaperStyleArt, wallpaperArtFallback, wallpaperTrackTitle, wallpaperTrackArtist;
 let geniusFactCard, geniusFactContent;
 let geniusFactInterval;
@@ -10175,6 +10176,7 @@ function handleEmptyPlayback() {
   lastPollTimestamp = getHighResTime();
   currentTrackId = null;
   currentPlayingTrackObj = null;
+  currentTitle = "";
   currentStaticAlbumArtUrl = null;
   setAnimatedAlbumArt(null, null);
   currentExtractedArtUrl = null;
@@ -10858,6 +10860,7 @@ async function handlePlaybackData(data) {
 
   const albumArtUrl = track.album?.images?.[0]?.url || track.album?.images?.[1]?.url || track.album?.images?.[2]?.url;
   currentPlayingTrackObj = track;
+  currentTitle = (track && (track.name || track.title)) || "";
   currentStaticAlbumArtUrl = albumArtUrl;
 
   const isSongChanged = track.id !== currentTrackId;
