@@ -560,12 +560,17 @@ function applyIslandVisualizerStyle(style) {
   }
 }
 
-function showIslandHud({ icon, text, percent, showBar = true }) {
+function showIslandHud(options) {
+  if (typeof options === 'string') {
+    options = { text: options, showBar: false };
+  }
+  const { icon, text, percent, showBar = true } = options || {};
   const overlay = document.getElementById("island-hud-overlay");
   const iconEl = document.getElementById("island-hud-icon");
   const textEl = document.getElementById("island-hud-text");
   const barBg = document.getElementById("island-hud-bar-bg");
   const barFill = document.getElementById("island-hud-bar-fill");
+  const islandEl = document.getElementById("dynamic-island");
 
   if (!overlay || !iconEl || !textEl) return;
 
@@ -574,6 +579,7 @@ function showIslandHud({ icon, text, percent, showBar = true }) {
 
   overlay.classList.remove("is-leaving");
   overlay.style.display = "flex";
+  if (islandEl) islandEl.classList.add("island-has-hud");
 
   iconEl.textContent = icon || "🔊";
   textEl.textContent = text || "";
@@ -589,6 +595,7 @@ function showIslandHud({ icon, text, percent, showBar = true }) {
     islandHudLeavingTimeout = setTimeout(() => {
       overlay.style.display = "none";
       overlay.classList.remove("is-leaving");
+      if (islandEl) islandEl.classList.remove("island-has-hud");
     }, 200);
   }, 1200);
 }
@@ -932,7 +939,7 @@ function syncDynamicIslandState() {
   if (dynamicIslandEl) {
     dynamicIslandEl.classList.toggle('island-paused', !isPlayingActive);
     if (!isPlayingActive) {
-      dynamicIslandEl.classList.remove('island-instrumental-active');
+      dynamicIslandEl.classList.remove('island-instrumental-active', 'island-has-hud');
       const ring = islandCountdownRingEl || document.getElementById("island-countdown-ring");
       if (ring) ring.style.display = 'none';
       currentIslandBreakTotalMs = 0;
@@ -6818,10 +6825,41 @@ function setupUIHandlers() {
     }
  
     dynamicIslandEl.addEventListener("dblclick", (e) => {
-      if (!e.target.closest('.island-btn')) {
+      if (!isDynamicIslandMode) return;
+      if (e.target.closest('.island-btn') || e.target.closest('#island-expanded-controls') || e.target.closest('.island-art-wrapper') || e.target.closest('#island-art-tile')) return;
+
+      const dblAction = settings.islandDblClickAction || 'playPause';
+      if (dblAction === 'restore') {
         toggleDynamicIslandMode(false);
+      } else {
+        e.preventDefault();
+        e.stopPropagation();
+        const willPlay = !isPlaying;
+        controlPlayback('play-pause');
+        showIslandHud({
+          icon: willPlay ? "▶" : "⏸",
+          text: willPlay ? "Playing" : "Paused",
+          showBar: false
+        });
       }
     });
+
+    // Single Click on Album Art Squircle to Toggle Play/Pause
+    const islandArtTileEl = document.getElementById("island-art-tile");
+    if (islandArtTileEl) {
+      islandArtTileEl.addEventListener("click", (e) => {
+        if (!isDynamicIslandMode) return;
+        if (e.target.closest('.island-btn')) return;
+        e.stopPropagation();
+        const willPlay = !isPlaying;
+        controlPlayback('play-pause');
+        showIslandHud({
+          icon: willPlay ? "▶" : "⏸",
+          text: willPlay ? "Playing" : "Paused",
+          showBar: false
+        });
+      });
+    }
 
     // Mouse Wheel Gestures: Island scrolling adjusts music source application volume
     // Shift + Scroll explicitly performs seeking (±5s)

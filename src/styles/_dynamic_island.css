@@ -199,7 +199,7 @@ body.mode-dynamic-island #dynamic-island:hover {
   justify-content: center;
   flex-shrink: 0;
   -webkit-app-region: none !important;
-  cursor: default !important;
+  cursor: pointer !important;
   transition:
     width 0.38s cubic-bezier(0.32, 0.72, 0, 1),
     height 0.38s cubic-bezier(0.32, 0.72, 0, 1);
@@ -227,7 +227,12 @@ body.mode-dynamic-island #dynamic-island:hover {
   transition:
     border-radius 0.38s cubic-bezier(0.32, 0.72, 0, 1),
     border-color 0.3s ease,
-    box-shadow 0.35s ease;
+    box-shadow 0.35s ease,
+    transform 0.1s ease;
+}
+
+.island-art-tile:active {
+  transform: scale(0.92);
 }
 
 #dynamic-island:hover .island-art-tile {
@@ -2176,9 +2181,15 @@ body.mode-dynamic-island.island-sleeping .island-duet-bridge {
   justify-content: center;
   z-index: 100;
   pointer-events: none;
-  background: rgba(0, 0, 0, 0.38);
+  background: transparent;
   border-radius: inherit;
   animation: islandHudOverlayIn 0.18s ease forwards;
+}
+
+#dynamic-island.island-has-hud .island-center-content {
+  opacity: 0 !important;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
 }
 
 .island-hud-overlay.is-leaving {
