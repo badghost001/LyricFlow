@@ -2210,6 +2210,13 @@ body.island-dock-bottom-center .island-prompt-modal {
   z-index: 2500;
 }
 
+.island-gl-dissolve-canvas {
+  position: fixed;
+  pointer-events: none !important;
+  z-index: 999999;
+  display: none;
+}
+
 /* GPU Hardware Layer Promotion */
 #dynamic-island,
 #dynamic-island-translation,

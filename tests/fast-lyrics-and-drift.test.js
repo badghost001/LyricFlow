@@ -68,10 +68,12 @@ console.log('\n3. Rust Engine Fast-Path Race:');
 assert(
   engineRs.includes('if options.candidate_index == 0 {') &&
   engineRs.includes('fast_race') &&
-  engineRs.includes('tokio::time::timeout(std::time::Duration::from_millis(650), slow_queries)'),
-  'engine.rs must race fast providers (Cloudflare + LRCLIB) and cap slow queries to 650ms deadline'
+  engineRs.includes('tokio::time::timeout(std::time::Duration::from_millis(slow_timeout_ms), slow_queries)') &&
+  engineRs.includes('options.netease_word_by_word') &&
+  engineRs.includes('2000'),
+  'engine.rs must race fast providers and allocate 2000ms budget when NetEase word-by-word is enabled'
 );
-console.log('  ✓ 3a. engine.rs prioritizes fast providers with 650ms timeout deadline for primary lookup');
+console.log('  ✓ 3a. engine.rs prioritizes fast providers and allocates 2000ms budget for NetEase word-by-word lookup');
 
 assert(
   modRs.includes('Duration::from_millis(2500)'),

@@ -50,10 +50,16 @@ pub async fn query_all_candidates(
             (m, n)
         };
 
-        // Run fast race, capping slow queries to 650ms deadline
+        let slow_timeout_ms = if options.netease_word_by_word || options.preferred_providers.iter().any(|p| p.to_lowercase().contains("netease")) {
+            2000
+        } else {
+            650
+        };
+
+        // Run fast race, capping slow queries (650ms baseline, 2000ms for NetEase YRC syllable timing)
         let (fast_res, slow_res) = tokio::join!(
             fast_race,
-            tokio::time::timeout(std::time::Duration::from_millis(650), slow_queries)
+            tokio::time::timeout(std::time::Duration::from_millis(slow_timeout_ms), slow_queries)
         );
 
         let (proxy_res, lrclib_res) = fast_res;

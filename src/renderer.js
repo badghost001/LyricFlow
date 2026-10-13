@@ -2166,7 +2166,14 @@ function sleepDynamicIsland() {
     if (bridge) bridge.style.display = 'none';
   }
 
-  if (pri && window.caEmitterLayer) {
+  if (pri && window.islandGlDissolve) {
+    window.islandGlDissolve.disintegrate(pri, () => {
+      document.body.classList.add("island-sleeping");
+      if (window.electronAPI && window.electronAPI.updateIslandBounds) {
+        window.electronAPI.updateIslandBounds({ x: 0, y: 0, width: 0, height: 0 });
+      }
+    }, { ambientColor });
+  } else if (pri && window.caEmitterLayer) {
     window.caEmitterLayer.vaporize(pri, () => {
       document.body.classList.add("island-sleeping");
       if (window.electronAPI && window.electronAPI.updateIslandBounds) {
@@ -2183,6 +2190,9 @@ function sleepDynamicIsland() {
 }
 
 function wakeDynamicIsland() {
+  if (window.islandGlDissolve && typeof window.islandGlDissolve.stop === 'function') {
+    window.islandGlDissolve.stop();
+  }
   lastPlaybackActivityMs = Date.now();
   const wasSleeping = isIslandSleeping || document.body.classList.contains("island-sleeping");
   if (!wasSleeping) {
@@ -2195,6 +2205,7 @@ function wakeDynamicIsland() {
   const pri = document.getElementById("dynamic-island");
   if (pri) {
     pri.style.display = '';
+    pri.style.opacity = '';
     pri.classList.remove("island-vaporizing");
   }
   const ambientColor = (typeof getComputedStyle === 'function' && document.documentElement)
