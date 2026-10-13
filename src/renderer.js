@@ -931,6 +931,13 @@ function syncDynamicIslandState() {
   const dynamicIslandEl = document.getElementById("dynamic-island");
   if (dynamicIslandEl) {
     dynamicIslandEl.classList.toggle('island-paused', !isPlayingActive);
+    if (!isPlayingActive) {
+      dynamicIslandEl.classList.remove('island-instrumental-active');
+      const ring = islandCountdownRingEl || document.getElementById("island-countdown-ring");
+      if (ring) ring.style.display = 'none';
+      currentIslandBreakTotalMs = 0;
+      currentIslandBreakKey = null;
+    }
   }
 
   const islandPlayIcon = document.getElementById("island-icon-play");
@@ -1076,6 +1083,10 @@ let satTextEl = null;
 let satLangEl = null;
 let satMarqueeWrapperEl = null;
 let islandLyricZoneEl = null;
+let islandCountdownRingEl = null;
+let islandCountdownRingFillEl = null;
+let currentIslandBreakTotalMs = 0;
+let currentIslandBreakKey = null;
 
 function getDynamicIslandSyncData(syncProgress) {
   // 1. Now Playing 3-second intro buffer on song start / track change
@@ -2240,6 +2251,46 @@ function updateDynamicIslandLyric(targetIndex, lineData, syncProgress, isInstrum
       }
     }
 
+    // Update Circular Instrumental & Vocal Countdown Ring
+    const isCountingDown = Boolean(
+      isPlayingActive &&
+      !document.body.classList.contains('app-paused') &&
+      ((isBreak && countdownMs > 0) || (countdownMs >= 1000 && (isOutro || settings.islandVocalCountdown !== false)))
+    );
+
+    const ringEl = islandCountdownRingEl || (islandCountdownRingEl = document.getElementById("island-countdown-ring"));
+    const fillEl = islandCountdownRingFillEl || (islandCountdownRingFillEl = document.getElementById("island-countdown-ring-fill"));
+
+    if (isCountingDown && countdownMs > 0) {
+      const breakKey = `${currentTrackId || trackTitle}:${targetIndex}`;
+      if (currentIslandBreakKey !== breakKey || countdownMs > currentIslandBreakTotalMs) {
+        currentIslandBreakKey = breakKey;
+        currentIslandBreakTotalMs = Math.max(countdownMs, 2000);
+      }
+
+      if (ringEl && fillEl) {
+        if (ringEl.style.display !== 'block') {
+          ringEl.style.display = 'block';
+        }
+        if (dynamicIslandEl && !dynamicIslandEl.classList.contains('island-instrumental-active')) {
+          dynamicIslandEl.classList.add('island-instrumental-active');
+        }
+        const frac = currentIslandBreakTotalMs > 0 ? Math.max(0, Math.min(1, countdownMs / currentIslandBreakTotalMs)) : 0;
+        const circumference = 97.39;
+        const offset = (1 - frac) * circumference;
+        fillEl.style.strokeDashoffset = offset.toFixed(2);
+      }
+    } else {
+      if (dynamicIslandEl && dynamicIslandEl.classList.contains('island-instrumental-active')) {
+        dynamicIslandEl.classList.remove('island-instrumental-active');
+      }
+      if (ringEl && ringEl.style.display !== 'none') {
+        ringEl.style.display = 'none';
+      }
+      currentIslandBreakTotalMs = 0;
+      currentIslandBreakKey = null;
+    }
+
     const stateKey = `${currentTrackId || trackTitle}:${targetIndex}:${countdownMs > 0 ? Math.ceil(countdownMs / 1000) : 0}`;
     if (islandLine.dataset.stateKey !== stateKey) {
       islandLine.dataset.stateKey = stateKey;
@@ -2264,6 +2315,17 @@ function updateDynamicIslandLyric(targetIndex, lineData, syncProgress, isInstrum
     }
     return;
   }
+
+  // Deactivate Circular Instrumental Countdown Ring during active vocal lines
+  if (dynamicIslandEl && dynamicIslandEl.classList.contains('island-instrumental-active')) {
+    dynamicIslandEl.classList.remove('island-instrumental-active');
+  }
+  const ringActiveEl = islandCountdownRingEl || (islandCountdownRingEl = document.getElementById("island-countdown-ring"));
+  if (ringActiveEl && ringActiveEl.style.display !== 'none') {
+    ringActiveEl.style.display = 'none';
+  }
+  currentIslandBreakTotalMs = 0;
+  currentIslandBreakKey = null;
 
   // Duet / Backing Vocal Split handling
   const isDuetEligible = Boolean(

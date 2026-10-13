@@ -269,6 +269,65 @@ body:not(.is-playing) .island-art-halo {
 }
 
 /* ==========================================================
+   CIRCULAR INSTRUMENTAL & VOCAL COUNTDOWN RING
+   - Wraps the album squircle with an Apple-style progress arc
+   - 360° -> 0° smooth wind-down during solos and preludes
+========================================================== */
+.island-countdown-ring {
+  position: absolute;
+  inset: -3px;
+  width: calc(100% + 6px);
+  height: calc(100% + 6px);
+  pointer-events: none;
+  z-index: 6;
+  opacity: 0;
+  transform: scale(0.92);
+  transition:
+    opacity 0.28s cubic-bezier(0.32, 0.72, 0, 1),
+    transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+#dynamic-island.island-instrumental-active .island-countdown-ring {
+  display: block !important;
+  opacity: 1;
+  transform: scale(1);
+}
+
+.island-countdown-ring-track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.14);
+  stroke-width: 2.2;
+}
+
+.island-countdown-ring-fill {
+  fill: none;
+  stroke: var(--art-color-1, #38bdf8);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-dasharray: 97.39;
+  stroke-dashoffset: 0;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+  transition: stroke-dashoffset 0.12s linear, stroke 0.35s ease;
+  filter: drop-shadow(0 0 5px rgba(var(--art-color-1-rgb, 56, 189, 248), 0.65));
+}
+
+#dynamic-island.island-instrumental-active {
+  border-color: rgba(var(--art-color-1-rgb, 56, 189, 248), 0.32);
+  box-shadow:
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.32),
+    inset 0 -0.5px 0.5px rgba(255, 255, 255, 0.08),
+    0 12px 28px -4px rgba(0, 0, 0, 0.75),
+    0 0 16px rgba(var(--art-color-1-rgb, 56, 189, 248), 0.24),
+    0 0 0 1px rgba(0, 0, 0, 0.95);
+}
+
+#dynamic-island.island-instrumental-active .island-wave-visualizer .wave-bar {
+  background: var(--art-color-1, #38bdf8) !important;
+  box-shadow: 0 0 6px rgba(var(--art-color-1-rgb, 56, 189, 248), 0.55);
+}
+
+/* ==========================================================
    CENTER CONTENT: COMPACT VS EXPANDED
 ========================================================== */
 .island-center-content {
