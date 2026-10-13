@@ -1094,6 +1094,7 @@ let islandCountdownRingEl = null;
 let islandCountdownRingFillEl = null;
 let currentIslandBreakTotalMs = 0;
 let currentIslandBreakKey = null;
+let islandArtHaloEl = null;
 
 function getDynamicIslandSyncData(syncProgress) {
   // 1. Now Playing 3-second intro buffer on song start / track change
@@ -1758,7 +1759,14 @@ function updateIslandEnergyMorph(bands) {
     }
     islandEl.style.removeProperty('--island-bloom-radius');
     islandEl.style.removeProperty('--island-bloom-alpha');
+    islandEl.style.removeProperty('--island-beat-scale');
     islandEl.style.removeProperty('box-shadow');
+    const haloEl = islandArtHaloEl || (islandArtHaloEl = document.getElementById("island-art-halo"));
+    if (haloEl) {
+      haloEl.style.removeProperty('--island-halo-opacity');
+      haloEl.style.removeProperty('--island-halo-scale');
+      haloEl.style.removeProperty('--island-halo-blur');
+    }
     smoothedIslandBloom = 0;
     return;
   }
@@ -1799,9 +1807,41 @@ function updateIslandEnergyMorph(bands) {
       if (islandEl.style.getPropertyValue('--island-bloom-radius')) islandEl.style.removeProperty('--island-bloom-radius');
       if (islandEl.style.getPropertyValue('--island-bloom-alpha')) islandEl.style.removeProperty('--island-bloom-alpha');
     }
+
+    // Dynamic Album Art Squircle Halo (Audio-Reactive WASAPI Sub-Bass Breathing)
+    const haloEl = islandArtHaloEl || (islandArtHaloEl = document.getElementById("island-art-halo"));
+    if (haloEl) {
+      if (subBass > 0.05) {
+        const haloOpacity = Math.min(0.92, Math.max(0.35, 0.35 + subBass * 0.57)).toFixed(2);
+        const haloScale = (1.0 + subBass * 0.14).toFixed(3);
+        const haloBlur = Math.round(5 + subBass * 7);
+        setStylePropertyIfChanged(haloEl, '--island-halo-opacity', haloOpacity);
+        setStylePropertyIfChanged(haloEl, '--island-halo-scale', haloScale);
+        setStylePropertyIfChanged(haloEl, '--island-halo-blur', `${haloBlur}px`);
+      } else {
+        if (haloEl.style.getPropertyValue('--island-halo-opacity')) haloEl.style.removeProperty('--island-halo-opacity');
+        if (haloEl.style.getPropertyValue('--island-halo-scale')) haloEl.style.removeProperty('--island-halo-scale');
+        if (haloEl.style.getPropertyValue('--island-halo-blur')) haloEl.style.removeProperty('--island-halo-blur');
+      }
+    }
+
+    // Physical Kick-Transient Micro-Pulse (Sub-pixel spring response on heavy bass)
+    if (subBass > 0.70) {
+      const kickBump = (1.0 + (subBass - 0.70) * 0.024).toFixed(3); // capped at ~1.007
+      setStylePropertyIfChanged(islandEl, '--island-beat-scale', kickBump);
+    } else {
+      if (islandEl.style.getPropertyValue('--island-beat-scale')) islandEl.style.removeProperty('--island-beat-scale');
+    }
   } else {
     if (islandEl.style.getPropertyValue('--island-bloom-radius')) islandEl.style.removeProperty('--island-bloom-radius');
     if (islandEl.style.getPropertyValue('--island-bloom-alpha')) islandEl.style.removeProperty('--island-bloom-alpha');
+    if (islandEl.style.getPropertyValue('--island-beat-scale')) islandEl.style.removeProperty('--island-beat-scale');
+    const haloEl = islandArtHaloEl || (islandArtHaloEl = document.getElementById("island-art-halo"));
+    if (haloEl) {
+      if (haloEl.style.getPropertyValue('--island-halo-opacity')) haloEl.style.removeProperty('--island-halo-opacity');
+      if (haloEl.style.getPropertyValue('--island-halo-scale')) haloEl.style.removeProperty('--island-halo-scale');
+      if (haloEl.style.getPropertyValue('--island-halo-blur')) haloEl.style.removeProperty('--island-halo-blur');
+    }
     smoothedIslandBloom = 0;
   }
 
