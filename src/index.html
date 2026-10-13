@@ -259,6 +259,8 @@
 
           <!-- Right: Audio Wave Visualizer & Mini Restore -->
           <div class="island-top-actions">
+            <!-- Apple Music-Style Audio Quality / Synced Micro-Badge -->
+            <span id="island-quality-badge" class="island-quality-badge" style="display: none;">LOSSLESS</span>
             <div class="island-wave-visualizer" id="island-wave">
               <span class="wave-bar bar-1"></span>
               <span class="wave-bar bar-2"></span>
@@ -327,6 +329,47 @@
             <div class="island-hud-bar-bg" id="island-hud-bar-bg">
               <div class="island-hud-bar-fill" id="island-hud-bar-fill" style="width: 65%;"></div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dynamic Island Quick Action Context Menu (Apple HIG Glassmorphism Pill) -->
+      <div id="island-context-menu" class="island-context-menu" style="display: none;" role="menu" aria-label="Island Actions">
+        <div class="island-context-card">
+          <div class="island-context-header">
+            <span class="island-context-title">Quick Actions</span>
+            <span class="island-context-badge">Island Pill</span>
+          </div>
+          <div class="island-context-items">
+            <button class="island-context-item" id="island-ctx-lyrics" role="menuitem" title="Cycle Alternative Lyrics (Ctrl+R)">
+              <span class="ctx-icon">↻</span>
+              <span class="ctx-label">Alternative Lyrics</span>
+              <span class="ctx-shortcut">Ctrl+R</span>
+            </button>
+            <div class="island-context-row">
+              <span class="ctx-subhead">Sync Offset</span>
+              <div class="island-ctx-offset-group">
+                <button class="island-ctx-mini-btn" id="island-ctx-offset-minus" title="Shift lyrics earlier by 0.5s (-500ms)">-0.5s</button>
+                <button class="island-ctx-mini-btn" id="island-ctx-offset-reset" title="Reset sync offset to 0ms">0ms</button>
+                <button class="island-ctx-mini-btn" id="island-ctx-offset-plus" title="Shift lyrics later by 0.5s (+500ms)">+0.5s</button>
+              </div>
+            </div>
+            <button class="island-context-item" id="island-ctx-translate" role="menuitem" title="Cycle Island Translation (Ctrl+Shift+T)">
+              <span class="ctx-icon">🌐</span>
+              <span class="ctx-label">Cycle Translation</span>
+              <span class="ctx-shortcut">Ctrl+Shift+T</span>
+            </button>
+            <button class="island-context-item" id="island-ctx-ghost" role="menuitem" title="Toggle Ghost Click-Through Mode (Ctrl+Shift+G or `)">
+              <span class="ctx-icon">👻</span>
+              <span class="ctx-label">Toggle Ghost Mode</span>
+              <span class="ctx-shortcut">` / Ctrl+G</span>
+            </button>
+            <div class="island-context-divider"></div>
+            <button class="island-context-item island-ctx-restore" id="island-ctx-restore" role="menuitem" title="Restore Full Desktop Overlay (Ctrl+Shift+D)">
+              <span class="ctx-icon">⤢</span>
+              <span class="ctx-label">Restore Full Overlay</span>
+              <span class="ctx-shortcut">Ctrl+Shift+D</span>
+            </button>
           </div>
         </div>
       </div>

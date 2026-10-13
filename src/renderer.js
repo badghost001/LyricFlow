@@ -75,6 +75,8 @@ let checkFilterCredits;
 let selectPreferredProvider;
 let isWallpaperDesktopFocused = true;
 let currentSourceLevel = 0;
+let currentIslandIsLossless = false;
+let currentIslandIsHiRes = false;
 
 // Typography System - Standardized Safe Font Stacks with Fallbacks
 const FONT_FAMILY_STACKS = {
@@ -598,6 +600,83 @@ function showIslandHud(options) {
       if (islandEl) islandEl.classList.remove("island-has-hud");
     }, 200);
   }, 1200);
+}
+
+function updateIslandQualityBadge(overrideLossless, overrideHiRes, overrideSourceLevel) {
+  const badge = document.getElementById("island-quality-badge");
+  if (!badge) return;
+  const hasTrack = Boolean(currentPlayingTrackObj || currentTrack);
+  if (!hasTrack) {
+    badge.style.display = 'none';
+    return;
+  }
+  const isLossless = overrideLossless !== undefined ? Boolean(overrideLossless) : Boolean(currentIslandIsLossless);
+  const isHiRes = overrideHiRes !== undefined ? Boolean(overrideHiRes) : Boolean(currentIslandIsHiRes);
+  const sLevel = overrideSourceLevel !== undefined ? Number(overrideSourceLevel) : Number(currentSourceLevel || 0);
+
+  if (isLossless) {
+    badge.textContent = isHiRes ? "HI-RES" : "LOSSLESS";
+    badge.className = "island-quality-badge " + (isHiRes ? "badge-hires" : "badge-lossless");
+    badge.style.display = "inline-flex";
+  } else if (sLevel >= 2) {
+    badge.textContent = sLevel === 3 ? "WORD-SYNC" : "SYNCED";
+    badge.className = "island-quality-badge badge-synced";
+    badge.style.display = "inline-flex";
+  } else {
+    badge.style.display = "none";
+  }
+}
+
+function showIslandContextMenu(x, y) {
+  const menu = document.getElementById("island-context-menu");
+  if (!menu) return;
+  menu.style.display = 'block';
+
+  const island = document.getElementById("dynamic-island");
+  const islandRect = island ? island.getBoundingClientRect() : null;
+  const menuRect = menu.getBoundingClientRect();
+
+  let posX = x;
+  let posY = y;
+
+  if (islandRect) {
+    if (posX == null || posY == null) {
+      posX = islandRect.left + (islandRect.width / 2) - (menuRect.width / 2);
+      if (document.body.classList.contains("island-dock-bottom-center")) {
+        posY = islandRect.top - menuRect.height - 8;
+      } else {
+        posY = islandRect.bottom + 8;
+      }
+    } else {
+      if (document.body.classList.contains("island-dock-bottom-center")) {
+        posY = Math.max(8, islandRect.top - menuRect.height - 8);
+      } else {
+        posY = islandRect.bottom + 8;
+      }
+      posX = Math.max(10, Math.min(window.innerWidth - menuRect.width - 10, posX - menuRect.width / 2));
+    }
+  } else {
+    posX = Math.max(10, Math.min(window.innerWidth - menuRect.width - 10, (posX || 100)));
+    posY = Math.max(10, Math.min(window.innerHeight - menuRect.height - 10, (posY || 100)));
+  }
+
+  menu.style.left = `${Math.round(posX)}px`;
+  menu.style.top = `${Math.round(posY)}px`;
+
+  requestAnimationFrame(() => {
+    menu.classList.add("is-open");
+  });
+}
+
+function hideIslandContextMenu() {
+  const menu = document.getElementById("island-context-menu");
+  if (!menu) return;
+  menu.classList.remove("is-open");
+  setTimeout(() => {
+    if (!menu.classList.contains("is-open")) {
+      menu.style.display = 'none';
+    }
+  }, 180);
 }
 
 function setVisualizerBarCount(count) {
@@ -6940,13 +7019,13 @@ function setupUIHandlers() {
       toggleAppMute();
     });
 
-    // Right Click on Dynamic Island to Refetch / Cycle Alternative Lyrics
+    // Right Click on Dynamic Island to open Quick Action Context Menu
     dynamicIslandEl.addEventListener("contextmenu", (e) => {
       if (!isDynamicIslandMode) return;
       if (e.target.closest('#island-expanded-controls')) return;
       e.preventDefault();
       e.stopPropagation();
-      cycleAlternativeLyrics();
+      showIslandContextMenu(e.clientX, e.clientY);
     });
 
     const islandStage = document.getElementById("island-stage");
@@ -6959,6 +7038,87 @@ function setupUIHandlers() {
         }
       });
     }
+
+    // Dynamic Island Quick-Action Context Menu Wiring
+    const ctxLyrics = document.getElementById("island-ctx-lyrics");
+    if (ctxLyrics) {
+      ctxLyrics.addEventListener("click", (e) => {
+        e.stopPropagation();
+        hideIslandContextMenu();
+        cycleAlternativeLyrics();
+      });
+    }
+
+    const ctxOffsetMinus = document.getElementById("island-ctx-offset-minus");
+    if (ctxOffsetMinus) {
+      ctxOffsetMinus.addEventListener("click", (e) => {
+        e.stopPropagation();
+        adjustSyncOffset(-500);
+      });
+    }
+
+    const ctxOffsetReset = document.getElementById("island-ctx-offset-reset");
+    if (ctxOffsetReset) {
+      ctxOffsetReset.addEventListener("click", (e) => {
+        e.stopPropagation();
+        adjustSyncOffset(-(settings.syncOffsetMs || 0));
+      });
+    }
+
+    const ctxOffsetPlus = document.getElementById("island-ctx-offset-plus");
+    if (ctxOffsetPlus) {
+      ctxOffsetPlus.addEventListener("click", (e) => {
+        e.stopPropagation();
+        adjustSyncOffset(500);
+      });
+    }
+
+    const ctxTranslate = document.getElementById("island-ctx-translate");
+    if (ctxTranslate) {
+      ctxTranslate.addEventListener("click", (e) => {
+        e.stopPropagation();
+        hideIslandContextMenu();
+        cycleIslandTranslationMode();
+      });
+    }
+
+    const ctxGhost = document.getElementById("island-ctx-ghost");
+    if (ctxGhost) {
+      ctxGhost.addEventListener("click", (e) => {
+        e.stopPropagation();
+        hideIslandContextMenu();
+        if (window.electronAPI && typeof window.electronAPI.toggleDynamicIslandGhost === 'function') {
+          window.electronAPI.toggleDynamicIslandGhost();
+        } else {
+          toggleIslandGhostMode(!document.body.classList.contains('island-ghost-mode'));
+        }
+      });
+    }
+
+    const ctxRestore = document.getElementById("island-ctx-restore");
+    if (ctxRestore) {
+      ctxRestore.addEventListener("click", (e) => {
+        e.stopPropagation();
+        hideIslandContextMenu();
+        toggleDynamicIslandMode(false);
+      });
+    }
+
+    document.addEventListener("pointerdown", (e) => {
+      const menu = document.getElementById("island-context-menu");
+      if (menu && menu.style.display !== 'none' && !e.target.closest('#island-context-menu') && !e.target.closest('#dynamic-island')) {
+        hideIslandContextMenu();
+      }
+    });
+
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        const menu = document.getElementById("island-context-menu");
+        if (menu && menu.style.display !== 'none') {
+          hideIslandContextMenu();
+        }
+      }
+    });
   }
 
   function attachScrubberController({
@@ -9865,6 +10025,9 @@ function handleEmptyPlayback() {
   currentExtractedArtUrl = null;
   trackDuration = 0;
   lyrics = [];
+  currentIslandIsLossless = false;
+  currentIslandIsHiRes = false;
+  updateIslandQualityBadge();
   if (window.LyricsService?.instance?.engine) {
     window.LyricsService.instance.engine.clear();
   }
@@ -10599,6 +10762,10 @@ async function handlePlaybackData(data) {
     (track.encoding && /flac|alac|wav|aiff|dsd/i.test(track.encoding)) ||
     (typeof data.bit_depth === 'number' && data.bit_depth >= 16 && typeof data.sample_rate === 'number' && data.sample_rate >= 44100 && /flac|alac|wav|lossless/i.test(data.encoding || ''))
   );
+
+  currentIslandIsLossless = isLossless;
+  currentIslandIsHiRes = isLossless && Boolean(data.bit_depth && data.bit_depth > 16);
+  updateIslandQualityBadge();
 
   if (badgeQuality) {
     if (isLossless) {
@@ -11818,6 +11985,7 @@ function updateTimingStatus(level, sourceName = "", candidateInfo = "") {
   if (typeof level === 'number') {
     currentSourceLevel = level > 0 ? level : 0;
   }
+  updateIslandQualityBadge();
   const badge = document.getElementById("timing-status-badge");
   if (!badge) return;
 
@@ -14162,6 +14330,10 @@ if (typeof window !== 'undefined') {
   window.needsTimedWordSpace = needsTimedWordSpace;
   window.reconcileTimedWords = reconcileTimedWords;
   window.isWallpaperDesktopFocused = isWallpaperDesktopFocused;
+  window.updateIslandQualityBadge = updateIslandQualityBadge;
+  window.showIslandContextMenu = showIslandContextMenu;
+  window.hideIslandContextMenu = hideIslandContextMenu;
+  window.adjustSyncOffset = adjustSyncOffset;
 }
 
 if (typeof module !== 'undefined' && module.exports) {
@@ -14181,6 +14353,10 @@ if (typeof module !== 'undefined' && module.exports) {
     appendTimedWordSpans,
     needsTimedWordSpace,
     reconcileTimedWords,
-    isWallpaperDesktopFocused
+    isWallpaperDesktopFocused,
+    updateIslandQualityBadge,
+    showIslandContextMenu,
+    hideIslandContextMenu,
+    adjustSyncOffset
   };
 }

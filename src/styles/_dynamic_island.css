@@ -1374,6 +1374,43 @@ body.mode-dynamic-island.island-morph-solo #dynamic-island {
   -webkit-app-region: none !important;
 }
 
+/* Apple Music-Style Audio Quality / Synced Micro-Badge */
+.island-quality-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 15px;
+  padding: 0 4.5px;
+  border-radius: 4px;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  line-height: 1;
+  text-transform: uppercase;
+  user-select: none;
+  pointer-events: none;
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+.island-quality-badge.badge-hires {
+  background: rgba(245, 158, 11, 0.16);
+  color: #fbbf24;
+  border-color: rgba(245, 158, 11, 0.38);
+  box-shadow: inset 0 1px 0 rgba(245, 158, 11, 0.2), 0 0 8px rgba(245, 158, 11, 0.25);
+}
+
+.island-quality-badge.badge-synced {
+  background: rgba(56, 189, 248, 0.14);
+  color: #38bdf8;
+  border-color: rgba(56, 189, 248, 0.32);
+  box-shadow: inset 0 1px 0 rgba(56, 189, 248, 0.15);
+}
+
 /* Audio-Reactive Equalizer */
 .island-wave-visualizer {
   display: flex;
@@ -2532,3 +2569,177 @@ body.mode-dynamic-island.island-glass-mode .island-vol-track {
   background: rgba(255, 255, 255, 0.16) !important;
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3) !important;
 }
+
+/* ==========================================================
+   DYNAMIC ISLAND QUICK-ACTION CONTEXT MENU
+   - Authentic Apple HIG Glassmorphism floating pill card
+   - High-dispersion blur, specular white bezel & fluid spring
+========================================================== */
+.island-context-menu {
+  position: fixed;
+  z-index: 10050;
+  pointer-events: auto;
+  user-select: none;
+  -webkit-app-region: none !important;
+  opacity: 0;
+  transform: scale(0.92) translateY(-4px);
+  transform-origin: top center;
+  transition:
+    opacity 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.island-context-menu.is-open {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+}
+
+.island-context-card {
+  min-width: 220px;
+  background: rgba(18, 18, 22, 0.90);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  box-shadow:
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.35),
+    0 16px 36px -6px rgba(0, 0, 0, 0.75),
+    0 0 0 1px rgba(0, 0, 0, 0.85);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.island-context-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  margin-bottom: 2px;
+}
+
+.island-context-title {
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.55);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.island-context-badge {
+  font-size: 8.5px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.65);
+  letter-spacing: 0.4px;
+}
+
+.island-context-items {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.island-context-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  outline: none;
+  transition: background 0.12s ease, color 0.12s ease, transform 0.08s ease;
+  width: 100%;
+  text-align: left;
+  box-sizing: border-box;
+}
+
+.island-context-item:hover,
+.island-context-item:focus-visible {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.island-context-item:active {
+  transform: scale(0.98);
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.island-context-item .ctx-icon {
+  font-size: 13px;
+  width: 16px;
+  text-align: center;
+  opacity: 0.85;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.island-context-item .ctx-label {
+  flex: 1;
+}
+
+.island-context-item .ctx-shortcut {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.4);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.island-context-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  border-radius: 8px;
+}
+
+.island-context-row .ctx-subhead {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 500;
+}
+
+.island-ctx-offset-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.island-ctx-mini-btn {
+  background: rgba(255, 255, 255, 0.09);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 9.5px;
+  font-weight: 600;
+  padding: 2.5px 6px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  outline: none;
+}
+
+.island-ctx-mini-btn:hover {
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.32);
+}
+
+.island-ctx-mini-btn:active {
+  transform: scale(0.94);
+}
+
+.island-context-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  margin: 3px 4px;
+}
+
