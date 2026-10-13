@@ -213,6 +213,7 @@
       safeInvoke('set_dynamic_island_mode', { enabled, dockPos, dock_pos: dockPos }, null),
     isDynamicIslandMode: () => safeInvoke('is_dynamic_island_mode', {}, false),
     updateIslandBounds: (rect) => safeInvoke('update_island_bounds', { rect }, null),
+    setIslandPosition: (x, y) => safeInvoke('set_island_position', { x, y }, null),
     getAvailableMonitors: () => safeInvoke('get_available_monitors', {}, []),
     setWallpaperMode: (enabled, monitorTarget = null) =>
       safeInvoke('set_wallpaper_mode', {

@@ -159,6 +159,7 @@ let settings = {
   wordByWord: true,
   dynamicIslandMode: false,
   dynamicIslandPosition: 'top-center',
+  islandCustomPos: null,
   islandVisualizerBars: 4,
   islandVisualizerStyle: 'bars',
   islandVocalCountdown: true,
@@ -700,14 +701,72 @@ function setVisualizerBarCount(count) {
   setTimeout(pushDynamicIslandBounds, 50);
 }
 
+function applyFreeIslandPosition() {
+  const dynamicIslandEl = document.getElementById("dynamic-island");
+  if (!dynamicIslandEl) return;
+  const pos = settings.islandCustomPos;
+  const islandWidth = dynamicIslandEl.offsetWidth || 340;
+  const viewportWidth = (typeof window !== 'undefined' ? window.innerWidth : 1920);
+  const x = (pos && typeof pos.x === 'number') ? pos.x : Math.round((viewportWidth - islandWidth) / 2);
+  const y = (pos && typeof pos.y === 'number') ? pos.y : 32;
+
+  dynamicIslandEl.style.setProperty('--island-free-x', `${x}px`);
+  dynamicIslandEl.style.setProperty('--island-free-y', `${y}px`);
+}
+
+function clearFreeIslandPosition() {
+  const dynamicIslandEl = document.getElementById("dynamic-island");
+  if (!dynamicIslandEl) return;
+  dynamicIslandEl.style.removeProperty('--island-free-x');
+  dynamicIslandEl.style.removeProperty('--island-free-y');
+}
+
+function calculateMagneticSnap(targetX, targetY, islandWidth, islandHeight, viewportWidth, viewportHeight, snapThreshold = 16) {
+  let x = targetX;
+  let y = targetY;
+
+  // Left edge snap
+  if (x < snapThreshold) {
+    x = 0;
+  } else if (x + islandWidth > viewportWidth - snapThreshold) {
+    // Right edge snap
+    x = viewportWidth - islandWidth;
+  }
+
+  // Top edge snap
+  if (y < snapThreshold) {
+    y = 0;
+  } else if (y + islandHeight > viewportHeight - snapThreshold) {
+    // Bottom edge snap
+    y = viewportHeight - islandHeight;
+  }
+
+  // Center horizontal snap
+  const centerX = (viewportWidth - islandWidth) / 2;
+  if (Math.abs(x - centerX) <= snapThreshold) {
+    x = centerX;
+  }
+
+  // Clamping within visible viewport
+  x = Math.max(0, Math.min(viewportWidth - islandWidth, x));
+  y = Math.max(0, Math.min(viewportHeight - islandHeight, y));
+
+  return { x: Math.round(x), y: Math.round(y) };
+}
+
 function applyDynamicIslandDockClass(dockPos) {
   const pos = dockPos || settings.dynamicIslandPosition || 'top-center';
-  const allPositions = ['top-center', 'top-left', 'top-right', 'bottom-center'];
+  const allPositions = ['top-center', 'top-left', 'top-right', 'bottom-center', 'free'];
   allPositions.forEach(p => {
     document.body.classList.remove(`island-dock-${p}`);
   });
   if (isDynamicIslandMode) {
     document.body.classList.add(`island-dock-${pos}`);
+    if (pos === 'free') {
+      applyFreeIslandPosition();
+    } else {
+      clearFreeIslandPosition();
+    }
     setTimeout(pushDynamicIslandBounds, 50);
   }
 }
@@ -7119,6 +7178,91 @@ function setupUIHandlers() {
         }
       }
     });
+
+    // Free-Floating Draggable Island Gesture Handler
+    let isIslandDragging = false;
+    let dragStartPointerX = 0;
+    let dragStartPointerY = 0;
+    let dragStartIslandX = 0;
+    let dragStartIslandY = 0;
+
+    dynamicIslandEl.addEventListener("pointerdown", (e) => {
+      if (!isDynamicIslandMode) return;
+      if (settings.dynamicIslandPosition !== 'free' && !document.body.classList.contains('island-dock-free')) return;
+      if (
+        e.target.closest('.island-btn') ||
+        e.target.closest('#island-expanded-controls') ||
+        e.target.closest('.island-art-tile') ||
+        e.target.closest('#island-context-menu') ||
+        e.button !== 0
+      ) {
+        return;
+      }
+
+      isIslandDragging = true;
+      dragStartPointerX = e.clientX;
+      dragStartPointerY = e.clientY;
+
+      const rect = dynamicIslandEl.getBoundingClientRect();
+      dragStartIslandX = rect.left;
+      dragStartIslandY = rect.top;
+
+      document.body.classList.add("island-dragging");
+      if (typeof dynamicIslandEl.setPointerCapture === 'function') {
+        try { dynamicIslandEl.setPointerCapture(e.pointerId); } catch (_) {}
+      }
+    });
+
+    dynamicIslandEl.addEventListener("pointermove", (e) => {
+      if (!isIslandDragging) return;
+      const deltaX = e.clientX - dragStartPointerX;
+      const deltaY = e.clientY - dragStartPointerY;
+
+      const rect = dynamicIslandEl.getBoundingClientRect();
+      const islandWidth = rect.width || 340;
+      const islandHeight = rect.height || 36;
+      const viewportWidth = window.innerWidth || 1920;
+      const viewportHeight = window.innerHeight || 1080;
+
+      const rawX = dragStartIslandX + deltaX;
+      const rawY = dragStartIslandY + deltaY;
+
+      const snapped = calculateMagneticSnap(rawX, rawY, islandWidth, islandHeight, viewportWidth, viewportHeight, 16);
+
+      dynamicIslandEl.style.setProperty('--island-free-x', `${snapped.x}px`);
+      dynamicIslandEl.style.setProperty('--island-free-y', `${snapped.y}px`);
+    });
+
+    const finishIslandDrag = (e) => {
+      if (!isIslandDragging) return;
+      isIslandDragging = false;
+      document.body.classList.remove("island-dragging");
+
+      if (e && typeof dynamicIslandEl.releasePointerCapture === 'function' && e.pointerId != null) {
+        try { dynamicIslandEl.releasePointerCapture(e.pointerId); } catch (_) {}
+      }
+
+      const rect = dynamicIslandEl.getBoundingClientRect();
+      const islandWidth = rect.width || 340;
+      const islandHeight = rect.height || 36;
+      const viewportWidth = window.innerWidth || 1920;
+      const viewportHeight = window.innerHeight || 1080;
+
+      const snapped = calculateMagneticSnap(rect.left, rect.top, islandWidth, islandHeight, viewportWidth, viewportHeight, 16);
+      dynamicIslandEl.style.setProperty('--island-free-x', `${snapped.x}px`);
+      dynamicIslandEl.style.setProperty('--island-free-y', `${snapped.y}px`);
+
+      settings.islandCustomPos = { x: snapped.x, y: snapped.y };
+      saveLocalSettings();
+      pushDynamicIslandBounds();
+
+      if (window.electronAPI && typeof window.electronAPI.setIslandPosition === 'function') {
+        window.electronAPI.setIslandPosition(snapped.x, snapped.y);
+      }
+    };
+
+    dynamicIslandEl.addEventListener("pointerup", finishIslandDrag);
+    dynamicIslandEl.addEventListener("pointercancel", finishIslandDrag);
   }
 
   function attachScrubberController({
@@ -14334,6 +14478,9 @@ if (typeof window !== 'undefined') {
   window.showIslandContextMenu = showIslandContextMenu;
   window.hideIslandContextMenu = hideIslandContextMenu;
   window.adjustSyncOffset = adjustSyncOffset;
+  window.applyFreeIslandPosition = applyFreeIslandPosition;
+  window.clearFreeIslandPosition = clearFreeIslandPosition;
+  window.calculateMagneticSnap = calculateMagneticSnap;
 }
 
 if (typeof module !== 'undefined' && module.exports) {
@@ -14357,6 +14504,9 @@ if (typeof module !== 'undefined' && module.exports) {
     updateIslandQualityBadge,
     showIslandContextMenu,
     hideIslandContextMenu,
-    adjustSyncOffset
+    adjustSyncOffset,
+    applyFreeIslandPosition,
+    clearFreeIslandPosition,
+    calculateMagneticSnap
   };
 }

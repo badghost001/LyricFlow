@@ -133,6 +133,16 @@ pub fn update_island_bounds(rect: LyricBounds) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn set_island_position(window: WebviewWindow, x: i32, y: i32) -> Result<(), String> {
+    let scale = window.scale_factor().unwrap_or(1.0);
+    let _ = window.set_position(tauri::PhysicalPosition::new(x, y));
+    if let Ok(mut lock) = get_island_geometry().lock() {
+        *lock = (x, y, scale);
+    }
+    Ok(())
+}
+
+#[tauri::command]
 pub fn set_taskbar_dragging(dragging: bool) -> Result<(), String> {
     TASKBAR_DRAGGING.store(dragging, Ordering::SeqCst);
     if dragging {
@@ -1157,6 +1167,10 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
                     let x = center_x;
                     let y = taskbar_top - island_h as i32;
                     (x, y)
+                }
+                "free" => {
+                    let y = top_y + (32.0 * scale) as i32;
+                    (center_x, y)
                 }
                 _ => {
                     // Default: top-center (authentic iOS Dynamic Island)

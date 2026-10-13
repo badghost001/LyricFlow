@@ -585,6 +585,7 @@ pub fn run() {
             window::set_dynamic_island_mode,
             window::is_dynamic_island_mode,
             window::update_island_bounds,
+            window::set_island_position,
             window::cmd_toggle_dynamic_island_ghost,
             window::set_wallpaper_mode,
             window::start_wallpaper_edit,

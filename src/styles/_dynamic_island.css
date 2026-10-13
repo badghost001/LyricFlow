@@ -2028,6 +2028,52 @@ body.island-dock-bottom-center #island-duet-capsule.duet-fusing {
     opacity: 0;
     transform: translateY(22px) scale(0.65, 0.85);
   }
+/* ==========================================================
+   FREE-FLOATING DRAGGABLE ISLAND MODE
+   - Custom coordinate placement with magnetic edge snapping
+   - Real-time zero-lag pointer tracking with tactile grab cursor
+========================================================== */
+body.island-dock-free .app-container {
+  display: block !important;
+  position: relative !important;
+}
+
+body.island-dock-free #dynamic-island {
+  position: absolute !important;
+  left: var(--island-free-x, calc(50vw - 170px)) !important;
+  top: var(--island-free-y, 32px) !important;
+  margin: 0 !important;
+  cursor: grab !important;
+  transform: scale(var(--island-beat-scale, 1)) !important;
+  transform-origin: top center !important;
+}
+
+body.island-dock-free #dynamic-island:active,
+body.island-dock-free.island-dragging #dynamic-island {
+  cursor: grabbing !important;
+}
+
+body.island-dock-free.island-dragging #dynamic-island {
+  transition: none !important;
+  box-shadow:
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.45),
+    0 20px 48px -4px rgba(0, 0, 0, 0.85),
+    0 0 0 1px rgba(255, 255, 255, 0.22) !important;
+}
+
+body.island-dock-free #dynamic-island-translation {
+  position: absolute !important;
+  left: var(--island-free-x, calc(50vw - 170px)) !important;
+  top: calc(var(--island-free-y, 32px) + 44px) !important;
+  margin: 0 !important;
+}
+
+body.island-dock-free .island-bridge,
+body.island-dock-free .island-duet-bridge {
+  position: absolute !important;
+  left: calc(var(--island-free-x, calc(50vw - 170px)) + 30px) !important;
+  top: calc(var(--island-free-y, 32px) + 36px) !important;
+  margin: 0 !important;
 }
 
 /* ==========================================================
