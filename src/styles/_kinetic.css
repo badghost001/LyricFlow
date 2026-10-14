@@ -212,7 +212,7 @@ body.cinematic-view-active .lyrics-view {
   width: 100%;
   height: 100%;
   z-index: 10;
-  display: flex;
+  display: none;
   align-items: center;
   justify-content: center;
   overflow: hidden;
@@ -221,15 +221,16 @@ body.cinematic-view-active .lyrics-view {
   transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-body.cinematic-view-active:not(.mode-dynamic-island):not(.wallpaper-mode) .cinematic-main-stage {
+body.cinematic-view-active:not(.mode-dynamic-island):not(.wallpaper-mode):not(.taskbar-mode) .cinematic-main-stage {
   position: absolute !important;
   inset: 0 !important;
   width: 100% !important;
   height: 100% !important;
   z-index: 99990;
+  display: flex !important;
   background-color: #000000 !important;
-  opacity: 1;
-  pointer-events: auto;
+  opacity: 1 !important;
+  pointer-events: auto !important;
   border: none !important;
 }
 
@@ -241,34 +242,49 @@ body.mode-dynamic-island #cinematic-main-stage {
   pointer-events: none !important;
 }
 
-/* Hide all surrounding HUD, bottom widgets, glow orbs, fluid mesh WebGL canvas, particle emitters, wallpaper art, resync buttons, and scroll container when cinematic mode is active */
-.cinematic-view-active #hud-header,
-.cinematic-view-active #playback-widget,
-.cinematic-view-active #ambient-glow,
+/* Hide all surrounding HUD, bottom widgets, studio sidebar, glow orbs, fluid mesh WebGL canvas, particle emitters, wallpaper art, resync buttons, and scroll container when cinematic mode is active */
+body.cinematic-view-active:not(.mode-dynamic-island):not(.wallpaper-mode):not(.taskbar-mode) #hud-header,
+body.cinematic-view-active:not(.mode-dynamic-island):not(.wallpaper-mode):not(.taskbar-mode) #playback-widget,
+body.cinematic-view-active:not(.mode-dynamic-island):not(.wallpaper-mode):not(.taskbar-mode) #studio-sidebar,
+.cinematic-view-active #studio-sidebar,
+body.cinematic-view-active:not(.mode-dynamic-island):not(.wallpaper-mode):not(.taskbar-mode) .studio-sidebar,
+.cinematic-view-active .studio-sidebar,
+body.cinematic-view-active:not(.mode-dynamic-island):not(.wallpaper-mode):not(.taskbar-mode) #floating-tip-banner,
+body.cinematic-view-active:not(.mode-dynamic-island):not(.wallpaper-mode):not(.taskbar-mode) #ambient-glow,
+body.cinematic-view-active:not(.mode-dynamic-island):not(.wallpaper-mode):not(.taskbar-mode) #fluid-mesh-canvas,
 .cinematic-view-active #fluid-mesh-canvas,
-.cinematic-view-active #island-ca-emitter-canvas,
-.cinematic-view-active #custom-bg-video,
-.cinematic-view-active #custom-bg-img,
-.cinematic-view-active #wallpaper-album-bg,
-.cinematic-view-active #wallpaper-album-bg-video,
-.cinematic-view-active .wallpaper-now-playing,
-.cinematic-view-active #genius-fact-card,
-.cinematic-view-active #genius-live-meaning,
-.cinematic-view-active #btn-sync-lyrics,
-.cinematic-view-active #btn-resync-lyrics,
-.cinematic-view-active #sync-resume-btn,
-.cinematic-view-active .sync-resume-btn,
-body.cinematic-view-active #btn-sync-lyrics,
+body.cinematic-view-active:not(.mode-dynamic-island):not(.wallpaper-mode):not(.taskbar-mode) #island-ca-emitter-canvas,
+body.cinematic-view-active:not(.mode-dynamic-island):not(.wallpaper-mode):not(.taskbar-mode) #custom-bg-video,
+body.cinematic-view-active:not(.mode-dynamic-island):not(.wallpaper-mode):not(.taskbar-mode) #custom-bg-img,
+body.cinematic-view-active:not(.mode-dynamic-island):not(.wallpaper-mode):not(.taskbar-mode) #wallpaper-album-bg,
+body.cinematic-view-active:not(.mode-dynamic-island):not(.wallpaper-mode):not(.taskbar-mode) #wallpaper-album-bg-video,
+body.cinematic-view-active:not(.mode-dynamic-island):not(.wallpaper-mode):not(.taskbar-mode) .wallpaper-now-playing,
+body.cinematic-view-active:not(.mode-dynamic-island):not(.wallpaper-mode):not(.taskbar-mode) #genius-fact-card,
+body.cinematic-view-active:not(.mode-dynamic-island):not(.wallpaper-mode):not(.taskbar-mode) #genius-live-meaning,
+body.cinematic-view-active:not(.mode-dynamic-island):not(.wallpaper-mode):not(.taskbar-mode) #btn-sync-lyrics,
+body.cinematic-view-active:not(.mode-dynamic-island):not(.wallpaper-mode):not(.taskbar-mode) #btn-resync-lyrics,
 body.cinematic-view-active #btn-resync-lyrics,
-body.cinematic-view-active #sync-resume-btn,
-body.cinematic-view-active .sync-resume-btn,
+body.cinematic-view-active:not(.mode-dynamic-island):not(.wallpaper-mode):not(.taskbar-mode) #sync-resume-btn,
+body.cinematic-view-active:not(.mode-dynamic-island):not(.wallpaper-mode):not(.taskbar-mode) .sync-resume-btn,
 #btn-resync-lyrics.cinematic-hidden,
-.cinematic-view-active .lyrics-scroll-container,
-body.cinematic-view-active .lyrics-scroll-container {
+body.cinematic-view-active:not(.mode-dynamic-island):not(.wallpaper-mode):not(.taskbar-mode) .lyrics-scroll-container {
   display: none !important;
   opacity: 0 !important;
   visibility: hidden !important;
   pointer-events: none !important;
+}
+
+body.cinematic-view-active:not(.mode-dynamic-island):not(.wallpaper-mode) #screen-lyrics,
+body.cinematic-view-active:not(.mode-dynamic-island):not(.wallpaper-mode) .lyrics-view {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  display: block !important;
+  border: none !important;
+  box-sizing: border-box !important;
 }
 
 /* Wallpaper Mode Isolations (Overrides any cinematic hiding or black background) */

@@ -100,12 +100,17 @@
   /**
    * Convert arbitrary time in ms or seconds to normalized seconds
    */
-  function toSeconds(val, isDuration = false) {
+  function toSeconds(val, isDuration = false, isMsContext = false) {
     if (typeof val !== 'number') {
       val = parseFloat(val) || 0;
     }
+    if (isMsContext) {
+      return val / 1000;
+    }
     if (isDuration) {
-      return val >= 40 ? val / 1000 : val;
+      // In lyrics APIs, durations in ms can be very small (e.g. 15ms, 27ms for short syllables)
+      // Any duration >= 10 is in milliseconds. Values < 10 are already seconds.
+      return val >= 10 ? val / 1000 : val;
     }
     return val >= 500 ? val / 1000 : val;
   }
@@ -334,19 +339,21 @@
 
       const isWordType = String(data.type || '').toLowerCase() === 'word';
       const parsedLines = [];
+      const firstLineTime = rawLines[0]?.time !== undefined ? rawLines[0].time : (rawLines[0]?.startTimeMs || 0);
+      const isMsContext = (firstLineTime > 200) || rawLines.some(l => (l && ((l.time > 200) || (l.startTimeMs > 200))));
 
       for (let i = 0; i < rawLines.length; i++) {
         const item = rawLines[i];
         if (!item || typeof item !== 'object') continue;
 
         // Line start and duration
-        const lineStartSec = toSeconds(item.time !== undefined ? item.time : (item.startTimeMs || item.start || 0), false);
-        let lineDurSec = toSeconds(item.duration !== undefined ? item.duration : (item.durationMs || 0), true);
+        const lineStartSec = toSeconds(item.time !== undefined ? item.time : (item.startTimeMs || item.start || 0), false, isMsContext);
+        let lineDurSec = toSeconds(item.duration !== undefined ? item.duration : (item.durationMs || 0), true, isMsContext);
 
         // If line duration is not explicitly provided, estimate from next line
         if (lineDurSec <= 0) {
           if (i < rawLines.length - 1 && rawLines[i + 1]?.time !== undefined) {
-            const nextStart = toSeconds(rawLines[i + 1].time, false);
+            const nextStart = toSeconds(rawLines[i + 1].time, false, isMsContext);
             lineDurSec = Math.max(0.5, Math.min(nextStart - lineStartSec, 8.0));
           } else {
             lineDurSec = 4.0;
@@ -354,6 +361,9 @@
         }
 
         const lineEndSec = lineStartSec + lineDurSec;
+        const nextLineStartSec = (i < rawLines.length - 1 && rawLines[i + 1]?.time !== undefined)
+          ? toSeconds(rawLines[i + 1].time, false, isMsContext)
+          : (lineEndSec + 4.0);
         const lineText = String(item.text || item.words || '').trim();
         if (!lineText) continue;
 
@@ -370,19 +380,22 @@
             const wText = String(w.text || w.word || '').trim();
             if (!wText) continue;
 
-            const wStart = toSeconds(w.time !== undefined ? w.time : (w.startTimeMs || w.start || lineStartSec), false);
-            let wDur = toSeconds(w.duration !== undefined ? w.duration : (w.durationMs || 0), true);
+            const wStart = toSeconds(w.time !== undefined ? w.time : (w.startTimeMs || w.start || lineStartSec), false, isMsContext);
+            let wDur = toSeconds(w.duration !== undefined ? w.duration : (w.durationMs || 0), true, isMsContext);
 
             if (wDur <= 0) {
               if (wi < rawWords.length - 1 && rawWords[wi + 1]?.time !== undefined) {
-                const nextWStart = toSeconds(rawWords[wi + 1].time, false);
-                wDur = Math.max(0.1, nextWStart - wStart);
+                const nextWStart = toSeconds(rawWords[wi + 1].time, false, isMsContext);
+                wDur = Math.max(0.05, nextWStart - wStart);
               } else {
-                wDur = Math.max(0.1, lineEndSec - wStart);
+                wDur = Math.max(0.05, lineEndSec - wStart);
               }
             }
 
-            const wEnd = wStart + wDur;
+            // Defensive boundary check: a word cannot extend past the end of the line
+            // or past the next line's onset by more than a reasonable vocal tail (0.4s)
+            const maxWordEnd = Math.min(lineEndSec + 0.4, nextLineStartSec);
+            const wEnd = Math.min(wStart + wDur, Math.max(wStart + 0.05, maxWordEnd));
             parsedWords.push(createLyricWord(wText, wStart, wEnd));
           }
 

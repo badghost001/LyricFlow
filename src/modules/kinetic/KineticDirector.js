@@ -321,6 +321,7 @@
     // 1. Intro Morph Scene (0ms to introDurationMs or first lyric start)
     const hasLyrics = Boolean(lyricsSlice.length);
     const isUnsynced = hasLyrics && (lyricsSlice[0].timeMs >= 9000000 || typeof lyricsSlice[0].timeMs !== 'number' || isNaN(lyricsSlice[0].timeMs));
+    const skipIntroMorph = Boolean(options.skipIntroMorph || options.isCinematic);
 
     if (isUnsynced) {
       // Synthesize realistic 3.5s per line pacing for unsynced tracks
@@ -343,7 +344,6 @@
       }
     }
 
-    const skipIntroMorph = Boolean(options.skipIntroMorph || options.isCinematic);
     const maxIntroAllowed = Math.max(0, firstLyricStart - startTimeMs);
     const actualIntroDuration = skipIntroMorph ? 0 : Math.min(introDurationMs, maxIntroAllowed);
     const introEnd = startTimeMs + actualIntroDuration;

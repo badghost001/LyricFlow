@@ -329,8 +329,9 @@
 
       // Check for Paused State in Cinematic Mode:
       // When playback is paused in Cinematic Mode, present the editorial track card
-      // (Track Title & Artist Name with ambient breathing concept motif) instead of frozen lyric lines
-      if (this.isPaused && this.config && this.config.isCinematic) {
+      // only if no lyrics timeline exists. If lyrics ARE loaded on the timeline,
+      // ALWAYS render the active lyric line so lyrics are prominent and visible!
+      if (this.isPaused && this.config && this.config.isCinematic && (!scene || !Array.isArray(this.timeline) || this.timeline.length === 0)) {
         this.renderPausedTrackCard(ctx, palette, timeMs);
         return;
       }
@@ -466,7 +467,7 @@
       let crossFadeScene = null;
       let crossFadeAlpha = 0.0;
 
-      const shouldFade = this.config.fadeLyrics !== false;
+      const shouldFade = this.config.fadeLyrics !== false && !this.isPaused;
       const isLyricScene = (s) => s && s.style !== 'morph' && s.style !== 'break_morph';
       const prevScene = (sceneIndex > 0) ? this.timeline[sceneIndex - 1] : null;
       const nextScene = (sceneIndex >= 0 && sceneIndex < this.timeline.length - 1) ? this.timeline[sceneIndex + 1] : null;
@@ -482,7 +483,11 @@
         const isContiguousWithPrev = prevScene && isLyricScene(prevScene) && Math.abs(scene.startTimeMs - prevScene.endTimeMs) <= 150;
         const isContiguousWithNext = nextScene && isLyricScene(nextScene) && Math.abs(nextScene.startTimeMs - scene.endTimeMs) <= 150;
 
-        if (elapsed < fadeDur) {
+        if (elapsed < 0) {
+          // Track is paused or timeline head is before the first scene starts
+          // Render typography with full visibility so screen is NEVER pitch black
+          currAlpha = 1.0;
+        } else if (elapsed < fadeDur) {
           // Entrance transition: smoothly ramp in
           const pIn = Math.max(0, Math.min(1, elapsed / fadeDur));
           const easeIn = pIn < 0.5 ? 2 * pIn * pIn : 1 - Math.pow(-2 * pIn + 2, 2) / 2;
@@ -656,8 +661,13 @@
       }
 
       // 3. Editorial Typography: Paused Status, Track Title, Artist Name
-      const title = (this.pausedTrackInfo && this.pausedTrackInfo.title) || this.config.title || 'LyricFlow';
-      const artist = (this.pausedTrackInfo && this.pausedTrackInfo.artist) || this.config.artist || '';
+      const rawTitle = (this.pausedTrackInfo && this.pausedTrackInfo.title) || this.config.title || '';
+      const rawArtist = (this.pausedTrackInfo && this.pausedTrackInfo.artist) || this.config.artist || '';
+      const hasTrack = Boolean(rawTitle && rawTitle.toLowerCase() !== 'lyricflow');
+
+      const title = hasTrack ? rawTitle : 'Start Playing Music';
+      const artist = hasTrack ? rawArtist : 'Spotify • Windows Media • Local';
+      const statusText = hasTrack ? '— PAUSED —' : '— CINEMATIC LYRICS —';
 
       ctx.save();
       ctx.textAlign = 'center';
@@ -665,10 +675,10 @@
 
       // Subtle status badge
       ctx.fillStyle = (palette && palette.textRgb)
-        ? `rgba(${palette.textRgb.r}, ${palette.textRgb.g}, ${palette.textRgb.b}, 0.45)`
-        : 'rgba(255, 255, 255, 0.45)';
+        ? `rgba(${palette.textRgb.r}, ${palette.textRgb.g}, ${palette.textRgb.b}, 0.55)`
+        : 'rgba(255, 255, 255, 0.55)';
       ctx.font = '600 13px "Inter", "Outfit", -apple-system, sans-serif';
-      ctx.fillText('— PAUSED —', cx, cy - 64);
+      ctx.fillText(statusText, cx, cy - 64);
 
       // Song Title in display serif
       const maxTextW = width * 0.82;

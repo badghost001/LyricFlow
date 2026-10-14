@@ -1,4 +1,33 @@
 
+// Suppress context menu & all right-click actions completely across the entire app
+if (typeof window !== 'undefined') {
+  const suppressRightClick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (typeof e.stopImmediatePropagation === 'function') {
+      e.stopImmediatePropagation();
+    }
+    return false;
+  };
+
+  window.addEventListener('contextmenu', suppressRightClick, true);
+  if (typeof document !== 'undefined') {
+    document.addEventListener('contextmenu', suppressRightClick, true);
+  }
+
+  ['auxclick', 'mousedown', 'mouseup'].forEach((evt) => {
+    window.addEventListener(
+      evt,
+      (e) => {
+        if (e.button === 2) {
+          suppressRightClick(e);
+        }
+      },
+      true
+    );
+  });
+}
+
 // HTML escape utility to prevent XSS when inserting external data via innerHTML
 function escapeHTML(str) {
   if (!str) return '';
@@ -79,6 +108,34 @@ let isWallpaperDesktopFocused = true;
 let currentSourceLevel = 0;
 let currentIslandIsLossless = false;
 let currentIslandIsHiRes = false;
+let isDynamicIslandMode = false;
+
+// Global State & Timers hoisted to eliminate Temporal Dead Zone during bootstrap
+let _saveDebounceTimer = null;
+let currentAnimatedFetchToken = 0;
+let tbPauseHideTimer = null;
+let isTbPlaybackHidden = false;
+let lastTbProgressTime = 0;
+let autoHideLyricsTimer = null;
+let isLyricsAutoHidden = false;
+let currentPollGeneration = 0;
+let isPollInProgress = false;
+let localEmptyPollCount = 0;
+let currentExtractedArtUrl = null;
+let lastProcessedTrackId = null;
+let lastAppliedAlbumArtUrl = null;
+let trackSwitchDebounceTimer = null;
+let fetchAbortController = null;
+const trackLyricsCandidateIndex = {};
+const rejectedLyricsSignatures = {};
+let isReloadingLyrics = false;
+const inFlightLyricsRequests = new Map();
+const geniusAnnotationsCache = new Map();
+let cachedViewportHeight = 0;
+let cachedLineMetrics = [];
+let isPlayheadLoopActive = false;
+let playheadTimerId = null;
+let taskbarColorPollInterval = null;
 
 // Typography System - Standardized Safe Font Stacks with Fallbacks
 const FONT_FAMILY_STACKS = {
@@ -120,6 +177,8 @@ let settings = {
   dblclickAction: 'copy',
   clickThrough: false,
   alwaysOnTop: false,
+  cinematicMode: false,
+  layoutSplit: true,
   wallpaperMode: false,
   wallpaperStyle: 'style2',
   wallpaperOverlayX: 50,
@@ -288,21 +347,28 @@ try {
   // Purge deprecated v1 cache which may contain unverified/mismatched artwork
   localStorage.removeItem('lyricflow_local_art_cache');
   const savedArt = localStorage.getItem('lyricflow_local_art_cache_v2');
-  if (savedArt) localArtCache = JSON.parse(savedArt);
+  if (savedArt) {
+    const parsed = JSON.parse(savedArt);
+    // Strip any data URLs that may have been stored in past sessions
+    for (const [k, v] of Object.entries(parsed)) {
+      if (v && typeof v === 'string' && !v.startsWith('data:')) {
+        localArtCache[k] = v;
+      }
+    }
+  }
 } catch (e) {}
 
 function saveArtToCache(trackId, url, trackName, artistName) {
-  if (!url) return;
+  // Only store and persist real web/http URLs, never massive base64 data URLs
+  if (!url || typeof url !== 'string' || url.startsWith('data:')) return;
   if (trackId) localArtCache[trackId] = url;
   if (trackName && artistName) {
     const dualKey = `${artistName}:::${trackName}`.toLowerCase().trim();
     localArtCache[dualKey] = url;
   }
-  // Only persist http/https URLs to localStorage, never massive base64 data URLs
-  if (url.startsWith('data:')) return;
   try {
     const keys = Object.keys(localArtCache);
-    if (keys.length > 120) {
+    if (keys.length > 40) {
       delete localArtCache[keys[0]];
     }
     if (window.safeStorageSet) {
@@ -440,7 +506,6 @@ function endTaskbarDrag() {
   // The main process will send 'taskbar-drag-ended' with final offset & moved state
 }
 
-let isDynamicIslandMode = false;
 let lastSpectrumBars = null;
 let islandBoundsAnimFrame = null;
 
@@ -851,7 +916,7 @@ function syncAudioVisualizerState() {
 // Low-overhead watchdog ensuring bars smoothly settle to resting baseline during quiet passages
 let visualizerFallbackInterval = null;
 function ensureVisualizerFallbackWatchdog() {
-  const isAnyActive = (isDynamicIslandMode && !isIslandSleeping) || (!isDynamicIslandMode && (Boolean(isPlaying) || Boolean(currentTitle)));
+  const isAnyActive = (isDynamicIslandMode && !isIslandSleeping) || (!isDynamicIslandMode && (Boolean(isPlaying) || Boolean(currentTitle) || (typeof document !== 'undefined' && document.body.classList.contains("is-playing"))));
   if (isAnyActive) {
     if (!visualizerFallbackInterval) {
       visualizerFallbackInterval = setInterval(checkVisualizerFallback, 140);
@@ -872,7 +937,7 @@ if (window.electronAPI && typeof window.electronAPI.onAudioSpectrum === 'functio
     // Execution Gating: verify at least one target visualizer UI or wallpaper beat bloom is active
     const soloStage = document.getElementById("instrumental-solo-stage");
     const isSoloStageActive = Boolean(soloStage && (soloStage.classList.contains("active") || soloStage.style.display !== 'none'));
-    const isDesktopUiActive = Boolean(!isDynamicIslandMode && !settings.wallpaperMode && (isPlaying || currentTitle || isSoloStageActive));
+    const isDesktopUiActive = Boolean(!isDynamicIslandMode && !settings.wallpaperMode && (isPlaying || currentTitle || isSoloStageActive || document.body.classList.contains("is-playing")));
     if (!isDynamicIslandMode && (!settings.wallpaperMode || settings.wallpaperBeatBloom === false) && !isSoloStageActive && !isDesktopUiActive) return;
 
     const islandWave = isDynamicIslandMode ? document.getElementById("island-wave") : null;
@@ -884,7 +949,7 @@ if (window.electronAPI && typeof window.electronAPI.onAudioSpectrum === 'functio
 
     let bars = null;
     if (islandWave) {
-      if (!lastSpectrumBars || lastSpectrumBars.length !== (settings.islandVisualizerBars || 4)) {
+      if (!lastSpectrumBars || lastSpectrumBars.length !== (settings.islandVisualizerBars || 4) || (lastSpectrumBars[0] && !lastSpectrumBars[0].isConnected)) {
         lastSpectrumBars = islandWave.querySelectorAll(".wave-bar");
       }
       bars = lastSpectrumBars;
@@ -1282,13 +1347,18 @@ function getDynamicIslandSyncData(syncProgress) {
       const lwEnd = (lastW.endMs != null && lastW.endMs > 0)
         ? lastW.endMs
         : ((lastW.end != null && lastW.end > 0)
-          ? (lastW.end * 1000)
-          : (lastW.durationMs ? lwStart + lastW.durationMs : (lastW.duration ? lwStart + lastW.duration : (lwStart + 450))));
+          ? ((lastW.end > 1000) ? lastW.end : lastW.end * 1000)
+          : (lastW.durationMs ? lwStart + lastW.durationMs : (lastW.duration ? (lwStart + (lastW.duration >= 10 ? lastW.duration : lastW.duration * 1000)) : (lwStart + 450))));
       end = Math.max(lwEnd, lwStart + 450);
+    } else if (line.endMs != null && line.endMs > 0) {
+      end = line.endMs;
     } else if (line.end != null && line.end > 0) {
-      end = line.end * 1000;
+      end = (line.end > 1000) ? line.end : line.end * 1000;
+    } else if (line.durationMs && line.durationMs > 0) {
+      end = start + line.durationMs;
     } else if (line.duration && line.duration > 0) {
-      end = start + line.duration;
+      const dur = Number(line.duration);
+      end = start + (dur >= 20 ? dur : dur * 1000);
     } else {
       // Natural vocal duration for line-synced lyrics:
       // If gap to next line is reasonable (< 7s), line stays active for the phrase
@@ -1299,6 +1369,10 @@ function getDynamicIslandSyncData(syncProgress) {
         const textLen = (line.text || '').length;
         end = start + Math.max(3000, Math.min(10000, textLen * 160));
       }
+    }
+
+    if (isFinite(nextStart) && nextStart > start && end > nextStart) {
+      end = nextStart;
     }
 
     return { start, end, nextStart };
@@ -2440,7 +2514,7 @@ function updateDynamicIslandLyric(targetIndex, lineData, syncProgress, isInstrum
       } else {
         const hasNoLyrics = (!lyrics || lyrics.length === 0) && currentTrackId;
         if (hasNoLyrics) {
-          idleHtml = `<span class="island-idle-text"><span class="island-idle-title">${escapeHTML(trackTitle)}</span> • <span class="island-no-lyrics-hint" title="No lyrics found - Click ↻ or right-click to search alternatives">No lyrics (Click ↻)</span></span>`;
+          idleHtml = `<span class="island-idle-text"><span class="island-idle-title">${escapeHTML(trackTitle)}</span> • <span class="island-no-lyrics-hint" title="No lyrics found - Click ↻ to search alternatives">No lyrics (Click ↻)</span></span>`;
           expText = `${trackTitle} • No lyrics found (Click ↻ to refetch)`;
         } else {
           idleHtml = `<span class="island-idle-text"><span class="island-idle-title">${escapeHTML(trackTitle)}</span>${trackArtist ? ` • ${escapeHTML(trackArtist)}` : ''}</span>`;
@@ -3131,6 +3205,26 @@ async function transitionToMode(targetMode) {
       }
     }
 
+    if (isCinematicView && targetMode !== 'cinematic') {
+      isCinematicView = false;
+      settings.cinematicMode = false;
+      document.body.classList.remove('cinematic-view-active');
+      if (appContainer) {
+        appContainer.classList.remove('cinematic-view-active');
+      }
+      if (cinematicMainRendererInstance) {
+        cinematicMainRendererInstance.pause();
+      }
+      const btnCinematic = document.getElementById("btn-cinematic-mode") || document.getElementById("btn-kinetic-mode");
+      if (btnCinematic) {
+        btnCinematic.classList.remove("active");
+        btnCinematic.setAttribute("title", "Classic Lyrics Mode (Click for Cinematic)");
+      }
+      if (window.electronAPI && typeof window.electronAPI.setCinematicMode === 'function') {
+        await window.electronAPI.setCinematicMode(false).catch(() => {});
+      }
+    }
+
     // 2. Engage target mode cleanly
     if (targetMode === 'island') {
       isDynamicIslandMode = true;
@@ -3239,7 +3333,15 @@ async function transitionToMode(targetMode) {
     } else {
       // Normal overlay mode
       hideWallpaperSelectorPanel();
+      cancelAutoHide();
+      showLyricsScreen();
       applyVisualSettings();
+      if (typeof updateStudioSidebar === 'function') {
+        updateStudioSidebar(currentPlayingTrackObj, currentStaticAlbumArtUrl);
+      }
+      if (typeof renderLyrics === 'function') {
+        renderLyrics();
+      }
       if (fluidMeshGradientInstance && !isCinematicView && (settings.bgStyle || 'fluid') === 'fluid' && !isCustomBackgroundActive()) {
         fluidMeshGradientInstance.start();
         if (window.currentDynamicPalette) {
@@ -4177,7 +4279,7 @@ function initDOMElements() {
   const studioArtWrapper = document.getElementById("studio-art-wrapper");
   const studioTarget = studioArtWrapper || studioArtContainer;
   if (studioTarget) {
-    studioTarget.title = "Click to enlarge (Right-click to refetch album artwork)";
+    studioTarget.title = "Click to enlarge";
     studioTarget.addEventListener("click", (e) => {
       e.stopPropagation();
       showAlbumArtModal();
@@ -4212,7 +4314,7 @@ function initDOMElements() {
 
   const artContainer = document.querySelector(".widget-art-container");
   if (artContainer) {
-    artContainer.title = "Click to enlarge (Right-click to refetch album artwork)";
+    artContainer.title = "Click to enlarge";
     artContainer.addEventListener("click", (e) => {
       e.stopPropagation();
       showAlbumArtModal();
@@ -4524,7 +4626,12 @@ async function bootstrapApp() {
     if (statusText && text) statusText.textContent = text;
   };
 
+  let safetyTimeout = null;
   const dismissLoadingScreen = (immediate = false) => {
+    if (safetyTimeout) {
+      clearTimeout(safetyTimeout);
+      safetyTimeout = null;
+    }
     const screenLoading = document.getElementById("screen-loading");
     if (!screenLoading || screenLoading.style.display === "none") return;
     if (immediate) {
@@ -4542,12 +4649,14 @@ async function bootstrapApp() {
     }
   };
 
-  // Fail-safe timeout: never let loading screen hang for more than 4 seconds
-  const safetyTimeout = setTimeout(() => {
+  // Fail-safe timeout: never let loading screen hang for more than 3.5 seconds
+  safetyTimeout = setTimeout(() => {
     console.warn("Safety timeout triggered: dismissing loading screen");
-    if (!config) showLoginScreen();
-    dismissLoadingScreen(false);
-  }, 4000);
+    if (!config) config = { localMode: true };
+    showLyricsScreen();
+    if (typeof renderLyrics === 'function') renderLyrics();
+    dismissLoadingScreen(true);
+  }, 3500);
 
   try {
     // Check if launched silently via Windows startup (--startup)
@@ -4555,9 +4664,15 @@ async function bootstrapApp() {
     try {
       if (window.electronAPI) {
         if (typeof window.electronAPI.getIsStartup === 'function') {
-          isStartupMode = await window.electronAPI.getIsStartup();
+          isStartupMode = await Promise.race([
+            window.electronAPI.getIsStartup(),
+            new Promise(r => setTimeout(() => r(false), 350))
+          ]);
         } else if (typeof window.electronAPI.invoke === 'function') {
-          isStartupMode = await window.electronAPI.invoke('get_is_startup');
+          isStartupMode = await Promise.race([
+            window.electronAPI.invoke('get_is_startup'),
+            new Promise(r => setTimeout(() => r(false), 350))
+          ]);
         }
       }
     } catch (e) {}
@@ -4566,7 +4681,10 @@ async function bootstrapApp() {
     setLoadingProgress(20, "Starting LyricFlow...");
     try {
       if (window.electronAPI && typeof window.electronAPI.loadConfig === 'function') {
-        config = await window.electronAPI.loadConfig();
+        config = await Promise.race([
+          window.electronAPI.loadConfig(),
+          new Promise(r => setTimeout(() => r(null), 350))
+        ]);
       } else {
         config = null;
       }
@@ -4594,22 +4712,45 @@ async function bootstrapApp() {
 
     // Stage 4: Launch Transition
     setLoadingProgress(45, "Connecting media services...");
-    const isFirstTime = !localStorage.getItem("lyricflow_setup_done") && settings.hasCompletedSetup !== true;
+    cancelAutoHide(); // Guarantee overlay is uncollapsed and visible on initial launch
+    const isFirstTime = !localStorage.getItem("lyricflow_setup_done") && settings.hasCompletedSetup === false && !config?.sp_dc;
     if (isFirstTime) {
       showOnboardingWizard();
       dismissLoadingScreen(false);
-    } else if (config) {
+    } else {
+      if (!config) {
+        config = { localMode: true };
+      }
       showLyricsScreen();
       updateSpotifyUI();
 
       if (!isStartupMode && !settings.taskbarMode) {
         setLoadingProgress(50, "Detecting music playback...");
         try {
-          // Pre-populate track & lyrics before dissolving loading screen
-          await Promise.race([
-            pollSpotifyPlayback(),
-            new Promise((r) => setTimeout(r, 2500))
-          ]);
+          // Fast-Path: Instantly inspect local SMTC (Windows Media Controls, <20ms)
+          // Eliminates cloud latency and prevents Spotify 429 stalls from blocking startup!
+          if (window.electronAPI && typeof window.electronAPI.getLocalPlayback === 'function') {
+            try {
+              const localFast = await Promise.race([
+                window.electronAPI.getLocalPlayback(),
+                new Promise(r => setTimeout(() => r(null), 350))
+              ]);
+              if (localFast && localFast.item) {
+                handlePlaybackData(localFast);
+              }
+            } catch (_) {}
+          }
+
+          // If local SMTC didn't resolve a track, query Spotify Web API
+          if (!currentTrackId) {
+            await Promise.race([
+              pollSpotifyPlayback(),
+              new Promise((r) => setTimeout(r, 2000))
+            ]);
+          } else {
+            // Background-poll Spotify so it verifies tokens without blocking startup
+            pollSpotifyPlayback().catch(() => {});
+          }
 
           // Flush any pending track switch debounce timer immediately during startup
           if (trackSwitchDebounceTimer) {
@@ -4650,17 +4791,16 @@ async function bootstrapApp() {
 
             setLoadingProgress(95, "Composing stage...");
             await new Promise(r => setTimeout(r, 80));
-          } else {
+          } else if (!isFetchingLyrics && inFlightLyricsRequests.size === 0) {
             handleEmptyPlayback();
           }
         } catch (e) {
           console.warn("[Startup] Playback pre-population notice:", e);
-          handleEmptyPlayback();
+          if (!isFetchingLyrics && inFlightLyricsRequests.size === 0) {
+            handleEmptyPlayback();
+          }
         }
       }
-      dismissLoadingScreen(false);
-    } else {
-      showLoginScreen();
       dismissLoadingScreen(false);
     }
 
@@ -4670,9 +4810,9 @@ async function bootstrapApp() {
   } catch (globalErr) {
     console.error("Critical bootstrap error:", globalErr);
     try {
-      showLoginScreen();
+      showLyricsScreen();
     } catch (e) {
-      console.error("Error showing login screen in bootstrap fallback:", e);
+      console.error("Error showing lyrics screen in bootstrap fallback:", e);
     }
     dismissLoadingScreen(false);
   } finally {
@@ -4680,15 +4820,13 @@ async function bootstrapApp() {
   }
 
   // Start the frame-perfect loop after startup is complete
-  ensurePlayheadLoop();
+  try {
+    ensurePlayheadLoop();
+  } catch (err) {
+    console.error("Error starting playhead loop:", err);
+  }
   syncAudioVisualizerState();
   console.log('[LF-STARTUP] Bootstrap completed.');
-}
-
-if (document.readyState === "loading") {
-  window.addEventListener("DOMContentLoaded", bootstrapApp);
-} else {
-  bootstrapApp();
 }
 
 // Load settings from localStorage and config.json
@@ -4703,9 +4841,9 @@ function loadLocalSettings(skipIPC = false) {
     }
   }
 
-  // Dual-storage persistence: also merge settings from config.json
+  // Dual-storage persistence: config.json takes precedence over stale localStorage values
   if (config && config.settings) {
-    parsed = { ...config.settings, ...(parsed || {}) };
+    parsed = { ...(parsed || {}), ...config.settings };
   }
 
   if (parsed) {
@@ -4759,6 +4897,13 @@ function loadLocalSettings(skipIPC = false) {
     }
   }
 
+  // Defend normal desktop window mode from unintended auto-hide collapse
+  if (config && config.settings && typeof config.settings.autoHideLyrics !== 'undefined') {
+    settings.autoHideLyrics = Boolean(config.settings.autoHideLyrics);
+  } else if (!parsed || typeof parsed.autoHideLyrics === 'undefined') {
+    settings.autoHideLyrics = false;
+  }
+
   // Enforce optimal defaults requested by user:
   if (!settings.bgStyle) {
     settings.bgStyle = 'fluid';
@@ -4781,17 +4926,28 @@ function loadLocalSettings(skipIPC = false) {
   settings.wallpaperMode = false;
   settings.dynamicIslandMode = false;
   isDynamicIslandMode = false;
+  settings.cinematicMode = false;
+  isCinematicView = false;
 
-  if (typeof settings.cinematicMode === 'undefined') {
-    settings.cinematicMode = false;
-  }
+  // Sanitize localStorage to purge any stale mode locks
+  try {
+    const rawSaved = localStorage.getItem("lyrics_overlay_settings");
+    if (rawSaved) {
+      const cleanSaved = JSON.parse(rawSaved);
+      if (cleanSaved.autoHideLyrics && (!config || !config.settings || !config.settings.autoHideLyrics)) {
+        cleanSaved.autoHideLyrics = false;
+      }
+      cleanSaved.cinematicMode = false;
+      localStorage.setItem("lyrics_overlay_settings", JSON.stringify(cleanSaved));
+    }
+  } catch (_) {}
+
   if (typeof settings.layoutSplit === 'undefined') {
     settings.layoutSplit = true;
   }
   if (typeof settings.wallpaperCinematic === 'undefined') {
     settings.wallpaperCinematic = true;
   }
-  isCinematicView = Boolean(settings.cinematicMode);
 
   // Load custom GIF into memory if path is saved
   if (settings.customArtGifPath && !settings.customArtGifSrc) {
@@ -4817,7 +4973,7 @@ function loadLocalSettings(skipIPC = false) {
   }
 }
 
-let _saveDebounceTimer = null;
+_saveDebounceTimer = null;
 function saveLocalSettings() {
   if (_saveDebounceTimer) clearTimeout(_saveDebounceTimer);
   _saveDebounceTimer = setTimeout(async () => {
@@ -4882,12 +5038,17 @@ try {
 
 function saveAnimatedArtCache(key, data) {
   try {
+    if (!data || (typeof data.url === 'string' && data.url.startsWith('data:'))) return;
     animatedArtCache[key] = data;
     const keys = Object.keys(animatedArtCache);
-    if (keys.length > 250) {
+    if (keys.length > 30) {
       delete animatedArtCache[keys[0]];
     }
-    localStorage.setItem('lf_animated_art_cache', JSON.stringify(animatedArtCache));
+    if (window.safeStorageSet) {
+      window.safeStorageSet('lf_animated_art_cache', JSON.stringify(animatedArtCache));
+    } else {
+      localStorage.setItem('lf_animated_art_cache', JSON.stringify(animatedArtCache));
+    }
   } catch (e) {}
 }
 
@@ -5041,7 +5202,7 @@ function resumeAnimatedArtVideos() {
   if (wallpaperAlbumBgVideo && wallpaperAlbumBgVideo.style.display === 'block') wallpaperAlbumBgVideo.play().catch(() => {});
 }
 
-let currentAnimatedFetchToken = 0;
+currentAnimatedFetchToken = 0;
 
 async function updateAnimatedAlbumArt(track, staticArtUrl) {
   if (!track || !track.name) {
@@ -8508,6 +8669,13 @@ function setupUIHandlers() {
     }
   });
 
+  window.addEventListener('mouseenter', () => {
+    if (settings.autoHideLyrics && (isLyricsAutoHidden || isAutoHaltedTemporarily || autoHideLyricsTimer)) {
+      wakeAutoHideTemporarily(4000);
+    }
+    setClickThroughCached(false);
+  });
+
 
   // Disable click-through on window focus, restore on blur (except in taskbar mode)
   window.addEventListener('focus', () => {
@@ -9357,8 +9525,8 @@ function setupUIHandlers() {
   // DOM mutation events in a hidden window.
 }
 
-let tbPauseHideTimer = null;
-let isTbPlaybackHidden = false;
+tbPauseHideTimer = null;
+isTbPlaybackHidden = false;
 
 function sendTaskbarLyric(text, hidden = false, html = null) {
   if (!settings.taskbarMode || !window.electronAPI.updateTaskbarLyric) return;
@@ -9411,7 +9579,7 @@ function handleTaskbarPauseAutoHide(isPaused) {
   }
 }
 
-let lastTbProgressTime = 0;
+lastTbProgressTime = 0;
 function sendTaskbarProgress(pct) {
   if (!settings.taskbarMode || !window.electronAPI.updateTaskbarLyric || isTbPlaybackHidden) return;
   const now = Date.now();
@@ -9420,8 +9588,8 @@ function sendTaskbarProgress(pct) {
   window.electronAPI.updateTaskbarLyric({ progress: pct });
 }
 
-let autoHideLyricsTimer = null;
-let isLyricsAutoHidden = false;
+autoHideLyricsTimer = null;
+isLyricsAutoHidden = false;
 
 function wakeAutoHideTemporarily(durationMs = 3500) {
   if (!settings.autoHideLyrics || settings.taskbarMode || settings.wallpaperMode || isDynamicIslandMode) return;
@@ -9444,10 +9612,13 @@ function wakeAutoHideTemporarily(durationMs = 3500) {
 
 function checkShouldAutoHide() {
   if (!settings.autoHideLyrics || settings.taskbarMode || settings.wallpaperMode || isDynamicIslandMode) return false;
+  if (settings.layoutSplit) return false;
+  if (typeof document !== "undefined" && document.hasFocus && document.hasFocus()) return false;
   if (settingsPanel && settingsPanel.classList.contains("open")) return false;
   if (searchOverlay && searchOverlay.style.display !== "none") return false;
   if (geniusModal && geniusModal.classList.contains("show")) return false;
   if (isAutoHaltedTemporarily) return false;
+  if (isFetchingLyrics || (inFlightLyricsRequests && inFlightLyricsRequests.size > 0)) return false;
 
   const isPausedOrStopped = !isPlaying;
   // While lyrics are actively loading, never assume track has no lyrics!
@@ -9465,6 +9636,11 @@ function checkShouldAutoHide() {
 
 function updateAutoHideState() {
   if (!settings.autoHideLyrics || settings.taskbarMode || settings.wallpaperMode || isDynamicIslandMode) {
+    cancelAutoHide();
+    return;
+  }
+
+  if (typeof document !== "undefined" && document.hasFocus && document.hasFocus()) {
     cancelAutoHide();
     return;
   }
@@ -9829,6 +10005,11 @@ function showOnboardingWizard() {
 }
 
 function showLyricsScreen() {
+  const screenLoading = document.getElementById("screen-loading");
+  if (screenLoading) {
+    screenLoading.classList.remove("active");
+    screenLoading.style.display = "none";
+  }
   if (screenLogin) {
     screenLogin.classList.remove("active");
     screenLogin.style.display = "none";
@@ -9839,7 +10020,7 @@ function showLyricsScreen() {
   }
   if (screenLyrics) {
     screenLyrics.classList.add("active");
-    screenLyrics.style.display = "flex";
+    screenLyrics.style.display = "";
   }
 
   settings.firstRun = false;
@@ -9869,8 +10050,8 @@ function showLyricsScreen() {
 }
 
 // Spotify Poller Management
-let currentPollGeneration = 0;
-let isPollInProgress = false;
+currentPollGeneration = 0;
+isPollInProgress = false;
 
 function startPolling() {
   stopPolling();
@@ -10101,7 +10282,7 @@ async function pollSpotifyPlayback(_retried = false) {
   }
 }
 
-let localEmptyPollCount = 0;
+localEmptyPollCount = 0;
 
 async function pollLocalPlayback() {
   try {
@@ -10596,7 +10777,7 @@ function applyPaletteCSS(c0, c1, c2, c3, c4, dominant) {
 }
 window.applyPaletteCSS = applyPaletteCSS;
 
-let currentExtractedArtUrl = null;
+currentExtractedArtUrl = null;
 
 async function updateDynamicArtColor(artUrl) {
   if (!artUrl || artUrl === currentExtractedArtUrl) return;
@@ -10638,9 +10819,9 @@ async function updateDynamicArtColor(artUrl) {
   }
 }
 
-let lastProcessedTrackId = null;
-let lastAppliedAlbumArtUrl = null;
-let trackSwitchDebounceTimer = null;
+lastProcessedTrackId = null;
+lastAppliedAlbumArtUrl = null;
+trackSwitchDebounceTimer = null;
 
 async function handlePlaybackData(data) {
   if (!data || !data.item) {
@@ -10964,6 +11145,7 @@ async function handlePlaybackData(data) {
   // 3. Check if song changed
   if (isSongChanged) {
     currentTrackId = track.id;
+    wakeAutoHideTemporarily(6000);
     islandNowPlayingBufferUntil = Date.now() + 3000;
     manualLyricScrollY = null;
 
@@ -11186,7 +11368,7 @@ function logTrackHistory(track) {
     } catch (e) { history = []; }
 
     history.unshift(entry);
-    if (history.length > 40) history = history.slice(0, 40);
+    if (history.length > 25) history = history.slice(0, 25);
 
     if (window.safeStorageSet) {
       window.safeStorageSet("listening_history", JSON.stringify(history));
@@ -11312,12 +11494,10 @@ async function renderHistory() {
 
 
 // Synced lyrics fetching & parsing with caching
-let fetchAbortController = null;
+fetchAbortController = null;
 
 // Track alternative candidates and rejected signatures per trackId
-const trackLyricsCandidateIndex = {};
-const rejectedLyricsSignatures = {};
-let isReloadingLyrics = false;
+isReloadingLyrics = false;
 
 /**
  * Non-blocking Auto-Translation Engine
@@ -11423,7 +11603,6 @@ async function triggerAutoTranslation(targetTrackId, linesToTranslate, cacheKey 
 }
 
 // Synced lyrics fetching via V2 Unified Proxy (Spotify Internal) + Direct LRCLIB
-const inFlightLyricsRequests = new Map();
 async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = null, options = {}) {
   if (typeof isrc === 'object' && isrc !== null && Object.keys(options).length === 0) {
     options = isrc;
@@ -11649,15 +11828,32 @@ async function _executeFetchLyrics(trackId, trackName, artistName, durationMs, i
         return false;
       }
 
-      // Clear any existing subText before processing
+      // Clear any existing subText before processing, and normalize millisecond helpers
       parsedLines.forEach(line => {
         delete line.subText;
+        if (line.timeMs == null && line.start != null) {
+          line.timeMs = Math.round(Number(line.start) * 1000);
+        }
+        if (line.endMs == null && line.end != null) {
+          line.endMs = Math.round(Number(line.end) > 1000 ? Number(line.end) : Number(line.end) * 1000);
+        }
+        if (line.words && Array.isArray(line.words)) {
+          line.words.forEach(w => {
+            if (w.timeMs == null && w.start != null) {
+              w.timeMs = Math.round(Number(w.start) * 1000);
+            }
+            if (w.endMs == null && w.end != null) {
+              w.endMs = Math.round(Number(w.end) > 1000 ? Number(w.end) : Number(w.end) * 1000);
+            }
+          });
+        }
       });
       delete parsedLines._hasTranslation;
       delete parsedLines._noTransNeeded;
 
       console.log(`[LF-LYRICS] applyLyricsData SUCCESS: setting ${parsedLines.length} lines, level=${sourceLevel}, source=${sourceName}`);
       lyrics = parsedLines;
+      lastIslandSyncData = null;
       isFetchingLyrics = false;
       currentSourceLevel = sourceLevel;
       updateTimingStatus(sourceLevel, sourceName, candidateInfo);
@@ -12388,21 +12584,25 @@ async function fetchGeniusAnnotations(trackName, artistName, trackId) {
   const currentFetchId = trackId;
   const cacheKey = `genius_annotations_${trackId || (artistName + '_' + trackName)}`;
 
-  // 1. Check local cache first
-  const cached = localStorage.getItem(cacheKey);
-  if (cached) {
-    try {
-      const parsed = JSON.parse(cached);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        if (currentTrackId !== currentFetchId) return;
-        currentAnnotations = parsed;
-        attachAnnotationsToRenderedLyrics();
-        return;
-      }
-    } catch (e) {}
+  // 1. Purge legacy localStorage entry if present to reclaim quota
+  try {
+    if (localStorage.getItem(cacheKey)) {
+      localStorage.removeItem(cacheKey);
+    }
+  } catch (_) {}
+
+  // 2. Check in-memory LRU cache first (bounded to 10 entries)
+  if (geniusAnnotationsCache.has(cacheKey)) {
+    const cached = geniusAnnotationsCache.get(cacheKey);
+    if (Array.isArray(cached) && cached.length > 0) {
+      if (currentTrackId !== currentFetchId) return;
+      currentAnnotations = cached;
+      attachAnnotationsToRenderedLyrics();
+      return;
+    }
   }
 
-  // 2. Query Genius API in background
+  // 3. Query Genius API in background
   try {
     if (!window.electronAPI || !window.electronAPI.getGeniusAnnotations) return;
     const annotations = await window.electronAPI.getGeniusAnnotations(artistName, trackName);
@@ -12411,9 +12611,11 @@ async function fetchGeniusAnnotations(trackName, artistName, trackId) {
 
     if (Array.isArray(annotations) && annotations.length > 0) {
       currentAnnotations = annotations;
-      try {
-        localStorage.setItem(cacheKey, JSON.stringify(annotations));
-      } catch (e) {}
+      if (geniusAnnotationsCache.size >= 10) {
+        const firstKey = geniusAnnotationsCache.keys().next().value;
+        if (firstKey) geniusAnnotationsCache.delete(firstKey);
+      }
+      geniusAnnotationsCache.set(cacheKey, annotations);
       attachAnnotationsToRenderedLyrics();
     }
   } catch (err) {
@@ -12639,13 +12841,34 @@ function getLyricWordEndMs(words, wordIndex, lineData, lineIndex) {
   const startMs = (word.start != null && Number.isFinite(Number(word.start)))
     ? Number(word.start) * 1000
     : (Number(word.timeMs) || 0);
-  if (word.endMs != null && Number(word.endMs) > 0) return Number(word.endMs);
-  if (word.end != null && Number(word.end) > 0) return Number(word.end) * 1000;
-  if (word.durationMs != null && Number(word.durationMs) > 0) return startMs + Number(word.durationMs);
-  if (word.duration != null && Number(word.duration) > 0) {
-    const duration = Number(word.duration);
-    return startMs + (duration > 50 ? duration : duration * 1000);
+
+  const nextLine = (Array.isArray(lyrics) && lineIndex >= 0 && lyrics[lineIndex + 1]) ? lyrics[lineIndex + 1] : null;
+  const nextLineMs = nextLine ? (Number(nextLine.timeMs) || (Number(nextLine.start) * 1000) || 0) : Infinity;
+  const nextVocalMs = (nextLine && nextLine.words && nextLine.words.length > 0)
+    ? ((nextLine.words[0].start != null ? nextLine.words[0].start * 1000 : nextLine.words[0].timeMs) || nextLineMs)
+    : nextLineMs;
+
+  let rawEndMs = 0;
+  if (word.endMs != null && Number(word.endMs) > 0) rawEndMs = Number(word.endMs);
+  else if (word.end != null && Number(word.end) > 0) rawEndMs = (Number(word.end) > 1000) ? Number(word.end) : Number(word.end) * 1000;
+  else if (word.durationMs != null && Number(word.durationMs) > 0) rawEndMs = startMs + Number(word.durationMs);
+  else if (word.duration != null && Number(word.duration) > 0) {
+    const rawDur = Number(word.duration);
+    rawEndMs = startMs + (rawDur >= 10 ? rawDur : rawDur * 1000);
   }
+
+  if (rawEndMs > startMs) {
+    // Defensive cap: If word end exceeds next line onset or extreme bounds, cap it
+    if (isFinite(nextVocalMs) && nextVocalMs > startMs && rawEndMs > nextVocalMs) {
+      return Math.max(startMs + 200, nextVocalMs);
+    }
+    const lineEndMs = lineData?.end ? ((Number(lineData.end) > 1000) ? Number(lineData.end) : Number(lineData.end) * 1000) : 0;
+    if (lineEndMs > startMs && rawEndMs > lineEndMs + 1500) {
+      return lineEndMs;
+    }
+    return rawEndMs;
+  }
+
   const nextWord = words[wordIndex + 1];
   if (nextWord) {
     const nextStart = (nextWord.start != null && Number.isFinite(Number(nextWord.start)))
@@ -12659,25 +12882,18 @@ function getLyricWordEndMs(words, wordIndex, lineData, lineIndex) {
   const naturalWordDur = Math.max(500, Math.min(2200, wordTextLen * 160 + 400));
 
   // If next line starts soon, cap to before next line's vocal onset
-  if (Array.isArray(lyrics) && lineIndex >= 0 && lyrics[lineIndex + 1]) {
-    const nextLine = lyrics[lineIndex + 1];
-    const nextLineMs = Number(nextLine.timeMs) || (Number(nextLine.start) * 1000) || 0;
-    const nextVocalMs = (nextLine.words && nextLine.words.length > 0)
-      ? ((nextLine.words[0].start != null ? nextLine.words[0].start * 1000 : nextLine.words[0].timeMs) || nextLineMs)
-      : nextLineMs;
-    if (nextVocalMs > startMs && nextVocalMs < startMs + naturalWordDur) {
-      return Math.max(startMs + 350, nextVocalMs);
-    }
+  if (isFinite(nextVocalMs) && nextVocalMs > startMs && nextVocalMs < startMs + naturalWordDur) {
+    return Math.max(startMs + 350, nextVocalMs);
   }
 
   // If lineData has an explicit line duration or end that is reasonable (< 3500ms from startMs):
   const lineStartMs = Number(lineData?.timeMs) || (Number(lineData?.start) * 1000) || startMs;
   let lineEndMs = 0;
-  if (lineData?.end != null && Number(lineData.end) > 0) lineEndMs = Number(lineData.end) * 1000;
+  if (lineData?.end != null && Number(lineData.end) > 0) lineEndMs = (Number(lineData.end) > 1000) ? Number(lineData.end) : Number(lineData.end) * 1000;
   else if (lineData?.durationMs != null && Number(lineData.durationMs) > 0) lineEndMs = lineStartMs + Number(lineData.durationMs);
   else if (lineData?.duration != null && Number(lineData.duration) > 0) {
     const duration = Number(lineData.duration);
-    lineEndMs = lineStartMs + (duration > 50 ? duration : duration * 1000);
+    lineEndMs = lineStartMs + (duration >= 20 ? duration : duration * 1000);
   }
   if (lineEndMs > startMs && (lineEndMs - startMs) <= 3500) {
     return lineEndMs;
@@ -12691,11 +12907,11 @@ function getLineVocalEndMs(line, lineIndex) {
   if (Array.isArray(line.words) && line.words.length > 0) {
     return getLyricWordEndMs(line.words, line.words.length - 1, line, lineIndex);
   }
-  if (line.end != null && Number(line.end) > 0) return Number(line.end) * 1000;
+  if (line.end != null && Number(line.end) > 0) return (Number(line.end) > 1000) ? Number(line.end) : Number(line.end) * 1000;
   if (line.endMs != null && Number(line.endMs) > 0) return Number(line.endMs);
   if (line.duration != null && Number(line.duration) > 0) {
     const dur = Number(line.duration);
-    return (Number(line.timeMs) || 0) + (dur > 50 ? dur : dur * 1000);
+    return (Number(line.timeMs) || 0) + (dur >= 20 ? dur : dur * 1000);
   }
   if (line.durationMs != null && Number(line.durationMs) > 0) {
     return (Number(line.timeMs) || 0) + Number(line.durationMs);
@@ -12735,10 +12951,12 @@ function getLineSwitchMs(curIdx) {
     const leadMs = (nextVocalStart - curVocalEnd >= 400) ? 280 : 0;
     const effectiveNextStart = Math.max(curVocalEnd, nextVocalStart - leadMs);
 
-    if (curVocalEnd <= effectiveNextStart) {
-      return Math.max(curVocalEnd, Math.min(nextLineMs, effectiveNextStart));
-    }
-    return effectiveNextStart;
+    const switchPoint = (curVocalEnd <= effectiveNextStart)
+      ? Math.max(curVocalEnd, Math.min(nextLineMs, effectiveNextStart))
+      : effectiveNextStart;
+
+    // Safety clamp: Switch point must NEVER exceed the next line's vocal start timestamp
+    return Math.min(nextVocalStart, switchPoint);
   }
 
   // Line-synced lyrics (no words): advance lead window
@@ -13220,12 +13438,11 @@ function renderLyrics() {
       }
     });
 
-    // Feature: Right-click lyric line to open share card at that line
+    // Right-click on lyric line is completely suppressed
     el.addEventListener("contextmenu", (e) => {
       e.preventDefault();
-      if (typeof window.openShareModal === 'function') {
-        window.openShareModal(index);
-      }
+      e.stopPropagation();
+      return false;
     });
 
     frag.appendChild(el);
@@ -13237,14 +13454,15 @@ function renderLyrics() {
   measureLyricMetrics();
   activeLineIndex = -1;
   scrollLyrics(0);
+  wakeAutoHideTemporarily(6000);
   updateAutoHideState();
   if ((isCinematicView || (settings.wallpaperMode && settings.wallpaperStyle === 'cinematic')) && cinematicMainRendererInstance) {
     syncCinematicState();
   }
 }
 
-let cachedViewportHeight = 0;
-let cachedLineMetrics = [];
+cachedViewportHeight = 0;
+cachedLineMetrics = [];
 
 function invalidateLyricMetrics(andScroll = true) {
   cachedLineMetrics = [];
@@ -13606,8 +13824,8 @@ function hideResyncButton() {
 }
 
 // State management for throttled RAF playhead loop
-let isPlayheadLoopActive = false;
-let playheadTimerId = null;
+isPlayheadLoopActive = false;
+playheadTimerId = null;
 
 function ensurePlayheadLoop() {
   if (playheadTimerId) {
@@ -13791,11 +14009,11 @@ function updatePlayhead() {
         const isWallpaperSuspended = Boolean(settings.wallpaperMode && !isWallpaperDesktopFocused);
         const isCinematicActive = settings.wallpaperMode ? (settings.wallpaperStyle === 'cinematic') : Boolean(isCinematicView);
         const shouldScrollMainLyrics = !isWallpaperSuspended && !isDynamicIslandMode && !settings.taskbarMode && !isCinematicActive;
-        const effectiveDisplayIndex = (isInstrumentalBreak || isIntroPrelude) ? -1 : activeIndex;
+        const effectiveDisplayIndex = isIntroPrelude ? -1 : activeIndex;
         if (shouldScrollMainLyrics) {
           scrollLyrics(effectiveDisplayIndex);
 
-          // Option C: Update Instrumental Solo Stage (Waveform & Countdown)
+          // Update Instrumental Solo Stage (Floating pill indicator)
           const soloStage = document.getElementById("instrumental-solo-stage");
           if (soloStage) {
             if (isInstrumentalBreak || isIntroPrelude) {
@@ -14248,7 +14466,7 @@ async function controlPlayback(action, _retried = false) {
 }
 
 // Query and monitor taskbar accent colors and light/dark theme contrast
-let taskbarColorPollInterval = null;
+taskbarColorPollInterval = null;
 async function updateTaskbarColors() {
   if (!settings.taskbarMode || !config) {
     if (taskbarColorPollInterval) {
@@ -14528,3 +14746,12 @@ if (typeof module !== 'undefined' && module.exports) {
     calculateMagneticSnap
   };
 }
+
+if (typeof document !== 'undefined') {
+  if (document.readyState === "loading") {
+    window.addEventListener("DOMContentLoaded", () => bootstrapApp());
+  } else {
+    setTimeout(() => bootstrapApp(), 0);
+  }
+}
+

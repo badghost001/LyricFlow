@@ -407,8 +407,8 @@
     const isLeft = alignment === 'vertical_left';
     const marginRatio = (options.composition && options.composition.railMargin) ? options.composition.railMargin : 0.08;
     const railX = isLeft
-      ? (bounds.x + Math.round(bounds.width * marginRatio))
-      : (bounds.x + bounds.width - Math.round(bounds.width * marginRatio));
+      ? (bounds.x + Math.max(54, Math.round(bounds.width * marginRatio)))
+      : (bounds.x + bounds.width - Math.max(54, Math.round(bounds.width * marginRatio)));
 
     // Safe vertical bounds: clear top exit button (top 20px, height 38px) and bottom seal (bottom - 24px)
     const safeTop = bounds.y + Math.max(72, Math.round(bounds.height * 0.12));

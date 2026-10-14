@@ -19,6 +19,7 @@
     <link rel="stylesheet" href="styles/_dynamic_island.css" />
     <link rel="stylesheet" href="styles/_share_modal.css" />
     <link rel="stylesheet" href="styles/_kinetic.css" />
+    <link rel="stylesheet" href="styles/_studio.css" />
     <link rel="stylesheet" href="styles.css" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'self' ipc: http://ipc.localhost https://ipc.localhost https://tauri.localhost http://tauri.localhost tauri:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https:; font-src 'self' https: data:; img-src 'self' data: blob: file: lyricflow-media: http: https:; media-src 'self' blob: file: data: lyricflow-media: http: https:; connect-src 'self' ipc: http://ipc.localhost https://ipc.localhost https://tauri.localhost http://tauri.localhost tauri: http: https:;" />
@@ -60,7 +61,7 @@
     <script src="modules/flow-game.js" defer></script>
     <script src="renderer.js" defer></script>
   </head>
-  <body>
+  <body oncontextmenu="return false;">
     <!-- Custom Video/Image Background -->
     <video id="custom-bg-video" loop muted autoplay playsinline style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; z-index: 0; opacity: 1; pointer-events: none;"></video>
     <img id="custom-bg-img" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; z-index: 0; opacity: 1; pointer-events: none;" />
@@ -688,7 +689,7 @@
       </section>
 
       <!-- 2. LYRICS OVERLAY SCREEN -->
-      <section class="app-screen" id="screen-lyrics">
+      <section class="app-screen active" id="screen-lyrics">
         
         <!-- Search Bar Overlay (Hidden by default) -->
         <div id="search-overlay" style="display: none; position: absolute; top: 16px; left: 50%; transform: translateX(-50%); width: 80%; max-width: 400px; background: rgba(18, 18, 18, 0.9); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; z-index: 50; padding: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">

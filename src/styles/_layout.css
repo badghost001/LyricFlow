@@ -71,7 +71,8 @@ body.custom-bg-active .app-container {
   position: relative;
 }
 
-.app-screen.active {
+.app-screen.active,
+body:not(.taskbar-mode):not(.mode-dynamic-island):not(.wallpaper-mode) #screen-lyrics {
   display: flex;
 }
 
@@ -140,6 +141,32 @@ body.custom-bg-active .app-container {
   pointer-events: auto !important;
 }
 
+.app-container.auto-hide-collapsed:hover .lyrics-view,
+.app-container.auto-hide-collapsed:focus-within .lyrics-view {
+  display: flex !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+.app-container.auto-hide-collapsed:hover .studio-sidebar,
+.app-container.auto-hide-collapsed:focus-within .studio-sidebar {
+  display: flex !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+.app-container.auto-hide-collapsed:hover,
+.app-container.auto-hide-collapsed:focus-within {
+  background: rgba(10, 10, 15, var(--bg-opacity, 0.85)) !important;
+  border-color: var(--border-subtle, rgba(255, 255, 255, 0.09)) !important;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6) !important;
+}
+
+.app-container.auto-hide-collapsed:hover #screen-lyrics,
+.app-container.auto-hide-collapsed:focus-within #screen-lyrics {
+  pointer-events: auto !important;
+}
+
 .app-container.auto-hide-collapsed .playback-widget {
   display: flex !important;
   pointer-events: auto !important;
@@ -154,6 +181,11 @@ body.custom-bg-active .app-container {
   max-width: 480px;
   width: 90%;
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.app-container.auto-hide-collapsed .playback-widget .widget-art-container,
+.app-container.auto-hide-collapsed .playback-widget .track-details {
+  display: flex !important;
 }
 
 body.auto-hide-collapsed .ambient-glow {

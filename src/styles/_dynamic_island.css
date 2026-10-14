@@ -461,14 +461,14 @@ body:not(.is-playing) .island-art-halo {
     90deg,
     #ffffff 0%,
     #ffffff calc(var(--word-progress, 1) * 100%),
-    rgba(255, 255, 255, 0.42) calc(var(--word-progress, 1) * 100% + 3.5px),
-    rgba(255, 255, 255, 0.42) 100%
+    rgba(255, 255, 255, 0.45) calc(var(--word-progress, 1) * 100% + 3.5px),
+    rgba(255, 255, 255, 0.45) 100%
   );
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  transform: scale(1.05) translateY(-0.5px) translateZ(0);
-  filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.7));
+  transform: none;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.85));
 }
 
 .island-lyric-line .lyric-word.lyric-word-completed,
@@ -476,13 +476,17 @@ body:not(.is-playing) .island-art-halo {
   background: none !important;
   -webkit-background-clip: border-box !important;
   background-clip: border-box !important;
-  -webkit-text-fill-color: rgba(255, 255, 255, 0.95) !important;
+  -webkit-text-fill-color: #ffffff !important;
   color: #ffffff !important;
+  opacity: 1 !important;
   transform: none !important;
   filter: none !important;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
 }
 
 .island-lyric-line .lyric-word.lyric-word-upcoming {
+  opacity: 0.32;
+  font-weight: 400;
   background: none;
   -webkit-text-fill-color: initial;
   color: rgba(255, 255, 255, 0.42);
@@ -1447,18 +1451,18 @@ body.mode-dynamic-island.island-morph-solo #dynamic-island {
 
 body:not(.is-playing) .wave-bar,
 .island-wave-visualizer.is-resting .wave-bar {
-  transform: scaleY(0.14) !important;
-  opacity: 0.35 !important;
-  box-shadow: none !important;
-  animation: none !important;
+  transform: scaleY(0.14);
+  opacity: 0.35;
+  box-shadow: none;
+  animation: none;
 }
 
 .island-wave-visualizer.visualizer-style-dots.is-resting .wave-bar,
 body:not(.is-playing) .island-wave-visualizer.visualizer-style-dots .wave-bar {
-  transform: scale(0.8) translateY(0px) !important;
-  opacity: 0.35 !important;
-  box-shadow: none !important;
-  animation: none !important;
+  transform: scale(0.8) translateY(0px);
+  opacity: 0.35;
+  box-shadow: none;
+  animation: none;
 }
 
 #dynamic-island .island-top-actions #island-btn-refetch,
@@ -2028,6 +2032,7 @@ body.island-dock-bottom-center #island-duet-capsule.duet-fusing {
     opacity: 0;
     transform: translateY(22px) scale(0.65, 0.85);
   }
+}
 /* ==========================================================
    FREE-FLOATING DRAGGABLE ISLAND MODE
    - Custom coordinate placement with magnetic edge snapping

@@ -197,7 +197,7 @@ body.auto-hide-controls .app-container:hover .playback-widget {
 }
 
 .player-live-visualizer.is-resting .player-vis-bar {
-  transform: scaleY(0.18) !important;
+  transform: scaleY(0.18);
   opacity: 0.40;
   box-shadow: none;
 }

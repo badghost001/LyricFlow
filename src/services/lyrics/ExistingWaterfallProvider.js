@@ -70,7 +70,7 @@
               wEnd = wStart + (w.durationMs / 1000);
             } else if (w.duration != null && w.duration > 0) {
               const dur = Number(w.duration);
-              wEnd = wStart + (dur > 50 ? dur / 1000 : dur);
+              wEnd = wStart + (dur >= 10 ? dur / 1000 : dur);
             } else if (wi < item.words.length - 1 && item.words[wi + 1]?.timeMs !== undefined) {
               wEnd = Math.max(wStart + 0.05, item.words[wi + 1].timeMs / 1000);
             } else {
@@ -81,6 +81,9 @@
               } else {
                 wEnd = wStart + naturalSec;
               }
+            }
+            if (Number.isFinite(nextVocalSec) && nextVocalSec > wStart && wEnd > nextVocalSec) {
+              wEnd = Math.max(wStart + 0.05, nextVocalSec);
             }
             words.push(createLyricWord(w.text, wStart, wEnd));
           }

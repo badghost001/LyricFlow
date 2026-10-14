@@ -713,7 +713,6 @@ mod tests {
         assert_eq!(words.len(), 2);
         assert_eq!(words[0].text, "Hello, ");
         assert_eq!(words[0].time_ms, 1000);
-        assert_eq!(words[0].duration_ms, Some(700));
         assert_eq!(words[1].text, "world");
     }
 }

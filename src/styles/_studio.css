@@ -4,14 +4,16 @@
  */
 
 /* Split-View enabled when body.layout-split is active (Default Desktop Layout) */
-body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode) #screen-lyrics {
+body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics {
   display: grid !important;
   grid-template-columns: minmax(320px, 380px) 1fr !important;
   grid-template-rows: 1fr auto !important;
   column-gap: 36px !important;
   row-gap: 16px !important;
   padding: 16px 28px 20px 28px !important;
-  height: 100% !important;
+  flex: 1 1 auto !important;
+  height: auto !important;
+  min-height: 0 !important;
   box-sizing: border-box !important;
   overflow: hidden !important;
 }
@@ -35,7 +37,7 @@ body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mo
   animation: studioFadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode) .studio-sidebar {
+body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) .studio-sidebar {
   display: flex !important;
 }
 
@@ -260,7 +262,7 @@ body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mo
 }
 
 .studio-badge-live.is-resting .studio-vis-bar {
-  transform: scaleY(0.18) !important;
+  transform: scaleY(0.18);
   opacity: 0.40;
 }
 
@@ -271,20 +273,20 @@ body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mo
 }
 
 /* Right Column: Lyrics Viewport in Split Mode (Full-height edge-to-edge) */
-body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode) .lyrics-view {
+body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) .lyrics-view {
   grid-column: 2 / 3 !important;
   grid-row: 1 / -1 !important; /* Full height across both rows! */
   height: 100% !important;
   width: 100% !important;
 }
 
-body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode) #lyrics-container {
+body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #lyrics-container {
   padding-left: 24px !important;
   padding-right: 24px !important;
   text-align: left !important;
 }
 
-body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode) .lyric-line {
+body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) .lyric-line {
   text-align: left !important;
   transform-origin: left center !important;
 }
@@ -294,7 +296,7 @@ body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mo
    ========================================================================== */
 
 /* The liquid glass controls bar docks directly beneath track info in Column 1 */
-body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode) .playback-widget {
+body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) .playback-widget {
   grid-column: 1 / 2 !important;
   grid-row: 2 / 3 !important;
   display: flex !important;
@@ -514,22 +516,82 @@ body.layout-split .playback-widget #btn-play-pause:hover {
     inset 0 1.5px 1px rgba(255, 255, 255, 0.6) !important;
 }
 
-/* Responsive fallback for narrow windows: stack into single column */
-@media (max-width: 768px) {
-  body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode) #screen-lyrics {
+/* Responsive adaptation for medium windows (481px - 768px): keep dual columns with compact sidebar */
+@media (max-width: 768px) and (min-width: 481px) {
+  body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics {
+    grid-template-columns: minmax(180px, 240px) 1fr !important;
+    column-gap: 20px !important;
+    padding: 12px 18px 16px 18px !important;
+  }
+  body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) .studio-sidebar {
+    display: flex !important;
+    gap: 10px;
+  }
+  body.layout-split .studio-art-container {
+    width: clamp(130px, 20vh, 180px);
+  }
+  body.layout-split .studio-track-title {
+    font-size: 17px;
+  }
+  body.layout-split .studio-track-artist {
+    font-size: 13px;
+  }
+}
+
+/* Responsive adaptation for compact windows (<= 480px): stack gracefully with compact header banner */
+@media (max-width: 480px) {
+  body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics {
     display: flex !important;
     flex-direction: column !important;
-    padding: 8px 12px !important;
+    padding: 8px 14px 12px 14px !important;
+    gap: 10px !important;
   }
-  body.layout-split .studio-sidebar {
+  body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) .studio-sidebar {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 12px !important;
+    height: auto !important;
+    padding: 6px 10px !important;
+    border-radius: 14px !important;
+    background: rgba(255, 255, 255, 0.04) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  }
+  body.layout-split .studio-art-container {
+    width: 44px !important;
+    height: 44px !important;
+    border-radius: 10px !important;
+    max-width: 44px !important;
+  }
+  body.layout-split .studio-track-meta {
+    text-align: left !important;
+    align-items: flex-start !important;
+    max-width: none !important;
+    flex: 1 !important;
+  }
+  body.layout-split .studio-title-wrapper,
+  body.layout-split .studio-artist-wrapper {
+    text-align: left !important;
+  }
+  body.layout-split .studio-track-title {
+    font-size: 14px !important;
+  }
+  body.layout-split .studio-track-artist {
+    font-size: 12px !important;
+  }
+  body.layout-split .studio-badges-row {
     display: none !important;
   }
   body.layout-split .lyrics-view {
     flex: 1 !important;
+    width: 100% !important;
   }
   body.layout-split .playback-widget {
     flex-direction: row !important;
     max-width: none !important;
+    width: 100% !important;
+    padding: 8px 12px !important;
   }
   body.layout-split .playback-widget .widget-art-container,
   body.layout-split .playback-widget .track-details {

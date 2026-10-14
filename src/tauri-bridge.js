@@ -397,5 +397,31 @@
     });
   }
 
+  // Globally suppress all right-click actions and browser context menus across the app
+  if (typeof window !== 'undefined') {
+    const suppressRightClick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof e.stopImmediatePropagation === 'function') {
+        e.stopImmediatePropagation();
+      }
+      return false;
+    };
+
+    window.addEventListener('contextmenu', suppressRightClick, true);
+
+    ['auxclick', 'mousedown', 'mouseup'].forEach((evt) => {
+      window.addEventListener(
+        evt,
+        (e) => {
+          if (e.button === 2) {
+            suppressRightClick(e);
+          }
+        },
+        true
+      );
+    });
+  }
+
   console.log('[LyricFlow Bridge] All bridge APIs initialized successfully.');
 })();

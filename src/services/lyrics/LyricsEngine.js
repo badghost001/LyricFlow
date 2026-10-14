@@ -173,16 +173,22 @@
           if (fw && fw.start != null) nextVocalStart = fw.start;
         }
 
+        // Clamp curVocalEnd so it does not exceed next line's vocal onset
+        if (isFinite(nextVocalStart)) {
+          curVocalEnd = Math.min(curVocalEnd, nextVocalStart);
+        }
+
         // Advance lead window (280ms): when next vocal is imminent and current vocal has finished,
         // advance line focus smoothly 280ms before next vocal onset so scrolling centers ahead of phonation
         const leadSec = (nextVocalStart - curVocalEnd >= 0.4) ? 0.28 : 0;
         const effectiveNextStart = Math.max(curVocalEnd, nextVocalStart - leadSec);
 
         // Prevent premature cutoff: do not advance to next line while current line's vocal is still singing
-        // unless the next line's words have actually started.
-        const switchPoint = nextLine
+        // unless the next line's words have actually started. Switch point must never exceed nextVocalStart.
+        const rawSwitchPoint = nextLine
           ? ((curVocalEnd <= effectiveNextStart) ? Math.max(curVocalEnd, Math.min(nextLine.start, effectiveNextStart)) : effectiveNextStart)
           : (curVocalEnd + 2.0);
+        const switchPoint = isFinite(nextVocalStart) ? Math.min(nextVocalStart, rawSwitchPoint) : rawSwitchPoint;
 
         const isPastStart = time >= curLine.start;
         const isBeforeNext = time < switchPoint;

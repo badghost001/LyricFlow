@@ -1,7 +1,7 @@
 <div align="center">
   <img src="assets/icon.png" alt="LyricFlow Logo" width="128" />
   <h1>LyricFlow</h1>
-  <p><strong>A breathtaking, ultra-lightweight desktop lyrics overlay with real-time synchronization, Dynamic Island, and adaptive ambient aesthetics.</strong></p>
+  <p><strong>A breathtaking, ultra-lightweight desktop lyrics overlay with real-time word synchronization, Dynamic Island, and adaptive ambient aesthetics.</strong></p>
   <p><i>Engineered in native Rust (Tauri v2) for sub-30 MB RAM usage, instant responsiveness, and cross-platform performance.</i></p>
   
   <p>
@@ -14,7 +14,7 @@
   </p>
 
   <p>
-    <a href="#-whats-new-in-v1420">What's New</a> •
+    <a href="#-whats-new-in-v1440">What's New</a> •
     <a href="#-key-features">Features</a> •
     <a href="#-showcase--screenshots">Showcase</a> •
     <a href="#-keyboard-shortcuts">Shortcuts</a> •
@@ -26,26 +26,35 @@
 
 ---
 
-## 🌟 What's New in v1.43.0
+## 🌟 What's New in v1.44.0
 
-- 🖼️ **Dual Wallpaper Modes (Style 1 & Style 2):**
-  - **Cinematic Wallpaper (Style 1):** Fullscreen animated canvas typography and ambient reactive motifs pinned directly to your Windows desktop beneath your icons.
-  - **Apple Music Split-View Wallpaper (Style 2):** Left-side high-resolution artwork and metadata card paired with right-side smooth scrolling synchronized lyrics and progressive karaoke highlights.
-  - Quick toggle via `Ctrl+Shift+C` inside wallpaper mode or from the desktop Escape HUD.
-- 🚀 **Zero-Pop-In Startup Lyric Pre-Loading:**
-  - Track metadata and synchronized lyrics are now pre-loaded and rendered in the DOM behind the splash screen before it dissolves.
-  - Real-time startup progress indicator showing active track detection, lyric sync status, and stage composition.
-- 📐 **Canonical Golden Desktop Window Size (960 x 600):**
-  - Standardized on a 16:10 aspect ratio companion overlay (exactly 50% width on 1080p).
-  - Eliminates all jarring window resizing and snapping when switching between Classic and Cinematic modes.
-- 💾 **Window Position & Geometry Persistence (Respawn):**
-  - Remembers your custom window desktop coordinates and dimensions across restarts.
-  - Safe multi-monitor boundary clamping prevents windows from spawning off-screen if external monitors are disconnected.
-- 🏝️ **Dynamic Island Enhancements & Sound Source Volume:**
-  - Mouse wheel gestures over the island adjust active player volume with per-app HUD feedback.
-  - Complete isolation from wallpaper and cinematic dark themes for a crystal-clear floating glass aesthetic.
-- 🎬 **Kinetic Typography Dynamic Baseline Alignment:**
-  - Automatic optical baseline alignment for punch words and surrounding lyrics with zero overlaps or vertical jitter.
+### 🎵 Apple Music Desktop Studio & Split-View
+- **Apple HIG Split-View Layout:** Dedicated left-hand studio sidebar featuring high-resolution album artwork, track title, artist, album metadata, and integrated glassmorphic playback controls paired with right-hand smooth-scrolling synchronized lyrics.
+- **Interactive Inline Scrubber:** Seamless Apple Music-style progress bar with draggable scrub thumb, micro-hover expand states, and instant millisecond seeking.
+- **Click-to-Expand Album Art:** Tap the album artwork in Split-View to reveal a full-resolution modal preview with fluid backdrop blur.
+- **Adaptive MMCQ Ambient Glass:** Real-time 3D color extraction generating a synchronized 5-tier fluid glass background tailored specifically to the current album cover.
+
+### 🏝️ Dynamic Island Evolution Suite
+- **Apple-Style Circular Countdown Ring:** Smooth 360° to 0° radial progress ring that winds down during track intros and instrumental interludes, indicating exactly when vocals resume.
+- **Liquid Specular Halo & Beat Pulse:** Audio-reactive specular rim lighting and subtle kick-reactive physics pulsing directly with the song's bassline.
+- **Integrated Micro-HUD & Gestures:** Tactile squircle playback toggles with instant double-click play/pause gestures and mouse-wheel volume adjustment.
+- **Lossless Audio & Quality Micro-Badges:** Dynamic indicators for `LOSSLESS`, `HI-RES`, `ATMOS`, `WORD-SYNC`, and `LINE-SYNC`.
+- **Free-Floating Draggable Mode & Magnetic Edge Snapping:** Drag the Dynamic Island freely across monitors with magnetic snapping to screen edges and persistent coordinate memory across app restarts.
+- **WebGL Particle Disintegration:** High-performance GLSL disintegration shader with drifting ash particles and smooth opacity fade when the island enters sleep mode.
+- **Overseas NetEase YRC Prioritization:** Dedicated fetch budget for NetEase word-by-word karaoke lyrics with automatic overseas endpoint resolution.
+
+### 🌊 Real-Time Audio Visualizer & Instrumental Interlude Halt
+- **Zero-Drop WASAPI Visualizer:** Continuous loopback audio spectrum visualizer (1024-point FFT) that remains resilient across track switches, device changes, and pauses.
+- **Smart Instrumental Break Halt:** During guitar solos and instrumental interludes, the lyrics view smoothly halts at the current lyric line instead of jarringly resetting to the top of the song.
+- **Vibrant Active Word Illumination:** Syllable-by-syllable karaoke words illuminate in crisp, pure white against smoothly dimmed preceding and upcoming lyrics.
+
+### ⚡ Zero-Drift Timing & Desync Elimination
+- **Sub-Millisecond Syllable Duration Normalization:** Solved timing desync stalls caused by millisecond vs. second confusion on short plosive syllables (<40ms).
+- **Defensive Line Bounding:** Enforced strict vocal onset boundaries preventing any lyric provider from overflowing word durations past the start of the next line.
+
+### 🛡️ Storage Resilience & Distraction-Free UX
+- **Intelligent Storage Quota Pruning:** Automatically detects and purges stale base64 data URLs, Genius annotations, and cached art to prevent `QuotaExceededError` storage crashes.
+- **Universal Right-Click Suppression:** Comprehensive capture-phase context menu lockout across all app windows, ensuring a pristine native application experience.
 
 ---
 
@@ -55,14 +64,14 @@
 - **Adaptive Docking Pill:** Floats seamlessly at the top of your screen, displaying current line lyrics, track progress, and album artwork.
 - **Dual Connected Satellite Island:** Docks adjacent or below the main island to display real-time line-by-line foreign language translations.
 - **Smart Language Detection:** Automatically suppresses redundant translations when lyrics are in English/native languages, smoothly expanding into view only when foreign phrases appear.
-- **Inactivity Sleep & Stardust Physics:** Auto-sleeps after customizable idle timeouts (30s, 1m, 2m, 5m, or Never) with particle dispersion animations powered by `CAEmitterEngine`.
+- **Inactivity Sleep & WebGL Disintegration:** Auto-sleeps after customizable idle timeouts (30s, 1m, 2m, 5m, or Never) with GPU-accelerated particle dispersion shaders.
 - **Integrated Audio Visualizer:** High-performance WASAPI loopback audio reactive frequency bars pulsing directly within the island.
 
-### 🦀 High-Speed Dual-Tier Rust Lyrics Engine
-- **Asynchronous Parallel Fetching:** Simultaneously queries **LRCLIB**, high-speed **Cloudflare Proxy**, and **Musixmatch** using `tokio::join!`. Runs in native Rust with zero browser CORS constraints.
-- **Smart Waterfall Fallbacks:** Seamless cascade from Word-Synced Karaoke (`WORD_SYNCED`) → Line-Synced (`LINE_SYNCED`) → Plain Text (`PLAIN_TEXT`), backed by Spotify Color-Lyrics, NetEase, and Genius.
+### 🦀 High-Speed Multi-Tier Rust Lyrics Engine
+- **Asynchronous Parallel Fetching:** Simultaneously queries **NetEase Cloud Music (YRC word-sync)**, **LRCLIB**, **Cloudflare Proxy**, and **Musixmatch** using `tokio::join!`. Runs in native Rust with zero browser CORS constraints.
+- **Smart Waterfall Fallbacks:** Seamless cascade from Word-Synced Karaoke (`WORD_SYNCED`) → Line-Synced (`LINE_SYNCED`) → Plain Text (`PLAIN_TEXT`), backed by Spotify Color-Lyrics, Apple Music, and Genius.
 - **Syllable-by-Syllable Karaoke Timing:** Word-level glow highlights following the artist's vocal cadence in real time.
-- **Clock Slew Interpolation & Debouncing:** Eliminates jitter and desync when seeking, skipping tracks, or resuming playback.
+- **Zero-Drift PI-PLL Clock:** Dual-tier phase-locked loop clock with clock slew interpolation eliminating jitter and desync when seeking, skipping tracks, or resuming playback.
 
 ### 🎨 3D MMCQ Ambient Canvas & Glow Engine
 - **Modified Median Cut Quantization (MMCQ):** Extracts a synchronized 5-tier color palette (`dominant`, `secondary`, `accent`, `highlight`, `background`) in ~1.6ms with zero synthetic hue offsets.
@@ -71,18 +80,18 @@
 - **Pure White Legibility:** Word and line highlights locked to crisp white typography with dynamic ambient artwork aura.
 
 ### 🪟 Flexible Display Modes
+- **Apple Music Desktop Studio:** Split-view layout with left-hand metadata and right-hand smooth-scrolling synchronized lyrics.
 - **Floating Glassmorphic Window:** Resizable, draggable frosted-glass window with adjustable background blur, font size, and layout scaling.
 - **Windows Taskbar Mode:** Docks single-line synced lyrics directly into the Windows Taskbar (`Shell_TrayWnd`) with sub-millisecond cursor hit-testing and continuous topmost z-order preservation.
-- **Ambient Wallpaper & Fullscreen:** Immersive full-screen visualizer mode featuring Apple Music-style blurred artwork pan animations, dynamic typography, and looping Spotify Canvas MP4 playback.
+- **Ambient Wallpaper & Fullscreen:** Immersive full-screen visualizer mode featuring Apple Music-style blurred artwork pan animations, dynamic kinetic typography, and looping Spotify Canvas MP4 playback.
 
 ### 📸 Lyric Share Card Studio
 - **Multi-Format Social Presets:** Generate visually stunning lyric cards in **Instagram Story (9:16)**, **Square (1:1)**, **Portrait Feed (4:5)**, and **Landscape (16:9)**.
 - **Curated Typography Stacks:** Switch between Modern Sans, Editorial Serif, Monospace, and Soft Rounded font stacks.
 - **Multi-Mode Lyrics Rendering:** Original lyrics, Bilingual (Original + Translation), or Translation-only view with instant clipboard copying and PNG saving.
-- **Kinetic Video Card Export:** *(Under Active Development)* High-definition video generator bringing dynamic kinetic typography and parametric shape morphs to exportable social share cards.
 
 ### 📻 Deep Native OS Integrations
-- **Windows:** System Media Transport Controls (SMTC) via dedicated MTA COM worker thread—supporting Spotify Desktop, Apple Music, YouTube Music, web browsers, and local media players.
+- **Windows:** System Media Transport Controls (SMTC) via dedicated MTA COM worker thread—supporting Spotify Desktop, Apple Music, YouTube Music Desktop, web browsers, Tidal, Deezer, and local media players.
 - **macOS:** AppleScript IPC for Spotify and Apple Music (`Music.app`).
 - **High-Res Artwork Upscaling:** Automatically detects and replaces low-resolution media transport thumbnails with pristine 600×600 artwork from iTunes and Deezer APIs.
 - **Genius Facts & Last.fm:** Real-time song annotations, trivia pills, and automatic Last.fm scrobbling.
@@ -93,6 +102,13 @@
 
 <div align="center">
 
+### 🎵 Apple Music Desktop Studio (Split-View)
+*Left-side high-resolution artwork and metadata card paired with right-side smooth scrolling synchronized lyrics and progressive karaoke highlights.*
+<br/>
+<img src="assets/screenshots/adaptive-color-lyrics.png" alt="Apple Music Desktop Studio" width="950" />
+
+<br/><br/>
+
 ### 🎬 Immersive Kinetic & Cinematic Live Mode
 *Dynamic word-by-word karaoke typography, 7 parametric shape morph transitions, and zero-latency acoustic audio tracking.*
 <br/>
@@ -100,42 +116,28 @@
 
 <br/><br/>
 
-### Dynamic Island with Dual-Connected Satellite Translation
-*Floating pill with live WASAPI audio visualizer and docked real-time bilingual translation satellite.*
+### 🏝️ Dynamic Island with Dual-Connected Satellite Translation
+*Floating pill with live WASAPI audio visualizer, circular countdown arc, and docked real-time bilingual translation satellite.*
 <br/>
 <img src="assets/screenshots/dynamic-island-satellite.png" alt="Dynamic Island with Satellite Translation" width="950" />
 
 <br/><br/>
 
-### Expanded Dynamic Island & Media Controls
-*Interactive track scrubbing, playback controls, and docked translation subtext with zero text cut-off.*
-<br/>
-<img src="assets/screenshots/dynamic-island-expanded.png" alt="Expanded Dynamic Island" width="950" />
-
-<br/><br/>
-
-### 3D MMCQ Adaptive Color Window & White Lyrics
-*Pure white high-contrast typography, frosted glass overlay, and integrated media transport controls.*
-<br/>
-<img src="assets/screenshots/adaptive-color-lyrics.png" alt="LyricFlow Main Window" width="950" />
-
-<br/><br/>
-
-### Windows Taskbar Dock Mode
-*Unobtrusive single-line lyrics ticker docked directly into the Windows Taskbar with zero interference to icons.*
+### 🪟 Windows Taskbar Dock Mode
+*Unobtrusive single-line lyrics ticker docked directly into the Windows Taskbar with zero interference to tray icons.*
 <br/>
 <img src="assets/screenshots/taskbar-mode.png" alt="LyricFlow Taskbar Mode" width="950" />
 
 <br/><br/>
 
-### Ambient Wallpaper / Fullscreen Mode
+### 🌄 Ambient Wallpaper / Fullscreen Mode
 *Fluid typography, animated canvas backgrounds, and Spotify Canvas MP4 loops.*
 <br/>
 <img src="assets/screenshots/wallpaper-mode.png" alt="LyricFlow Wallpaper Mode" width="850" />
 
 <br/><br/>
 
-### Settings & Aesthetics Studio
+### ⚙️ Settings & Aesthetics Studio
 *Deep personalization: Themes (Dark Glass, OLED Black, Pearl Light), Cinematic Stage vs. Classic Scrolling toggle, custom accents, and typography controls.*
 <br/>
 <img src="assets/screenshots/settings-panel-v1.4.0.png" alt="LyricFlow Settings Panel" width="950" />
@@ -195,21 +197,18 @@ Download the latest release directly from the **[Releases](https://github.com/ba
 
 > 🛡️ **Note on Windows SmartScreen:**  
 > If you download the `.exe` directly in your browser and Windows displays *"Windows protected your PC"*, simply click **"More info"** ➔ **"Run anyway"**.  
-> This standard Defender dialog appears for all new independent software without expensive $400/year enterprise certificates. LyricFlow is 100% clean, safe, and privacy-focused.
+> This standard Defender dialog appears for all new independent software without expensive enterprise certificates. LyricFlow is 100% clean, safe, and privacy-focused.
 
-### 🍏 macOS
-- **Universal DMG Installer:** [`LyricFlow_1.4.0_universal.dmg`](https://github.com/badghost001/LyricFlow/releases/download/v1.4.0/LyricFlow_1.4.0_universal.dmg)
+#### 🍏 macOS
+- **Universal DMG Installer:** [`LyricFlow_universal.dmg`](https://github.com/badghost001/LyricFlow/releases/latest)
   - Universal binary running natively on both **Apple Silicon (M1/M2/M3/M4)** and **Intel** Macs.
   - Open the DMG and drag `LyricFlow.app` into your `Applications` folder.
-- **Standalone App Bundle:** [`LyricFlow_universal.app.tar.gz`](https://github.com/badghost001/LyricFlow/releases/download/v1.4.0/LyricFlow_universal.app.tar.gz)
 
-### 🐧 Linux
-- **Standalone AppImage:** [`LyricFlow_1.4.0_amd64.AppImage`](https://github.com/badghost001/LyricFlow/releases/download/v1.4.0/LyricFlow_1.4.0_amd64.AppImage)
-  - Make executable (`chmod +x LyricFlow_1.4.0_amd64.AppImage`) and launch directly on any modern distribution.
-- **Debian / Ubuntu Package:** [`LyricFlow_1.4.0_amd64.deb`](https://github.com/badghost001/LyricFlow/releases/download/v1.4.0/LyricFlow_1.4.0_amd64.deb)
-  - Install via `sudo dpkg -i LyricFlow_1.4.0_amd64.deb` or Software Center.
-- **Fedora / RHEL / openSUSE Package:** [`LyricFlow-1.4.0-1.x86_64.rpm`](https://github.com/badghost001/LyricFlow/releases/download/v1.4.0/LyricFlow-1.4.0-1.x86_64.rpm)
-  - Install via `sudo rpm -i LyricFlow-1.4.0-1.x86_64.rpm`.
+#### 🐧 Linux
+- **Standalone AppImage:** [`LyricFlow_amd64.AppImage`](https://github.com/badghost001/LyricFlow/releases/latest)
+  - Make executable (`chmod +x LyricFlow_amd64.AppImage`) and launch directly on any modern distribution.
+- **Debian / Ubuntu Package:** [`LyricFlow_amd64.deb`](https://github.com/badghost001/LyricFlow/releases/latest)
+  - Install via `sudo dpkg -i LyricFlow_amd64.deb` or Software Center.
 
 ---
 
@@ -254,38 +253,36 @@ Compiled binaries and distribution installers will be generated under `src-tauri
 
 ```mermaid
 flowchart TD
-    subgraph UI ["🎨 Frontend Presentation"]
-        DOM["HTML5 / Modern CSS\n(Glassmorphism & MMCQ Glow)"]
-        Mesh["Fluid Mesh WebGL\n(Gamma Linear Shader)"]
-        Island["Dynamic Island & Satellite\n(CAEmitterEngine Stardust)"]
-        Share["Share Card Studio\n(9:16, 1:1, 4:5, 16:9)"]
+    subgraph UI ["🎨 Frontend Presentation Layer"]
+        Studio["Apple Music Split-View\n(Studio Sidebar & Lyrics Grid)"]
+        Island["Dynamic Island & Satellite\n(Countdown Ring & GLSL Dissolve)"]
+        Mesh["Fluid Mesh WebGL\n(3D MMCQ Linear Shader)"]
+        Taskbar["Taskbar Dock\n(Shell_TrayWnd Direct Render)"]
     end
 
     subgraph Rust ["🦀 Native Rust Core (Tauri v2)"]
         Bridge["IPC Bridge / Polyfill\n(tauri-bridge.js)"]
         SMTC["Windows SMTC & MTA COM\n(Media Transport Controls)"]
         WASAPI["WASAPI Audio Loopback\n(Cooley-Tukey 1024 FFT)"]
-        Engine["Multi-Tier Lyrics Engine\n(tokio::join! Parallel Fetch)"]
-        Updater["Tauri v2 Updater Plugin\n(Minisign Cryptographic Verification)"]
+        Engine["Multi-Tier Lyrics Engine\n(tokio::join! Parallel Waterfall)"]
+        Updater["Tauri v2 Updater\n(Cryptographic Verification)"]
     end
 
-    subgraph Cloud ["🌐 External APIs & Upstream"]
+    subgraph Cloud ["🌐 Lyrics & Metadata Providers"]
+        NetEase["NetEase Cloud Music (YRC Word-Sync)"]
         LRCLIB["LRCLIB & Cloudflare Proxy"]
         Musixmatch["Musixmatch / Spotify"]
         Genius["Genius Annotations & Last.fm"]
         OTA["GitHub Releases latest.json"]
     end
 
-    DOM --- Bridge
-    Mesh --- Bridge
-    Island --- Bridge
-    Share --- Bridge
-
+    UI --- Bridge
     Bridge --- SMTC
     Bridge --- WASAPI
     Bridge --- Engine
     Bridge --- Updater
 
+    Engine --- NetEase
     Engine --- LRCLIB
     Engine --- Musixmatch
     Engine --- Genius
@@ -295,7 +292,7 @@ flowchart TD
 - **Runtime:** [Tauri v2](https://v2.tauri.app/) + [Rust](https://www.rust-lang.org/) (Static binary, memory footprint ~20–30 MB).
 - **Color Engine:** 3D Modified Median Cut Quantization (MMCQ) in 5-bit RGB space with specular sheen cresting.
 - **Audio DSP:** Real-time 1024-point Cooley-Tukey Radix-2 FFT via Windows WASAPI loopback capture.
-- **OTA Verification:** Minisign public-key cryptographic signature verification (`RWTaItANfUTU/0362Wj+EoMDDCWQRsjRp+3xaB3OJ9P7g3gD0Qm2e+MQ`).
+- **Clock Synchronization:** Dual-tier Proportional-Integral Phase-Locked Loop (PI-PLL) with sub-frame clock slew interpolation.
 
 ---
 

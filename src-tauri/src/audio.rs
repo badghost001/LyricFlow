@@ -282,6 +282,7 @@ fn run_capture_loop(app: AppHandle, running: Arc<AtomicBool>) {
         let current_device_id = session.device_id.clone();
         let mut last_device_check = Instant::now();
         let mut should_reconnect = false;
+        let mut consecutive_buffer_errors = 0usize;
 
         while running.load(Ordering::Relaxed) {
             if !AUDIO_VISUALIZER_ACTIVE.load(Ordering::Relaxed) {
@@ -320,8 +321,18 @@ fn run_capture_loop(app: AppHandle, running: Arc<AtomicBool>) {
             }
 
             let mut packet_size = match unsafe { session.capture_client.GetNextPacketSize() } {
-                Ok(sz) => sz,
-                Err(ref e) if e.code() == AUDCLNT_E_BUFFER_ERROR => 0,
+                Ok(sz) => {
+                    consecutive_buffer_errors = 0;
+                    sz
+                }
+                Err(ref e) if e.code() == AUDCLNT_E_BUFFER_ERROR => {
+                    consecutive_buffer_errors += 1;
+                    if consecutive_buffer_errors > 3 {
+                        should_reconnect = true;
+                        break;
+                    }
+                    0
+                }
                 Err(_) => {
                     should_reconnect = true;
                     break;
@@ -349,7 +360,10 @@ fn run_capture_loop(app: AppHandle, running: Arc<AtomicBool>) {
                 if let Err(ref e) = hr {
                     // Do NOT call ReleaseBuffer if GetBuffer failed (MSDN specification)
                     if e.code() == AUDCLNT_E_BUFFER_ERROR {
-                        // Transient buffer error: drain/recover without terminating session
+                        consecutive_buffer_errors += 1;
+                        if consecutive_buffer_errors > 3 {
+                            capture_error = true;
+                        }
                         break;
                     } else {
                         capture_error = true;
@@ -418,8 +432,17 @@ fn run_capture_loop(app: AppHandle, running: Arc<AtomicBool>) {
 
                 let _ = unsafe { session.capture_client.ReleaseBuffer(num_frames_read) };
                 packet_size = match unsafe { session.capture_client.GetNextPacketSize() } {
-                    Ok(sz) => sz,
-                    Err(ref e) if e.code() == AUDCLNT_E_BUFFER_ERROR => 0,
+                    Ok(sz) => {
+                        consecutive_buffer_errors = 0;
+                        sz
+                    }
+                    Err(ref e) if e.code() == AUDCLNT_E_BUFFER_ERROR => {
+                        consecutive_buffer_errors += 1;
+                        if consecutive_buffer_errors > 3 {
+                            capture_error = true;
+                        }
+                        0
+                    }
                     Err(_) => {
                         capture_error = true;
                         0
@@ -438,6 +461,20 @@ fn run_capture_loop(app: AppHandle, running: Arc<AtomicBool>) {
                 consecutive_silence = consecutive_silence.saturating_add(1);
             }
 
+            // Stream health check: if silence persists while active, verify audio client state
+            if consecutive_silence > 60 && AUDIO_VISUALIZER_ACTIVE.load(Ordering::Relaxed) {
+                if unsafe { session.client.GetCurrentPadding() }.is_err() {
+                    should_reconnect = true;
+                    break;
+                }
+            }
+
+            // Periodic clean reset on prolonged idle (>200 loops / ~5s) to guarantee instant wake on track resume
+            if consecutive_silence > 200 && AUDIO_VISUALIZER_ACTIVE.load(Ordering::Relaxed) {
+                should_reconnect = true;
+                break;
+            }
+
             // Check if default audio endpoint changed periodically (every 1.5s - 2.5s)
             let now = Instant::now();
             let check_interval = if consecutive_silence > 6 {
@@ -448,7 +485,11 @@ fn run_capture_loop(app: AppHandle, running: Arc<AtomicBool>) {
 
             if now.duration_since(last_device_check) >= check_interval {
                 last_device_check = now;
-                if let Some(ref e) = enumerator {
+                // Re-query fresh enumerator to catch device additions/removals
+                let fresh_enum: Option<IMMDeviceEnumerator> = unsafe {
+                    CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL).ok()
+                };
+                if let Some(ref e) = fresh_enum.as_ref().or(enumerator.as_ref()) {
                     if let Some(new_id) = unsafe { get_default_device_id(e) } {
                         if !current_device_id.is_empty() && new_id != current_device_id {
                             should_reconnect = true;
