@@ -10,15 +10,20 @@ use windows::Win32::System::Com::{CoInitializeEx, COINIT_MULTITHREADED};
 
 static CACHED_MANAGER: Mutex<Option<GlobalSystemMediaTransportControlsSessionManager>> = Mutex::new(None);
 static CACHED_TRACK: Mutex<Option<TrackMetadata>> = Mutex::new(None);
+// Track the source session separately from the media properties. A transiently
+// empty title from a newly selected player must never reuse the previous
+// player's metadata.
+static CACHED_TRACK_SESSION: Mutex<Option<String>> = Mutex::new(None);
 static CACHED_THUMBNAIL: Mutex<Option<(String, String)>> = Mutex::new(None);
 static CONSECUTIVE_NO_SESSION_COUNT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+static CONSECUTIVE_METADATA_MISS_COUNT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 static LAST_SMTC_SAMPLE: Mutex<Option<(u64, i64, u64, std::time::Instant)>> = Mutex::new(None);
 
-fn extract_thumbnail(props: &windows::Media::Control::GlobalSystemMediaTransportControlsSessionMediaProperties, title: &str, artist: &str) -> Option<String> {
+fn extract_thumbnail(props: &windows::Media::Control::GlobalSystemMediaTransportControlsSessionMediaProperties, title: &str, artist: &str, album: &str) -> Option<String> {
     if title.is_empty() {
         return None;
     }
-    let key = format!("{}:::{}", title, artist);
+    let key = format!("{}:::{}:::{}", title, artist, album);
     if let Ok(lock) = CACHED_THUMBNAIL.lock() {
         if let Some((ref cached_key, ref url)) = *lock {
             if cached_key == &key {
@@ -176,6 +181,26 @@ fn is_dedicated_music_app(app_id: &str) -> bool {
         || trimmed.contains("kodi")
 }
 
+fn is_known_non_music_app(app_id: &str) -> bool {
+    let id = app_id.to_lowercase();
+    [
+        "netflix", "primevideo", "hulu", "disney", "twitch", "discord",
+        "telegram", "slack", "teams", "zoom", "whatsapp", "skype", "viber",
+        "signal",
+    ]
+    .iter()
+    .any(|name| id.contains(name))
+}
+
+fn session_has_track_metadata(session: &GlobalSystemMediaTransportControlsSession) -> bool {
+    let Ok(operation) = session.TryGetMediaPropertiesAsync() else { return false; };
+    let Ok(properties) = operation.get() else { return false; };
+    let title = properties.Title().ok().map(|value| value.to_string()).unwrap_or_default();
+    let artist = properties.Artist().ok().map(|value| value.to_string()).unwrap_or_default();
+    let album = properties.AlbumTitle().ok().map(|value| value.to_string()).unwrap_or_default();
+    !title.trim().is_empty() && (!artist.trim().is_empty() || !album.trim().is_empty())
+}
+
 pub struct WindowsSmtcBackend;
 
 impl WindowsSmtcBackend {
@@ -202,30 +227,36 @@ impl WindowsSmtcBackend {
         ensure_com();
         let manager = Self::get_manager()?;
 
-        // 1. Search all sessions, strictly excluding web browsers and only accepting dedicated music apps
+        // Prefer known music apps, then accept an active SMTC media session with
+        // usable track metadata. This supports browser music and unlisted players
+        // without requiring a Spotify account or attaching to generic video apps.
         match manager.GetSessions() {
             Ok(sessions) => {
                 let count = sessions.Size().unwrap_or(0);
                 let mut playing_music = None;
+                let mut playing_metadata_session = None;
                 let mut paused_music = None;
 
                 for i in 0..count {
                     if let Ok(s) = sessions.GetAt(i) {
                         let app_id = s.SourceAppUserModelId().map(|id| id.to_string().to_lowercase()).unwrap_or_default();
 
-                        // Strictly ignore web browsers, chat apps, and any non-music applications
-                        if is_browser_or_non_music(&app_id) || !is_dedicated_music_app(&app_id) {
-                            continue;
-                        }
-
                         let status = s.GetPlaybackInfo().ok().and_then(|inf| inf.PlaybackStatus().ok());
 
                         if let Some(st) = status {
                             if st == GlobalSystemMediaTransportControlsSessionPlaybackStatus::Playing {
-                                if playing_music.is_none() {
+                                if !is_browser_or_non_music(&app_id) && is_dedicated_music_app(&app_id) && playing_music.is_none() {
                                     playing_music = Some(s.clone());
+                                } else if !is_known_non_music_app(&app_id)
+                                    && playing_metadata_session.is_none()
+                                    && session_has_track_metadata(&s)
+                                {
+                                    playing_metadata_session = Some(s.clone());
                                 }
-                            } else if st == GlobalSystemMediaTransportControlsSessionPlaybackStatus::Paused {
+                            } else if st == GlobalSystemMediaTransportControlsSessionPlaybackStatus::Paused
+                                && !is_browser_or_non_music(&app_id)
+                                && is_dedicated_music_app(&app_id)
+                            {
                                 if paused_music.is_none() {
                                     paused_music = Some(s.clone());
                                 }
@@ -235,6 +266,9 @@ impl WindowsSmtcBackend {
                 }
 
                 if let Some(s) = playing_music {
+                    return Some(s);
+                }
+                if let Some(s) = playing_metadata_session {
                     return Some(s);
                 }
                 if let Some(s) = paused_music {
@@ -250,10 +284,16 @@ impl WindowsSmtcBackend {
             }
         }
 
-        // 2. Fallback to default session ONLY if it is verified as a dedicated music app
+        // Last-resort current-session lookup for Windows providers that omit
+        // entries from GetSessions but expose the active media properties.
         if let Ok(session) = manager.GetCurrentSession() {
             let app_id = session.SourceAppUserModelId().map(|id| id.to_string().to_lowercase()).unwrap_or_default();
-            if !is_browser_or_non_music(&app_id) && is_dedicated_music_app(&app_id) {
+            let is_playing = session.GetPlaybackInfo().ok()
+                .and_then(|info| info.PlaybackStatus().ok())
+                .is_some_and(|status| status == GlobalSystemMediaTransportControlsSessionPlaybackStatus::Playing);
+            if (!is_browser_or_non_music(&app_id) && is_dedicated_music_app(&app_id))
+                || (is_playing && !is_known_non_music_app(&app_id) && session_has_track_metadata(&session))
+            {
                 return Some(session);
             }
         }
@@ -286,8 +326,54 @@ impl MediaSessionBackend for WindowsSmtcBackend {
             }
         };
 
+        let session_id = session.SourceAppUserModelId()
+            .map(|id| id.to_string().to_lowercase())
+            .unwrap_or_default();
+        let session_changed = if let Ok(mut cached_session) = CACHED_TRACK_SESSION.lock() {
+            let changed = cached_session.as_deref() != Some(session_id.as_str());
+            if changed {
+                *cached_session = Some(session_id.clone());
+                CONSECUTIVE_METADATA_MISS_COUNT.store(0, std::sync::atomic::Ordering::SeqCst);
+                if let Ok(mut cached_track) = CACHED_TRACK.lock() {
+                    *cached_track = None;
+                }
+                if let Ok(mut sample) = LAST_SMTC_SAMPLE.lock() {
+                    *sample = None;
+                }
+            }
+            changed
+        } else {
+            false
+        };
+
         let info = session.GetPlaybackInfo().ok();
         let timeline = session.GetTimelineProperties().ok();
+
+        // Fetch metadata before using the cached timeline fallback so we can
+        // reject position/duration from a previous track in the same app.
+        let (title, artist, album, art_url) = if let Ok(async_op) = session.TryGetMediaPropertiesAsync() {
+            if let Ok(props) = async_op.get() {
+                let t = props.Title().ok().map(|s| s.to_string()).unwrap_or_default();
+                let a = props.Artist().ok().map(|s| s.to_string()).unwrap_or_default();
+                let alb = props.AlbumTitle().ok().map(|s| s.to_string()).unwrap_or_default();
+                let art = extract_thumbnail(&props, &t, &a, &alb);
+                (t, a, alb, art)
+            } else {
+                (String::new(), String::new(), String::new(), None)
+            }
+        } else {
+            (String::new(), String::new(), String::new(), None)
+        };
+
+        if !title.is_empty() {
+            let cached_title = CACHED_TRACK.lock().ok()
+                .and_then(|lock| lock.as_ref().map(|track| track.title.clone()));
+            if cached_title.as_deref().is_some_and(|cached| cached != title.as_str()) {
+                if let Ok(mut sample) = LAST_SMTC_SAMPLE.lock() {
+                    *sample = None;
+                }
+            }
+        }
 
         let is_playing = info.as_ref()
             .and_then(|i| i.PlaybackStatus().ok())
@@ -360,36 +446,44 @@ impl MediaSessionBackend for WindowsSmtcBackend {
 
             (pos, dur)
         } else {
-            (0, 0)
-        };
-
-        // Fetch fresh track properties directly from SMTC session on every poll
-        let (title, artist, album, art_url) = if let Ok(async_op) = session.TryGetMediaPropertiesAsync() {
-            if let Ok(props) = async_op.get() {
-                let t = props.Title().ok().map(|s| s.to_string()).unwrap_or_default();
-                let a = props.Artist().ok().map(|s| s.to_string()).unwrap_or_default();
-                let alb = props.AlbumTitle().ok().map(|s| s.to_string()).unwrap_or_default();
-                let art = extract_thumbnail(&props, &t, &a);
-                (t, a, alb, art)
-            } else {
-                (String::new(), String::new(), String::new(), None)
-            }
-        } else {
-            (String::new(), String::new(), String::new(), None)
+            // Keep the last valid timeline sample through a transient SMTC
+            // timeline failure, but only while reading the same player.
+            CACHED_TRACK.lock().ok()
+                .and_then(|lock| lock.as_ref()
+                    .filter(|track| track.title == title)
+                    .map(|track| (track.position_ms, track.duration_ms)))
+                .unwrap_or((0, 0))
         };
 
         if title.is_empty() {
-            // If title is empty or transiently unavailable (e.g. during track transition), return cached track
+            // A short grace handles the blank-properties window some players
+            // expose during track changes. Expire it so dead sessions do not
+            // leave stale metadata visible indefinitely.
+            let miss_count = CONSECUTIVE_METADATA_MISS_COUNT.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
             let mut lock = CACHED_TRACK.lock().unwrap_or_else(|p| p.into_inner());
-            if let Some(ref mut track) = *lock {
-                track.is_playing = is_playing;
-                if position_ms > 0 {
+            if miss_count <= 12 && !session_changed && !session_id.is_empty() {
+                if let Some(ref mut track) = *lock {
+                    track.is_playing = is_playing;
                     track.position_ms = position_ms;
+                    if duration_ms > 0 {
+                        track.duration_ms = duration_ms;
+                    }
+                    return Some(track.clone());
                 }
-                return Some(track.clone());
             }
+            *lock = None;
             return None;
         }
+        CONSECUTIVE_METADATA_MISS_COUNT.store(0, std::sync::atomic::Ordering::SeqCst);
+
+        // Some sessions omit artwork on ordinary polls. Retain the previous
+        // image only when the current metadata still describes that same track.
+        let art_url = art_url.or_else(|| {
+            CACHED_TRACK.lock().ok().and_then(|lock| lock.as_ref().and_then(|track| {
+                (track.title == title && track.artist == artist && track.album == album)
+                    .then(|| track.art_url.clone()).flatten()
+            }))
+        });
 
         let metadata = TrackMetadata {
             title,
@@ -912,5 +1006,9 @@ mod tests {
         assert!(is_dedicated_music_app("vlc.exe"));
 
         assert!(!is_browser_or_non_music("SpotifyAB.SpotifyMusic_zpdnekdrzrea0!Spotify"));
+        assert!(is_known_non_music_app("Discord.exe"));
+        assert!(is_known_non_music_app("Netflix.exe"));
+        assert!(!is_known_non_music_app("Google.Chrome"));
+        assert!(!is_known_non_music_app("UnlistedMusicPlayer.exe"));
     }
 }

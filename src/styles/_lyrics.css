@@ -54,9 +54,19 @@
 
 [data-theme="light"] .lyric-line {
   color: #1d1d1f;
-  opacity: 0.40;
+  opacity: 0.52;
   filter: blur(1.5px);
   text-shadow: 0 1px 4px rgba(255, 255, 255, 0.8);
+}
+
+[data-theme="light"] .lyric-line.active {
+  color: #17191d !important;
+  opacity: 1 !important;
+  text-shadow: 0 1px 5px rgba(255, 255, 255, 0.72) !important;
+}
+
+[data-theme="light"] .lyric-line.nearby-1 {
+  opacity: 0.72;
 }
 
 .lyric-line.nearby-1 {
@@ -133,6 +143,13 @@ body.wbw-active .lyric-line.active .lyric-word.lyric-word-completed {
   font-weight: inherit;
 }
 
+[data-theme="light"] body.wbw-active .lyric-line.active .lyric-word.lyric-word-passed,
+[data-theme="light"] body.wbw-active .lyric-line.active .lyric-word.lyric-word-completed {
+  -webkit-text-fill-color: #17191d !important;
+  color: #17191d !important;
+  text-shadow: 0 1px 3px rgba(255, 255, 255, 0.72);
+}
+
 body.wbw-active .lyric-line.active .lyric-word.lyric-word-active {
   will-change: transform;
   background: linear-gradient(
@@ -148,7 +165,24 @@ body.wbw-active .lyric-line.active .lyric-word.lyric-word-active {
   opacity: 1 !important;
   font-weight: inherit;
   transform: scale(1) translateY(0);
-  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.85)) drop-shadow(0 2px 8px rgba(0, 0, 0, 0.5));
+  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.75));
+}
+
+[data-theme="light"] body.wbw-active .lyric-line.active .lyric-word.lyric-word-active {
+  background: linear-gradient(
+    90deg,
+    #17191d 0%,
+    #17191d calc(var(--word-progress, 1) * 100%),
+    rgba(23, 25, 29, 0.38) calc(var(--word-progress, 1) * 100% + 4px),
+    rgba(23, 25, 29, 0.38) 100%
+  );
+  filter: drop-shadow(0 0 5px rgba(var(--accent-primary-rgb, 29, 185, 84), 0.24));
+}
+
+[data-theme="light"] body.wbw-active .lyric-line.active .lyric-word.lyric-word-upcoming {
+  color: #17191d !important;
+  -webkit-text-fill-color: #17191d !important;
+  text-shadow: 0 1px 3px rgba(255, 255, 255, 0.72);
 }
 
 body.wbw-active .lyric-line.active .lyric-word.lyric-word-upcoming {

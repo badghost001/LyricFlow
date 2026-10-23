@@ -55,9 +55,21 @@ assert(
 console.log('  ✓ 2b. localLrclibFetch queries all artist/track variant combinations in parallel in 1 RTT');
 
 assert(
-  rendererJs.includes('firstResult && currentSourceLevel >= 2 && lyrics.length > 0') &&
-  rendererJs.includes('if (currentSourceLevel === 2) {'),
-  'Eager First-Synced race must unblock caller on Level 2 and upgrade to Level 3 in background'
+  rendererJs.includes('firstResult && currentSourceLevel === 3 && lyrics.length > 0') &&
+  rendererJs.includes('Wait for the competing primary provider when the fast result is only'),
+  'Word-synced lyrics must settle before returning a line-synced fast result'
+);
+assert(
+  rendererJs.includes('settings.lyricsWordPriorityVersion !== 3') &&
+  rendererJs.includes("settings.wordByWord = true;") &&
+  rendererJs.includes("settings.preferredLyricProvider = 'netease';"),
+  'Existing installs must migrate to the word-by-word NetEase default'
+);
+assert(
+  rendererJs.includes('const cachedHasWordTiming = loadedLyrics.some') &&
+  rendererJs.includes('if (cachedLevel === 3 && cachedHasWordTiming) return;') &&
+  rendererJs.includes('Preserve cached/fast line lyrics on screen while word-capable fallback'),
+  'Line-synced or mislabeled cached lyrics must stay visible while startup searches for real word timing'
 );
 console.log('  ✓ 2c. Eager First-Synced resolution renders Level 2 immediately and upgrades to Level 3 in background');
 

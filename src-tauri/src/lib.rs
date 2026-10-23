@@ -13,6 +13,11 @@ use std::time::Duration;
 use std::fs::OpenOptions;
 use std::io::Write;
 
+#[tauri::command]
+fn get_app_version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
+}
+
 pub fn log_to_file(msg: &str) {
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -75,8 +80,10 @@ pub fn run() {
                 .with_handler(|app, shortcut, event| {
                     if event.state() == tauri_plugin_global_shortcut::ShortcutState::Pressed {
                         let text = format!("{:?}", shortcut).to_lowercase();
-                        if (text.contains("shift") && text.contains("keyc")) || (text.contains("shift") && text.contains("keyk")) {
+                        if text.contains("shift") && text.contains("keyc") {
                             let _ = app.emit("toggle-cinematic-mode-shortcut", ());
+                        } else if text.contains("shift") && text.contains("keyk") {
+                            let _ = app.emit("toggle-kinetic-mode-shortcut", ());
                         } else if text.contains("alt") && text.contains("keyc") {
                             let _ = app.emit("copy-active-lyric", ());
                         } else if text.contains("shift") && text.contains("keys") {
@@ -97,13 +104,10 @@ pub fn run() {
                             let _ = app.emit("adjust-sync-offset", 100);
                         } else if text.contains("mediaplaypause") || (text.contains("alt") && text.contains("space")) {
                             let _ = app.emit("tray-playback-control", "play-pause");
-                            media::get_platform_backend().trigger_control("play-pause", 0);
                         } else if text.contains("mediatracknext") || text.contains("medianexttrack") || (text.contains("alt") && text.contains("arrowright")) {
                             let _ = app.emit("tray-playback-control", "next");
-                            media::get_platform_backend().trigger_control("next", 0);
                         } else if text.contains("mediatrackprevious") || text.contains("mediaprevioustrack") || (text.contains("alt") && text.contains("arrowleft")) {
                             let _ = app.emit("tray-playback-control", "previous");
-                            media::get_platform_backend().trigger_control("previous", 0);
                         }
                     }
                 })
@@ -329,15 +333,12 @@ pub fn run() {
                         }
                         "play" => {
                             let _ = app.emit("tray-playback-control", "play-pause");
-                            media::get_platform_backend().trigger_control("play-pause", 0);
                         }
                         "next" => {
                             let _ = app.emit("tray-playback-control", "next");
-                            media::get_platform_backend().trigger_control("next", 0);
                         }
                         "prev" => {
                             let _ = app.emit("tray-playback-control", "previous");
-                            media::get_platform_backend().trigger_control("previous", 0);
                         }
                         "settings" => {
                             let app_handle = app.clone();
@@ -554,6 +555,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            get_app_version,
             config::load_config,
             config::save_config,
             config::reset_config,

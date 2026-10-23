@@ -64,8 +64,8 @@ let searchOverlay, inputSearchLyrics, searchResultsInfo, inputSyncOffset, btnRes
 let btnLoveTrack, svgLoveUnfilled, svgLoveFilled, btnLastfmConnect, lastfmConnectedDiv, checkLastfmScrobble, btnLastfmDisconnect, lastfmSetupDiv, lastfmWaitingDiv, btnLastfmReopen, btnLastfmCancel, lastfmAccountStatus;
 
 // Playback & Taskbar Mode controls DOM
-let btnPrev, btnPlayPause, btnNext, btnPlaySvg, btnPauseSvg, btnShareLyric, btnReloadLyrics, timingStatusBadge, btnSleepTimer, sleepTimerBadge;
-let checkTaskbarMode, taskbarContainer, tbLyricLine, checkFullscreenLyrics, checkEdgeGlow, checkWallpaperMode, checkAutoHideTaskbar;
+let btnPrev, btnPlayPause, btnNext, btnPlaySvg, btnPauseSvg, btnShareLyric, btnReloadLyrics, btnRestoreLyrics, btnSleepTimer, sleepTimerBadge;
+let checkTaskbarMode, taskbarContainer, tbLyricLine, checkFullscreenLyrics, checkWallpaperMode, checkAutoHideTaskbar;
 let selectWallpaperStyle;
 let fluidMeshCanvas, selectBgStyle, sliderFluidSpeed, valFluidSpeed, settingFluidSpeedRow;
 let fluidMeshGradientInstance = null;
@@ -106,6 +106,8 @@ let checkFilterCredits;
 let selectPreferredProvider;
 let isWallpaperDesktopFocused = true;
 let currentSourceLevel = 0;
+let currentLyricSourceName = '';
+let currentLyricCandidateInfo = '';
 let currentIslandIsLossless = false;
 let currentIslandIsHiRes = false;
 let isDynamicIslandMode = false;
@@ -122,6 +124,7 @@ let currentPollGeneration = 0;
 let isPollInProgress = false;
 let localEmptyPollCount = 0;
 let currentExtractedArtUrl = null;
+let artPaletteRequestId = 0;
 let lastProcessedTrackId = null;
 let lastAppliedAlbumArtUrl = null;
 let trackSwitchDebounceTimer = null;
@@ -195,7 +198,6 @@ let settings = {
   taskbarFontSize: 14,
   tbFontsize: 14,
   fullscreenLyrics: false,
-  edgeGlow: false,
   autoLaunch: false,
   showNextUp: true,
   adaptiveBpm: true,
@@ -213,8 +215,8 @@ let settings = {
   autoHideTrigger: 'paused',
   autoHideAction: 'collapse',
   autoHideDelay: 3,
-  preferredLyricProvider: 'auto',
-  preferredLyricProviders: [],
+  preferredLyricProvider: 'netease',
+  preferredLyricProviders: ['netease', 'lrclib', 'musixmatch'],
   neteaseWordByWord: true,
   filterSongCredits: true,
   wordByWord: true,
@@ -296,7 +298,7 @@ function clearLyricsCaches() {
   const keysToRemove = [];
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i);
-    if (key && (key.startsWith('lyrics_cache_') || key === 'lyricflow_lyrics_cache_index')) {
+    if (key && (key.startsWith('lyrics_cache_') || key.startsWith('lyrics_previous_lrc_') || key === 'lyricflow_lyrics_cache_index')) {
       keysToRemove.push(key);
     }
   }
@@ -676,21 +678,18 @@ function updateIslandQualityBadge(overrideLossless, overrideHiRes, overrideSourc
   const hasTrack = Boolean(currentPlayingTrackObj || currentTrack);
   if (!hasTrack) {
     badge.style.display = 'none';
+    badge.className = "island-quality-badge";
     return;
   }
   const isLossless = overrideLossless !== undefined ? Boolean(overrideLossless) : Boolean(currentIslandIsLossless);
   const isHiRes = overrideHiRes !== undefined ? Boolean(overrideHiRes) : Boolean(currentIslandIsHiRes);
-  const sLevel = overrideSourceLevel !== undefined ? Number(overrideSourceLevel) : Number(currentSourceLevel || 0);
 
   if (isLossless) {
     badge.textContent = isHiRes ? "HI-RES" : "LOSSLESS";
     badge.className = "island-quality-badge " + (isHiRes ? "badge-hires" : "badge-lossless");
     badge.style.display = "inline-flex";
-  } else if (sLevel >= 2) {
-    badge.textContent = sLevel === 3 ? "WORD-SYNC" : "SYNCED";
-    badge.className = "island-quality-badge badge-synced";
-    badge.style.display = "inline-flex";
   } else {
+    badge.className = "island-quality-badge";
     badge.style.display = "none";
   }
 }
@@ -759,10 +758,10 @@ function setVisualizerBarCount(count) {
       checkVisualizerFallback();
     }
   }
-  const widthMap = { 4: '340px', 6: '355px', 8: '370px' };
-  const compactWidth = widthMap[c] || '340px';
+    const widthMap = { 4: '360px', 6: '375px', 8: '390px' };
+  const compactWidth = widthMap[c] || '360px';
   document.documentElement.style.setProperty('--island-compact-width', compactWidth);
-  const pausedWidthMap = { 4: '210px', 6: '220px', 8: '230px' };
+  const pausedWidthMap = { 4: '220px', 6: '230px', 8: '240px' };
   const pausedWidth = pausedWidthMap[c] || '210px';
   document.documentElement.style.setProperty('--island-paused-width', pausedWidth);
   setTimeout(pushDynamicIslandBounds, 50);
@@ -956,7 +955,7 @@ if (window.electronAPI && typeof window.electronAPI.onAudioSpectrum === 'functio
     }
 
     // Check if bands contain non-zero audio energy (> 0.002 noise floor)
-    const hasEnergy = bands.some(b => typeof b === 'number' && b > 0.002);
+    const hasEnergy = bands.some(b => typeof b === 'number' && b > 0.0005);
 
     if (hasEnergy) {
       isVisualizerResting = false;
@@ -1135,6 +1134,98 @@ function updateMarqueeOverflow(container, textElement, speedPxPerSec = 28) {
   }
 }
 
+let currentIslandAlbumArtUrl = null;
+let islandArtTransitionTimer = null;
+
+function triggerIslandArtTransition(newUrl) {
+  const wrapper = document.getElementById("island-art-wrapper");
+  const imgNew = document.getElementById("island-art-img");
+  const imgOld = document.getElementById("island-art-img-old");
+  const sweep = document.getElementById("island-art-sparkle-sweep");
+  const dynamicIslandEl = document.getElementById("dynamic-island");
+
+  if (!imgNew || !newUrl) return;
+
+  const oldUrl = currentIslandAlbumArtUrl || (imgNew.getAttribute("src") || imgNew.src);
+  currentIslandAlbumArtUrl = newUrl;
+
+  // Initial load, empty prior art, or same URL: instantaneous update
+  if (!oldUrl || oldUrl === newUrl || oldUrl === '' || oldUrl.includes("about:blank") || !wrapper) {
+    imgNew.src = newUrl;
+    if (imgOld) imgOld.style.display = 'none';
+    if (sweep) sweep.style.display = 'none';
+    if (dynamicIslandEl) dynamicIslandEl.classList.remove("has-art-transition");
+    return;
+  }
+
+  // Clear any existing active transition timer
+  if (islandArtTransitionTimer) {
+    clearTimeout(islandArtTransitionTimer);
+    islandArtTransitionTimer = null;
+  }
+  wrapper.classList.remove("art-transitioning");
+  if (dynamicIslandEl) dynamicIslandEl.classList.remove("has-art-transition");
+  void wrapper.offsetWidth; // Force reflow to re-trigger animations cleanly
+
+  if (imgOld) {
+    imgOld.src = oldUrl;
+    imgOld.style.display = "block";
+  }
+  imgNew.src = newUrl;
+
+  if (sweep) {
+    sweep.style.display = "block";
+  }
+
+  wrapper.classList.add("art-transitioning");
+  if (dynamicIslandEl) dynamicIslandEl.classList.add("has-art-transition");
+
+  islandArtTransitionTimer = setTimeout(() => {
+    wrapper.classList.remove("art-transitioning");
+    if (dynamicIslandEl) dynamicIslandEl.classList.remove("has-art-transition");
+    if (imgOld) imgOld.style.display = "none";
+    if (sweep) sweep.style.display = "none";
+    if (imgNew) imgNew.style.clipPath = "";
+    islandArtTransitionTimer = null;
+  }, 730);
+}
+
+// Reuse the island's small sparkle-wave language on the other album-art tiles.
+// The old art remains visible underneath a brief particle shimmer, then fades away.
+function setArtWithSparkle(img, url) {
+  if (!img || !url) return;
+  const oldUrl = img.currentSrc || img.src;
+  if (!oldUrl || oldUrl === url || oldUrl.includes('about:blank')) {
+    if (img.src !== url) img.src = url;
+    return;
+  }
+  if (img._artTransitionTimer) clearTimeout(img._artTransitionTimer);
+  const parent = img.parentElement;
+  if (!parent) { img.src = url; return; }
+  if (getComputedStyle(parent).position === 'static') parent.style.position = 'relative';
+  const oldLayer = document.createElement('img');
+  oldLayer.src = oldUrl;
+  oldLayer.alt = '';
+  oldLayer.setAttribute('aria-hidden', 'true');
+  oldLayer.className = 'album-art-sparkle-old';
+  const computed = getComputedStyle(img);
+  oldLayer.style.objectFit = computed.objectFit || 'cover';
+  oldLayer.style.borderRadius = computed.borderRadius;
+  parent.appendChild(oldLayer);
+  img.src = url;
+  const shimmer = document.createElement('span');
+  shimmer.className = 'album-art-sparkle-wave';
+  shimmer.setAttribute('aria-hidden', 'true');
+  parent.appendChild(shimmer);
+  requestAnimationFrame(() => {
+    oldLayer.classList.add('is-revealing');
+    shimmer.classList.add('is-sweeping');
+  });
+  img._artTransitionTimer = setTimeout(() => {
+    oldLayer.remove(); shimmer.remove(); img._artTransitionTimer = null;
+  }, 820);
+}
+
 function syncDynamicIslandState() {
   const isPlayingActive = Boolean(isPlaying);
   document.body.classList.toggle('is-playing', isPlayingActive);
@@ -1164,8 +1255,8 @@ function syncDynamicIslandState() {
     const artUrl = (widgetAlbumArt && widgetAlbumArt.src && widgetAlbumArt.style.display !== 'none')
       ? widgetAlbumArt.src
       : (currentStaticAlbumArtUrl || (widgetAlbumArt && widgetAlbumArt.src ? widgetAlbumArt.src : ''));
-    if (artUrl && islandArtImg.src !== artUrl) {
-      islandArtImg.src = artUrl;
+    if (artUrl && (islandArtImg.src !== artUrl || currentIslandAlbumArtUrl !== artUrl)) {
+      triggerIslandArtTransition(artUrl);
     }
   }
 
@@ -1514,6 +1605,14 @@ function parseDuetVocalSplit(text) {
     }
   }
 
+  // Some lyric sources separate a backing/ad-lib phrase using multiple spaces
+  // but omit brackets. Run after bracket parsing so its cleanup takes priority.
+  const spacedVocalMatch = trimmed.match(/^(.+?)[ \t]{2,}([^\s].+)$/);
+  if (spacedVocalMatch && !/^[([{ï¼ˆã€]/.test(spacedVocalMatch[2]) &&
+      spacedVocalMatch[1].trim().length >= 2 && spacedVocalMatch[2].trim().length >= 2) {
+    return { leadText: spacedVocalMatch[1].trim(), duetText: spacedVocalMatch[2].trim(), type: 'spaced' };
+  }
+
   // 1. Parenthetical backing vocals: "Lead phrase (Backing response)" or "[Backing response]"
   // Handles trailing punctuation (.?!,:;), multiple parentheticals, etc.
   const parenEndMatch = trimmed.match(/^(.*?)\s*([\(\[][^\(\[\]\)]+[\)\]](?:\s*[\(\[][^\(\[\]\)]+[\)\]])*)[\s.?!,:;"'”’]*$/);
@@ -1570,7 +1669,7 @@ function parseDuetVocalSplit(text) {
 
 function getLeadWordsForDuet(words, duetSplit) {
   if (!words || words.length === 0 || !duetSplit) return words;
-  if (duetSplit.type === 'parenthetical') {
+  if (duetSplit.type === 'parenthetical' || duetSplit.type === 'spaced') {
     const firstWordText = (words[0].text || words[0].word || '').trim();
     if (!/^[\(\[\{（【]/.test(firstWordText)) {
       const leadWords = [];
@@ -1580,6 +1679,25 @@ function getLeadWordsForDuet(words, duetSplit) {
           break;
         }
         leadWords.push(words[i]);
+      }
+      if (leadWords.length > 0 && leadWords.length < words.length) return leadWords;
+
+      // Some providers include restored inter-word spaces in the display text
+      // while omitting bracket markers from timed tokens. Match the lead
+      // phrase prefix so backing tokens stay out of the lead karaoke line.
+      const normalizeDuetWords = (value) => String(value || '').toLocaleLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+      const targetLead = normalizeDuetWords(duetSplit.leadText);
+      if (targetLead) {
+        let matchedText = '';
+        const matchedWords = [];
+        for (const word of words) {
+          const normalizedWord = normalizeDuetWords((word.text || word.word || '').trim());
+          if (!normalizedWord) continue;
+          matchedText += normalizedWord;
+          matchedWords.push(word);
+          if (matchedText === targetLead || matchedText.startsWith(targetLead)) return matchedWords;
+          if (!targetLead.startsWith(matchedText)) break;
+        }
       }
       return leadWords.length > 0 ? leadWords : words;
     } else {
@@ -2492,15 +2610,8 @@ function updateDynamicIslandLyric(targetIndex, lineData, syncProgress, isInstrum
       idleHtml = `<span class="island-idle-text"><span class="island-idle-title">${escapeHTML(trackTitle)}</span>${trackArtist ? ` • <span class="island-track-artist">${escapeHTML(trackArtist)}</span>` : ''}</span>`;
       expText = trackArtist ? `${trackTitle} • ${trackArtist}` : trackTitle;
     } else if (isOutro) {
-      const showCountdown = countdownMs >= 1000;
-      const countdownSec = showCountdown ? Math.ceil(countdownMs / 1000) : 0;
-      if (showCountdown && countdownSec > 0) {
-        idleHtml = `<span class="island-idle-text"><span class="island-countdown-pill island-nextup-pill"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" x2="19" y1="5" y2="19"/></svg> Next up in ${countdownSec}s</span> • <span class="island-idle-title">${escapeHTML(trackTitle)}</span></span>`;
-        expText = `${trackTitle} • Next up in ${countdownSec}s`;
-      } else {
-        idleHtml = `<span class="island-idle-text"><span class="island-idle-title">${escapeHTML(trackTitle)}</span>${trackArtist ? ` • ${escapeHTML(trackArtist)}` : ''}</span>`;
-        expText = trackTitle;
-      }
+      idleHtml = `<span class="island-idle-text"><span class="island-idle-title">${escapeHTML(trackTitle)}</span>${trackArtist ? ` • ${escapeHTML(trackArtist)}` : ''}</span>`;
+      expText = trackTitle;
     } else {
       const showCountdown = countdownMs >= 1500 && settings.islandVocalCountdown !== false;
       const countdownSec = showCountdown ? Math.ceil(countdownMs / 1000) : 0;
@@ -2991,6 +3102,7 @@ function cycleIslandTranslationMode() {
 }
 
 let isTransitioningMode = false;
+let queuedModeTransition = null;
 let isKineticMode = false;
 let kineticRendererInstance = null;
 let kineticIdleTimeout = null;
@@ -3151,7 +3263,10 @@ async function toggleAppMute() {
 }
 
 async function transitionToMode(targetMode) {
-  if (isTransitioningMode) return;
+  if (isTransitioningMode) {
+    queuedModeTransition = targetMode;
+    return;
+  }
   isTransitioningMode = true;
 
   try {
@@ -3355,6 +3470,11 @@ async function transitionToMode(targetMode) {
     syncAudioVisualizerState();
   } finally {
     isTransitioningMode = false;
+    const queuedTarget = queuedModeTransition;
+    queuedModeTransition = null;
+    if (queuedTarget) {
+      queueMicrotask(() => transitionToMode(queuedTarget));
+    }
   }
 }
 
@@ -3893,7 +4013,7 @@ function updateStudioSidebar(track, albumArtUrl) {
     const effectiveArt = albumArtUrl || currentStaticAlbumArtUrl;
     if (effectiveArt) {
       if (artImg) {
-        artImg.src = effectiveArt;
+        setArtWithSparkle(artImg, effectiveArt);
         artImg.style.display = "block";
       }
       if (artFallback) artFallback.style.display = "none";
@@ -4298,7 +4418,7 @@ function initDOMElements() {
         if (artUrl) {
           saveArtToCache(currentTrackId, artUrl, trackObj.name, artist);
           if (widgetAlbumArt) {
-            widgetAlbumArt.src = artUrl;
+            setArtWithSparkle(widgetAlbumArt, artUrl);
             widgetAlbumArt.style.display = 'block';
           }
           if (typeof updateStudioSidebar === 'function') {
@@ -4338,7 +4458,7 @@ function initDOMElements() {
         if (artUrl) {
           saveArtToCache(currentTrackId, artUrl, trackObj.name, artist);
           if (widgetAlbumArt) {
-            widgetAlbumArt.src = artUrl;
+            setArtWithSparkle(widgetAlbumArt, artUrl);
             widgetAlbumArt.style.display = 'block';
             widgetAlbumArt.style.opacity = '1';
           }
@@ -4383,7 +4503,6 @@ function initDOMElements() {
   settingOverlayPosRow = document.getElementById("setting-wallpaper-overlay-pos");
   settingOverlayWidthRow = document.getElementById("setting-wallpaper-overlay-width");
   checkFullscreenLyrics = document.getElementById("check-fullscreen-lyrics");
-  checkEdgeGlow = document.getElementById("check-edge-glow");
   taskbarContainer = document.getElementById("taskbar-container");
   tbLyricLine = document.getElementById("tb-lyric-line");
   tbProgress = document.getElementById("tb-progress");
@@ -4436,7 +4555,7 @@ function initDOMElements() {
   btnPauseSvg = document.getElementById("svg-pause");
   btnShareLyric = document.getElementById("btn-share-lyric");
   btnReloadLyrics = document.getElementById("btn-reload-lyrics");
-  timingStatusBadge = document.getElementById("timing-status-badge");
+  btnRestoreLyrics = document.getElementById("btn-restore-lyrics");
   btnSleepTimer = document.getElementById("btn-sleep-timer");
   sleepTimerBadge = document.getElementById("sleep-timer-badge");
   checkAlwaysOnTop = document.getElementById("check-always-on-top");
@@ -4713,7 +4832,7 @@ async function bootstrapApp() {
     // Stage 4: Launch Transition
     setLoadingProgress(45, "Connecting media services...");
     cancelAutoHide(); // Guarantee overlay is uncollapsed and visible on initial launch
-    const isFirstTime = !localStorage.getItem("lyricflow_setup_done") && settings.hasCompletedSetup === false && !config?.sp_dc;
+    const isFirstTime = !localStorage.getItem("lyricflow_setup_done") && settings.hasCompletedSetup === false;
     if (isFirstTime) {
       showOnboardingWizard();
       dismissLoadingScreen(false);
@@ -4826,7 +4945,33 @@ async function bootstrapApp() {
     console.error("Error starting playhead loop:", err);
   }
   syncAudioVisualizerState();
+  setTimeout(() => showWhatsNewForInstalledVersion(), 900);
   console.log('[LF-STARTUP] Bootstrap completed.');
+}
+
+async function showWhatsNewForInstalledVersion() {
+  const modal = document.getElementById('whats-new-modal');
+  const versionLabel = document.getElementById('whats-new-version');
+  if (!modal || !window.electronAPI?.getAppVersion) return;
+  try {
+    const version = await window.electronAPI.getAppVersion();
+    if (!version) return;
+    const seenVersion = localStorage.getItem('lyricflow_whats_new_seen_version');
+    if (seenVersion === version) return;
+    if (versionLabel) versionLabel.textContent = `v${version}`;
+    modal.hidden = false;
+    const dismiss = () => {
+      modal.hidden = true;
+      localStorage.setItem('lyricflow_whats_new_seen_version', version);
+      document.removeEventListener('keydown', onKeyDown);
+      document.getElementById('btn-whats-new-done')?.removeEventListener('click', dismiss);
+    };
+    const onKeyDown = event => { if (event.key === 'Escape') dismiss(); };
+    document.getElementById('btn-whats-new-done')?.addEventListener('click', dismiss);
+    document.addEventListener('keydown', onKeyDown);
+  } catch (error) {
+    console.warn('[What’s New] Could not check installed version:', error);
+  }
 }
 
 // Load settings from localStorage and config.json
@@ -4894,7 +5039,24 @@ function loadLocalSettings(skipIPC = false) {
       } else {
         settings.preferredLyricProviders = [];
       }
+    } else if (settings.preferredLyricProvider === 'netease' && Array.isArray(settings.preferredLyricProviders) &&
+               settings.preferredLyricProviders.length === 3 &&
+               settings.preferredLyricProviders[0] === 'netease' &&
+               settings.preferredLyricProviders[1] === 'musixmatch' &&
+               settings.preferredLyricProviders[2] === 'lrclib') {
+      settings.preferredLyricProviders = ['netease', 'lrclib', 'musixmatch'];
     }
+  }
+
+  // One-time upgrade: make word-level NetEase the actual default for existing
+  // installs while retaining the settings toggles for subsequent user changes.
+  if (settings.lyricsWordPriorityVersion !== 3) {
+    settings.wordByWord = true;
+    settings.neteaseWordByWord = true;
+    settings.preferredLyricProvider = 'netease';
+    settings.preferredLyricProviders = ['netease', 'lrclib', 'musixmatch'];
+    settings.lyricsWordPriorityVersion = 3;
+    saveLocalSettings();
   }
 
   // Defend normal desktop window mode from unintended auto-hide collapse
@@ -5016,7 +5178,7 @@ function setWallpaperAlbumArt(src) {
   wallpaperAlbumBg.classList.add("has-art");
 
   if (wallpaperStyleArt && wallpaperStyleArt.src !== src) {
-    wallpaperStyleArt.src = src;
+    setArtWithSparkle(wallpaperStyleArt, src);
   }
   if (wallpaperStyleArt) wallpaperStyleArt.style.display = "block";
   if (wallpaperArtFallback) wallpaperArtFallback.style.display = "none";
@@ -5073,7 +5235,7 @@ function setAnimatedAlbumArt(animatedInfo, fallbackStaticUrl = null) {
     const staticUrl = fallbackStaticUrl || currentStaticAlbumArtUrl;
     if (staticUrl) {
       if (widgetAlbumArt) {
-        if (widgetAlbumArt.src !== staticUrl) widgetAlbumArt.src = staticUrl;
+        if (widgetAlbumArt.src !== staticUrl) setArtWithSparkle(widgetAlbumArt, staticUrl);
         widgetAlbumArt.style.display = 'block';
       }
       if (widgetArtFallback) widgetArtFallback.style.display = 'none';
@@ -5104,7 +5266,7 @@ function setAnimatedAlbumArt(animatedInfo, fallbackStaticUrl = null) {
         widgetAlbumArtVideo.style.display = 'none';
         const fallback = fallbackStaticUrl || currentStaticAlbumArtUrl;
         if (fallback && widgetAlbumArt) {
-          widgetAlbumArt.src = fallback;
+          setArtWithSparkle(widgetAlbumArt, fallback);
           widgetAlbumArt.style.display = 'block';
           if (widgetArtFallback) widgetArtFallback.style.display = 'none';
         }
@@ -5138,13 +5300,13 @@ function setAnimatedAlbumArt(animatedInfo, fallbackStaticUrl = null) {
       widgetAlbumArtVideo.style.display = 'none';
     }
     if (widgetAlbumArt) {
-      if (widgetAlbumArt.src !== url) widgetAlbumArt.src = url;
+      if (widgetAlbumArt.src !== url) setArtWithSparkle(widgetAlbumArt, url);
       widgetAlbumArt.style.display = 'block';
       widgetAlbumArt.onerror = () => {
         console.warn("[Renderer] Album art GIF/image failed to load, reverting to static:", url);
         const fallback = fallbackStaticUrl || currentStaticAlbumArtUrl;
         if (fallback && widgetAlbumArt.src !== fallback) {
-          widgetAlbumArt.src = fallback;
+          setArtWithSparkle(widgetAlbumArt, fallback);
           widgetAlbumArt.style.display = 'block';
           if (widgetArtFallback) widgetArtFallback.style.display = 'none';
         } else if (!fallback) {
@@ -5161,12 +5323,12 @@ function setAnimatedAlbumArt(animatedInfo, fallbackStaticUrl = null) {
       wallpaperStyleArtVideo.style.display = 'none';
     }
     if (wallpaperStyleArt) {
-      if (wallpaperStyleArt.src !== url) wallpaperStyleArt.src = url;
+      if (wallpaperStyleArt.src !== url) setArtWithSparkle(wallpaperStyleArt, url);
       wallpaperStyleArt.style.display = 'block';
       wallpaperStyleArt.onerror = () => {
         const fallback = fallbackStaticUrl || currentStaticAlbumArtUrl;
         if (fallback && wallpaperStyleArt.src !== fallback) {
-          wallpaperStyleArt.src = fallback;
+          setArtWithSparkle(wallpaperStyleArt, fallback);
           wallpaperStyleArt.style.display = 'block';
         }
       };
@@ -5850,8 +6012,6 @@ function applyVisualSettings(fromTray = false, skipIPC = false) {
     if (valTbOffset) valTbOffset.textContent = `${settings.taskbarOffset}px`;
   }
 
-  if (checkEdgeGlow) checkEdgeGlow.checked = settings.edgeGlow || false;
-
   if (!skipIPC) {
     // Sync tray state (only if changed)
     if (settings.taskbarMode !== _lastSyncedTaskbarMode) {
@@ -5877,13 +6037,6 @@ function applyVisualSettings(fromTray = false, skipIPC = false) {
       window.electronAPI.setFullscreenLyrics(settings.fullscreenLyrics || false);
     }
 
-    // Update Edge Glow Window
-    const edgeGlowColor = document.documentElement.style.getPropertyValue('--art-color-1') || '#1DB954';
-    const edgeGlowState = `${settings.edgeGlow}_${edgeGlowColor}`;
-    if (window._lastSyncedEdgeGlow !== edgeGlowState) {
-      window._lastSyncedEdgeGlow = edgeGlowState;
-      window.electronAPI.setEdgeGlow(settings.edgeGlow || false, edgeGlowColor);
-    }
   }
 
   if (inputSyncOffset) inputSyncOffset.value = settings.syncOffsetMs || 0;
@@ -6118,6 +6271,11 @@ function adjustSyncOffset(deltaMs) {
 
 // Setup Event Handlers
 function setupUIHandlers() {
+  if (!window._edgeGlowForcedOff && window.electronAPI?.setEdgeGlow) {
+    window._edgeGlowForcedOff = true;
+    window.electronAPI.setEdgeGlow(false, '#1DB954');
+  }
+
   const obPage1 = document.getElementById('ob-page-1');
   const obPage2 = document.getElementById('ob-page-2');
   const obPage3 = document.getElementById('ob-page-3');
@@ -6133,6 +6291,7 @@ function setupUIHandlers() {
   const btnBack3 = document.getElementById('btn-back-onboarding-3');
   const btnBack4 = document.getElementById('btn-back-onboarding-4');
   const btnFinishFinal = document.getElementById('btn-finish-onboarding-final');
+  const btnSkipOnboarding = document.getElementById('btn-skip-onboarding');
 
   const dot1 = document.getElementById('ob-step-dot-1');
   const dot2 = document.getElementById('ob-step-dot-2');
@@ -6389,6 +6548,7 @@ function setupUIHandlers() {
 
     // Finalize Setup & Launch
     const finalizeSetup = async () => {
+      if (!config) config = { localMode: true };
       if (pickedMode === 'wallpaper') {
         settings.wallpaperMode = true;
         settings.taskbarMode = false;
@@ -6404,6 +6564,9 @@ function setupUIHandlers() {
       settings.firstRun = false;
       localStorage.setItem("lyricflow_setup_done", "true");
       saveLocalSettings();
+      if (window.electronAPI?.saveConfig) {
+        try { await window.electronAPI.saveConfig(config); } catch (_) {}
+      }
       
       const screenOnboarding = document.getElementById('screen-onboarding');
       if (screenOnboarding) {
@@ -6417,6 +6580,9 @@ function setupUIHandlers() {
 
     if (btnFinishFinal) {
       btnFinishFinal.addEventListener('click', finalizeSetup);
+    }
+    if (btnSkipOnboarding) {
+      btnSkipOnboarding.addEventListener('click', finalizeSetup);
     }
   }
 
@@ -6482,7 +6648,11 @@ function setupUIHandlers() {
           updateSpotifyUI();
           checkAndVerifySpotifyConnection().then(() => updateSpotifyUI());
           setTimeout(() => {
-            showLyricsScreen();
+            if (!settings.hasCompletedSetup && !localStorage.getItem("lyricflow_setup_done")) {
+              showOnboardingWizard();
+            } else {
+              showLyricsScreen();
+            }
           }, 1000);
         } else {
           if (authStatus) {
@@ -8042,13 +8212,6 @@ function setupUIHandlers() {
     });
   }
 
-  if (checkEdgeGlow) {
-    checkEdgeGlow.addEventListener("change", (e) => {
-      settings.edgeGlow = e.target.checked;
-      applyVisualSettings();
-      saveLocalSettings();
-    });
-  }
 
   // Taskbar Alignment alignment select listener
   if (selectTbAlign) {
@@ -8180,6 +8343,9 @@ function setupUIHandlers() {
         settings.preferredLyricProviders = [];
       }
       saveLocalSettings();
+      if (currentTrackId) {
+        fetchLyrics(currentTrackId, { forceRefresh: true });
+      }
     });
   }
 
@@ -8283,6 +8449,14 @@ function setupUIHandlers() {
         toggleDynamicIslandMode(false);
       }
     }
+    // These mode combinations are handled by the OS global-shortcut plugin in Tauri.
+    // Keep this path only for browser/test fallback so a focused app cannot toggle twice.
+    const hasNativeModeShortcuts = Boolean(window.electronAPI?.onToggleDynamicIslandShortcut);
+    if (hasNativeModeShortcuts && e.ctrlKey && e.shiftKey && ['c', 'd', 'w', 'b', 'k'].includes(String(e.key).toLowerCase())) {
+      e.preventDefault();
+      return;
+    }
+
     // Ctrl+Shift+D or Ctrl+M to toggle Dynamic Island mode
     if ((e.ctrlKey && e.shiftKey && (e.code === 'KeyD' || e.key.toLowerCase() === 'd')) ||
         (e.ctrlKey && !e.shiftKey && (e.code === 'KeyM' || e.key.toLowerCase() === 'm'))) {
@@ -8299,10 +8473,14 @@ function setupUIHandlers() {
       e.preventDefault();
       toggleTaskbarMode();
     }
-    // Ctrl+Shift+C or Ctrl+Shift+K to toggle Cinematic Mode
-    if (e.ctrlKey && e.shiftKey && (e.code === 'KeyC' || e.key.toLowerCase() === 'c' || e.code === 'KeyK' || e.key.toLowerCase() === 'k')) {
+    // Ctrl+Shift+C toggles cinematic view; Ctrl+Shift+K toggles kinetic mode.
+    if (e.ctrlKey && e.shiftKey && (e.code === 'KeyC' || e.key.toLowerCase() === 'c')) {
       e.preventDefault();
       toggleCinematicView();
+    }
+    if (e.ctrlKey && e.shiftKey && (e.code === 'KeyK' || e.key.toLowerCase() === 'k')) {
+      e.preventDefault();
+      toggleKineticMode();
     }
     // Ctrl+Shift+T to cycle Dynamic Island translation mode
     if (e.ctrlKey && e.shiftKey && (e.code === 'KeyT' || e.key.toLowerCase() === 't')) {
@@ -8417,7 +8595,7 @@ function setupUIHandlers() {
   window.addEventListener("keydown", (e) => {
     if (e.ctrlKey && e.shiftKey && e.key.toUpperCase() === "L") {
       e.preventDefault();
-      toggleClickThrough();
+      if (!window.electronAPI?.onToggleClickThroughShortcut) toggleClickThrough();
     }
 
     // Sync Offset Hotkeys
@@ -9108,7 +9286,7 @@ function setupUIHandlers() {
 
   if (window.electronAPI.onToggleKineticModeShortcut) {
     window.electronAPI.onToggleKineticModeShortcut(() => {
-      toggleCinematicView();
+      toggleKineticMode();
     });
   }
 
@@ -9138,6 +9316,10 @@ function setupUIHandlers() {
     }
   }
 
+  if (window.electronAPI?.onToggleClickThroughShortcut) {
+    window.electronAPI.onToggleClickThroughShortcut(toggleClickThrough);
+  }
+
   document.querySelectorAll('.shortcut-row[data-shortcut-action]').forEach(row => {
     row.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -9148,6 +9330,9 @@ function setupUIHandlers() {
         case 'cinematic':
           toggleCinematicView();
           showToast(`Cinematic Stage ${isCinematicView ? 'enabled' : 'disabled'}`, 1800, 'info');
+          break;
+        case 'kinetic':
+          toggleKineticMode();
           break;
         case 'island':
           toggleDynamicIslandMode();
@@ -9201,6 +9386,12 @@ function setupUIHandlers() {
           break;
       }
     });
+    row.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        row.click();
+      }
+    });
   });
 
   // Reload / Find Alternative Lyrics listeners
@@ -9209,16 +9400,10 @@ function setupUIHandlers() {
       cycleAlternativeLyrics();
     });
   }
-
-  if (timingStatusBadge) {
-    timingStatusBadge.addEventListener("click", (e) => {
-      if (e.ctrlKey || e.altKey) {
-        cycleAlternativeLyrics();
-      } else {
-        resyncPlayback();
-      }
-    });
+  if (btnRestoreLyrics) {
+    btnRestoreLyrics.addEventListener('click', restorePreviousLyrics);
   }
+
 
   const syncResumeBtn = document.getElementById("sync-resume-btn");
   if (syncResumeBtn) {
@@ -9260,10 +9445,28 @@ function setupUIHandlers() {
   document.addEventListener("keydown", (e) => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
 
+    const hasNativeModeShortcuts = Boolean(window.electronAPI?.onToggleDynamicIslandShortcut);
+    const keyLower = String(e.key).toLowerCase();
+    const nativeGlobalCombo = hasNativeModeShortcuts && (
+      (e.ctrlKey && e.shiftKey && ['c', 'd', 'w', 'b', 'k', 'g', 's'].includes(keyLower)) ||
+      (e.ctrlKey && e.altKey && (keyLower === 'c' || keyLower === ' ' || e.code === 'Space' || e.key === 'ArrowLeft' || e.key === 'ArrowRight')) ||
+      (e.shiftKey && !e.ctrlKey && !e.altKey && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key))
+    );
+    if (nativeGlobalCombo) {
+      e.preventDefault();
+      return;
+    }
+
     // Modes & Overlays
-    if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'c' || e.key === 'C' || e.key === 'k' || e.key === 'K')) {
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'c' || e.key === 'C')) {
       e.preventDefault();
       toggleCinematicView();
+      return;
+    }
+
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'k' || e.key === 'K')) {
+      e.preventDefault();
+      toggleKineticMode();
       return;
     }
 
@@ -10353,6 +10556,13 @@ async function pollLocalPlayback() {
 
 
 function handleEmptyPlayback() {
+  const flowGame = window.FlowBeatsGame;
+  const flowGameContainer = document.getElementById('flow-game-container');
+  if (!currentTrackId && document.body.classList.contains('is-idle') && flowGame?.isRunning && flowGameContainer && lyricsContainer?.contains(flowGameContainer)) {
+    // Empty-media polling is frequent. Keep the standalone game mounted so
+    // its score, falling beats, and input state survive each no-source poll.
+    return;
+  }
   console.log("[Renderer] handleEmptyPlayback called");
   isPlaying = false;
   lastPollProgress = 0;
@@ -10576,6 +10786,7 @@ function handleEmptyPlayback() {
     sendTaskbarLyric("");
   }
   handleTaskbarPauseAutoHide(true);
+  nextUpTriggeredTrackId = null;
 
   hideSatelliteIsland(false);
   hideDuetCapsule(false);
@@ -10671,6 +10882,72 @@ function showNowPlayingNotification(trackInfo, playcount) {
 // Backwards compatibility alias
 function showNowPlayingHud(trackInfo, playcount) {
   showNowPlayingNotification(trackInfo, playcount);
+}
+
+let nextUpTriggeredTrackId = null;
+let islandNextUpTimeout = null;
+
+function triggerNextUpPreview(trackInfo, remainingSec) {
+  if (settings.showNextUp === false || !trackInfo) return;
+  if (!isDynamicIslandMode) {
+    triggerNextUpDesktopNotification(trackInfo, remainingSec);
+    return;
+  }
+
+  const island = document.getElementById('dynamic-island');
+  const preview = document.getElementById('island-next-up-preview');
+  const title = document.getElementById('island-next-up-title');
+  const countdown = document.getElementById('island-next-up-countdown');
+  if (!island || !preview || !title || !countdown) return;
+
+  if (islandNextUpTimeout) clearTimeout(islandNextUpTimeout);
+  const trackName = trackInfo.name || trackInfo.title || 'Current track';
+  title.textContent = trackName;
+  countdown.textContent = `Ending in ${remainingSec}s`;
+  preview.style.display = 'flex';
+  island.classList.add('has-next-up-preview');
+  requestAnimationFrame(() => preview.classList.add('is-visible'));
+  islandNextUpTimeout = setTimeout(() => {
+    preview.classList.remove('is-visible');
+    islandNextUpTimeout = setTimeout(() => {
+      preview.style.display = 'none';
+      island.classList.remove('has-next-up-preview');
+      islandNextUpTimeout = null;
+    }, 220);
+  }, 4000);
+}
+
+function triggerNextUpDesktopNotification(trackInfo, remainingSec) {
+  if (isDynamicIslandMode) return; // Dynamic Island displays its own in-capsule Next Up pill
+  const toastNotification = document.getElementById("toast-notification");
+  if (!toastNotification || !trackInfo) return;
+
+  if (window._nowPlayingToastTimeout) {
+    clearTimeout(window._nowPlayingToastTimeout);
+    window._nowPlayingToastTimeout = null;
+  }
+
+  const trackName = trackInfo.name || trackInfo.title || 'Upcoming Track';
+  const artistName = trackInfo.artist || (trackInfo.artists ? trackInfo.artists.map(a => a.name).join(', ') : '');
+  const artUrl = trackInfo.albumArtUrl || trackInfo.album?.images?.[0]?.url || currentStaticAlbumArtUrl || '';
+
+  const artImg = artUrl
+    ? `<img src="${escapeHTML(artUrl)}" style="width:24px;height:24px;border-radius:6px;object-fit:cover;flex-shrink:0;box-shadow:0 2px 6px rgba(0,0,0,0.4);" />`
+    : `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;color:#ffffff;"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" x2="19" y1="5" y2="19"/></svg>`;
+
+  toastNotification.innerHTML = `
+    ${artImg}
+    <div style="display:flex;flex-direction:column;min-width:0;line-height:1.25;text-align:left;">
+      <span style="font-weight:650;color:#ffffff;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Next Up in ${remainingSec}s</span>
+      <span style="font-size:11px;color:rgba(255,255,255,0.7);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHTML(trackName)}${artistName ? ` • ${escapeHTML(artistName)}` : ''}</span>
+    </div>
+  `;
+  toastNotification.classList.add("show");
+
+  window._nowPlayingToastTimeout = setTimeout(() => {
+    toastNotification.classList.remove("show");
+    window._nowPlayingToastTimeout = null;
+  }, 4000);
 }
 
 function adaptBpmSync(lyricsList) {
@@ -10781,11 +11058,16 @@ currentExtractedArtUrl = null;
 
 async function updateDynamicArtColor(artUrl) {
   if (!artUrl || artUrl === currentExtractedArtUrl) return;
+  const requestId = ++artPaletteRequestId;
   currentExtractedArtUrl = artUrl;
   try {
     const colorData = window.extractColorData
       ? await window.extractColorData(artUrl)
       : { dominant: await extractDominantColor(artUrl), palette: await extractColorPalette(artUrl) };
+
+    // Ignore late image-analysis results when playback has already moved to
+    // another album, so the mesh always reflects the visible current artwork.
+    if (requestId !== artPaletteRequestId || artUrl !== currentExtractedArtUrl) return;
 
     const dominant = colorData?.dominant || { r: 29, g: 185, b: 84 };
     window.currentDynamicDominantRgb = dominant;
@@ -11053,6 +11335,7 @@ async function handlePlaybackData(data) {
   // 1. Only touch Track Info DOM when track changes
   if (track.id !== lastProcessedTrackId) {
     lastProcessedTrackId = track.id;
+    nextUpTriggeredTrackId = null;
     widgetTrackName.textContent = track.name;
     widgetTrackName.title = track.name;
     const artistText = track.artists.map(a => a.name).join(", ");
@@ -11076,7 +11359,7 @@ async function handlePlaybackData(data) {
   if (isSongChanged || albumArtUrl !== lastAppliedAlbumArtUrl) {
     lastAppliedAlbumArtUrl = albumArtUrl;
     if (albumArtUrl) {
-      widgetAlbumArt.src = albumArtUrl;
+      setArtWithSparkle(widgetAlbumArt, albumArtUrl);
       widgetAlbumArt.style.display = "block";
       widgetArtFallback.style.display = "none";
       setWallpaperAlbumArt(albumArtUrl);
@@ -11179,6 +11462,8 @@ async function handlePlaybackData(data) {
     }
     lyrics = [];
     currentSourceLevel = 0;
+    currentLyricSourceName = '';
+    currentLyricCandidateInfo = '';
     window._lastFillPercent = -1;
     if (isKineticMode && kineticRendererInstance) {
       syncKineticState();
@@ -11245,7 +11530,7 @@ async function handlePlaybackData(data) {
 
     // Authentic player art (including SMTC data: URLs) is authoritative ground truth.
     if (albumArtUrl && currentTrackId === track.id) {
-      widgetAlbumArt.src = albumArtUrl;
+      setArtWithSparkle(widgetAlbumArt, albumArtUrl);
       widgetAlbumArt.style.display = 'block';
       widgetArtFallback.style.display = 'none';
     }
@@ -11262,7 +11547,7 @@ async function handlePlaybackData(data) {
         if (artUrl && currentTrackId === track.id) {
           track.album = track.album || { images: [] };
           track.album.images = [{ url: artUrl }, { url: artUrl }, { url: artUrl }];
-          widgetAlbumArt.src = artUrl;
+          setArtWithSparkle(widgetAlbumArt, artUrl);
           widgetAlbumArt.style.display = "block";
           widgetArtFallback.style.display = "none";
           setWallpaperAlbumArt(artUrl);
@@ -11503,6 +11788,21 @@ isReloadingLyrics = false;
  * Non-blocking Auto-Translation Engine
  * Translates song lyrics into target language and persists translations into cache.
  */
+function isRomanizedHindiTranslation(text) {
+  const value = String(text || '').trim().toLowerCase();
+  if (!value || /[\u0900-\u097f]/u.test(value)) return false;
+  const tokens = value.match(/[a-z]+/g) || [];
+  if (tokens.length < 3) return false;
+  const hindiMarkers = new Set([
+    'hai', 'hain', 'ho', 'tha', 'thi', 'the', 'nahi', 'nahin', 'kya', 'kyun', 'tum', 'tujhe', 'tujh',
+    'tera', 'teri', 'tere', 'mera', 'meri', 'mere', 'main', 'mein', 'hum', 'hume', 'aap', 'apna', 'apni',
+    'kar', 'karo', 'karke', 'raha', 'rahi', 'rahe', 'mujhe', 'mujhko', 'dil', 'ishq', 'pyar', 'pyaar',
+    'chahiye', 'yaara', 'sajna', 've', 'oye', 'mat', 'accha', 'acha'
+  ]);
+  const markerCount = tokens.reduce((count, token) => count + (hindiMarkers.has(token) ? 1 : 0), 0);
+  return markerCount >= 2 && markerCount / tokens.length >= 0.18;
+}
+
 async function triggerAutoTranslation(targetTrackId, linesToTranslate, cacheKey = null, force = false) {
   if (!settings.translateLang || settings.translateLang === 'none') return;
   if (!linesToTranslate || !Array.isArray(linesToTranslate) || linesToTranslate.length === 0) return;
@@ -11544,6 +11844,9 @@ async function triggerAutoTranslation(targetTrackId, linesToTranslate, cacheKey 
     for (let i = 0; i < limit; i++) {
       let transText = transLines[i] ? transLines[i].trim() : '';
       transText = decodeHtmlEntities(transText);
+      if (isRomanizedHindiTranslation(transText)) {
+        transText = '';
+      }
       const origText = (linesToTranslate[i].text || '').trim();
       if (transText && transText.toLowerCase() !== origText.toLowerCase()) {
         linesToTranslate[i].subText = transText;
@@ -11602,6 +11905,95 @@ async function triggerAutoTranslation(targetTrackId, linesToTranslate, cacheKey 
   }
 }
 
+const previousLyricsStorageKey = (trackId) => `lyrics_previous_lrc_${trackId}`;
+
+function updatePreviousLyricsRestoreButton() {
+  const hasPrevious = Boolean(currentTrackId && localStorage.getItem(previousLyricsStorageKey(currentTrackId)));
+  if (btnRestoreLyrics) btnRestoreLyrics.style.display = hasPrevious ? 'inline-flex' : 'none';
+}
+
+function savePreviousLyricsSnapshot(trackId, cacheKey) {
+  if (!trackId) return;
+  let snapshot = null;
+  if (trackId === currentTrackId && Array.isArray(lyrics) && lyrics.length > 0) {
+    snapshot = { lyrics, level: currentSourceLevel, source: currentLyricSourceName, candidateInfo: currentLyricCandidateInfo };
+  } else {
+    try {
+      const cached = JSON.parse(localStorage.getItem(cacheKey) || 'null');
+      if (cached && Array.isArray(cached.lyrics) && cached.lyrics.length > 0) snapshot = cached;
+    } catch (_) {}
+  }
+  if (!snapshot) return;
+  try {
+    localStorage.setItem(previousLyricsStorageKey(trackId), JSON.stringify({
+      lyrics: JSON.parse(JSON.stringify(snapshot.lyrics)),
+      level: Number(snapshot.level) || 2,
+      source: snapshot.source || '',
+      candidateInfo: snapshot.candidateInfo || '',
+      savedAt: Date.now()
+    }));
+    if (trackId === currentTrackId) updatePreviousLyricsRestoreButton();
+  } catch (err) {
+    console.warn('[LF-LYRICS] Could not preserve previous lyrics before refetch:', err);
+  }
+}
+
+function restorePreviousLyrics() {
+  if (!currentTrackId) {
+    showToast('Play a track before restoring lyrics.', 2200, 'warning');
+    return false;
+  }
+  let snapshot;
+  try {
+    snapshot = JSON.parse(localStorage.getItem(previousLyricsStorageKey(currentTrackId)) || 'null');
+  } catch (_) { snapshot = null; }
+  if (!snapshot || !Array.isArray(snapshot.lyrics) || snapshot.lyrics.length === 0) {
+    updatePreviousLyricsRestoreButton();
+    showToast('No previous lyrics are saved for this track.', 2400, 'warning');
+    return false;
+  }
+
+  // Stop an in-flight refetch from replacing the restored lyrics a moment later.
+  if (fetchAbortController) {
+    try { fetchAbortController.abort(); } catch (_) {}
+    fetchAbortController = null;
+  }
+  isReloadingLyrics = false;
+
+  lyrics = JSON.parse(JSON.stringify(snapshot.lyrics));
+  currentSourceLevel = Number(snapshot.level) || 2;
+  lastIslandSyncData = null;
+  updateTimingStatus(currentSourceLevel, snapshot.source || '', snapshot.candidateInfo || '');
+  if (window.LyricsService?.instance?.engine && window.ExistingWaterfallProvider?.toNormalized) {
+    try {
+      const normalized = window.ExistingWaterfallProvider.toNormalized(
+        lyrics,
+        snapshot.source || 'Restored lyrics',
+        currentSourceLevel === 3 ? 'WORD_SYNCED' : 'LINE_SYNCED'
+      );
+      if (normalized) window.LyricsService.instance.engine.setLyrics(normalized);
+    } catch (err) {
+      console.warn('[LF-LYRICS] Could not restore synchronized engine state:', err);
+    }
+  }
+  try {
+    saveLyricsToCache(`lyrics_cache_v21_${currentTrackId}`, {
+      level: currentSourceLevel,
+      lyrics,
+      source: snapshot.source || 'Restored lyrics',
+      candidateInfo: snapshot.candidateInfo || '',
+      candidateIndex: trackLyricsCandidateIndex[currentTrackId] || 0
+    });
+  } catch (err) {
+    console.warn('[LF-LYRICS] Could not update restored lyric cache:', err);
+  }
+  renderLyrics();
+  adaptBpmSync(lyrics);
+  updatePreviousLyricsRestoreButton();
+  showToast('Previous lyrics restored.', 2200, 'success');
+  return true;
+}
+
 // Synced lyrics fetching via V2 Unified Proxy (Spotify Internal) + Direct LRCLIB
 async function fetchLyrics(trackId, trackName, artistName, durationMs, isrc = null, options = {}) {
   if (typeof isrc === 'object' && isrc !== null && Object.keys(options).length === 0) {
@@ -11639,6 +12031,7 @@ async function _executeFetchLyrics(trackId, trackName, artistName, durationMs, i
   const cacheKey = `lyrics_cache_v21_${trackId}`;
 
   if (options.forceRefresh) {
+    savePreviousLyricsSnapshot(trackId, cacheKey);
     // Invalidate caches when user explicitly requests alternative / reload
     localStorage.removeItem(cacheKey);
     localStorage.removeItem(`lyrics_cache_${trackId}`);
@@ -11682,8 +12075,10 @@ async function _executeFetchLyrics(trackId, trackName, artistName, durationMs, i
           lyrics._hasTranslation = loadedLyrics.some(l => l.subText && l.subText.trim().length > 0 && l.subText.trim().toLowerCase() !== (l.text || '').trim().toLowerCase());
           if (cachedData.noTransNeeded) lyrics._noTransNeeded = true;
           isFetchingLyrics = false;
-          currentSourceLevel = cachedData.level || 2;
-          updateTimingStatus(cachedData.level || 2, cachedData.source || "", cachedData.candidateInfo || "");
+          const cachedHasWordTiming = loadedLyrics.some(line => Array.isArray(line.words) && line.words.length > 0);
+          const cachedLevel = cachedHasWordTiming ? 3 : Math.min(Number(cachedData.level) || 2, 2);
+          currentSourceLevel = cachedLevel;
+          updateTimingStatus(cachedLevel, cachedData.source || "", cachedData.candidateInfo || "");
 
           // Reconcile timed words with typography and punctuation rules for cached lyrics
           if (typeof reconcileTimedWords === 'function') {
@@ -11726,7 +12121,9 @@ async function _executeFetchLyrics(trackId, trackName, artistName, durationMs, i
             }
           }
 
-          if (cachedData.level === 3) return;
+          // Older caches could be mislabeled word-synced even though no timed
+          // word tokens were stored. Keep them visible, but query for real WBW.
+          if (cachedLevel === 3 && cachedHasWordTiming) return;
         }
       } catch (e) { console.error(e); }
     }
@@ -11738,6 +12135,8 @@ async function _executeFetchLyrics(trackId, trackName, artistName, durationMs, i
     updateTimingStatus(0); // "Checking..."
 
     currentSourceLevel = 0;
+    currentLyricSourceName = '';
+    currentLyricCandidateInfo = '';
 
     const hasLrcTimestamps = (text) => {
       if (!text || typeof text !== 'string') return false;
@@ -11776,6 +12175,8 @@ async function _executeFetchLyrics(trackId, trackName, artistName, durationMs, i
     };
 
     const applyLyricsData = async (parsedLines, sourceLevel, sourceName = "", candidateInfo = "", normalizedLyricsObj = null) => {
+      const previousLyricsSignature = (lyrics || []).map(extractLineText).join('\n').toLowerCase();
+      const previousHadWordTiming = Array.isArray(lyrics) && lyrics.some(line => Array.isArray(line.words) && line.words.length > 0);
       console.log(`[LF-LYRICS] applyLyricsData called: sourceLevel=${sourceLevel}, sourceName=${sourceName}, parsedLines.length=${parsedLines.length}, trackId=${trackId}, currentTrackId=${currentTrackId}`);
       // Strip structural tags and credit metadata (e.g., "[Outro]", "Intro", "制作人 : ...", "Lyrics by ...")
       parsedLines = parsedLines.filter(line => {
@@ -11852,6 +12253,8 @@ async function _executeFetchLyrics(trackId, trackName, artistName, durationMs, i
       delete parsedLines._noTransNeeded;
 
       console.log(`[LF-LYRICS] applyLyricsData SUCCESS: setting ${parsedLines.length} lines, level=${sourceLevel}, source=${sourceName}`);
+      const fetchedLyricsSignature = parsedLines.map(extractLineText).join('\n').toLowerCase();
+      const fetchedHasWordTiming = parsedLines.some(line => Array.isArray(line.words) && line.words.length > 0);
       lyrics = parsedLines;
       lastIslandSyncData = null;
       isFetchingLyrics = false;
@@ -11860,6 +12263,10 @@ async function _executeFetchLyrics(trackId, trackName, artistName, durationMs, i
 
       if (options.forceRefresh && isDynamicIslandMode) {
         showIslandHud({ icon: "✓", text: `${sourceName || "Lyrics"} loaded`, showBar: false });
+      }
+      if (previousLyricsSignature && fetchedLyricsSignature && !isDynamicIslandMode &&
+          (previousLyricsSignature !== fetchedLyricsSignature || (fetchedHasWordTiming && !previousHadWordTiming))) {
+        showToast(`Lyrics updated from ${sourceName || 'the lyrics database'}.`, 3200, 'success');
       }
 
       // Reconcile timed words with typography and punctuation rules BEFORE initializing engine
@@ -12000,7 +12407,11 @@ async function _executeFetchLyrics(trackId, trackName, artistName, durationMs, i
               return false;
             }
             const hasWords = parsed.some(l => l.words && l.words.length > 0);
-            const level = hasWords ? 3 : (candidate.syncType === 'WORD_SYNCED' ? 3 : (candidate.syncType === 'LINE_SYNCED' ? 2 : 1));
+            if (candidate.syncType === 'WORD_SYNCED' && !hasWords) {
+              console.warn(`[LF-LYRICS] Rejected mislabeled word-synced candidate without timed words from ${candidate.provider}`);
+              return false;
+            }
+            const level = hasWords ? 3 : (candidate.syncType === 'LINE_SYNCED' ? 2 : 1);
             return await applyLyricsData(parsed, level, candidate.provider, candidate.candidateInfo || "");
           }
         }
@@ -12280,26 +12691,23 @@ async function _executeFetchLyrics(trackId, trackName, artistName, durationMs, i
     // Fast-path: eager first-synced resolution (Level 2 or Level 3)
     // Whichever promise returns first with valid synced lyrics immediately renders!
     const firstResult = await Promise.race([rustPromise, lpPromise]);
-    if (firstResult && currentSourceLevel >= 2 && lyrics.length > 0) {
+    if (firstResult && currentSourceLevel === 3 && lyrics.length > 0) {
       manageLyricsCache(cacheKey);
-      // If we got Level 2 (line-synced) and the secondary provider might return Level 3 (word-by-word),
-      // allow it to settle in the background without blocking the UI
-      if (currentSourceLevel === 2) {
-        Promise.allSettled([rustPromise, lpPromise]).then(() => {
-          if (trackId === currentTrackId && lyrics.length > 0) {
-            manageLyricsCache(cacheKey);
-          }
-        }).catch(() => {});
-      }
       return;
     }
 
-    // Settle both primary providers (allows smooth upgrade to Level 3 or secondary provider match)
+    // Wait for the competing primary provider when the fast result is only
+    // line-synced, so available word timing wins before we settle on the cache.
     await Promise.allSettled([rustPromise, lpPromise]);
 
     if (lyrics.length > 0 && trackId === currentTrackId) {
-      manageLyricsCache(cacheKey);
-      return;
+      const hasRealWordTiming = lyrics.some(line => Array.isArray(line.words) && line.words.length > 0);
+      if (hasRealWordTiming || settings.wordByWord === false) {
+        manageLyricsCache(cacheKey);
+        return;
+      }
+      // Preserve cached/fast line lyrics on screen while word-capable fallback
+      // providers get a chance to upgrade them. Refetch is not required.
     }
 
     // 2. Fallback: Direct web proxy & LRCLIB if primary engines found no match
@@ -12343,49 +12751,9 @@ function updateTimingStatus(level, sourceName = "", candidateInfo = "") {
   if (typeof level === 'number') {
     currentSourceLevel = level > 0 ? level : 0;
   }
+  if (sourceName) currentLyricSourceName = sourceName;
+  if (candidateInfo) currentLyricCandidateInfo = candidateInfo;
   updateIslandQualityBadge();
-  const badge = document.getElementById("timing-status-badge");
-  if (!badge) return;
-
-  const dot = badge.querySelector(".status-dot");
-  const text = badge.querySelector(".status-text") || badge;
-
-  badge.className = "timing-status-badge";
-  const extraInfo = [candidateInfo, sourceName].filter(Boolean).join(" · ");
-  const tooltipSuffix = extraInfo ? ` (${extraInfo})` : "";
-
-  if (level === 3) {
-    badge.classList.add("word-synced");
-    text.textContent = "Word Timing";
-    badge.title = `High-Fidelity Word Timing (Synced)${tooltipSuffix}. Click to find alternative lyrics (Ctrl+R).`;
-    badge.style.display = "inline-flex";
-  } else if (level === 2) {
-    badge.classList.add("line-synced");
-    text.textContent = "Line Sync";
-    badge.title = `Line-Synced Lyrics${tooltipSuffix}. Click to find alternative lyrics (Ctrl+R).`;
-    badge.style.display = "inline-flex";
-  } else if (level === 1) {
-    badge.classList.add("plain");
-    text.textContent = "Plain Text";
-    badge.title = `Plain Text Lyrics (No Sync)${tooltipSuffix}. Click to find alternative lyrics (Ctrl+R).`;
-    badge.style.display = "inline-flex";
-  } else if (level === -1 || level === 'none') {
-    badge.classList.add("none");
-    text.textContent = "No Lyrics";
-    badge.title = "No lyrics found for this track. Click to search alternative lyrics (Ctrl+R).";
-    badge.style.display = "inline-flex";
-  } else {
-    badge.classList.add("checking");
-    text.textContent = "Checking...";
-    badge.title = "Searching lyrics database...";
-    badge.style.display = "inline-flex";
-  }
-
-  // Refresh marquee on track name since badge visibility/width changes available space
-  const trackWrap = document.getElementById("widget-track-name-wrapper");
-  if (trackWrap && typeof widgetTrackName !== 'undefined' && widgetTrackName) {
-    updateMarqueeOverflow(trackWrap, widgetTrackName);
-  }
 }
 
 async function cycleAlternativeLyrics() {
@@ -13315,6 +13683,7 @@ function timedWordSpansHtml(words, lineText) {
 }
 
 function renderLyrics() {
+  updatePreviousLyricsRestoreButton();
   if (lyrics.length === 0) {
     lyricsContainer.style.transform = 'translateY(0px)';
     lyricsContainer.innerHTML = `
@@ -13563,6 +13932,10 @@ window.addEventListener('keydown', (e) => {
     const isTilde = e.key === '`' || e.code === 'Backquote';
     const isCombo = e.ctrlKey && e.shiftKey && e.key.toUpperCase() === 'G';
     const isGhostActive = document.body.classList.contains('island-ghost-mode');
+    if (isCombo && window.electronAPI?.onToggleDynamicIslandShortcut) {
+      e.preventDefault();
+      return;
+    }
     if (isCombo || (isTilde && (isMouseOverDynamicIsland || isGhostActive))) {
       e.preventDefault();
       if (window.electronAPI && typeof window.electronAPI.toggleDynamicIslandGhost === 'function') {
@@ -14307,6 +14680,21 @@ function updatePlayhead() {
       } catch (_) {}
     }
 
+    // Track End "Next Up" Display (< 6 Seconds) for Desktop Window
+    if (isPlaying && trackDuration > 0) {
+      const syncProg = getAcousticSyncProgress();
+      const remainingMs = trackDuration - syncProg;
+      if (remainingMs <= 6000 && remainingMs > 0) {
+        if (nextUpTriggeredTrackId !== currentTrackId) {
+          nextUpTriggeredTrackId = currentTrackId;
+          const remainingSec = Math.max(1, Math.ceil(remainingMs / 1000));
+          triggerNextUpPreview(currentPlayingTrackObj || currentTrack, remainingSec);
+        }
+      } else if (remainingMs > 7000) {
+        nextUpTriggeredTrackId = null;
+      }
+    }
+
     if (isKineticMode && kineticRendererInstance) {
       kineticRendererInstance.seek(currentProgress);
     }
@@ -14678,7 +15066,7 @@ window.updatePlaycountUI = function(playcount) {
 window.onLastfmArtFound = function(artUrl) {
   if (!artUrl) return;
   if (!widgetAlbumArt.src || widgetAlbumArt.style.display === 'none') {
-    widgetAlbumArt.src = artUrl;
+    setArtWithSparkle(widgetAlbumArt, artUrl);
     widgetAlbumArt.style.display = "block";
     if (widgetArtFallback) widgetArtFallback.style.display = "none";
     setWallpaperAlbumArt(artUrl);

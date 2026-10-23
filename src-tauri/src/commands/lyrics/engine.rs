@@ -107,9 +107,13 @@ pub async fn query_all_candidates(
         .iter()
         .any(|c| c.sync_type != SyncType::PlainText);
 
-    // If Tier 1 found synced lyrics and this is the default primary lookup (candidate_index == 0),
-    // return immediately without triggering Tier 2 network calls.
-    if options.candidate_index == 0 && has_tier1_synced {
+    let has_tier1_word_synced = tier1_candidates
+        .iter()
+        .any(|c| c.sync_type == SyncType::WordSynced);
+
+    // A line-synced fast response must not end the default lookup while a
+    // word-synced provider may still be available in the secondary tier.
+    if options.candidate_index == 0 && has_tier1_word_synced {
         sort_lyrics_candidates(&mut tier1_candidates, &options.preferred_providers);
         label_candidates(&mut tier1_candidates);
         return tier1_candidates;
@@ -178,6 +182,7 @@ fn sort_lyrics_candidates(candidates: &mut [LyricsCandidate], preferred_provider
 
         let type_rank = match (c.sync_type, c.provider.as_str()) {
             (SyncType::WordSynced, "Musixmatch") => 0,
+            (SyncType::WordSynced, "NetEase") | (SyncType::WordSynced, "NetEase (YRC)") => 1,
             (SyncType::WordSynced, _) => 1,
             (SyncType::LineSynced, "Spotify") => 2,
             (SyncType::LineSynced, "Spotify (Proxy)") => 2,
@@ -191,13 +196,23 @@ fn sort_lyrics_candidates(candidates: &mut [LyricsCandidate], preferred_provider
         let score_val = if c.score.is_nan() { 0.0 } else { c.score.clamp(0.0, 1.0) };
         let score_rank = 10_000i32 - (score_val * 10_000.0) as i32;
 
+        // Sync quality is the top-level preference: a configured line-synced
+        // provider must never outrank a word-synced candidate. Within each
+        // sync tier, honor the user's provider ordering, then use the default
+        // provider hierarchy (Musixmatch, NetEase, Spotify, LRCLIB).
+        let sync_rank = match c.sync_type {
+            SyncType::WordSynced => 0,
+            SyncType::LineSynced => 1,
+            SyncType::PlainText => 2,
+        };
+
         let pref_group = if pref_idx < 99 && c.sync_type != SyncType::PlainText {
             pref_idx
         } else {
             99
         };
 
-        (pref_group, type_rank, score_rank)
+        (sync_rank, pref_group, type_rank, score_rank)
     });
 }
 
@@ -220,12 +235,33 @@ pub async fn search_best_lyrics(
     options: LyricsSearchOptions,
 ) -> Option<LyricsCandidate> {
     let candidates = query_all_candidates(client, track, artist, duration_ms, &options).await;
+    select_candidate(candidates, options.candidate_index)
+}
+
+fn select_candidate(
+    candidates: Vec<LyricsCandidate>,
+    candidate_index: usize,
+) -> Option<LyricsCandidate> {
     if candidates.is_empty() {
         return None;
     }
 
-    let chosen_idx = options.candidate_index % candidates.len();
-    candidates.into_iter().nth(chosen_idx)
+    let preferred_sync = if candidates.iter().any(|c| c.sync_type == SyncType::WordSynced) {
+        SyncType::WordSynced
+    } else if candidates.iter().any(|c| c.sync_type == SyncType::LineSynced) {
+        SyncType::LineSynced
+    } else {
+        SyncType::PlainText
+    };
+    let preferred_candidates: Vec<_> = candidates
+        .into_iter()
+        .filter(|candidate| candidate.sync_type == preferred_sync)
+        .collect();
+    if preferred_candidates.is_empty() {
+        return None;
+    }
+    let chosen_idx = candidate_index % preferred_candidates.len();
+    preferred_candidates.into_iter().nth(chosen_idx)
 }
 
 fn parse_spotify_color_lyrics(json: &Value, track_id: &str) -> Option<LyricsCandidate> {
@@ -450,6 +486,24 @@ mod tests {
     }
 
     #[test]
+    fn test_preferred_line_sync_provider_does_not_outrank_word_sync() {
+        let mut candidates = vec![
+            make_dummy_cand("LRCLIB", SyncType::LineSynced, 1.0),
+            make_dummy_cand("Musixmatch", SyncType::WordSynced, 0.80),
+            make_dummy_cand("NetEase", SyncType::WordSynced, 0.75),
+        ];
+        let prefs = vec!["lrclib".to_string(), "netease".to_string()];
+
+        sort_lyrics_candidates(&mut candidates, &prefs);
+
+        assert_eq!(candidates[0].provider, "NetEase");
+        assert_eq!(candidates[0].sync_type, SyncType::WordSynced);
+        assert_eq!(candidates[1].provider, "Musixmatch");
+        assert_eq!(candidates[2].provider, "LRCLIB");
+        assert_eq!(candidates[2].sync_type, SyncType::LineSynced);
+    }
+
+    #[test]
     fn test_linesync_over_plaintext() {
         let mut candidates = vec![
             make_dummy_cand("LRCLIB", SyncType::PlainText, 0.99),
@@ -459,5 +513,66 @@ mod tests {
         sort_lyrics_candidates(&mut candidates, &[]);
         assert_eq!(candidates[0].provider, "NetEase");
         assert_eq!(candidates[0].sync_type, SyncType::LineSynced);
+    }
+
+    #[test]
+    fn test_word_sync_and_line_sync_provider_hierarchy() {
+        let mut candidates = vec![
+            make_dummy_cand("NetEase", SyncType::LineSynced, 0.99),
+            make_dummy_cand("LRCLIB", SyncType::LineSynced, 0.95),
+            make_dummy_cand("Spotify", SyncType::LineSynced, 0.95),
+            make_dummy_cand("NetEase", SyncType::WordSynced, 0.90),
+            make_dummy_cand("Musixmatch", SyncType::WordSynced, 0.85),
+        ];
+        sort_lyrics_candidates(&mut candidates, &[]);
+        assert_eq!(candidates[0].provider, "Musixmatch");
+        assert_eq!(candidates[0].sync_type, SyncType::WordSynced);
+        assert_eq!(candidates[1].provider, "NetEase");
+        assert_eq!(candidates[1].sync_type, SyncType::WordSynced);
+        assert_eq!(candidates[2].provider, "Spotify");
+        assert_eq!(candidates[2].sync_type, SyncType::LineSynced);
+        assert_eq!(candidates[3].provider, "LRCLIB");
+        assert_eq!(candidates[3].sync_type, SyncType::LineSynced);
+        assert_eq!(candidates[4].provider, "NetEase");
+        assert_eq!(candidates[4].sync_type, SyncType::LineSynced);
+    }
+
+    #[test]
+    fn test_netease_yrc_label_wordsync_priority() {
+        let mut candidates = vec![
+            make_dummy_cand("Spotify", SyncType::LineSynced, 0.95),
+            make_dummy_cand("NetEase (YRC)", SyncType::WordSynced, 0.90),
+        ];
+        sort_lyrics_candidates(&mut candidates, &[]);
+        assert_eq!(candidates[0].provider, "NetEase (YRC)");
+        assert_eq!(candidates[0].sync_type, SyncType::WordSynced);
+        assert_eq!(candidates[1].provider, "Spotify");
+    }
+
+    #[test]
+    fn test_candidate_selection_returns_highest_ranked_wordsync_candidate() {
+        let mut candidates = vec![
+            make_dummy_cand("LRCLIB", SyncType::LineSynced, 1.0),
+            make_dummy_cand("NetEase (YRC)", SyncType::WordSynced, 0.80),
+            make_dummy_cand("Musixmatch", SyncType::WordSynced, 0.75),
+        ];
+        sort_lyrics_candidates(&mut candidates, &[]);
+
+        let selected = select_candidate(candidates, 0).expect("a candidate should be selected");
+        assert_eq!(selected.provider, "Musixmatch");
+        assert_eq!(selected.sync_type, SyncType::WordSynced);
+    }
+
+    #[test]
+    fn test_candidate_cycle_keeps_word_sync_ahead_of_line_sync() {
+        let mut candidates = vec![
+            make_dummy_cand("LRCLIB", SyncType::LineSynced, 1.0),
+            make_dummy_cand("NetEase", SyncType::WordSynced, 0.80),
+        ];
+        sort_lyrics_candidates(&mut candidates, &[]);
+
+        let selected = select_candidate(candidates, 1).expect("word-synced candidate should remain preferred");
+        assert_eq!(selected.sync_type, SyncType::WordSynced);
+        assert_eq!(selected.provider, "NetEase");
     }
 }

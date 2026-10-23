@@ -96,7 +96,11 @@ function runTests() {
 
   // Test 9: Global shortcuts and in-app keydown cover Cinematic Mode, Copy Lyric & Escape
   test('3d. lib.rs and renderer.js wire Ctrl+Shift+C to Cinematic Mode and Ctrl+Alt+C to Copy Lyric', () => {
-    assert.ok(libRs.includes('(text.contains("shift") && text.contains("keyc")) || (text.contains("shift") && text.contains("keyk"))'), 'Ctrl+Shift+C and Ctrl+Shift+K must trigger cinematic mode');
+    assert.ok(libRs.includes('text.contains("shift") && text.contains("keyc")'), 'Ctrl+Shift+C must trigger cinematic mode');
+    assert.ok(libRs.includes('text.contains("shift") && text.contains("keyk")'), 'Ctrl+Shift+K must trigger kinetic mode');
+    assert.ok(libRs.includes('toggle-kinetic-mode-shortcut'), 'Rust must emit the kinetic shortcut event');
+    assert.ok(rendererSrc.includes('window.electronAPI.onToggleKineticModeShortcut'), 'Renderer must listen to kinetic shortcut');
+    assert.ok(rendererSrc.includes('toggleKineticMode();'), 'Kinetic shortcut must activate Kinetic Mode');
     assert.ok(libRs.includes('text.contains("alt") && text.contains("keyc")'), 'Ctrl+Alt+C must trigger copy-active-lyric');
     assert.ok(bridgeJs.includes('onToggleCinematicModeShortcut: (cb) => safeListen(\'toggle-cinematic-mode-shortcut\''), 'Bridge must expose onToggleCinematicModeShortcut');
     assert.ok(rendererSrc.includes('window.electronAPI.onToggleCinematicModeShortcut'), 'Renderer must listen to cinematic shortcut');

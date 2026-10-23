@@ -220,9 +220,20 @@
         <!-- Main Top Content Row -->
         <div class="island-main-row">
           <!-- Left: Squircle Album Art (expands from 22px to 48px on hover) -->
-          <div class="island-art-wrapper">
-            <div class="island-art-tile" id="island-art-tile">
+          <div class="island-art-wrapper" id="island-art-wrapper">
+            <div class="island-art-tile" id="island-art-tile" data-component="island-album-art">
+              <img id="island-art-img-old" class="island-art-img island-art-img-old" src="" alt="" style="display: none;" />
               <img id="island-art-img" class="island-art-img" src="" alt="Album Art" />
+            </div>
+            <!-- A small, artwork-colored sparkle cluster leads the art reveal. -->
+            <div id="island-art-sparkle-sweep" class="island-art-sparkle-sweep" style="display: none;" aria-hidden="true">
+              <i class="art-sparkle" style="--spark-x: 4px; --spark-y: 8px; --spark-delay: 0ms; --spark-size: 2px"></i>
+              <i class="art-sparkle" style="--spark-x: 12px; --spark-y: 15px; --spark-delay: 65ms; --spark-size: 3px"></i>
+              <i class="art-sparkle" style="--spark-x: 21px; --spark-y: 6px; --spark-delay: 120ms; --spark-size: 2px"></i>
+              <i class="art-sparkle" style="--spark-x: 29px; --spark-y: 22px; --spark-delay: 35ms; --spark-size: 2px"></i>
+              <i class="art-sparkle" style="--spark-x: 7px; --spark-y: 31px; --spark-delay: 145ms; --spark-size: 2px"></i>
+              <i class="art-sparkle" style="--spark-x: 19px; --spark-y: 38px; --spark-delay: 85ms; --spark-size: 3px"></i>
+              <i class="art-sparkle" style="--spark-x: 34px; --spark-y: 34px; --spark-delay: 175ms; --spark-size: 2px"></i>
             </div>
             <!-- Circular Instrumental & Vocal Countdown Ring -->
             <svg class="island-countdown-ring" id="island-countdown-ring" viewBox="0 0 36 36" style="display: none;" aria-hidden="true">
@@ -262,7 +273,7 @@
 
           <!-- Right: Audio Wave Visualizer & Mini Restore -->
           <div class="island-top-actions">
-            <!-- Apple Music-Style Audio Quality / Synced Micro-Badge -->
+            <!-- Apple Music-Style Audio Quality Micro-Badge -->
             <span id="island-quality-badge" class="island-quality-badge" style="display: none;">LOSSLESS</span>
             <div class="island-wave-visualizer" id="island-wave">
               <span class="wave-bar bar-1"></span>
@@ -333,6 +344,11 @@
               <div class="island-hud-bar-fill" id="island-hud-bar-fill" style="width: 65%;"></div>
             </div>
           </div>
+        </div>
+        <div id="island-next-up-preview" class="island-next-up-preview" style="display: none;" aria-live="polite">
+          <span class="island-next-up-label">NEXT UP</span>
+          <span id="island-next-up-title" class="island-next-up-title"></span>
+          <span id="island-next-up-countdown" class="island-next-up-countdown"></span>
         </div>
       </div>
 
@@ -483,6 +499,7 @@
 
       <!-- 1B. ONBOARDING WIZARD SCREEN -->
       <section class="app-screen" id="screen-onboarding" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 99999; background: linear-gradient(145deg, #0a0a0f 0%, #12121a 100%);">
+        <button id="btn-skip-onboarding" type="button" class="onboarding-skip-button">Skip setup</button>
         <div style="max-width: 640px; width: 100%; margin: 0 auto; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; padding: 24px; box-sizing: border-box; position: relative;">
           
           <!-- Onboarding Progress Indicator -->
@@ -843,10 +860,6 @@
                   <span class="player-vis-bar bar-3"></span>
                   <span class="player-vis-bar bar-4"></span>
                 </div>
-                <span id="timing-status-badge" class="timing-status-badge" title="Click to find alternative lyrics (Ctrl+R)" style="display: none;">
-                  <span class="status-dot"></span>
-                  <span class="status-text">Checking...</span>
-                </span>
                 <button id="btn-hide-lyrics" class="btn-hide-lyrics" title="Hide lyrics for this song" style="display: none;">
                   <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                 </button>
@@ -880,6 +893,7 @@
             <button id="btn-reload-lyrics" class="widget-ctrl-btn" title="Find Alternative Lyrics / Reload (Ctrl+R)">
               <svg class="reload-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
             </button>
+            <button id="btn-restore-lyrics" class="widget-ctrl-btn" title="Restore lyrics saved before the last refetch" aria-label="Restore previous lyrics" style="display: none;">↶</button>
             <button id="btn-share-lyric" class="widget-ctrl-btn" title="Share Lyric Card (Coming Soon)">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
             </button>
@@ -1044,21 +1058,21 @@
               </div>
 
               <div class="setting-row">
-                <label>Font Family</label>
-                <div class="liquid-glass-bar" data-target="select-font">
-                  <button type="button" class="liquid-bar-segment active" data-val="Outfit">Outfit</button>
-                  <button type="button" class="liquid-bar-segment" data-val="Inter">Inter</button>
-                  <button type="button" class="liquid-bar-segment" data-val="Poppins">Poppins</button>
-                  <button type="button" class="liquid-bar-segment" data-val="Space Grotesk">Grotesk</button>
-                  <button type="button" class="liquid-bar-segment" data-val="JetBrains Mono">Mono</button>
+                <label for="select-font">Font Family</label>
+                <div class="liquid-select-wrapper">
+                  <select id="select-font" class="liquid-select advanced-dropdown">
+                    <optgroup label="Modern Sans-Serif">
+                      <option value="Outfit" selected>Outfit</option>
+                      <option value="Inter">Inter</option>
+                      <option value="Poppins">Poppins</option>
+                    </optgroup>
+                    <optgroup label="Stylized &amp; Monospace">
+                      <option value="Space Grotesk">Space Grotesk</option>
+                      <option value="JetBrains Mono">JetBrains Mono</option>
+                    </optgroup>
+                  </select>
+                  <svg class="select-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="6 9 12 15 18 9"/></svg>
                 </div>
-                <select id="select-font" style="display: none;">
-                  <option value="Outfit" selected>Outfit</option>
-                  <option value="Inter">Inter</option>
-                  <option value="Poppins">Poppins</option>
-                  <option value="Space Grotesk">Space Grotesk</option>
-                  <option value="JetBrains Mono">JetBrains Mono</option>
-                </select>
               </div>
 
               <div class="setting-row">
@@ -1144,16 +1158,6 @@
                 </label>
               </div>
 
-              <div class="setting-row" style="margin-top: 4px;">
-                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Add ambient glowing borders to your screen edges synced with album art">
-                  <span>Enable Screen Edge Glow</span>
-                  <div class="toggle-switch">
-                    <input type="checkbox" id="check-edge-glow" />
-                    <span class="toggle-slider"></span>
-                  </div>
-                </label>
-              </div>
-
               <!-- Hidden inputs for file pickers & custom art -->
               <input type="file" id="input-custom-art-gif-file" accept="image/gif,video/mp4,video/webm" style="display: none;" />
               <button id="btn-pick-custom-art-gif" style="display: none;"></button>
@@ -1178,21 +1182,24 @@
               </div>
 
               <div class="setting-row">
-                <label>Auto-Translate Lyrics</label>
-                <div class="liquid-glass-bar" data-target="select-translate">
-                  <button type="button" class="liquid-bar-segment" data-val="none">Off</button>
-                  <button type="button" class="liquid-bar-segment active" data-val="en">English</button>
-                  <button type="button" class="liquid-bar-segment" data-val="ja">Japanese</button>
-                  <button type="button" class="liquid-bar-segment" data-val="es">Spanish</button>
-                  <button type="button" class="liquid-bar-segment" data-val="zh">Chinese</button>
+                <label for="select-translate">Auto-Translate Lyrics</label>
+                <div class="liquid-select-wrapper">
+                  <select id="select-translate" class="liquid-select advanced-dropdown">
+                    <optgroup label="General">
+                      <option value="none">Off (No Translation)</option>
+                    </optgroup>
+                    <optgroup label="Major Languages">
+                      <option value="en" selected>English (en)</option>
+                      <option value="es">Spanish (es)</option>
+                      <option value="hi">Hindi (Devanagari)</option>
+                    </optgroup>
+                    <optgroup label="East Asian Languages">
+                      <option value="ja">Japanese (ja)</option>
+                      <option value="zh">Chinese (zh)</option>
+                    </optgroup>
+                  </select>
+                  <svg class="select-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="6 9 12 15 18 9"/></svg>
                 </div>
-                <select id="select-translate" style="display: none;">
-                  <option value="none">none</option>
-                  <option value="en" selected>en</option>
-                  <option value="ja">ja</option>
-                  <option value="es">es</option>
-                  <option value="zh">zh</option>
-                </select>
               </div>
 
               <div class="setting-row">
@@ -1223,10 +1230,54 @@
                 </label>
               </div>
 
+              <!-- Advanced Engine & Multi-Option Settings Dropdown (Bifurcating multi-option settings) -->
+              <div class="settings-advanced-section">
+                <details class="settings-advanced-dropdown">
+                  <summary class="settings-advanced-summary">
+                    <span>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px; vertical-align: -1px;"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                      Advanced Engine &amp; Multi-Option Settings
+                    </span>
+                    <svg class="dropdown-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+                  </summary>
+                  <div class="settings-advanced-body">
+                    <div class="setting-row">
+                      <label for="select-preferred-provider" title="Choose the primary lyric engine priority hierarchy">Lyric Preference Priority</label>
+                      <div class="liquid-select-wrapper">
+                        <select id="select-preferred-provider" class="liquid-select advanced-dropdown">
+                          <optgroup label="Word-by-Word Karaoke Priority (Recommended)">
+                            <option value="netease" selected>★ Word-by-Word (NetEase YRC) &gt; Line-Sync (LRCLIB)</option>
+                          </optgroup>
+                          <optgroup label="Line-Sync Priority">
+                            <option value="lrclib">LRCLIB Line-Sync &gt; Word-by-Word</option>
+                          </optgroup>
+                          <optgroup label="Alternative Cascades">
+                            <option value="musixmatch">Musixmatch First</option>
+                            <option value="auto">Auto (Balanced Waterfall)</option>
+                          </optgroup>
+                        </select>
+                        <svg class="select-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="6 9 12 15 18 9"/></svg>
+                      </div>
+                    </div>
+
+                    <div class="setting-row" style="margin-top: 10px;">
+                      <label for="select-skip-lang" title="Filter out lyrics in non-preferred languages">Skip Non-Synced Language</label>
+                      <div class="liquid-select-wrapper">
+                        <select id="select-skip-lang" class="liquid-select">
+                          <option value="none" selected>None (Accept all languages)</option>
+                          <option value="zh">Filter Chinese lyrics unless track is Chinese</option>
+                          <option value="ja">Filter Japanese lyrics unless track is Japanese</option>
+                          <option value="ko">Filter Korean lyrics unless track is Korean</option>
+                        </select>
+                        <svg class="select-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="6 9 12 15 18 9"/></svg>
+                      </div>
+                    </div>
+                  </div>
+                </details>
+              </div>
+
               <!-- Hidden backward-compat elements -->
               <input type="checkbox" id="check-netease-word-by-word" checked style="display: none;" />
-              <select id="select-skip-lang" style="display: none;"><option value="none">none</option></select>
-              <select id="select-preferred-provider" style="display: none;"><option value="auto">auto</option></select>
             </div>
 
             <div class="settings-group">
@@ -1334,21 +1385,21 @@
               </div>
 
               <div class="setting-row">
-                <label>Dock Position</label>
-                <div class="liquid-glass-bar" data-target="select-island-position">
-                  <button type="button" class="liquid-bar-segment" data-val="top-left">↖ Left</button>
-                  <button type="button" class="liquid-bar-segment active" data-val="top-center">⬆ Center</button>
-                  <button type="button" class="liquid-bar-segment" data-val="top-right">↗ Right</button>
-                  <button type="button" class="liquid-bar-segment" data-val="bottom-center">⬇ Bottom</button>
-                  <button type="button" class="liquid-bar-segment" data-val="free" title="Drag and float anywhere">✦ Free</button>
+                <label for="select-island-position">Dock Position</label>
+                <div class="liquid-select-wrapper" data-val="free">
+                  <select id="select-island-position" class="liquid-select advanced-dropdown">
+                    <optgroup label="Screen Edges (Fixed)">
+                      <option value="top-left">↖ Top Left</option>
+                      <option value="top-center" selected>⬆ Top Center</option>
+                      <option value="top-right">↗ Top Right</option>
+                      <option value="bottom-center">⬇ Bottom Center</option>
+                    </optgroup>
+                    <optgroup label="Floating / Custom">
+                      <option value="free">free</option>
+                    </optgroup>
+                  </select>
+                  <svg class="select-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="6 9 12 15 18 9"/></svg>
                 </div>
-                <select id="select-island-position" style="display: none;">
-                  <option value="top-left">top-left</option>
-                  <option value="top-center" selected>top-center</option>
-                  <option value="top-right">top-right</option>
-                  <option value="bottom-center">bottom-center</option>
-                  <option value="free">free</option>
-                </select>
               </div>
 
               <div class="setting-row">
@@ -1703,6 +1754,10 @@
                   <div class="shortcut-row" data-shortcut-action="cinematic" role="button" tabindex="0" title="Click to toggle Cinematic Stage">
                     <span class="shortcut-row-label">Cinematic Stage</span>
                     <kbd class="kbd-badge system">Ctrl + Shift + C</kbd>
+                  </div>
+                  <div class="shortcut-row" data-shortcut-action="kinetic" role="button" tabindex="0" title="Click to toggle Kinetic Mode">
+                    <span class="shortcut-row-label">Kinetic Mode</span>
+                    <kbd class="kbd-badge system">Ctrl + Shift + K</kbd>
                   </div>
                   <div class="shortcut-row" data-shortcut-action="island" role="button" tabindex="0" title="Click to toggle Dynamic Island">
                     <span class="shortcut-row-label">Dynamic Island</span>
@@ -2223,6 +2278,23 @@
         </div>
       </div>
 
+
+      <!-- Toast Notification for Lyric Copy -->
+      <div id="whats-new-modal" class="whats-new-modal" role="dialog" aria-modal="true" aria-labelledby="whats-new-title" hidden>
+        <div class="whats-new-backdrop"></div>
+        <section class="whats-new-card">
+          <div class="whats-new-eyebrow">LYRICFLOW UPDATE</div>
+          <h2 id="whats-new-title">What’s New</h2>
+          <p class="whats-new-version">Version <span id="whats-new-version">—</span></p>
+          <ul class="whats-new-list">
+            <li><span>♫</span><div><strong>Word-by-word lyrics come first</strong><small>Better prioritization of karaoke-synced lyrics, with a way to restore the previous lyrics after a refetch.</small></div></li>
+            <li><span>◉</span><div><strong>More reliable music detection</strong><small>Windows playback can be picked up from compatible SMTC players without connecting Spotify.</small></div></li>
+            <li><span>✦</span><div><strong>A more polished Dynamic Island</strong><small>Artwork transitions, clearer next-track previews, and visualizer refinements.</small></div></li>
+            <li><span>⚙</span><div><strong>Simpler setup and settings</strong><small>More organized options and a skippable first-run walkthrough.</small></div></li>
+          </ul>
+          <button id="btn-whats-new-done" class="whats-new-done">Sounds good</button>
+        </section>
+      </div>
 
       <!-- Toast Notification for Lyric Copy -->
       <div id="toast-notification" class="toast-notification"></div>

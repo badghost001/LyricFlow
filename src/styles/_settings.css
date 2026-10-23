@@ -1,4 +1,23 @@
 /* Settings Side Panel - Authentic Liquid Glass Masterpiece */
+.whats-new-modal[hidden] { display: none; }
+.whats-new-modal { position: fixed; inset: 0; z-index: 200000; display: grid; place-items: center; padding: 20px; }
+.whats-new-backdrop { position: absolute; inset: 0; background: rgba(4,7,13,.62); backdrop-filter: blur(18px) saturate(145%); -webkit-backdrop-filter: blur(18px) saturate(145%); animation: whats-new-fade .24s ease-out both; }
+.whats-new-card { position: relative; width: min(460px, 94vw); padding: 30px; border: 1px solid rgba(255,255,255,.22); border-radius: 26px; color: var(--text-primary,#f7f8fc); background: linear-gradient(145deg,rgba(255,255,255,.18),rgba(255,255,255,.07) 40%,rgba(16,22,34,.84)),var(--liquid-glass-bg,rgba(17,21,31,.84)); box-shadow: 0 28px 90px rgba(0,0,0,.5),inset 0 1px rgba(255,255,255,.3); backdrop-filter: blur(34px) saturate(180%); -webkit-backdrop-filter: blur(34px) saturate(180%); animation: whats-new-enter .36s cubic-bezier(.2,.8,.2,1) both; }
+.whats-new-eyebrow { color: var(--accent-primary,#ff5578); font-size: 10px; font-weight: 800; letter-spacing: .18em; }
+.whats-new-card h2 { margin: 8px 0 2px; font-size: 28px; letter-spacing: -.04em; }
+.whats-new-version { margin: 0 0 20px; color: rgba(255,255,255,.55); font-size: 12px; }
+.whats-new-list { display: grid; gap: 15px; margin: 0; padding: 0; list-style: none; }
+.whats-new-list li { display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: start; }
+.whats-new-list li > span { display: grid; place-items: center; width: 27px; height: 27px; border: 1px solid rgba(255,255,255,.14); border-radius: 9px; color: var(--accent-primary,#ff5578); background: rgba(255,255,255,.07); }
+.whats-new-list strong,.whats-new-list small { display: block; }
+.whats-new-list strong { font-size: 12px; }
+.whats-new-list small { margin-top: 3px; color: rgba(255,255,255,.56); font-size: 10px; line-height: 1.45; }
+.whats-new-done { width: 100%; margin-top: 23px; padding: 11px 16px; border: 1px solid rgba(255,255,255,.2); border-radius: 13px; color: white; background: linear-gradient(110deg,var(--accent-primary,#f43f5e),var(--accent-secondary,#8b5cf6)); box-shadow: 0 8px 24px rgba(var(--accent-primary-rgb,244,63,94),.2); font: inherit; font-weight: 700; cursor: pointer; }
+@keyframes whats-new-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes whats-new-enter { from { opacity: 0; transform: translateY(12px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
+.whats-new-modal:not([hidden]) { display: grid; }
+
 .settings-panel {
   position: absolute;
   top: 0;
@@ -700,4 +719,215 @@
 
 [data-theme="light"] .file-picker-name {
   color: rgba(0, 0, 0, 0.38);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   SETTINGS ADVANCED DROPDOWN & LIQUID SELECTS
+   - Bifurcates multi-option settings into clean collapsible section
+   - Liquid glass dropdown with custom chevron and styled menus
+   ══════════════════════════════════════════════════════════════ */
+
+.settings-advanced-section {
+  width: 100%;
+  margin-top: 6px;
+}
+
+.settings-advanced-dropdown {
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.onboarding-skip-button {
+  position: absolute;
+  top: 20px;
+  right: 22px;
+  z-index: 1;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 18px;
+  padding: 8px 14px;
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.86);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.onboarding-skip-button:hover {
+  background: rgba(255, 255, 255, 0.13);
+}
+
+.settings-advanced-dropdown[open] {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+
+.settings-advanced-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.78);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  transition: color 0.2s ease, background 0.2s ease;
+}
+
+.settings-advanced-summary::-webkit-details-marker {
+  display: none;
+}
+
+.settings-advanced-summary:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.settings-advanced-summary .dropdown-chevron {
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.settings-advanced-dropdown[open] .dropdown-chevron {
+  transform: rotate(180deg);
+  color: var(--accent-primary, #1DB954);
+}
+
+.settings-advanced-body {
+  padding: 12px 14px 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: tabFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Liquid Select Dropdown Wrapper */
+.liquid-select-wrapper {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+}
+
+/* Liquid Select Dropdown & Advanced Dropdown Styling */
+.advanced-dropdown,
+.liquid-select {
+  width: 100%;
+  appearance: none;
+  -webkit-appearance: none;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 9px;
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  padding: 8px 32px 8px 12px;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.25);
+}
+
+.advanced-dropdown:hover,
+.liquid-select:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.advanced-dropdown:focus,
+.liquid-select:focus {
+  border-color: var(--accent-primary, #1DB954);
+  box-shadow: 0 0 0 2px rgba(var(--accent-primary-rgb, 29, 185, 84), 0.25);
+}
+
+.advanced-dropdown optgroup,
+.liquid-select optgroup {
+  background: #12131d;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  padding: 8px 6px 4px 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.advanced-dropdown option,
+.liquid-select option {
+  background: #181926;
+  color: #ffffff;
+  padding: 8px 12px;
+  font-size: 12.5px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.liquid-select-wrapper .select-chevron {
+  position: absolute;
+  right: 12px;
+  pointer-events: none;
+  color: rgba(255, 255, 255, 0.45);
+  transition: color 0.2s ease;
+}
+
+.liquid-select-wrapper:hover .select-chevron {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+[data-theme="light"] .settings-advanced-dropdown {
+  background: rgba(0, 0, 0, 0.02);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .settings-advanced-dropdown[open] {
+  background: rgba(0, 0, 0, 0.035);
+  border-color: rgba(0, 0, 0, 0.12);
+}
+
+[data-theme="light"] .settings-advanced-summary {
+  color: rgba(0, 0, 0, 0.75);
+}
+
+[data-theme="light"] .settings-advanced-summary:hover {
+  color: #000000;
+  background: rgba(0, 0, 0, 0.03);
+}
+
+[data-theme="light"] .settings-advanced-body {
+  border-top-color: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .advanced-dropdown,
+[data-theme="light"] .liquid-select {
+  background: rgba(0, 0, 0, 0.035);
+  border-color: rgba(0, 0, 0, 0.12);
+  color: #111111;
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="light"] .advanced-dropdown optgroup,
+[data-theme="light"] .liquid-select optgroup {
+  background: #eaeaea;
+  color: rgba(0, 0, 0, 0.5);
+  border-bottom-color: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .advanced-dropdown option,
+[data-theme="light"] .liquid-select option {
+  background: #f5f5f7;
+  color: #111111;
+}
+
+[data-theme="light"] .liquid-select-wrapper .select-chevron {
+  color: rgba(0, 0, 0, 0.45);
 }

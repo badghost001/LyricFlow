@@ -499,7 +499,7 @@ fn run_capture_loop(app: AppHandle, running: Arc<AtomicBool>) {
                 }
             }
 
-            if now.duration_since(last_emit) >= Duration::from_millis(22) {
+            if now.duration_since(last_emit) >= Duration::from_millis(16) {
                 last_emit = now;
 
                 if consecutive_silence > 15 {

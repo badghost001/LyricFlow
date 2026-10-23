@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const assert = require('assert');
+const vm = require('vm');
 
 console.log('--- Running Dynamic Island Quality Badge & Quick-Action Context Menu Tests ---');
 
@@ -57,8 +58,8 @@ assert(
   '_dynamic_island.css must define .badge-hires styling'
 );
 assert(
-  cssContent.includes('.island-quality-badge.badge-synced'),
-  '_dynamic_island.css must define .badge-synced styling'
+  !cssContent.includes('.island-quality-badge.badge-synced'),
+  '_dynamic_island.css must not define obsolete .badge-synced styling'
 );
 assert(
   cssContent.includes('.island-context-menu'),
@@ -85,6 +86,12 @@ const rendererContent = fs.readFileSync(rendererPath, 'utf8');
 assert(
   rendererContent.includes('function updateIslandQualityBadge'),
   'renderer.js must implement updateIslandQualityBadge function'
+);
+const updateBadgeMatch = rendererContent.match(/function updateIslandQualityBadge\([\s\S]*?\n\}/);
+assert(updateBadgeMatch, 'renderer.js must declare updateIslandQualityBadge block');
+assert(
+  !updateBadgeMatch[0].includes('WORD-SYNC') && !updateBadgeMatch[0].includes('badge-synced'),
+  'updateIslandQualityBadge must not set WORD-SYNC or badge-synced class'
 );
 assert(
   rendererContent.includes('function showIslandContextMenu'),
@@ -123,12 +130,6 @@ function resolveBadgeState({ hasTrack, isLossless, isHiRes, sourceLevel }) {
       text: isHiRes ? "HI-RES" : "LOSSLESS",
       className: isHiRes ? "badge-hires" : "badge-lossless"
     };
-  } else if (sourceLevel >= 2) {
-    return {
-      visible: true,
-      text: sourceLevel === 3 ? "WORD-SYNC" : "SYNCED",
-      className: "badge-synced"
-    };
   }
   return { visible: false };
 }
@@ -150,13 +151,13 @@ assert.deepStrictEqual(
 );
 assert.deepStrictEqual(
   resolveBadgeState({ hasTrack: true, isLossless: false, isHiRes: false, sourceLevel: 3 }),
-  { visible: true, text: 'WORD-SYNC', className: 'badge-synced' },
-  'Word-synced audio must produce WORD-SYNC badge'
+  { visible: false },
+  'Word-synced audio must suppress sync badge'
 );
 assert.deepStrictEqual(
   resolveBadgeState({ hasTrack: true, isLossless: false, isHiRes: false, sourceLevel: 2 }),
-  { visible: true, text: 'SYNCED', className: 'badge-synced' },
-  'Line-synced audio must produce SYNCED badge'
+  { visible: false },
+  'Line-synced audio must suppress sync badge'
 );
 assert.deepStrictEqual(
   resolveBadgeState({ hasTrack: true, isLossless: false, isHiRes: false, sourceLevel: 1 }),
@@ -176,6 +177,60 @@ assert.strictEqual(posNearRightEdge.x, 1690, 'Right boundary must clamp menu ful
 const posNearLeftEdge = clampMenuPosition(-20, 50, 220, 180, 1920, 1080);
 assert.strictEqual(posNearLeftEdge.x, 10, 'Left boundary must clamp menu at 10px minimum padding');
 
-console.log('  ✓ 4. Mathematical logic and viewport clamping simulations verified across all regimes');
+// 4c. Deep Verification: Execute real updateIslandQualityBadge implementation extracted from renderer.js
+const mockBadge = {
+  style: { display: 'none' },
+  textContent: '',
+  className: 'island-quality-badge'
+};
+
+const vmSandbox = {
+  document: {
+    getElementById: (id) => (id === 'island-quality-badge' ? mockBadge : null)
+  },
+  currentPlayingTrackObj: null,
+  currentTrack: null,
+  currentIslandIsLossless: false,
+  currentIslandIsHiRes: false
+};
+
+vm.runInNewContext(updateBadgeMatch[0] + '; this.updateIslandQualityBadge = updateIslandQualityBadge;', vmSandbox);
+
+// Case 1: No track -> hidden and reset
+vmSandbox.currentPlayingTrackObj = null;
+vmSandbox.currentTrack = null;
+vmSandbox.updateIslandQualityBadge(true, true);
+assert.strictEqual(mockBadge.style.display, 'none', 'No track active must hide badge');
+assert.strictEqual(mockBadge.className, 'island-quality-badge', 'No track active must reset className');
+
+// Case 2: Track active, 16-bit Lossless
+vmSandbox.currentPlayingTrackObj = { name: 'Track 1' };
+vmSandbox.currentIslandIsLossless = true;
+vmSandbox.currentIslandIsHiRes = false;
+vmSandbox.updateIslandQualityBadge();
+assert.strictEqual(mockBadge.style.display, 'inline-flex', 'Lossless must display inline-flex');
+assert.strictEqual(mockBadge.textContent, 'LOSSLESS');
+assert.strictEqual(mockBadge.className, 'island-quality-badge badge-lossless');
+
+// Case 3: Track active, 24-bit Hi-Res
+vmSandbox.currentIslandIsHiRes = true;
+vmSandbox.updateIslandQualityBadge();
+assert.strictEqual(mockBadge.style.display, 'inline-flex', 'Hi-Res must display inline-flex');
+assert.strictEqual(mockBadge.textContent, 'HI-RES');
+assert.strictEqual(mockBadge.className, 'island-quality-badge badge-hires');
+
+// Case 4: Track transition to standard lossy audio with Word-Sync lyrics (Level 3) -> MUST SUPPRESS
+vmSandbox.currentIslandIsLossless = false;
+vmSandbox.currentIslandIsHiRes = false;
+vmSandbox.updateIslandQualityBadge(false, false, 3);
+assert.strictEqual(mockBadge.style.display, 'none', 'Word-sync audio must suppress quality badge');
+assert.strictEqual(mockBadge.className, 'island-quality-badge', 'Suppressed badge must clean up className');
+
+// Case 5: Standard lossy audio with Line-Sync lyrics (Level 2) -> MUST SUPPRESS
+vmSandbox.updateIslandQualityBadge(false, false, 2);
+assert.strictEqual(mockBadge.style.display, 'none', 'Line-sync audio must suppress quality badge');
+assert.strictEqual(mockBadge.className, 'island-quality-badge', 'Suppressed badge must clean up className');
+
+console.log('  ✓ 4. Mathematical logic, viewport clamping, and VM execution of updateIslandQualityBadge verified across all regimes');
 
 console.log('\nAll Dynamic Island Quality Badge & Quick-Action Context Menu tests passed successfully!\n');

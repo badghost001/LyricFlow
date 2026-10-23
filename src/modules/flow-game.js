@@ -85,7 +85,7 @@
           <div class="flow-game-header">
             <div class="flow-game-tag">Flow Beats</div>
             <div class="flow-game-prompt-title">Ready to Flow</div>
-            <div class="flow-game-prompt-sub">Catch falling beats with arrow keys or cursor, or launch Spotify to start live lyrics!</div>
+            <div class="flow-game-prompt-sub">Offline practice works without a music source. Catch beats with arrow keys or cursor, or launch Spotify for live lyrics.</div>
             <div class="flow-game-score-bar">
               <div class="flow-score-pill">
                 <span class="flow-score-label">SCORE</span>
@@ -175,15 +175,19 @@
 
     onKeyDown(e) {
       if (!this.isRunning) return;
+      if (e.ctrlKey || e.metaKey || e.altKey || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target?.tagName || '')) return;
       if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+        if (e.key.startsWith('Arrow')) e.preventDefault?.();
         this.currentLane = Math.max(0, this.currentLane - 1);
         this.targetLaneX = this.lanes[this.currentLane];
         this.pulsePlayer();
       } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+        if (e.key.startsWith('Arrow')) e.preventDefault?.();
         this.currentLane = Math.min(this.lanes.length - 1, this.currentLane + 1);
         this.targetLaneX = this.lanes[this.currentLane];
         this.pulsePlayer();
       } else if (e.key === ' ' || e.key === 'ArrowDown') {
+        e.preventDefault?.();
         this.pulsePlayer();
       }
     }

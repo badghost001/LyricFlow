@@ -94,7 +94,7 @@ body.mode-dynamic-island #dynamic-island {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Outfit", "Inter", sans-serif !important;
   
   /* Compact Pill (Idle State) - dynamically responsive based on visualizer bars */
-  width: var(--island-compact-width, 340px);
+  width: min(var(--island-compact-width, 360px), calc(100vw - 12px));
   height: 36px;
   border-radius: 999px;
   
@@ -135,6 +135,66 @@ body.mode-dynamic-island #dynamic-island {
     transform 0.08s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
+/* Overflow visible during the sparkle sweep so elevated artwork and particles stay unclipped. */
+#dynamic-island.has-art-transition,
+#dynamic-island:has(.art-transitioning) {
+  overflow: visible !important;
+}
+
+#dynamic-island.has-next-up-preview {
+  overflow: visible !important;
+}
+
+.island-next-up-preview {
+  position: absolute;
+  top: calc(100% + 9px);
+  left: 50%;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(390px, calc(100vw - 24px));
+  min-height: 48px;
+  padding: 12px 16px;
+  border: 1px solid rgba(var(--art-color-1-rgb, 148, 163, 184), 0.34);
+  border-radius: 17px;
+  background: linear-gradient(145deg, rgba(38, 40, 49, 0.92), rgba(12, 13, 18, 0.96));
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  -webkit-backdrop-filter: blur(22px) saturate(1.35);
+  backdrop-filter: blur(22px) saturate(1.35);
+  color: #fff;
+  opacity: 0;
+  transform: translate(-50%, -5px) scale(0.98);
+  pointer-events: none;
+  transition: opacity 180ms ease, transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  white-space: nowrap;
+}
+
+.island-next-up-preview.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0) scale(1);
+}
+
+.island-next-up-label {
+  color: var(--art-color-1, #38bdf8);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+}
+
+.island-next-up-title {
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 11px;
+  text-overflow: ellipsis;
+}
+
+.island-next-up-countdown {
+  color: rgba(255, 255, 255, 0.56);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
 /* Stacked Translation Mode (Compact Pill: 44px height for dual lines) */
 body.mode-dynamic-island #dynamic-island.island-mode-stacked {
   height: 44px;
@@ -151,7 +211,7 @@ body.mode-dynamic-island #dynamic-island.island-mode-stacked {
 body.mode-dynamic-island:not(.is-playing) #dynamic-island:not(:hover),
 body.mode-dynamic-island.app-paused #dynamic-island:not(:hover),
 body.mode-dynamic-island #dynamic-island.island-paused:not(:hover) {
-  width: var(--island-paused-width, 210px);
+  width: var(--island-paused-width, 220px);
 }
 
 /* ==========================================================
@@ -160,8 +220,8 @@ body.mode-dynamic-island #dynamic-island.island-paused:not(:hover) {
    - Shows Song Name + Artist Name + 44px Album Art + Scrubber + Controls
 ========================================================== */
 body.mode-dynamic-island #dynamic-island:hover {
-  width: 430px;
-  height: 126px;
+  width: min(460px, calc(100vw - 20px));
+  height: 140px;
   border-radius: 28px;
   padding: 10px 14px 10px 14px;
   justify-content: space-between;
@@ -218,6 +278,7 @@ body.mode-dynamic-island #dynamic-island:hover {
   height: 44px;
 }
 
+#island-album-art,
 .island-art-tile {
   width: 100%;
   height: 100%;
@@ -257,6 +318,140 @@ body.mode-dynamic-island #dynamic-island:hover {
   object-fit: cover;
   pointer-events: none;
   display: block;
+  border-radius: inherit;
+}
+
+.island-art-img-old {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+  z-index: 2;
+  border-radius: inherit;
+}
+
+#island-art-img {
+  position: relative;
+  z-index: 3;
+}
+
+/* Progressive album art reveal led by small, artwork-colored sparkles. */
+.island-art-sparkle-sweep {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0%;
+  width: 40px;
+  pointer-events: none;
+  z-index: 12;
+  transform: translateX(-50%);
+}
+
+.art-sparkle {
+  position: absolute;
+  left: var(--spark-x);
+  top: var(--spark-y);
+  width: var(--spark-size, 2px);
+  height: var(--spark-size, 2px);
+  border-radius: 50%;
+  background: var(--art-color-1, #a5b4fc);
+  box-shadow: 0 0 4px var(--art-color-1, #a5b4fc), 0 0 8px rgba(var(--art-color-1-rgb, 165, 180, 252), 0.56);
+  opacity: 0;
+}
+
+/* Pop up & Elevation during Transition */
+.island-art-wrapper.art-transitioning .island-art-tile {
+  animation: islandArtTilePopSettle 0.72s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  z-index: 5;
+}
+
+.island-art-wrapper.art-transitioning .island-art-sparkle-sweep {
+  animation:
+    islandSparkleSweepPopSettle 0.72s cubic-bezier(0.22, 1, 0.36, 1) forwards,
+    islandSparkleParticleSweep 0.72s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.island-art-wrapper.art-transitioning .art-sparkle {
+  animation: artSparkleTwinkle 0.48s ease-out var(--spark-delay, 0ms) both;
+}
+
+.island-art-wrapper.art-transitioning #island-art-img {
+  animation: islandProgressiveReveal 0.72s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes islandSparkleSweepPopSettle {
+  0% {
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+  20% {
+    transform: translateX(-50%) translateY(-4px) scale(1.08);
+  }
+  75% {
+    transform: translateX(-50%) translateY(-4px) scale(1.08);
+  }
+  100% {
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+}
+
+@keyframes islandArtTilePopSettle {
+  0% {
+    transform: translateY(0) scale(1);
+  }
+  20% {
+    transform: translateY(-4px) scale(1.08);
+    box-shadow:
+      0 8px 20px rgba(0, 0, 0, 0.65),
+      0 0 14px var(--art-color-1, rgba(255, 255, 255, 0.4)),
+      inset 0 1px 0.5px rgba(255, 255, 255, 0.45);
+  }
+  75% {
+    transform: translateY(-4px) scale(1.08);
+    box-shadow:
+      0 8px 20px rgba(0, 0, 0, 0.65),
+      0 0 14px var(--art-color-1, rgba(255, 255, 255, 0.4)),
+      inset 0 1px 0.5px rgba(255, 255, 255, 0.45);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    box-shadow:
+      inset 0 1px 0.5px rgba(255, 255, 255, 0.35),
+      0 1px 3px rgba(0, 0, 0, 0.4);
+  }
+}
+
+@keyframes islandSparkleParticleSweep {
+  0% {
+    left: 0%;
+    opacity: 0;
+  }
+  8% {
+    opacity: 1;
+  }
+  88% {
+    opacity: 1;
+  }
+  100% {
+    left: 100%;
+    opacity: 0;
+  }
+}
+
+@keyframes artSparkleTwinkle {
+  0% { opacity: 0; transform: scale(0.25) translateY(2px); }
+  35% { opacity: 0.95; transform: scale(1.25) translateY(0); }
+  100% { opacity: 0; transform: scale(0.35) translateY(-2px); }
+}
+
+@keyframes islandProgressiveReveal {
+  0% {
+    clip-path: inset(0 100% 0 0);
+  }
+  100% {
+    clip-path: inset(0 0% 0 0);
+  }
 }
 
 .island-art-halo {
@@ -679,9 +874,7 @@ body.mode-dynamic-island.is-playing .island-lyric-zone {
 }
 
 #dynamic-island:hover .island-stage {
-  display: flex !important;
-  opacity: 1;
-  transform: translateY(0);
+  display: none !important;
 }
 
 .island-stage-original {
@@ -1378,7 +1571,7 @@ body.mode-dynamic-island.island-morph-solo #dynamic-island {
   -webkit-app-region: none !important;
 }
 
-/* Apple Music-Style Audio Quality / Synced Micro-Badge */
+/* Apple Music-Style Audio Quality Micro-Badge */
 .island-quality-badge {
   display: inline-flex;
   align-items: center;
@@ -1408,13 +1601,6 @@ body.mode-dynamic-island.island-morph-solo #dynamic-island {
   box-shadow: inset 0 1px 0 rgba(245, 158, 11, 0.2), 0 0 8px rgba(245, 158, 11, 0.25);
 }
 
-.island-quality-badge.badge-synced {
-  background: rgba(56, 189, 248, 0.14);
-  color: #38bdf8;
-  border-color: rgba(56, 189, 248, 0.32);
-  box-shadow: inset 0 1px 0 rgba(56, 189, 248, 0.15);
-}
-
 /* Audio-Reactive Equalizer */
 .island-wave-visualizer {
   display: flex;
@@ -1425,6 +1611,13 @@ body.mode-dynamic-island.island-morph-solo #dynamic-island {
   padding-right: 2px;
   pointer-events: none;
   transition: transform 0.3s ease, opacity 0.3s ease;
+  opacity: 1;
+  filter: none;
+}
+
+body.mode-dynamic-island:not(.island-ghost-mode) .island-wave-visualizer {
+  opacity: 1 !important;
+  filter: none !important;
 }
 
 #dynamic-island:hover .island-wave-visualizer {
@@ -1446,7 +1639,7 @@ body.mode-dynamic-island.island-morph-solo #dynamic-island {
 
 /* Real audio-reactive equalizer resting baseline (no fake CSS canned animations) */
 .island-wave-visualizer .wave-bar {
-  transition: transform 0.08s cubic-bezier(0.2, 0.9, 0.3, 1), opacity 0.2s ease;
+  transition: transform 0.025s linear, opacity 0.08s linear;
 }
 
 body:not(.is-playing) .wave-bar,
@@ -2408,11 +2601,9 @@ body.mode-dynamic-island.island-sleeping .island-duet-bridge {
   color: var(--accent-bright, #38bdf8);
 }
 
+/* End-of-track preview lives in its own floating glass card. */
 .island-countdown-pill.island-nextup-pill {
-  color: #c084fc;
-  background: rgba(192, 132, 252, 0.16);
-  border-color: rgba(192, 132, 252, 0.35);
-  animation: islandNextUpGlow 1.8s ease-in-out infinite alternate;
+  display: none !important;
 }
 
 .island-countdown-pill svg {
@@ -2431,17 +2622,6 @@ body.mode-dynamic-island.island-sleeping .island-duet-bridge {
   }
 }
 
-@keyframes islandNextUpGlow {
-  0% {
-    box-shadow: 0 0 4px rgba(192, 132, 252, 0.25);
-    border-color: rgba(192, 132, 252, 0.35);
-  }
-  100% {
-    box-shadow: 0 0 10px rgba(192, 132, 252, 0.65);
-    border-color: rgba(192, 132, 252, 0.7);
-  }
-}
-
 /* ==========================================================
    VISUALIZER STYLE VARIATIONS (Dots, Wave, Bars)
 ========================================================== */
@@ -2456,7 +2636,7 @@ body.mode-dynamic-island.island-sleeping .island-duet-bridge {
   border-radius: 50%;
   transform-origin: center center;
   box-shadow: 0 0 5px rgba(255, 255, 255, 0.6);
-  transition: transform 0.06s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+  transition: transform 0.025s linear;
 }
 
 /* 2. Fluid Waveform */
@@ -2719,6 +2899,11 @@ body.mode-dynamic-island.island-glass-mode .island-vol-track {
   width: 100%;
   text-align: left;
   box-sizing: border-box;
+}
+
+.island-context-item:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
 }
 
 .island-context-item:hover,
