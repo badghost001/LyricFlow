@@ -9113,22 +9113,17 @@ function setupUIHandlers() {
     controlPlayback(action);
   });
   window.electronAPI.onLocalPlaybackChange((data) => {
-    if (config && config.localMode) {
-      handlePlaybackData(data);
-    } else {
-      // In Spotify Web API mode, only trigger an immediate sync poll if the song actually changed
-      if (data && data.item) {
-        const localTitle = data.item.name.toLowerCase().trim();
-        const curTitle = (currentPlayingTrackObj && (currentPlayingTrackObj.name || currentPlayingTrackObj.title) || widgetTrackName?.textContent || "").toLowerCase().trim();
-        const isSongChanged = !curTitle || (localTitle && curTitle && localTitle !== curTitle && !localTitle.includes(curTitle) && !curTitle.includes(localTitle));
-        if (isSongChanged) {
-          if (window._spotifyRateLimitUntil && Date.now() < window._spotifyRateLimitUntil) {
-            handlePlaybackData(data);
-          } else {
-            pollSpotifyPlayback(true);
-          }
-        }
-      }
+    if (!data?.item) return;
+
+    // SMTC is the live Windows player session. Apply its track immediately so
+    // lyrics lookup does not depend on a Spotify account or a successful API
+    // poll. Spotify polling can enrich metadata afterward when it is available.
+    console.info(`[SMTC] renderer received playback change: "${data.item.name || ''}"`);
+    handlePlaybackData(data);
+    if (config && !config.localMode && config.access_token) {
+      pollSpotifyPlayback(true).catch(error => {
+        console.warn('[SMTC] Spotify metadata enrichment failed; keeping local playback data.', error);
+      });
     }
   });
 
