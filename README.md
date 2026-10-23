@@ -1,4 +1,13 @@
-﻿# LyricFlow
+# LyricFlow
+
+## Latest release: 1.44.3
+
+- Word-synced lyrics are fetched automatically when available, without requiring manual refetch.
+- Improved Windows SMTC playback clock continuity, including sessions without a Spotify login.
+- Improved Pearl Light readability across lyrics, playback controls, settings, and notifications.
+- Graceful handling of unavailable Genius annotation responses.
+
+See the [GitHub Releases](https://github.com/badghost001/LyricFlow/releases) page for installers and the complete release history.
 
 LyricFlow is a desktop music companion that displays synchronized lyrics, karaoke word highlighting, playback controls, and album-art driven visuals. The main application is built with Tauri 2 and Rust, with a JavaScript, HTML, and CSS interface. Windows builds integrate with Windows System Media Transport Controls (SMTC) to read playback from compatible media sessions.
 

@@ -17,6 +17,10 @@ body.bg-style-fluid .fluid-mesh-canvas {
   opacity: calc(var(--glow-intensity, 1) * 0.95);
 }
 
+html[data-theme="light"] body.bg-style-fluid .fluid-mesh-canvas {
+  opacity: calc(var(--glow-intensity, 1) * 0.95) !important;
+}
+
 body.bg-style-fluid .ambient-glow {
   opacity: 0 !important;
   display: none !important;

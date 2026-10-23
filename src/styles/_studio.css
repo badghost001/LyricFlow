@@ -182,6 +182,19 @@ body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mo
   display: block;
 }
 
+[data-theme="light"] .studio-track-title {
+  color: #17191d;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8);
+}
+
+[data-theme="light"] .studio-track-artist {
+  color: rgba(23, 25, 29, 0.76);
+}
+
+[data-theme="light"] .studio-track-album {
+  color: rgba(23, 25, 29, 0.62);
+}
+
 /* Studio Audio Badges */
 /* Studio Audio Badges */
 .studio-badges-row {
@@ -211,6 +224,12 @@ body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mo
   color: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+}
+
+/* Provider timing text is redundant with karaoke playback and becomes noisy
+   beside the live visualizer. Keep lossless/hi-res verification badges. */
+.studio-badge-provider {
+  display: none !important;
 }
 
 .studio-badge.is-confirmed {
@@ -515,6 +534,77 @@ body.layout-split .playback-widget #btn-play-pause:hover {
     0 8px 24px rgba(0, 0, 0, 0.55),
     0 0 24px rgba(var(--accent-primary-rgb, 29, 185, 84), 0.55),
     inset 0 1.5px 1px rgba(255, 255, 255, 0.6) !important;
+}
+
+/* Pearl Light needs explicit split-layout colors because the glass dock's
+   dark-theme rules above use !important and otherwise force white controls. */
+html[data-theme="light"] body.layout-split .studio-track-title {
+  color: #17191d;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8);
+}
+
+html[data-theme="light"] body.layout-split .studio-track-artist {
+  color: rgba(23, 25, 29, 0.76);
+  text-shadow: none;
+}
+
+html[data-theme="light"] body.layout-split .studio-track-album {
+  color: rgba(23, 25, 29, 0.62);
+}
+
+html[data-theme="light"] body.layout-split .playback-widget {
+  border-color: rgba(23, 25, 29, 0.14) !important;
+  box-shadow:
+    0 14px 32px rgba(25, 30, 45, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    inset 0 -1px 0 rgba(23, 25, 29, 0.06) !important;
+}
+
+html[data-theme="light"] body.layout-split .playback-widget #widget-time-current,
+html[data-theme="light"] body.layout-split .playback-widget #widget-time-duration {
+  color: #30343b !important;
+  text-shadow: none !important;
+}
+
+html[data-theme="light"] body.layout-split .playback-widget .progress-bar-bg {
+  background: rgba(23, 25, 29, 0.14) !important;
+  box-shadow: inset 0 1px 1px rgba(23, 25, 29, 0.12) !important;
+}
+
+html[data-theme="light"] body.layout-split .playback-widget .progress-bar-bg:hover,
+html[data-theme="light"] body.layout-split .playback-widget .progress-bar-bg.is-scrubbing {
+  background: rgba(23, 25, 29, 0.2) !important;
+}
+
+html[data-theme="light"] body.layout-split .playback-widget .progress-bar-thumb {
+  background: #fff !important;
+  box-shadow:
+    0 1px 5px rgba(23, 25, 29, 0.3),
+    0 0 7px rgba(var(--accent-primary-rgb, 29, 185, 84), 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95) !important;
+}
+
+html[data-theme="light"] body.layout-split .playback-widget .widget-ctrl-btn {
+  background: rgba(23, 25, 29, 0.055) !important;
+  border-color: rgba(23, 25, 29, 0.16) !important;
+  color: #292d34 !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.88) !important;
+}
+
+html[data-theme="light"] body.layout-split .playback-widget .widget-ctrl-btn:hover {
+  background: rgba(23, 25, 29, 0.11) !important;
+  border-color: rgba(23, 25, 29, 0.24) !important;
+  color: #17191d !important;
+  box-shadow: 0 3px 9px rgba(23, 25, 29, 0.12) !important;
+}
+
+html[data-theme="light"] body.layout-split .playback-widget #btn-play-pause {
+  background: rgba(23, 25, 29, 0.12) !important;
+  border-color: rgba(23, 25, 29, 0.22) !important;
+  color: #17191d !important;
+  box-shadow:
+    0 3px 10px rgba(23, 25, 29, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
 }
 
 /* Responsive adaptation for medium windows (481px - 768px): keep dual columns with compact sidebar */

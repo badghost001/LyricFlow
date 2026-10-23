@@ -496,6 +496,7 @@ pub fn run() {
 
                     let backend = media::get_platform_backend();
                     let mut last_track_id = String::new();
+                    let mut last_playback_emit = std::time::Instant::now() - Duration::from_secs(3);
                     let mut last_is_playing = false;
                     let mut last_rate = 1.0;
                     let mut consecutive_empty = 0u32;
@@ -511,9 +512,13 @@ pub fn run() {
                                 // Keep in-memory cache fresh for instant get_local_playback IPC
                                 media::set_cached_playback_state(playback_state.clone());
 
-                                if is_song_changed {
+                                // The first transition can happen before the WebView finishes
+                                // registering event listeners. Re-emit a lightweight heartbeat
+                                // so the renderer can recover even if that initial event was lost.
+                                if is_song_changed || last_playback_emit.elapsed() >= Duration::from_millis(500) {
                                     last_track_id = current_id;
                                     let _ = bg_handle.emit("local-playback-change", &playback_state);
+                                    last_playback_emit = std::time::Instant::now();
                                 }
                             }
 
@@ -545,7 +550,7 @@ pub fn run() {
                         let sleep_duration = if consecutive_empty > 4 {
                             Duration::from_millis(1000)
                         } else {
-                            Duration::from_millis(250)
+                            Duration::from_millis(150)
                         };
                         std::thread::sleep(sleep_duration);
                     }

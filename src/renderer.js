@@ -5688,6 +5688,19 @@ function applyVisualSettings(fromTray = false, skipIPC = false) {
   const currentAccent = settings.accentColor || 'green';
   document.documentElement.setAttribute('data-theme', currentTheme);
   document.documentElement.setAttribute('data-accent', currentAccent);
+  if (appContainer) {
+    const pearlCustomBackground = currentTheme === 'light' && hasCustomBackground && !settings.wallpaperMode;
+    if (pearlCustomBackground) {
+      // The Pearl Light surface must not paint a white veil over user media.
+      appContainer.style.setProperty('background', 'transparent', 'important');
+      appContainer.style.setProperty('backdrop-filter', 'blur(28px) saturate(1.2)', 'important');
+      appContainer.style.setProperty('-webkit-backdrop-filter', 'blur(28px) saturate(1.2)', 'important');
+    } else {
+      appContainer.style.removeProperty('background');
+      appContainer.style.removeProperty('backdrop-filter');
+      appContainer.style.removeProperty('-webkit-backdrop-filter');
+    }
+  }
   if (selectTheme) selectTheme.value = currentTheme;
   document.querySelectorAll('.accent-swatch').forEach(swatch => {
     swatch.classList.toggle('active', swatch.dataset.accent === currentAccent);
@@ -9114,13 +9127,13 @@ function setupUIHandlers() {
   });
   window.electronAPI.onLocalPlaybackChange((data) => {
     if (!data?.item) return;
+    const isTrackChange = data.item.id !== currentTrackId;
 
     // SMTC is the live Windows player session. Apply its track immediately so
     // lyrics lookup does not depend on a Spotify account or a successful API
     // poll. Spotify polling can enrich metadata afterward when it is available.
-    console.info(`[SMTC] renderer received playback change: "${data.item.name || ''}"`);
     handlePlaybackData(data);
-    if (config && !config.localMode && config.access_token) {
+    if (isTrackChange && config && !config.localMode && config.access_token) {
       pollSpotifyPlayback(true).catch(error => {
         console.warn('[SMTC] Spotify metadata enrichment failed; keeping local playback data.', error);
       });
@@ -10844,6 +10857,8 @@ function showNowPlayingNotification(trackInfo, playcount) {
       clearTimeout(window._nowPlayingToastTimeout);
       window._nowPlayingToastTimeout = null;
     }
+    toastNotification.classList.remove('next-up-toast');
+    toastNotification.classList.add('now-playing-toast');
     const artImg = artUrl
       ? `<img src="${escapeHTML(artUrl)}" style="width:24px;height:24px;border-radius:6px;object-fit:cover;flex-shrink:0;box-shadow:0 2px 6px rgba(0,0,0,0.4);" />`
       : `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;color:#ffffff;"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>`;
@@ -10859,6 +10874,7 @@ function showNowPlayingNotification(trackInfo, playcount) {
 
     window._nowPlayingToastTimeout = setTimeout(() => {
       toastNotification.classList.remove("show");
+      toastNotification.classList.remove("now-playing-toast");
       window._nowPlayingToastTimeout = null;
     }, 4000);
   }
@@ -10921,6 +10937,8 @@ function triggerNextUpDesktopNotification(trackInfo, remainingSec) {
     clearTimeout(window._nowPlayingToastTimeout);
     window._nowPlayingToastTimeout = null;
   }
+  toastNotification.classList.remove('now-playing-toast');
+  toastNotification.classList.add('next-up-toast');
 
   const trackName = trackInfo.name || trackInfo.title || 'Upcoming Track';
   const artistName = trackInfo.artist || (trackInfo.artists ? trackInfo.artists.map(a => a.name).join(', ') : '');
@@ -10941,6 +10959,7 @@ function triggerNextUpDesktopNotification(trackInfo, remainingSec) {
 
   window._nowPlayingToastTimeout = setTimeout(() => {
     toastNotification.classList.remove("show");
+    toastNotification.classList.remove("next-up-toast");
     window._nowPlayingToastTimeout = null;
   }, 4000);
 }
@@ -11296,7 +11315,14 @@ async function handlePlaybackData(data) {
     });
   }
 
-  trackDuration = track.duration_ms;
+  const reportedDuration = Number(track.duration_ms);
+  if (Number.isFinite(reportedDuration) && reportedDuration > 0) {
+    trackDuration = reportedDuration;
+  } else if (isNewTrack) {
+    // Keep unknown SMTC duration at zero for this new track; same-track polls
+    // with a transient zero must not erase a previously valid duration.
+    trackDuration = 0;
+  }
 
   if (track && (!track.album || !track.album.images || !track.album.images.length)) {
     const primaryArtist = track.artists?.[0]?.name || '';
@@ -11618,7 +11644,7 @@ async function handlePlaybackData(data) {
       executeTrackFetches();
     } else {
       // Throttle network requests by 80ms ONLY during rapid scrubbing (>2 skips within 300ms)
-      trackSwitchDebounceTimer = setTimeout(executeTrackFetches, 80);
+      trackSwitchDebounceTimer = setTimeout(executeTrackFetches, 25);
     }
   }
 }
@@ -12370,17 +12396,20 @@ async function _executeFetchLyrics(trackId, trackName, artistName, durationMs, i
     };
 
     // 0. Rust Multi-Provider Engine (Fastest, zero CORS/CSP restrictions, queries Cloudflare Proxy + LRCLIB + Musixmatch)
-    const rustLyricsFetch = async () => {
+    const rustLyricsFetch = async (candidateIndexOverride = null, isWordSyncUpgradeProbe = false) => {
       try {
         if (!window.electronAPI || typeof window.electronAPI.searchSyncedLyrics !== 'function') return false;
-        console.log(`[LF-LYRICS] rustLyricsFetch querying: track="${cleanTrack}", artist="${cleanArtist}", dur=${durationMs}`);
+        const candidateIndex = candidateIndexOverride == null
+          ? (trackLyricsCandidateIndex[trackId] || 0)
+          : candidateIndexOverride;
+        console.log(`[LF-LYRICS] rustLyricsFetch querying: track="${cleanTrack}", artist="${cleanArtist}", dur=${durationMs}, candidate=${candidateIndex}${isWordSyncUpgradeProbe ? ', word-sync-upgrade' : ''}`);
         const candidate = await window.electronAPI.searchSyncedLyrics(cleanTrack, cleanArtist, durationMs, {
           preferredProviders: settings.preferredLyricProviders || [],
           musixmatchToken: settings.musixmatchUserToken || null,
           spotifyToken: config?.access_token || null,
           spotifyTrackId: trackId?.startsWith('spotify:track:') ? trackId.replace('spotify:track:', '') : null,
           forceRefresh: !!options.forceRefresh,
-          candidateIndex: trackLyricsCandidateIndex[trackId] || 0,
+          candidateIndex,
           neteaseWordByWord: settings.neteaseWordByWord !== false
         });
         if (candidate && trackId === currentTrackId) {
@@ -12407,7 +12436,20 @@ async function _executeFetchLyrics(trackId, trackName, artistName, durationMs, i
               return false;
             }
             const level = hasWords ? 3 : (candidate.syncType === 'LINE_SYNCED' ? 2 : 1);
-            return await applyLyricsData(parsed, level, candidate.provider, candidate.candidateInfo || "");
+            const applied = await applyLyricsData(parsed, level, candidate.provider, candidate.candidateInfo || "");
+
+            // The initial Rust lookup has a short latency budget and can return
+            // LRCLIB before NetEase's YRC response arrives. Probe the next
+            // candidate automatically in the background so word timing does
+            // not require the user to press Refetch. Keep the line lyrics
+            // visible while the upgrade lookup runs.
+            if (applied && level < 3 && candidateIndex === 0 &&
+                !isWordSyncUpgradeProbe && !options.forceRefresh &&
+                settings.wordByWord !== false && settings.neteaseWordByWord !== false &&
+                trackId === currentTrackId) {
+              void rustLyricsFetch(1, true);
+            }
+            return applied;
           }
         }
       } catch (e) {
@@ -13652,6 +13694,7 @@ function appendTimedWordSpans(container, words, lineText, className, dataName) {
     const span = document.createElement('span');
     span.className = className;
     span.textContent = rawText.trim();
+    span.dataset.wordText = rawText.trim();
     if (dataName) span.dataset[dataName] = index;
     container.appendChild(span);
     if (index < reconciled.length - 1 && needsTimedWordSpace(reconciled, index, lineText || '', searchState)) {
@@ -13672,7 +13715,8 @@ function timedWordSpansHtml(words, lineText) {
   const searchState = { position: 0 };
   return reconciled.map((word, index) => {
     const text = String(word?.text ?? word ?? '');
-    const span = `<span class="lyric-word" data-word-idx="${index}">${escapeHTML(text.trim())}</span>`;
+    const cleanText = text.trim();
+    const span = `<span class="lyric-word" data-word-idx="${index}" data-word-text="${escapeHTML(cleanText)}">${escapeHTML(cleanText)}</span>`;
     return span + (index < reconciled.length - 1 && needsTimedWordSpace(reconciled, index, lineText || '', searchState) ? '<span class="island-word-space"> </span>' : '');
   }).join('');
 }
@@ -14220,7 +14264,10 @@ function updatePlayhead() {
   }
   try {
     let previousProgress = currentProgress;
-    if (config && isPlaying) {
+    // Local SMTC playback can run without a Spotify config. Keep interpolating
+    // from the latest playback anchor in that case, instead of stepping only
+    // when the next native playback event arrives.
+    if (isPlaying) {
       const baseRate = window._currentPlaybackRate || 1.0;
       const pllRate = window._pllRateMultiplier || 1.0;
       const rate = baseRate * pllRate;
@@ -14239,18 +14286,20 @@ function updatePlayhead() {
       currentProgress = previousProgress;
     }
 
-    if (currentProgress > trackDuration) {
+    // SMTC providers may report an unknown duration (0) while still exposing
+    // a live playback session. Treat 0 as "unknown", not as a zero-length track,
+    // or this clamp pins the lyric clock at 0:00 forever.
+    if (trackDuration > 0 && currentProgress > trackDuration) {
       currentProgress = trackDuration;
     }
 
     // Update widget UI progress
-    if (config) {
-      const fillPercent = trackDuration > 0 ? (currentProgress / trackDuration) * 100 : 0;
+    const fillPercent = trackDuration > 0 ? (currentProgress / trackDuration) * 100 : 0;
       
       if (!isScrubbingMainProgress) {
         // Throttle progress bar visual updates (only update if changed significantly)
         if (Math.abs((window._lastFillPercent || 0) - fillPercent) > 0.1) {
-          widgetProgressFill.style.width = `${fillPercent}%`;
+          if (widgetProgressFill) widgetProgressFill.style.width = `${fillPercent}%`;
           window._lastFillPercent = fillPercent;
           if (!window._cachedMainThumb) {
             window._cachedMainThumb = document.getElementById("main-progress-thumb");
@@ -14667,7 +14716,7 @@ function updatePlayhead() {
           // Width is managed by taskbar_renderer.js via scheduleResize — do NOT call here
         }
       }
-    } else {
+    if (lyrics.length === 0) {
       try {
         if (isDynamicIslandMode && !isIslandSleeping) {
           updateDynamicIslandLyric(-1, null, currentProgress, false);

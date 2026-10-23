@@ -10,6 +10,30 @@ pub struct GeniusAnnotation {
     pub text: String,
 }
 
+async fn parse_genius_json(response: reqwest::Response, endpoint: &str) -> Option<Value> {
+    let status = response.status();
+    let body = response.text().await.ok()?;
+    if !status.is_success() {
+        return None;
+    }
+
+    match serde_json::from_str(&body) {
+        Ok(value) => Some(value),
+        Err(error) => {
+            // Genius sometimes returns an HTML challenge or an empty body with
+            // HTTP 200. Treat that as no annotation data instead of surfacing a
+            // command-level decode error to the renderer.
+            crate::log_to_file(&format!(
+                "[Genius] Ignoring non-JSON {endpoint} response (status={}, bytes={}, error={})",
+                status.as_u16(),
+                body.len(),
+                error
+            ));
+            None
+        }
+    }
+}
+
 pub async fn search_genius(
     client: &Client,
     track: &str,
@@ -163,7 +187,9 @@ pub async fn fetch_genius_fact(
         return Ok(None);
     }
 
-    let search_data: Value = res.json().await.map_err(|e| e.to_string())?;
+    let Some(search_data) = parse_genius_json(res, "search").await else {
+        return Ok(None);
+    };
     let mut song_id = None;
     if let Some(sections) = search_data["response"]["sections"].as_array() {
         for sec in sections {
@@ -202,7 +228,9 @@ pub async fn fetch_genius_fact(
         return Ok(None);
     }
 
-    let song_data: Value = fact_res.json().await.map_err(|e| e.to_string())?;
+    let Some(song_data) = parse_genius_json(fact_res, "song fact").await else {
+        return Ok(None);
+    };
     let plain = song_data["response"]["song"]["description"]["plain"]
         .as_str()
         .map(|s| s.to_string());
@@ -234,7 +262,9 @@ pub async fn get_genius_annotations(
         return Ok(vec![]);
     }
 
-    let search_data: Value = res.json().await.map_err(|e| e.to_string())?;
+    let Some(search_data) = parse_genius_json(res, "search").await else {
+        return Ok(vec![]);
+    };
     let mut song_id = None;
     if let Some(sections) = search_data["response"]["sections"].as_array() {
         for sec in sections {
@@ -273,7 +303,9 @@ pub async fn get_genius_annotations(
         return Ok(vec![]);
     }
 
-    let ref_data: Value = ref_res.json().await.map_err(|e| e.to_string())?;
+    let Some(ref_data) = parse_genius_json(ref_res, "referents").await else {
+        return Ok(vec![]);
+    };
     let mut annotations = Vec::new();
     if let Some(referents) = ref_data["response"]["referents"].as_array() {
         for r in referents {

@@ -691,6 +691,17 @@
   border-color: rgba(255, 255, 255, 0.25);
 }
 
+[data-theme="light"] .file-picker-btn {
+  background: rgba(23, 25, 29, 0.055);
+  border-color: rgba(23, 25, 29, 0.16);
+  color: #292d34;
+}
+
+[data-theme="light"] .file-picker-btn:hover {
+  background: rgba(23, 25, 29, 0.1);
+  border-color: rgba(23, 25, 29, 0.24);
+}
+
 .file-picker-clear {
   background: rgba(244, 63, 94, 0.06);
   border: 1px solid rgba(244, 63, 94, 0.25);
@@ -718,7 +729,7 @@
 }
 
 [data-theme="light"] .file-picker-name {
-  color: rgba(0, 0, 0, 0.38);
+  color: rgba(23, 25, 29, 0.62);
 }
 
 /* ══════════════════════════════════════════════════════════════
