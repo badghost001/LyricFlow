@@ -18,6 +18,10 @@ jobs:
       contents: write
     strategy:
       fail-fast: false
+      # tauri-action merges each platform's signature into latest.json by
+      # reading then replacing the release asset. Serialize matrix jobs so
+      # concurrent uploads cannot overwrite another platform's entry.
+      max-parallel: 1
       matrix:
         include:
           - platform: 'windows-latest'
