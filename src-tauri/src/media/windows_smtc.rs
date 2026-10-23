@@ -9,6 +9,7 @@ use windows::Media::Control::{
 use windows::Win32::System::Com::{CoInitializeEx, COINIT_MULTITHREADED};
 
 static CACHED_MANAGER: Mutex<Option<GlobalSystemMediaTransportControlsSessionManager>> = Mutex::new(None);
+static LAST_SMTC_SESSION_DIAGNOSTIC: Mutex<Option<String>> = Mutex::new(None);
 static CACHED_TRACK: Mutex<Option<TrackMetadata>> = Mutex::new(None);
 // Track the source session separately from the media properties. A transiently
 // empty title from a newly selected player must never reuse the previous
@@ -192,13 +193,26 @@ fn is_known_non_music_app(app_id: &str) -> bool {
     .any(|name| id.contains(name))
 }
 
+fn has_track_title(title: &str) -> bool {
+    !title.trim().is_empty()
+}
+
 fn session_has_track_metadata(session: &GlobalSystemMediaTransportControlsSession) -> bool {
     let Ok(operation) = session.TryGetMediaPropertiesAsync() else { return false; };
     let Ok(properties) = operation.get() else { return false; };
     let title = properties.Title().ok().map(|value| value.to_string()).unwrap_or_default();
-    let artist = properties.Artist().ok().map(|value| value.to_string()).unwrap_or_default();
-    let album = properties.AlbumTitle().ok().map(|value| value.to_string()).unwrap_or_default();
-    !title.trim().is_empty() && (!artist.trim().is_empty() || !album.trim().is_empty())
+    // Some valid SMTC providers publish the title before (or without) artist
+    // and album. A title is enough to begin playback detection and lyric lookup.
+    has_track_title(&title)
+}
+
+fn log_smtc_session_diagnostic(summary: String) {
+    if let Ok(mut previous) = LAST_SMTC_SESSION_DIAGNOSTIC.lock() {
+        if previous.as_deref() != Some(summary.as_str()) {
+            *previous = Some(summary.clone());
+            crate::log_to_file(&format!("[SMTC] {summary}"));
+        }
+    }
 }
 
 pub struct WindowsSmtcBackend;
@@ -214,18 +228,43 @@ impl WindowsSmtcBackend {
         if let Some(ref manager) = *lock {
             return Some(manager.clone());
         }
-        if let Ok(async_op) = GlobalSystemMediaTransportControlsSessionManager::RequestAsync() {
-            if let Ok(manager) = async_op.get() {
-                *lock = Some(manager.clone());
-                return Some(manager);
-            }
+        match GlobalSystemMediaTransportControlsSessionManager::RequestAsync() {
+            Ok(async_op) => match async_op.get() {
+                Ok(manager) => {
+                    *lock = Some(manager.clone());
+                    return Some(manager);
+                }
+                Err(error) => log_smtc_session_diagnostic(format!("session manager request failed: {error}")),
+            },
+            Err(error) => log_smtc_session_diagnostic(format!("session manager initialization failed: {error}")),
         }
         None
     }
 
     fn get_current_session() -> Option<GlobalSystemMediaTransportControlsSession> {
         ensure_com();
-        let manager = Self::get_manager()?;
+        let Some(manager) = Self::get_manager() else {
+            log_smtc_session_diagnostic("session manager unavailable".to_string());
+            return None;
+        };
+
+        // Windows identifies one session as current. Prefer it when it is
+        // actively playing and publishes a title; session enumeration order
+        // can otherwise put an unrelated or metadata-incomplete session first.
+        if let Ok(session) = manager.GetCurrentSession() {
+            let app_id = session.SourceAppUserModelId()
+                .map(|id| id.to_string().to_lowercase())
+                .unwrap_or_default();
+            let status = session.GetPlaybackInfo().ok()
+                .and_then(|info| info.PlaybackStatus().ok());
+            let is_playing = status.is_some_and(|value| {
+                value == GlobalSystemMediaTransportControlsSessionPlaybackStatus::Playing
+            });
+            if is_playing && !is_known_non_music_app(&app_id) && session_has_track_metadata(&session) {
+                log_smtc_session_diagnostic(format!("selected current session app_id='{app_id}'"));
+                return Some(session);
+            }
+        }
 
         // Prefer known music apps, then accept an active SMTC media session with
         // usable track metadata. This supports browser music and unlisted players
@@ -233,6 +272,7 @@ impl WindowsSmtcBackend {
         match manager.GetSessions() {
             Ok(sessions) => {
                 let count = sessions.Size().unwrap_or(0);
+                let mut session_summary = Vec::new();
                 let mut playing_music = None;
                 let mut playing_metadata_session = None;
                 let mut paused_music = None;
@@ -242,6 +282,7 @@ impl WindowsSmtcBackend {
                         let app_id = s.SourceAppUserModelId().map(|id| id.to_string().to_lowercase()).unwrap_or_default();
 
                         let status = s.GetPlaybackInfo().ok().and_then(|inf| inf.PlaybackStatus().ok());
+                        session_summary.push(format!("{}:{:?}", app_id, status));
 
                         if let Some(st) = status {
                             if st == GlobalSystemMediaTransportControlsSessionPlaybackStatus::Playing {
@@ -265,18 +306,31 @@ impl WindowsSmtcBackend {
                     }
                 }
 
+                log_smtc_session_diagnostic(if session_summary.is_empty() {
+                    format!("no sessions reported (count={count})")
+                } else {
+                    format!("sessions: {}", session_summary.join(", "))
+                });
+
                 if let Some(s) = playing_music {
+                    let app_id = s.SourceAppUserModelId().map(|id| id.to_string()).unwrap_or_default();
+                    log_smtc_session_diagnostic(format!("selected known music session app_id='{app_id}'"));
                     return Some(s);
                 }
                 if let Some(s) = playing_metadata_session {
+                    let app_id = s.SourceAppUserModelId().map(|id| id.to_string()).unwrap_or_default();
+                    log_smtc_session_diagnostic(format!("selected metadata session app_id='{app_id}'"));
                     return Some(s);
                 }
                 if let Some(s) = paused_music {
+                    let app_id = s.SourceAppUserModelId().map(|id| id.to_string()).unwrap_or_default();
+                    log_smtc_session_diagnostic(format!("selected paused music session app_id='{app_id}'"));
                     return Some(s);
                 }
             }
-            Err(_) => {
+            Err(error) => {
                 // COM session manager faulted or invalidated (e.g. after sleep/resume). Clear cache.
+                log_smtc_session_diagnostic(format!("session enumeration failed: {error}"));
                 if let Ok(mut lock) = CACHED_MANAGER.lock() {
                     *lock = None;
                 }
@@ -1010,5 +1064,11 @@ mod tests {
         assert!(is_known_non_music_app("Netflix.exe"));
         assert!(!is_known_non_music_app("Google.Chrome"));
         assert!(!is_known_non_music_app("UnlistedMusicPlayer.exe"));
+    }
+
+    #[test]
+    fn test_smtc_metadata_accepts_title_without_artist_or_album() {
+        assert!(has_track_title("Now Playing"));
+        assert!(!has_track_title("  "));
     }
 }
