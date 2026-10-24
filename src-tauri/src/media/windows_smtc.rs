@@ -260,21 +260,20 @@ impl WindowsSmtcBackend {
             let is_playing = status.is_some_and(|value| {
                 value == GlobalSystemMediaTransportControlsSessionPlaybackStatus::Playing
             });
-            if is_playing && !is_known_non_music_app(&app_id) && session_has_track_metadata(&session) {
+            if is_playing && is_dedicated_music_app(&app_id) && session_has_track_metadata(&session) {
                 log_smtc_session_diagnostic(format!("selected current session app_id='{app_id}'"));
                 return Some(session);
             }
         }
 
-        // Prefer known music apps, then accept an active SMTC media session with
-        // usable track metadata. This supports browser music and unlisted players
-        // without requiring a Spotify account or attaching to generic video apps.
+        // Only accept recognized music players. Generic metadata-bearing sessions
+        // can belong to browsers, streaming video, or chat apps and must not be
+        // allowed to steal the active music source.
         match manager.GetSessions() {
             Ok(sessions) => {
                 let count = sessions.Size().unwrap_or(0);
                 let mut session_summary = Vec::new();
                 let mut playing_music = None;
-                let mut playing_metadata_session = None;
                 let mut paused_music = None;
 
                 for i in 0..count {
@@ -286,16 +285,10 @@ impl WindowsSmtcBackend {
 
                         if let Some(st) = status {
                             if st == GlobalSystemMediaTransportControlsSessionPlaybackStatus::Playing {
-                                if !is_browser_or_non_music(&app_id) && is_dedicated_music_app(&app_id) && playing_music.is_none() {
+                                if is_dedicated_music_app(&app_id) && playing_music.is_none() {
                                     playing_music = Some(s.clone());
-                                } else if !is_known_non_music_app(&app_id)
-                                    && playing_metadata_session.is_none()
-                                    && session_has_track_metadata(&s)
-                                {
-                                    playing_metadata_session = Some(s.clone());
                                 }
                             } else if st == GlobalSystemMediaTransportControlsSessionPlaybackStatus::Paused
-                                && !is_browser_or_non_music(&app_id)
                                 && is_dedicated_music_app(&app_id)
                             {
                                 if paused_music.is_none() {
@@ -306,27 +299,23 @@ impl WindowsSmtcBackend {
                     }
                 }
 
-                log_smtc_session_diagnostic(if session_summary.is_empty() {
+                let session_diagnostic = if session_summary.is_empty() {
                     format!("no sessions reported (count={count})")
                 } else {
                     format!("sessions: {}", session_summary.join(", "))
-                });
+                };
 
                 if let Some(s) = playing_music {
                     let app_id = s.SourceAppUserModelId().map(|id| id.to_string()).unwrap_or_default();
-                    log_smtc_session_diagnostic(format!("selected known music session app_id='{app_id}'"));
-                    return Some(s);
-                }
-                if let Some(s) = playing_metadata_session {
-                    let app_id = s.SourceAppUserModelId().map(|id| id.to_string()).unwrap_or_default();
-                    log_smtc_session_diagnostic(format!("selected metadata session app_id='{app_id}'"));
+                    log_smtc_session_diagnostic(format!("{session_diagnostic}; selected known music session app_id='{app_id}'"));
                     return Some(s);
                 }
                 if let Some(s) = paused_music {
                     let app_id = s.SourceAppUserModelId().map(|id| id.to_string()).unwrap_or_default();
-                    log_smtc_session_diagnostic(format!("selected paused music session app_id='{app_id}'"));
+                    log_smtc_session_diagnostic(format!("{session_diagnostic}; selected paused music session app_id='{app_id}'"));
                     return Some(s);
                 }
+                log_smtc_session_diagnostic(session_diagnostic);
             }
             Err(error) => {
                 // COM session manager faulted or invalidated (e.g. after sleep/resume). Clear cache.
@@ -345,9 +334,8 @@ impl WindowsSmtcBackend {
             let is_playing = session.GetPlaybackInfo().ok()
                 .and_then(|info| info.PlaybackStatus().ok())
                 .is_some_and(|status| status == GlobalSystemMediaTransportControlsSessionPlaybackStatus::Playing);
-            if (!is_browser_or_non_music(&app_id) && is_dedicated_music_app(&app_id))
-                || (is_playing && !is_known_non_music_app(&app_id) && session_has_track_metadata(&session))
-            {
+            if is_dedicated_music_app(&app_id)
+                && (is_playing || session_has_track_metadata(&session)) {
                 return Some(session);
             }
         }
