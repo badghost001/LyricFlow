@@ -134,16 +134,16 @@ pub fn update_island_bounds(window: WebviewWindow, rect: LyricBounds) -> Result<
         *lock = Some(rect);
     }
     if DYNAMIC_ISLAND_ACTIVE.load(Ordering::SeqCst) && rect.width > 0 && rect.height > 0 {
-        let scale = window.scale_factor().unwrap_or(1.0);
-        let pad_w = (32.0 * scale) as u32;
-        let pad_h = (24.0 * scale) as u32;
-        let target_w =
-            (((rect.width as f64) * scale).round() as u32 + pad_w).max((520.0 * scale) as u32);
-        let target_h =
-            (((rect.height as f64) * scale).round() as u32 + pad_h).max((260.0 * scale) as u32);
-
         #[cfg(target_os = "windows")]
         {
+            let scale = window.scale_factor().unwrap_or(1.0);
+            let pad_w = (32.0 * scale) as u32;
+            let pad_h = (24.0 * scale) as u32;
+            let target_w =
+                (((rect.width as f64) * scale).round() as u32 + pad_w).max((520.0 * scale) as u32);
+            let target_h =
+                (((rect.height as f64) * scale).round() as u32 + pad_h).max((260.0 * scale) as u32);
+
             use windows::Win32::UI::WindowsAndMessaging::{
                 SetWindowPos, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOZORDER,
             };
@@ -256,6 +256,10 @@ pub async fn copy_to_clipboard(text: String) -> Result<(), String> {
             let _ = child.wait();
             return Ok(());
         }
+        #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+        {
+            let _ = &text;
+        }
         #[allow(unreachable_code)]
         Ok(())
     })
@@ -332,7 +336,12 @@ pub async fn set_taskbar_mode(
     if enabled {
         if TASKBAR_MODE_ACTIVE.load(Ordering::SeqCst) {
             if let Some(existing) = app.get_webview_window("taskbar") {
-                if existing.is_visible().unwrap_or(false) && existing.hwnd().is_ok() {
+                #[cfg(target_os = "windows")]
+                let is_healthy = existing.is_visible().unwrap_or(false) && existing.hwnd().is_ok();
+                #[cfg(not(target_os = "windows"))]
+                let is_healthy = existing.is_visible().unwrap_or(false);
+
+                if is_healthy {
                     crate::log_to_file("[LyricFlow Command] Taskbar mode is already active and healthy, ignoring duplicate enable request");
                     return Ok(());
                 }
@@ -341,7 +350,11 @@ pub async fn set_taskbar_mode(
         }
         let tb_win = {
             let existing = app.get_webview_window("taskbar");
+            #[cfg(target_os = "windows")]
             let is_healthy = existing.as_ref().map(|w| w.hwnd().is_ok()).unwrap_or(false);
+            #[cfg(not(target_os = "windows"))]
+            let is_healthy = existing.as_ref().map(|w| w.is_visible().unwrap_or(false)).unwrap_or(false);
+
             if is_healthy {
                 crate::log_to_file("[LyricFlow Command] Found healthy taskbar window");
                 existing.unwrap()
@@ -628,7 +641,10 @@ pub async fn set_taskbar_mode(
             vis, pos, sz
         ));
 
+        #[cfg(target_os = "windows")]
         let taskbar_succeeded = tb_win.hwnd().is_ok() || vis;
+        #[cfg(not(target_os = "windows"))]
+        let taskbar_succeeded = vis;
         if taskbar_succeeded {
             // Instead of hiding the main window (which causes WebView2 to aggressively throttle
             // and suspend background JS timers / polling), park it off-screen and skip taskbar.
@@ -905,7 +921,7 @@ mod workerw {
 pub async fn set_wallpaper_mode(
     app: AppHandle,
     enabled: bool,
-    monitor_target: Option<String>,
+    _monitor_target: Option<String>,
 ) -> Result<(), String> {
     use tauri::Emitter;
     crate::log_to_file(&format!(
@@ -1092,6 +1108,10 @@ pub async fn set_wallpaper_mode(
                 let _ = main_win.show();
                 let _ = main_win.set_focus();
             }
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            let _ = &main_win;
         }
     }
     let _ = app.emit("set-wallpaper-mode-state", enabled);

@@ -602,18 +602,18 @@ pub fn run() {
             let is_startup = std::env::args().any(|a| a == "--startup" || a == "--taskbar" || a == "--minimized" || a == "-m");
             commands::window::set_is_startup(is_startup);
 
-            let should_start_in_taskbar = is_startup || {
-                if let Ok(Some(cfg)) = commands::config::load_config() {
-                    let in_root = cfg["taskbar_mode"].as_bool() == Some(true) || cfg["taskbarMode"].as_bool() == Some(true);
-                    let in_settings = cfg["settings"]["taskbarMode"].as_bool() == Some(true) || cfg["settings"]["taskbar_mode"].as_bool() == Some(true);
-                    in_root || in_settings
-                } else {
-                    false
-                }
-            };
-
             #[cfg(target_os = "windows")]
             {
+                let should_start_in_taskbar = is_startup || {
+                    if let Ok(Some(cfg)) = commands::config::load_config() {
+                        let in_root = cfg["taskbar_mode"].as_bool() == Some(true) || cfg["taskbarMode"].as_bool() == Some(true);
+                        let in_settings = cfg["settings"]["taskbarMode"].as_bool() == Some(true) || cfg["settings"]["taskbar_mode"].as_bool() == Some(true);
+                        in_root || in_settings
+                    } else {
+                        false
+                    }
+                };
+
                 if let Some(main_win) = app.get_webview_window("main") {
                     if !should_start_in_taskbar {
                         log_to_file("[LyricFlow] Normal launch. Restoring window position and size...");

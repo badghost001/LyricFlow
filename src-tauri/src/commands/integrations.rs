@@ -82,6 +82,7 @@ pub fn adjust_music_app_volume(
     }
     #[cfg(not(target_os = "windows"))]
     {
+        let _ = (delta, target);
         Ok(None)
     }
 }
