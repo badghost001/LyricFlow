@@ -38,8 +38,10 @@ function runTests() {
   });
 
   test('1b. window.rs guards set_cinematic_mode and reset_window_size against resizing wallpaper window', () => {
-    assert.ok(windowRs.includes('if WALLPAPER_MODE_ACTIVE.load(Ordering::SeqCst) {\n        crate::log_to_file("[Window Command] set_cinematic_mode ignored: WALLPAPER_MODE_ACTIVE is true");\n        return Ok(());\n    }'), 'set_cinematic_mode must guard against WALLPAPER_MODE_ACTIVE');
-    assert.ok(windowRs.includes('if WALLPAPER_MODE_ACTIVE.load(Ordering::SeqCst) {\n        crate::log_to_file("[Window Command] reset_window_size ignored: WALLPAPER_MODE_ACTIVE is true");\n        return Ok(());\n    }'), 'reset_window_size must guard against WALLPAPER_MODE_ACTIVE');
+    const cinematicFn = windowRs.slice(windowRs.indexOf('pub async fn set_cinematic_mode'), windowRs.indexOf('static PENDING_WINDOW_BOUNDS'));
+    const resetFn = windowRs.slice(windowRs.indexOf('pub fn reset_window_size'), windowRs.indexOf('pub async fn set_cinematic_mode'));
+    assert.ok(cinematicFn.includes('WALLPAPER_MODE_ACTIVE.load(Ordering::SeqCst)') && cinematicFn.includes('set_cinematic_mode ignored: WALLPAPER_MODE_ACTIVE is true') && cinematicFn.includes('return Ok(());'), 'set_cinematic_mode must guard against WALLPAPER_MODE_ACTIVE');
+    assert.ok(resetFn.includes('WALLPAPER_MODE_ACTIVE.load(Ordering::SeqCst)') && resetFn.includes('reset_window_size ignored: WALLPAPER_MODE_ACTIVE is true') && resetFn.includes('return Ok(());'), 'reset_window_size must guard against WALLPAPER_MODE_ACTIVE');
   });
 
   // Test 2: toggleCinematicView debouncing and wallpaper style switching

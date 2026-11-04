@@ -104,6 +104,51 @@ assert(
   'renderer.js must declare triggerNextUpDesktopNotification and guard with nextUpTriggeredTrackId'
 );
 
+// Unknown queue state should show only the ending countdown in the Island.
+const islandPreviewFunction = rendererCode.match(
+  /^async function triggerNextUpPreview\(trackInfo, remainingSec\) \{[\s\S]*?^\}/m
+);
+assert(islandPreviewFunction, 'renderer.js must define triggerNextUpPreview');
+const previewLabel = { textContent: '' };
+const previewTitle = { textContent: '' };
+const previewCountdown = { textContent: '' };
+const previewClassList = { add() {}, remove() {} };
+const previewElement = {
+  dataset: {},
+  style: {},
+  classList: previewClassList,
+  setAttribute() {},
+  querySelector() { return previewLabel; }
+};
+const islandElement = { classList: previewClassList };
+const endingPreviewSandbox = {
+  settings: { showNextUp: true },
+  config: { access_token: null, localMode: true },
+  upcomingTrackObj: null,
+  isDynamicIslandMode: true,
+  islandNextUpTimeout: null,
+  document: {
+    getElementById(id) {
+      return {
+        'dynamic-island': islandElement,
+        'island-next-up-preview': previewElement,
+        'island-next-up-title': previewTitle,
+        'island-next-up-countdown': previewCountdown
+      }[id] || null;
+    }
+  },
+  requestAnimationFrame(callback) { callback(); },
+  setTimeout() { return 1; },
+  clearTimeout() {}
+};
+vm.createContext(endingPreviewSandbox);
+vm.runInContext(`${islandPreviewFunction[0]}\nthis.runPreview = triggerNextUpPreview;`, endingPreviewSandbox);
+endingPreviewSandbox.runPreview({ name: 'Current Song', artist: 'Current Artist' }, 4).then(() => {
+  assert.strictEqual(previewLabel.textContent, 'ENDING SOON');
+  assert.strictEqual(previewTitle.textContent, '', 'Ending countdown must not repeat the current song title');
+  assert.strictEqual(previewCountdown.textContent, '4s remaining');
+});
+
 assert(
   rendererCode.includes('remainingMs <= 6000 && remainingMs > 0'),
   'renderer.js updatePlayhead must trigger Next Up display for any positive remaining time <= 6000ms'

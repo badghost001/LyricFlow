@@ -40,6 +40,10 @@
     road: 3,
     home: 3,
     dream: 3,
+    music: 3,
+    galaxy: 3,
+    nature: 3,
+    horizon: 3,
     editorial: 7
   };
 
@@ -788,6 +792,453 @@
   }
 
   /**
+   * 11. MUSIC & ACOUSTIC MOTIFS
+   */
+  function drawMusic(ctx, options) {
+    const { cx, cy, rx, ry, variation = 0, strokeColor, alpha = 0.22, strokeWidth = 1.3, drift = 0 } = options;
+    ctx.save();
+    ctx.strokeStyle = strokeColor;
+    ctx.fillStyle = strokeColor;
+    ctx.lineWidth = strokeWidth;
+    ctx.globalAlpha = alpha;
+
+    switch (variation) {
+      case 1: {
+        // Variation 1: Symmetrical acoustic frequency waveform spectrum & soundwave rings
+        const numBars = 11;
+        const totalW = rx * 1.8;
+        const barSpacing = totalW / (numBars - 1);
+        const startX = cx - totalW / 2;
+        ctx.beginPath();
+        for (let i = 0; i < numBars; i++) {
+          const norm = Math.abs(i - (numBars - 1) / 2) / ((numBars - 1) / 2);
+          const barH = ry * (0.85 - norm * 0.65) * (1.0 + Math.sin(drift * 2.5 + i * 0.6) * 0.15);
+          const x = startX + i * barSpacing;
+          ctx.moveTo(x, cy - barH);
+          ctx.lineTo(x, cy + barH);
+        }
+        ctx.stroke();
+
+        // Surrounding acoustic ripple rings
+        ctx.globalAlpha = alpha * 0.45;
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, rx * 1.25, ry * 0.75, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        break;
+      }
+      case 2: {
+        // Variation 2: Flowing musical stave ribbon with floating notes
+        ctx.beginPath();
+        ctx.moveTo(cx - rx * 1.2, cy - ry * 0.25);
+        ctx.bezierCurveTo(cx - rx * 0.5, cy - ry * 0.7, cx, cy + ry * 0.4, cx + rx * 1.2, cy - ry * 0.3);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(cx - rx * 1.2, cy + ry * 0.15);
+        ctx.bezierCurveTo(cx - rx * 0.5, cy - ry * 0.3, cx, cy + ry * 0.8, cx + rx * 1.2, cy + ry * 0.1);
+        ctx.stroke();
+
+        // Floating musical note 1 (quarter note)
+        const n1x = cx - rx * 0.4;
+        const n1y = cy - ry * 0.1;
+        ctx.beginPath();
+        ctx.ellipse(n1x, n1y, rx * 0.12, ry * 0.08, -0.3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(n1x + rx * 0.09, n1y);
+        ctx.lineTo(n1x + rx * 0.09, n1y - ry * 0.45);
+        ctx.stroke();
+
+        // Floating musical note 2 (eighth note with flag)
+        const n2x = cx + rx * 0.45;
+        const n2y = cy + ry * 0.2;
+        ctx.beginPath();
+        ctx.ellipse(n2x, n2y, rx * 0.12, ry * 0.08, -0.3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(n2x + rx * 0.09, n2y);
+        ctx.lineTo(n2x + rx * 0.09, n2y - ry * 0.45);
+        ctx.bezierCurveTo(n2x + rx * 0.22, n2y - ry * 0.35, n2x + rx * 0.22, n2y - ry * 0.15, n2x + rx * 0.12, n2y - ry * 0.15);
+        ctx.stroke();
+        break;
+      }
+      case 0:
+      default: {
+        // Variation 0: Classic Vinyl record with groove rings, center label & tone-arm
+        ctx.beginPath();
+        ctx.arc(cx, cy, rx * 0.9, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Concentric acoustic record grooves
+        ctx.beginPath();
+        ctx.arc(cx, cy, rx * 0.75, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(cx, cy, rx * 0.58, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Center spindle disc label
+        ctx.beginPath();
+        ctx.arc(cx, cy, rx * 0.32, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Center spindle hole
+        ctx.beginPath();
+        ctx.arc(cx, cy, rx * 0.07, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Turntable tone-arm
+        const armPivotX = cx + rx * 1.15;
+        const armPivotY = cy - ry * 0.95;
+        const armElbowX = cx + rx * 0.85;
+        const armElbowY = cy - ry * 0.35;
+        const armHeadX = cx + rx * 0.45;
+        const armHeadY = cy - ry * 0.15;
+        ctx.beginPath();
+        ctx.moveTo(armPivotX, armPivotY);
+        ctx.lineTo(armElbowX, armElbowY);
+        ctx.lineTo(armHeadX, armHeadY);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(armPivotX, armPivotY, rx * 0.06, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+      }
+    }
+    ctx.restore();
+  }
+
+  /**
+   * 12. GALAXY & COSMOS MOTIFS
+   */
+  function drawGalaxy(ctx, options) {
+    const { cx, cy, rx, ry, variation = 0, strokeColor, alpha = 0.22, strokeWidth = 1.3, drift = 0 } = options;
+    ctx.save();
+    ctx.strokeStyle = strokeColor;
+    ctx.fillStyle = strokeColor;
+    ctx.lineWidth = strokeWidth;
+    ctx.globalAlpha = alpha;
+
+    switch (variation) {
+      case 1: {
+        // Variation 1: Geometric celestial constellation with interconnected node points
+        const nodes = [
+          { x: cx - rx * 0.9, y: cy - ry * 0.3 },
+          { x: cx - rx * 0.45, y: cy - ry * 0.7 },
+          { x: cx + rx * 0.1, y: cy - ry * 0.2 },
+          { x: cx + rx * 0.65, y: cy - ry * 0.65 },
+          { x: cx + rx * 0.9, y: cy + ry * 0.25 },
+          { x: cx + rx * 0.25, y: cy + ry * 0.65 },
+          { x: cx - rx * 0.5, y: cy + ry * 0.4 }
+        ];
+
+        // Connecting constellation vectors
+        ctx.beginPath();
+        ctx.moveTo(nodes[0].x, nodes[0].y);
+        ctx.lineTo(nodes[1].x, nodes[1].y);
+        ctx.lineTo(nodes[2].x, nodes[2].y);
+        ctx.lineTo(nodes[3].x, nodes[3].y);
+        ctx.lineTo(nodes[4].x, nodes[4].y);
+        ctx.lineTo(nodes[5].x, nodes[5].y);
+        ctx.lineTo(nodes[6].x, nodes[6].y);
+        ctx.closePath();
+        ctx.stroke();
+
+        // Starburst diamond nodes at vertices
+        nodes.forEach((nd, idx) => {
+          const starR = (idx % 2 === 0) ? rx * 0.07 : rx * 0.045;
+          ctx.beginPath();
+          ctx.arc(nd.x, nd.y, starR, 0, Math.PI * 2);
+          ctx.fill();
+        });
+        break;
+      }
+      case 2: {
+        // Variation 2: Cosmic spiral vortex with dual curving logarithmic arms
+        ctx.beginPath();
+        for (let theta = 0; theta < Math.PI * 3.5; theta += 0.12) {
+          const r = (theta / (Math.PI * 3.5)) * rx * 0.95;
+          const x = cx + Math.cos(theta + drift * 0.5) * r;
+          const y = cy + Math.sin(theta + drift * 0.5) * (r * (ry / rx));
+          if (theta === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+
+        // Opposite spiral arm
+        ctx.beginPath();
+        for (let theta = 0; theta < Math.PI * 3.5; theta += 0.12) {
+          const r = (theta / (Math.PI * 3.5)) * rx * 0.95;
+          const x = cx + Math.cos(theta + Math.PI + drift * 0.5) * r;
+          const y = cy + Math.sin(theta + Math.PI + drift * 0.5) * (r * (ry / rx));
+          if (theta === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+
+        // Core bright center
+        ctx.beginPath();
+        ctx.arc(cx, cy, rx * 0.12, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+      }
+      case 0:
+      default: {
+        // Variation 0: Dramatic planetary sphere with tilted elliptical ring system & moon
+        // Main planetary sphere
+        ctx.beginPath();
+        ctx.arc(cx, cy, rx * 0.52, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Primary celestial planetary ring
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, rx * 1.25, ry * 0.38, -Math.PI / 8, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Secondary outer faint resonance ring
+        ctx.globalAlpha = alpha * 0.45;
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, rx * 1.45, ry * 0.44, -Math.PI / 8, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Orbiting satellite moon
+        ctx.globalAlpha = alpha;
+        const moonAngle = drift * 0.8;
+        const moonX = cx + Math.cos(moonAngle) * rx * 0.95;
+        const moonY = cy + Math.sin(moonAngle) * ry * 0.55;
+        ctx.beginPath();
+        ctx.arc(moonX, moonY, rx * 0.08, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+      }
+    }
+    ctx.restore();
+  }
+
+  /**
+   * 13. NATURE & BOTANICAL MOTIFS
+   */
+  function drawNature(ctx, options) {
+    const { cx, cy, rx, ry, variation = 0, strokeColor, alpha = 0.22, strokeWidth = 1.3, drift = 0 } = options;
+    ctx.save();
+    ctx.strokeStyle = strokeColor;
+    ctx.fillStyle = strokeColor;
+    ctx.lineWidth = strokeWidth;
+    ctx.globalAlpha = alpha;
+
+    switch (variation) {
+      case 1: {
+        // Variation 1: Sacred blooming lotus floral silhouette
+        // Base curved water arc
+        ctx.beginPath();
+        ctx.arc(cx, cy + ry * 0.65, rx * 0.75, Math.PI * 0.85, Math.PI * 2.15);
+        ctx.stroke();
+
+        // Central vertical lotus petal
+        ctx.beginPath();
+        ctx.moveTo(cx, cy + ry * 0.4);
+        ctx.bezierCurveTo(cx - rx * 0.25, cy, cx - rx * 0.15, cy - ry * 0.6, cx, cy - ry * 0.85);
+        ctx.bezierCurveTo(cx + rx * 0.15, cy - ry * 0.6, cx + rx * 0.25, cy, cx, cy + ry * 0.4);
+        ctx.stroke();
+
+        // Left petal
+        ctx.beginPath();
+        ctx.moveTo(cx, cy + ry * 0.4);
+        ctx.bezierCurveTo(cx - rx * 0.5, cy + ry * 0.2, cx - rx * 0.75, cy - ry * 0.2, cx - rx * 0.65, cy - ry * 0.55);
+        ctx.bezierCurveTo(cx - rx * 0.4, cy - ry * 0.4, cx - rx * 0.2, cy, cx, cy + ry * 0.4);
+        ctx.stroke();
+
+        // Right petal
+        ctx.beginPath();
+        ctx.moveTo(cx, cy + ry * 0.4);
+        ctx.bezierCurveTo(cx + rx * 0.5, cy + ry * 0.2, cx + rx * 0.75, cy - ry * 0.2, cx + rx * 0.65, cy - ry * 0.55);
+        ctx.bezierCurveTo(cx + rx * 0.4, cy - ry * 0.4, cx + rx * 0.2, cy, cx, cy + ry * 0.4);
+        ctx.stroke();
+        break;
+      }
+      case 2: {
+        // Variation 2: Tree canopy of life with organic growth rings
+        // Concentric growth rings
+        ctx.beginPath();
+        ctx.arc(cx, cy + ry * 0.35, rx * 0.25, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(cx, cy + ry * 0.35, rx * 0.55, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Branching canopy arch
+        ctx.beginPath();
+        ctx.arc(cx, cy - ry * 0.1, rx * 0.75, Math.PI, Math.PI * 2);
+        ctx.stroke();
+
+        // Internal tree branches
+        ctx.beginPath();
+        ctx.moveTo(cx, cy + ry * 0.35);
+        ctx.lineTo(cx, cy - ry * 0.1);
+        ctx.lineTo(cx - rx * 0.45, cy - ry * 0.45);
+        ctx.moveTo(cx, cy - ry * 0.1);
+        ctx.lineTo(cx + rx * 0.45, cy - ry * 0.45);
+        ctx.stroke();
+        break;
+      }
+      case 0:
+      default: {
+        // Variation 0: Botanical branch with curling stem and ribbed leaves
+        ctx.beginPath();
+        ctx.moveTo(cx - rx * 0.7, cy + ry * 0.8);
+        ctx.bezierCurveTo(cx - rx * 0.2, cy + ry * 0.4, cx + rx * 0.2, cy - ry * 0.2, cx + rx * 0.7, cy - ry * 0.8);
+        ctx.stroke();
+
+        // Helper to draw a ribbed leaf using analytical rotation
+        const drawLeaf = (lx, ly, angle, scale) => {
+          const cos = Math.cos(angle);
+          const sin = Math.sin(angle);
+          const rot = (px, py) => ({
+            x: lx + (px * cos - py * sin),
+            y: ly + (px * sin + py * cos)
+          });
+          const tip = rot(rx * 0.5 * scale, 0);
+          const c1 = rot(rx * 0.2 * scale, -ry * 0.25 * scale);
+          const c2 = rot(rx * 0.4 * scale, -ry * 0.15 * scale);
+          const c3 = rot(rx * 0.4 * scale, ry * 0.15 * scale);
+          const c4 = rot(rx * 0.2 * scale, ry * 0.25 * scale);
+
+          ctx.beginPath();
+          ctx.moveTo(lx, ly);
+          ctx.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, tip.x, tip.y);
+          ctx.bezierCurveTo(c3.x, c3.y, c4.x, c4.y, lx, ly);
+          ctx.stroke();
+
+          // Leaf centerline rib
+          const ribTip = rot(rx * 0.45 * scale, 0);
+          ctx.beginPath();
+          ctx.moveTo(lx, ly);
+          ctx.lineTo(ribTip.x, ribTip.y);
+          ctx.stroke();
+        };
+
+        drawLeaf(cx - rx * 0.35, cy + ry * 0.5, -0.6, 0.9);
+        drawLeaf(cx - rx * 0.15, cy + ry * 0.25, 0.7, 1.0);
+        drawLeaf(cx + rx * 0.1, cy - ry * 0.05, -0.7, 1.1);
+        drawLeaf(cx + rx * 0.35, cy - ry * 0.35, 0.6, 1.0);
+        drawLeaf(cx + rx * 0.55, cy - ry * 0.65, -0.5, 0.8);
+        break;
+      }
+    }
+    ctx.restore();
+  }
+
+  /**
+   * 14. HORIZON & SUNBURST MOTIFS
+   */
+  function drawHorizon(ctx, options) {
+    const { cx, cy, rx, ry, variation = 0, strokeColor, alpha = 0.22, strokeWidth = 1.3, drift = 0 } = options;
+    ctx.save();
+    ctx.strokeStyle = strokeColor;
+    ctx.fillStyle = strokeColor;
+    ctx.lineWidth = strokeWidth;
+    ctx.globalAlpha = alpha;
+
+    switch (variation) {
+      case 1: {
+        // Variation 1: Overlapping geometric mountain ridges with twilight sky arc
+        // Distant twilight horizon curve
+        ctx.beginPath();
+        ctx.arc(cx, cy + ry * 0.8, rx * 1.3, Math.PI * 1.15, Math.PI * 1.85);
+        ctx.stroke();
+
+        // Left rear mountain peak
+        ctx.beginPath();
+        ctx.moveTo(cx - rx * 1.1, cy + ry * 0.45);
+        ctx.lineTo(cx - rx * 0.45, cy - ry * 0.5);
+        ctx.lineTo(cx + rx * 0.1, cy + ry * 0.45);
+        ctx.stroke();
+
+        // Right foreground mountain peak
+        ctx.beginPath();
+        ctx.moveTo(cx - rx * 0.2, cy + ry * 0.45);
+        ctx.lineTo(cx + rx * 0.4, cy - ry * 0.65);
+        ctx.lineTo(cx + rx * 1.1, cy + ry * 0.45);
+        ctx.stroke();
+
+        // Base horizon line
+        ctx.beginPath();
+        ctx.moveTo(cx - rx * 1.2, cy + ry * 0.45);
+        ctx.lineTo(cx + rx * 1.2, cy + ry * 0.45);
+        ctx.stroke();
+        break;
+      }
+      case 2: {
+        // Variation 2: Sunburst navigator compass with 8-pointed star rays
+        // Outer celestial dial
+        ctx.beginPath();
+        ctx.arc(cx, cy, rx * 0.85, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Cardinal & ordinal ray diamond spikes
+        const points = 8;
+        ctx.beginPath();
+        for (let i = 0; i < points * 2; i++) {
+          const angle = (i * Math.PI) / points;
+          const r = (i % 2 === 0) ? rx * 0.8 : rx * 0.32;
+          const x = cx + Math.cos(angle) * r;
+          const y = cy + Math.sin(angle) * (r * (ry / rx));
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.closePath();
+        ctx.stroke();
+
+        // Center radiant core
+        ctx.beginPath();
+        ctx.arc(cx, cy, rx * 0.12, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+      }
+      case 0:
+      default: {
+        // Variation 0: Semi-circular sun cresting above ocean waves with radiating rays
+        const horizonY = cy + ry * 0.2;
+
+        // Cresting Sun disc
+        ctx.beginPath();
+        ctx.arc(cx, horizonY, rx * 0.45, Math.PI, Math.PI * 2);
+        ctx.stroke();
+
+        // Radiating sun rays
+        const numRays = 7;
+        for (let i = 0; i < numRays; i++) {
+          const angle = Math.PI + ((i + 1) * Math.PI) / (numRays + 1);
+          const r1 = rx * 0.58;
+          const r2 = rx * 0.88;
+          ctx.beginPath();
+          ctx.moveTo(cx + Math.cos(angle) * r1, horizonY + Math.sin(angle) * r1);
+          ctx.lineTo(cx + Math.cos(angle) * r2, horizonY + Math.sin(angle) * r2);
+          ctx.stroke();
+        }
+
+        // Horizontal sea horizon and undulating ripples
+        ctx.beginPath();
+        ctx.moveTo(cx - rx * 1.2, horizonY);
+        ctx.lineTo(cx + rx * 1.2, horizonY);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(cx - rx * 0.9, horizonY + ry * 0.25);
+        ctx.bezierCurveTo(cx - rx * 0.5, horizonY + ry * 0.15, cx, horizonY + ry * 0.35, cx + rx * 0.9, horizonY + ry * 0.25);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(cx - rx * 0.7, horizonY + ry * 0.5);
+        ctx.bezierCurveTo(cx - rx * 0.3, horizonY + ry * 0.4, cx + rx * 0.2, horizonY + ry * 0.6, cx + rx * 0.7, horizonY + ry * 0.5);
+        ctx.stroke();
+        break;
+      }
+    }
+    ctx.restore();
+  }
+
+  /**
    * Dispatches drawing of a motif by concept and variation.
    */
   function drawMotif(ctx, options) {
@@ -805,6 +1256,10 @@
       case 'road': drawRoad(ctx, options); break;
       case 'home': drawHome(ctx, options); break;
       case 'dream': drawDream(ctx, options); break;
+      case 'music': drawMusic(ctx, options); break;
+      case 'galaxy': drawGalaxy(ctx, options); break;
+      case 'nature': drawNature(ctx, options); break;
+      case 'horizon': drawHorizon(ctx, options); break;
       default: break;
     }
   }
@@ -823,6 +1278,10 @@
     drawRain,
     drawRoad,
     drawHome,
-    drawDream
+    drawDream,
+    drawMusic,
+    drawGalaxy,
+    drawNature,
+    drawHorizon
   };
 });

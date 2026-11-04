@@ -24,3 +24,8 @@ dist-ssr
 .agents/
 .agent/
 scratch/
+target-local/
+bin/
+src-tauri/bin/
+docs/perf-*.csv
+docs/perf-*.summary.json

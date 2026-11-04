@@ -1,4 +1,7 @@
-use super::fuzzy::{clean_artist, clean_title, compute_similarity_score, has_lrc_timestamps};
+use super::fuzzy::{
+    clean_artist, clean_title, compute_similarity_score, has_lrc_timestamps,
+    is_track_metadata_match,
+};
 use super::models::{LyricsCandidate, SyncType};
 use reqwest::Client;
 use serde_json::Value;
@@ -23,10 +26,17 @@ pub async fn search_lrclib(
             urlencoding::encode(&clean_a),
             duration_sec
         );
-        if let Ok(res) = client.get(&url).header("User-Agent", "LyricFlow/1.3.0").send().await {
+        if let Ok(res) = client
+            .get(&url)
+            .header("User-Agent", "LyricFlow/1.3.0")
+            .send()
+            .await
+        {
             if res.status().is_success() {
                 if let Ok(json) = res.json::<Value>().await {
-                    if let Some(candidate) = parse_lrclib_item(&json, &search_query, duration_sec) {
+                    if let Some(candidate) =
+                        parse_lrclib_item(&json, &search_query, &clean_t, &clean_a, duration_sec)
+                    {
                         candidates.push(candidate);
                     }
                 }
@@ -46,8 +56,14 @@ pub async fn search_lrclib(
     );
 
     let (res1, res2) = tokio::join!(
-        client.get(&search_url1).header("User-Agent", "LyricFlow/1.3.0").send(),
-        client.get(&search_url2).header("User-Agent", "LyricFlow/1.3.0").send()
+        client
+            .get(&search_url1)
+            .header("User-Agent", "LyricFlow/1.3.0")
+            .send(),
+        client
+            .get(&search_url2)
+            .header("User-Agent", "LyricFlow/1.3.0")
+            .send()
     );
 
     let mut raw_items: Vec<Value> = Vec::new();
@@ -83,7 +99,9 @@ pub async fn search_lrclib(
             if !seen_ids.insert(id_str) {
                 continue;
             }
-            if let Some(candidate) = parse_lrclib_item(&item, &search_query, duration_sec) {
+            if let Some(candidate) =
+                parse_lrclib_item(&item, &search_query, &clean_t, &clean_a, duration_sec)
+            {
                 let sig = extract_lyrics_sig(&candidate.raw_lrc);
                 if !sig.is_empty() && !seen_sigs.insert(sig) {
                     continue; // Skip duplicate candidate with identical lyrics
@@ -101,13 +119,21 @@ pub async fn search_lrclib(
     // 2. Duration proximity bucketed by 3-second bands (strictly transitive)
     // 3. Match score descending (using integer score rank for mathematically strict total order)
     candidates.sort_by_cached_key(|c| {
-        let type_rank = if c.sync_type == SyncType::LineSynced { 0 } else { 1 };
+        let type_rank = if c.sync_type == SyncType::LineSynced {
+            0
+        } else {
+            1
+        };
         let bucket = if duration_sec > 0 {
             c.duration_diff_sec.unwrap_or(999).max(0) / 3
         } else {
             0
         };
-        let score_val = if c.score.is_nan() { 0.0 } else { c.score.clamp(0.0, 1.0) };
+        let score_val = if c.score.is_nan() {
+            0.0
+        } else {
+            c.score.clamp(0.0, 1.0)
+        };
         let score_rank = 10_000i32 - (score_val * 10_000.0) as i32;
         (type_rank, bucket, score_rank)
     });
@@ -118,6 +144,8 @@ pub async fn search_lrclib(
 fn parse_lrclib_item(
     item: &Value,
     search_query: &str,
+    expected_title: &str,
+    expected_artist: &str,
     target_duration: u32,
 ) -> Option<LyricsCandidate> {
     let synced = item["syncedLyrics"].as_str().unwrap_or("").trim();
@@ -133,6 +161,9 @@ fn parse_lrclib_item(
 
     let track_name = item["trackName"].as_str().unwrap_or("");
     let artist_name = item["artistName"].as_str().unwrap_or("");
+    if !is_track_metadata_match(expected_title, expected_artist, track_name, artist_name) {
+        return None;
+    }
     let candidate_query = format!("{} {}", track_name, artist_name);
     let score = compute_similarity_score(search_query, &candidate_query);
 
@@ -143,7 +174,10 @@ fn parse_lrclib_item(
         None
     };
 
-    let id = item["id"].as_i64().map(|i| i.to_string()).unwrap_or_default();
+    let id = item["id"]
+        .as_i64()
+        .map(|i| i.to_string())
+        .unwrap_or_default();
 
     Some(LyricsCandidate {
         provider: "LRCLIB".to_string(),
@@ -184,4 +218,3 @@ fn extract_lyrics_sig(lrc: &str) -> String {
         .collect::<Vec<_>>()
         .join("|")
 }
-

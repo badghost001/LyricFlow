@@ -4,8 +4,10 @@
  */
 
 const assert = require('assert');
+const fs = require('fs');
+const path = require('path');
 const { createLyricWord, createLyricLine, createNormalizedLyrics, isValidLyrics } = require('../src/services/lyrics/models');
-const { LyricsPlusService, LyricsPlusProvider, normalizeMetadata, getCacheKey } = require('../src/services/lyrics/LyricsPlus');
+const { LyricsPlusService, LyricsPlusProvider, normalizeMetadata, getCacheKey, responseMatchesRequestedTrack, isQAppleLyrics } = require('../src/services/lyrics/LyricsPlus');
 const LyricEngine = require('../src/services/lyrics/LyricsEngine');
 const ExistingWaterfallProvider = require('../src/services/lyrics/ExistingWaterfallProvider');
 const { LyricsManager } = require('../src/services/lyrics/index');
@@ -48,6 +50,55 @@ global.localStorage = {
 
 async function runAllTests() {
   console.log('\n--- Running LyricsPlus & LyricEngine Test Suite ---\n');
+
+  test('LyricsPlus rejects lyrics whose selected song metadata does not match', () => {
+    const requested = { title: 'Mockingbird', artist: 'Eminem' };
+    assert.strictEqual(responseMatchesRequestedTrack({
+      selectedSongMetadata: { title: 'Mockingbird', artist: 'Eminem' }
+    }, requested), true);
+    assert.strictEqual(responseMatchesRequestedTrack({
+      selectedSongMetadata: { title: 'Without Me', artist: 'Eminem' }
+    }, requested), false);
+    assert.strictEqual(responseMatchesRequestedTrack({
+      selectedSongMetadata: { title: 'Mockingbird', artist: 'Drake' }
+    }, requested), false);
+  });
+
+  test('LyricsPlus rejects incompatible track versions (e.g. remixes, live, re-records) for standard requests', () => {
+    const requested = { title: 'Pompeii', artist: 'Bastille' };
+    assert.strictEqual(responseMatchesRequestedTrack({
+      selectedSongMetadata: { title: 'Pompeii (Kat Krazy Remix)', artist: 'Bastille' }
+    }, requested), false, 'Must reject Kat Krazy Remix when Pompeii original is requested');
+    assert.strictEqual(responseMatchesRequestedTrack({
+      selectedSongMetadata: { title: 'Pompeii (Audien Remix)', artist: 'Bastille' }
+    }, requested), false, 'Must reject Audien Remix when Pompeii original is requested');
+    assert.strictEqual(responseMatchesRequestedTrack({
+      selectedSongMetadata: { title: 'Pompeii MMXXIII', artist: 'Bastille' }
+    }, requested), false, 'Must reject MMXXIII anniversary re-recording when Pompeii original is requested');
+    assert.strictEqual(responseMatchesRequestedTrack({
+      selectedSongMetadata: { title: 'Pompeii (Live from Capitol Studios 2013)', artist: 'Bastille' }
+    }, requested), false, 'Must reject Live recording when Pompeii original is requested');
+    assert.strictEqual(responseMatchesRequestedTrack({
+      selectedSongMetadata: { title: 'Pompeii - Remastered 2023', artist: 'Bastille' }
+    }, requested), true, 'Must accept Remastered recording when Pompeii original is requested');
+  });
+
+  test('LyricsPlus accurately separates solo and featured tracks (e.g. Levitating feat. DaBaby vs Levitating)', () => {
+    const solo = { title: 'Levitating', artist: 'Dua Lipa' };
+    const feat = { title: 'Levitating (feat. DaBaby)', artist: 'Dua Lipa' };
+    assert.strictEqual(responseMatchesRequestedTrack({
+      selectedSongMetadata: { title: 'Levitating', artist: 'Dua Lipa' }
+    }, solo), true);
+    assert.strictEqual(responseMatchesRequestedTrack({
+      selectedSongMetadata: { title: 'Levitating (feat. DaBaby)', artist: 'Dua Lipa' }
+    }, solo), false, 'Must reject feat. DaBaby when solo Levitating requested');
+    assert.strictEqual(responseMatchesRequestedTrack({
+      selectedSongMetadata: { title: 'Levitating (feat. DaBaby)', artist: 'Dua Lipa' }
+    }, feat), true);
+    assert.strictEqual(responseMatchesRequestedTrack({
+      selectedSongMetadata: { title: 'Levitating', artist: 'Dua Lipa' }
+    }, feat), false, 'Must reject solo when feat. DaBaby requested');
+  });
 
   // 1. WORD-level LyricsPlus response
   test('1. WORD-level LyricsPlus response normalization', () => {
@@ -130,6 +181,66 @@ async function runAllTests() {
     assert.strictEqual(normalized.lines[1].end, 12.5);
   });
 
+  // 2b. UNSYNCED / type: "None" LyricsPlus response
+  test('2b. UNSYNCED / type: "None" LyricsPlus response normalization', () => {
+    const service = new LyricsPlusService();
+    const mockApiResponse = {
+      type: 'None',
+      lyrics: [
+        { time: 0, duration: 0, text: "Do that, do that Coke" },
+        { time: 0, duration: 0, text: "Do that cash shit" }
+      ],
+      processingTime: { winnerSource: 'apple' }
+    };
+
+    const normalized = service.normalizeResponse(mockApiResponse, { title: 'gravity', artist: 'sosocamo' });
+    assert(normalized !== null);
+    assert.strictEqual(normalized.type, 'UNSYNCED', 'Expected type to be UNSYNCED');
+    assert.strictEqual(normalized.lines.length, 2);
+    assert.strictEqual(normalized.lines[0].timeMs, 9999999);
+    assert.strictEqual(normalized.lines[1].timeMs, 9999999);
+  });
+
+  test('qApple timestamps after 200 seconds stay in seconds and explicit millisecond fields stay precise', () => {
+    const service = new LyricsPlusService();
+    const lateSongResponse = {
+      type: 'Word',
+      metadata: { source: 'Apple' },
+      lyrics: [
+        {
+          time: 204,
+          duration: 1.5,
+          text: 'Come and get your love',
+          syllabus: [
+            { time: 204, duration: 0.4, text: 'Come ' },
+            { time: 204.4, duration: 0.5, text: 'and get ' },
+            { time: 204.9, duration: 0.6, text: 'your love' }
+          ]
+        },
+        { time: 206, duration: 1, text: 'Come and get your love' }
+      ]
+    };
+    const lateSong = service.normalizeResponse(lateSongResponse, { duration: 207 });
+    assert.strictEqual(lateSong.lines[0].start, 204);
+    assert.strictEqual(lateSong.lines[0].words[0].start, 204);
+    assert.strictEqual(lateSong.lines[1].start, 206);
+
+    const explicitMsResponse = {
+      type: 'Word',
+      metadata: { source: 'Apple' },
+      lyrics: [{
+        startTimeMs: 125,
+        durationMs: 500,
+        text: 'A word',
+        syllabus: [{ startTimeMs: 125, durationMs: 300, text: 'A word' }]
+      }]
+    };
+    const explicitMs = service.normalizeResponse(explicitMsResponse, { duration: 207 });
+    assert.strictEqual(explicitMs.lines[0].start, 0.125);
+    assert.strictEqual(explicitMs.lines[0].words[0].start, 0.125);
+    assert.strictEqual(explicitMs.lines[0].words[0].end, 0.425);
+  });
+
   // 3. Empty response
   test('3. Empty response handling', () => {
     const service = new LyricsPlusService();
@@ -170,6 +281,207 @@ async function runAllTests() {
     assert(url.includes('title=Song'));
     assert(url.includes('artist=Artist'));
     assert(!url.includes('album='), 'Album parameter must not be present when not provided');
+  });
+
+  test('6a. LyricsPlus API source list is distinct from the current music app', () => {
+    const service = new LyricsPlusService();
+    const url = new URL(service.buildRequestUrl({
+      title: 'Song', artist: 'Artist', source: 'Spotify', platformId: 'local_abc123'
+    }, undefined, { forceRefresh: true }));
+    assert.strictEqual(url.searchParams.get('source'), 'apple,lyricsplus,musixmatch,spotify,musixmatch-word');
+    assert.strictEqual(url.searchParams.get('platformId'), null, 'Synthetic local SMTC IDs must not be sent as provider track IDs');
+    assert.strictEqual(url.searchParams.get('forceReload'), 'true', 'Refetch must bypass upstream cache');
+  });
+
+  await testAsync('6b. LyricsPlus fails over to a mirror and preserves sub-second millisecond timings', async () => {
+    const originalFetch = global.fetch;
+    const calls = [];
+    global.fetch = async (url) => {
+      calls.push(String(url));
+      if (String(url).startsWith('https://primary.test/')) {
+        return { ok: false, status: 503 };
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          KpoeTools: 'v2',
+          type: 'Word',
+          metadata: { source: 'Apple', timeUnit: 'ms' },
+          lyrics: [{
+            time: 160, duration: 1000, text: 'Hello',
+            syllabus: [{ time: 160, duration: 300, text: 'Hello' }]
+          }]
+        })
+      };
+    };
+
+    try {
+      const service = new LyricsPlusService({
+        endpoints: ['https://primary.test/v2/lyrics/get', 'https://mirror.test/v2/lyrics/get'],
+        timeoutMs: 50
+      });
+      const result = await service.fetch({ title: 'Song', artist: 'Artist' }, { forceRefresh: true });
+      assert.strictEqual(calls.length, 2, 'The configured mirror should be tried after the primary fails');
+      assert(result && result.type === 'WORD');
+      assert.strictEqual(result.source, 'LyricsPlus (Apple)');
+      assert.strictEqual(result.lines[0].start, 0.16);
+      assert.strictEqual(result.lines[0].words[0].start, 0.16);
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  await testAsync('6c. LyricsPlus source fallback retry remains bounded by its request timeout', async () => {
+    const originalFetch = global.fetch;
+    const parentController = new AbortController();
+    const observedSignals = [];
+    let calls = 0;
+    global.fetch = async (_url, options = {}) => {
+      calls++;
+      if (calls === 1) return { ok: false, status: 404 };
+      observedSignals.push(options.signal);
+      return new Promise((_resolve, reject) => {
+        const abort = () => reject(Object.assign(new Error('aborted by request timeout'), { name: 'AbortError' }));
+        if (options.signal?.aborted) abort();
+        else options.signal?.addEventListener('abort', abort, { once: true });
+      });
+    };
+
+    try {
+      const service = new LyricsPlusService({ endpoint: 'https://primary.test/v2/lyrics/get', timeoutMs: 20 });
+      const result = await service.fetchEndpoint(service.endpoint, { title: 'Song', artist: 'Artist' }, {
+        signal: parentController.signal
+      });
+      assert.strictEqual(result, null);
+      assert.strictEqual(calls, 2, 'The source-less retry should be made once');
+      assert.strictEqual(observedSignals[0].aborted, true, 'The retry must be aborted by the per-request timeout');
+      assert.strictEqual(parentController.signal.aborted, false, 'The request timeout must not abort the caller');
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  await testAsync('6d. qApple is requested before alternatives and bypasses non-qApple cache entries', async () => {
+    const originalFetch = global.fetch;
+    const calls = [];
+    const metadata = { title: 'Song', artist: 'Artist' };
+    global.fetch = async (url) => {
+      calls.push(String(url));
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          KpoeTools: 'v2',
+          type: 'Word',
+          lyrics: [{
+            time: 1000,
+            duration: 700,
+            text: 'Hello world',
+            syllabus: [
+              { time: 1000, duration: 300, text: 'Hello ' },
+              { time: 1300, duration: 400, text: 'world' }
+            ]
+          }]
+        })
+      };
+    };
+
+    try {
+      const endpoint = 'https://lyricsplus.binimum.org/v2/lyrics/get';
+      const service = new LyricsPlusService({ endpoints: [endpoint], timeoutMs: 50 });
+      service.cacheAndReturn(metadata, createNormalizedLyrics('WORD', [
+        createLyricLine('Old cached line', 1, 3, [createLyricWord('Old', 1, 2)])
+      ], 'LyricsPlus (NetEase)', { winnerSource: 'NetEase' }));
+
+      const result = await service.fetch(metadata, { preferQApple: true });
+      assert.strictEqual(calls.length, 1, 'Non-qApple cached lyrics must not bypass the preferred qApple request');
+      assert.strictEqual(new URL(calls[0]).searchParams.get('source'), 'apple',
+        'The preferred qApple request must explicitly select Apple on the v2 endpoint');
+      assert(result && result.type === 'WORD');
+      assert.strictEqual(result.source, 'LyricsPlus (qApple)');
+      assert.strictEqual(isQAppleLyrics(result), true);
+
+      const mirrorUrl = new URL(service.buildRequestUrl(metadata, 'https://mirror.test/lyrics', { preferQApple: true }));
+      assert.strictEqual(mirrorUrl.searchParams.get('source'), 'apple',
+        'The mirror must query Apple alone before any multi-source fallback');
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  await testAsync('6e. LyricsPlus LRCLIB matches are discarded for the native LRCLIB integration', async () => {
+    const originalFetch = global.fetch;
+    global.fetch = async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        type: 'Word',
+        processingTime: { winnerSource: 'lrclib' },
+        lyrics: [{
+          time: 1000,
+          duration: 600,
+          text: 'Duplicate source',
+          syllabus: [{ time: 1000, duration: 600, text: 'Duplicate source' }]
+        }]
+      })
+    });
+    try {
+      const endpoint = 'https://lyricsplus.binimum.org/v2/lyrics/get';
+      const service = new LyricsPlusService({ endpoints: [endpoint], timeoutMs: 50 });
+      service.invalidateCache({ title: 'Song', artist: 'Artist' });
+      const result = await service.fetch({ title: 'Song', artist: 'Artist' });
+      assert.strictEqual(result, null,
+        'The LyricsPlus aggregator must not return an LRCLIB result when LyricFlow has a native LRCLIB provider');
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  await testAsync('6e1. qApple mode rejects an explicitly non-Apple v2 winner', async () => {
+    const originalFetch = global.fetch;
+    global.fetch = async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        type: 'Word',
+        source: 'NetEase',
+        lyrics: [{
+          time: 1000,
+          duration: 600,
+          text: 'Wrong source',
+          syllabus: [{ time: 1000, duration: 600, text: 'Wrong source' }]
+        }]
+      })
+    });
+    try {
+      const endpoint = 'https://lyricsplus.binimum.org/v2/lyrics/get';
+      const service = new LyricsPlusService({ endpoints: [endpoint], timeoutMs: 50 });
+      const result = await service.fetch({ title: 'Strict source song', artist: 'Artist' }, { preferQApple: true });
+      assert.strictEqual(result, null, 'A known NetEase response must not be relabeled as qApple');
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  test('6f. Renderer awaits qApple before starting the Rust/NetEase fallback', () => {
+    const renderer = fs.readFileSync(path.join(__dirname, '../src/renderer.js'), 'utf8');
+    const primaryStart = renderer.indexOf("// LyricsPlus' primary endpoint defaults to qApple.");
+    const qAppleAwait = renderer.indexOf('await lyricsPlusFetch();', primaryStart);
+    const rustFallback = renderer.indexOf('await rustLyricsFetch();', qAppleAwait);
+    assert(primaryStart >= 0 && qAppleAwait > primaryStart && rustFallback > qAppleAwait,
+      'qApple must finish applying before Rust providers, including NetEase, start');
+    assert(renderer.includes('preferQApple: true'),
+      'The renderer must request qApple explicitly from LyricsPlus');
+    assert.match(renderer, /const effectiveTimeout = customTimeout != null \? customTimeout : 8500;/,
+      'The preferred qApple request must not time out at the old 2.5 second default');
+    assert(renderer.includes("preferredLyricProviders: ['netease', 'lrclib', 'musixmatch']"),
+      'NetEase remains the first Rust fallback and can supply word-synced lyrics when qApple has no match');
+    assert.strictEqual(new LyricsPlusService().timeoutMs, 8500,
+      'LyricsPlus default timeout must allow the qApple scraper cold-cache window');
+    const providerSource = fs.readFileSync(path.join(__dirname, '../src/services/lyrics/LyricsPlus.js'), 'utf8');
+    assert(providerSource.includes('lyricsplus.prjktla.my.id/v2/lyrics/get'),
+      'The provider must retain an active public v2 mirror when its primary host is unavailable');
   });
 
   // 7. Request cancellation
@@ -291,6 +603,22 @@ async function runAllTests() {
 
     // Immediately past word end (7.001s)
     assert.strictEqual(engine.getWordState(0, 0, 7.001), 'completed', 'Past word end is completed');
+  });
+
+  test('old qApple lyric caches are invalidated after timestamp normalization changes', () => {
+    const service = new LyricsPlusService();
+    const meta = { title: 'Come and Get Your Love', artist: 'Redbone', duration: 207 };
+    const key = getCacheKey(meta);
+    const oldCached = createNormalizedLyrics('WORD', [
+      createLyricLine('Come and get your love', 0.204, 0.2055)
+    ], 'LyricsPlus (qApple)');
+    localStorage.setItem(key, JSON.stringify(oldCached));
+    assert.strictEqual(service.getCached(meta), null, 'Previously normalized qApple cache must be fetched again');
+    assert.strictEqual(localStorage.getItem(key), null, 'Stale qApple cache entry must be removed');
+
+    service.setCached(meta, oldCached);
+    const updated = service.getCached(meta);
+    assert.strictEqual(updated.qappleTimeNormalizationVersion, 2, 'New qApple cache entry must carry the timing schema version');
   });
 
   // 13. Lyrics cache hit (with ISRC and with artist+title+duration)

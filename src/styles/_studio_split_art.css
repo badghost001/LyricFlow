@@ -1,0 +1,761 @@
+/*
+ * Split View artwork stage.
+ * This file owns the album art and its song-details rail in split mode;
+ * the older split rules in _studio.css remain responsible for lyrics/player.
+ */
+
+body.layout-split:not(.split-no-lyrics-focus):not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics {
+  grid-template-columns: minmax(0, min(42vw, 500px)) minmax(0, 1fr) !important;
+  grid-template-rows: minmax(0, 1fr) auto !important;
+  column-gap: clamp(16px, 3vw, 40px) !important;
+}
+
+body.layout-split:not(.split-no-lyrics-focus):not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics #studio-sidebar {
+  display: block !important;
+  position: relative !important;
+  grid-column: 1 / 2 !important;
+  grid-row: 1 / 2 !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  contain: layout !important;
+  isolation: isolate !important;
+}
+
+body.layout-split.split-no-lyrics-focus:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics {
+  grid-template-columns: minmax(0, 1fr) !important;
+  grid-template-rows: minmax(0, 1fr) auto !important;
+}
+
+body.layout-split.split-no-lyrics-focus:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics #studio-sidebar {
+  display: block !important;
+  position: relative !important;
+  grid-column: 1 / -1 !important;
+  grid-row: 1 / 2 !important;
+  justify-self: center !important;
+  align-self: center !important;
+  width: 100% !important;
+  max-width: 680px !important;
+  height: 100% !important;
+  margin: 0 auto !important;
+  padding: 0 !important;
+  overflow: visible !important;
+}
+
+/* Square covers keep their familiar upper-stage placement. The separate
+   details rail is pinned above the player, so hover and auto-hide cannot move it. */
+body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics #studio-sidebar .studio-art-container {
+  position: absolute !important;
+  top: clamp(24px, 8vh, 76px) !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: 50% !important;
+  display: block !important;
+  width: clamp(180px, 30vh, 270px) !important;
+  height: auto !important;
+  max-width: min(100%, 270px) !important;
+  max-height: min(38vh, 300px) !important;
+  aspect-ratio: 1 / 1 !important;
+  margin: 0 !important;
+  transform: translateX(-50%) !important;
+  z-index: 1 !important;
+  isolation: isolate !important;
+  transition: width 320ms cubic-bezier(.2,.75,.25,1),
+              height 320ms cubic-bezier(.2,.75,.25,1),
+              top 320ms cubic-bezier(.2,.75,.25,1) !important;
+}
+
+body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics #studio-sidebar #studio-art-wrapper {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  border: 1px solid rgba(255,255,255,.2) !important;
+  border-radius: 24px !important;
+  background: transparent !important;
+  box-shadow: 0 18px 42px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.22) !important;
+  overflow: hidden !important;
+  transform: none !important;
+  z-index: 2 !important;
+  transition: border-radius 240ms ease, box-shadow 240ms ease !important;
+}
+
+body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics #studio-sidebar .studio-art-img,
+body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics #studio-sidebar #studio-art-video {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  border-radius: inherit !important;
+  background: transparent !important;
+}
+
+body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics #studio-sidebar #studio-art-glow {
+  position: absolute !important;
+  inset: -8% !important;
+  z-index: 0 !important;
+  opacity: .45 !important;
+  filter: blur(24px) !important;
+  pointer-events: none !important;
+}
+
+/* One stable title · artist rail. JavaScript scales the line as a unit when
+   unusually long names need extra room, so the text stays complete and aligned. */
+body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics #studio-sidebar > .studio-track-meta {
+  position: absolute !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: 8px !important;
+  left: 50% !important;
+  display: inline-flex !important;
+  flex: 0 0 auto !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  width: max-content !important;
+  min-width: max-content !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+  transform: translateX(-50%) scaleX(var(--studio-track-meta-scale, 1)) !important;
+  transform-origin: center bottom !important;
+  transition: transform 380ms cubic-bezier(.2,.75,.25,1),
+              opacity 380ms cubic-bezier(.2,.75,.25,1),
+              background 380ms cubic-bezier(.2,.75,.25,1),
+              padding 380ms cubic-bezier(.2,.75,.25,1),
+              border-color 380ms cubic-bezier(.2,.75,.25,1),
+              box-shadow 380ms cubic-bezier(.2,.75,.25,1) !important;
+  z-index: 30 !important;
+}
+
+body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics #studio-sidebar #studio-title-wrapper,
+body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics #studio-sidebar #studio-artist-wrapper {
+  display: inline-flex !important;
+  flex: 0 0 auto !important;
+  align-items: center !important;
+  width: max-content !important;
+  min-width: max-content !important;
+  max-width: none !important;
+  overflow: visible !important;
+  white-space: nowrap !important;
+}
+
+body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics #studio-sidebar #studio-track-title,
+body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics #studio-sidebar #studio-track-artist {
+  display: block !important;
+  width: max-content !important;
+  max-width: none !important;
+  margin: 0 !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  white-space: nowrap !important;
+  transition: none !important;
+}
+
+body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics #studio-sidebar #studio-track-title {
+  font-size: 14px !important;
+  line-height: 1.2 !important;
+  font-weight: 650 !important;
+  letter-spacing: -.015em !important;
+  color: #fff !important;
+  text-shadow: 0 1px 8px rgba(0,0,0,.72) !important;
+}
+
+body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics #studio-sidebar #studio-track-artist {
+  font-size: 13px !important;
+  line-height: 1.2 !important;
+  font-weight: 450 !important;
+  letter-spacing: -.01em !important;
+  color: rgba(255,255,255,.78) !important;
+  text-shadow: 0 1px 6px rgba(0,0,0,.64) !important;
+}
+
+body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics #studio-sidebar #studio-artist-wrapper::before {
+  content: "\00B7" !important;
+  display: inline-block !important;
+  flex: 0 0 auto !important;
+  margin: 0 7px 0 1px !important;
+  color: rgba(255,255,255,.55) !important;
+}
+
+/* Selected tall motion artwork is positioned above track details at rest.
+   When auto-hide triggers, it expands downward to fill the stage. */
+body.layout-split:is(.has-animated-art-video, .has-motion-tall-art).split-tall-art:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics #studio-sidebar .studio-art-container {
+  top: clamp(20px, 6vh, 56px) !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: 50% !important;
+  width: min(100%, clamp(140px, 22vh, 195px)) !important;
+  height: auto !important;
+  max-width: min(100%, 200px) !important;
+  max-height: min(36vh, 310px) !important;
+  aspect-ratio: 2 / 3 !important;
+  transform: translateX(-50%) !important;
+  z-index: 1 !important;
+  transition: width 380ms cubic-bezier(.2,.75,.25,1),
+              height 380ms cubic-bezier(.2,.75,.25,1),
+              max-width 380ms cubic-bezier(.2,.75,.25,1),
+              max-height 380ms cubic-bezier(.2,.75,.25,1),
+              top 380ms cubic-bezier(.2,.75,.25,1),
+              bottom 380ms cubic-bezier(.2,.75,.25,1),
+              transform 380ms cubic-bezier(.2,.75,.25,1) !important;
+}
+
+body.layout-split:is(.has-animated-art-video, .has-motion-tall-art).split-tall-art:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics #studio-sidebar #studio-art-wrapper {
+  border-radius: 24px !important;
+  box-shadow: 0 18px 42px rgba(0,0,0,.24), inset 0 1px 0 rgba(255,255,255,.2) !important;
+  transition: border-radius 380ms cubic-bezier(.2,.75,.25,1),
+              box-shadow 380ms cubic-bezier(.2,.75,.25,1) !important;
+}
+
+body.layout-split:is(.has-animated-art-video, .has-motion-tall-art).split-tall-art:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics #studio-sidebar > .studio-track-meta {
+  bottom: 8px !important;
+  gap: 6px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  z-index: 30 !important;
+}
+
+/* Auto-hide is a true size expansion: tall artwork grows downward from a fixed lower edge
+   into the collapsed player dock while details render as a frosted glass pill inside the art. */
+body.layout-split:is(.has-animated-art-video, .has-motion-tall-art).split-tall-art:is(.auto-hide-controls, .auto-hide-collapsed, .auto-hide-faded):not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics #studio-sidebar .studio-art-container,
+body.layout-split:is(.has-animated-art-video, .has-motion-tall-art).split-tall-art .app-container:is(.auto-hide-controls, .auto-hide-collapsed, .auto-hide-faded) #screen-lyrics #studio-sidebar .studio-art-container {
+  top: auto !important;
+  right: auto !important;
+  bottom: -18px !important;
+  left: 50% !important;
+  width: min(100%, clamp(160px, 42.67vh, 400px)) !important;
+  height: auto !important;
+  max-width: min(100%, 440px) !important;
+  max-height: min(64vh, calc(100% + 18px), 600px) !important;
+  aspect-ratio: 2 / 3 !important;
+  transform: translateX(-50%) scale(1.08) !important;
+  transform-origin: center bottom !important;
+  transition: width 380ms cubic-bezier(.2,.75,.25,1),
+              height 380ms cubic-bezier(.2,.75,.25,1),
+              max-width 380ms cubic-bezier(.2,.75,.25,1),
+              max-height 380ms cubic-bezier(.2,.75,.25,1),
+              top 380ms cubic-bezier(.2,.75,.25,1),
+              bottom 380ms cubic-bezier(.2,.75,.25,1),
+              transform 380ms cubic-bezier(.2,.75,.25,1) !important;
+  z-index: 1 !important;
+}
+
+/* On expanded tall artwork in auto-hide, details float as a centered frosted glass pill. */
+body.layout-split:is(.has-animated-art-video, .has-motion-tall-art).split-tall-art:is(.auto-hide-controls, .auto-hide-collapsed, .auto-hide-faded):not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics #studio-sidebar > .studio-track-meta,
+body.layout-split:is(.has-animated-art-video, .has-motion-tall-art).split-tall-art .app-container:is(.auto-hide-controls, .auto-hide-collapsed, .auto-hide-faded) #screen-lyrics #studio-sidebar > .studio-track-meta {
+  position: absolute !important;
+  bottom: 8px !important;
+  gap: 5px !important;
+  padding: 6px 12px !important;
+  border: 1px solid rgba(255,255,255,.16) !important;
+  border-radius: 999px !important;
+  background: rgba(12,12,16,.58) !important;
+  box-shadow: 0 5px 16px rgba(0,0,0,.24) !important;
+  backdrop-filter: blur(12px) saturate(1.15) !important;
+  -webkit-backdrop-filter: blur(12px) saturate(1.15) !important;
+  z-index: 40 !important;
+}
+
+/* Static square covers grow in place during auto-hide too; the artwork gets
+   more room while its top anchor and the track-details rail stay fixed. */
+body.layout-split:not(.split-tall-art):not(.has-animated-art-video):not(.has-motion-tall-art):is(.auto-hide-controls, .auto-hide-collapsed, .auto-hide-faded):not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics #studio-sidebar .studio-art-container,
+body.layout-split:not(.split-tall-art):not(.has-animated-art-video):not(.has-motion-tall-art) .app-container:is(.auto-hide-controls, .auto-hide-collapsed, .auto-hide-faded) #screen-lyrics #studio-sidebar .studio-art-container {
+  width: min(100%, clamp(190px, 40vh, 360px)) !important;
+  height: auto !important;
+  max-width: min(100%, 360px) !important;
+  max-height: min(56vh, 420px) !important;
+}
+
+/* Motion video stays at its decoded dimensions during auto-hide. A compositor
+   scale gives the artwork its larger presentation without resizing the video
+   surface or causing layout work in the progress bar below it. */
+body.layout-split:is(.has-animated-art-video, .has-motion-tall-art):not(.split-tall-art):is(.auto-hide-controls, .auto-hide-collapsed, .auto-hide-faded):not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics #studio-sidebar .studio-art-container,
+body.layout-split:is(.has-animated-art-video, .has-motion-tall-art):not(.split-tall-art) .app-container:is(.auto-hide-controls, .auto-hide-collapsed, .auto-hide-faded) #screen-lyrics #studio-sidebar .studio-art-container {
+  width: clamp(190px, 38vh, 330px) !important;
+  height: auto !important;
+  max-width: min(100%, 330px) !important;
+  max-height: min(52vh, 380px) !important;
+  aspect-ratio: 1 / 1 !important;
+  transform: translateX(-50%) scale(1.12) !important;
+  transform-origin: center top !important;
+  transition: transform 320ms cubic-bezier(.2,.75,.25,1) !important;
+}
+
+@media (max-width: 1048px) {
+  body.layout-split:is(.has-animated-art-video, .has-motion-tall-art).split-tall-art:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics #studio-sidebar .studio-art-container {
+    width: min(100%, clamp(150px, 24vw, 200px)) !important;
+    height: auto !important;
+    max-height: min(38vh, 320px) !important;
+  }
+
+  body.layout-split:is(.has-animated-art-video, .has-motion-tall-art).split-tall-art:is(.auto-hide-controls, .auto-hide-collapsed, .auto-hide-faded):not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics #studio-sidebar .studio-art-container {
+    width: min(100%, clamp(220px, 36vw, 320px)) !important;
+    height: auto !important;
+    max-height: none !important;
+    transform: translateX(-50%) scale(1.08) !important;
+    transform-origin: center bottom !important;
+    transition: transform 380ms cubic-bezier(.2,.75,.25,1) !important;
+  }
+
+  body.layout-split:is(.has-animated-art-video, .has-motion-tall-art):not(.split-tall-art):is(.auto-hide-controls, .auto-hide-collapsed, .auto-hide-faded):not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics #studio-sidebar .studio-art-container {
+    width: clamp(190px, 36vh, 320px) !important;
+    max-width: min(100%, 320px) !important;
+    max-height: min(50vh, 360px) !important;
+  }
+}
+
+/* Keep the metadata over the artwork and ahead of its animated frames in all
+   auto-hide and pointer states, including legacy selector combinations. */
+body.layout-split:is(.has-animated-art-video, .has-motion-tall-art).split-tall-art:is(.auto-hide-controls, .auto-hide-collapsed, .auto-hide-faded):not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics #studio-sidebar > .studio-track-meta {
+  position: absolute !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: 8px !important;
+  left: 50% !important;
+  margin: 0 !important;
+  transform: translateX(-50%) scaleX(var(--studio-track-meta-scale, 1)) !important;
+  z-index: 40 !important;
+}
+
+body.layout-split:is(.has-animated-art-video, .has-motion-tall-art).split-tall-art #screen-lyrics:has(.studio-sidebar:hover) #studio-sidebar > .studio-track-meta,
+body.layout-split:is(.has-animated-art-video, .has-motion-tall-art).split-tall-art #screen-lyrics:has(#playback-widget:hover) #studio-sidebar > .studio-track-meta {
+  position: absolute !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: 8px !important;
+  left: 50% !important;
+  margin: 0 !important;
+  transform: translateX(-50%) scaleX(var(--studio-track-meta-scale, 1)) !important;
+  z-index: 40 !important;
+}
+
+/* No-lyrics focus centers the cover without disturbing its pinned details. */
+body.layout-split.split-no-lyrics-focus:not(.split-tall-art):not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics #studio-sidebar .studio-art-container {
+  top: 50% !important;
+  transform: translate(-50%, -50%) !important;
+}
+
+html[data-theme="light"] body.layout-split #screen-lyrics #studio-sidebar #studio-track-title {
+  color: #17191d !important;
+  text-shadow: 0 1px 5px rgba(255,255,255,.65) !important;
+}
+
+html[data-theme="light"] body.layout-split:is(.has-animated-art-video, .has-motion-tall-art).split-tall-art #screen-lyrics #studio-sidebar > .studio-track-meta {
+  background: rgba(255,255,255,.64) !important;
+  border-color: rgba(0,0,0,.1) !important;
+  box-shadow: 0 5px 16px rgba(0,0,0,.12) !important;
+  backdrop-filter: blur(12px) saturate(1.1) !important;
+  -webkit-backdrop-filter: blur(12px) saturate(1.1) !important;
+}
+
+@media (max-width: 760px) {
+  body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics {
+    grid-template-columns: minmax(0, 42vw) minmax(0, 1fr) !important;
+    column-gap: 14px !important;
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
+
+  body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics #studio-sidebar .studio-art-container {
+    width: min(100%, 240px) !important;
+    max-width: 100% !important;
+    max-height: min(42vh, 320px) !important;
+  }
+
+  body.layout-split:not(.split-tall-art):not(.has-animated-art-video):not(.has-motion-tall-art):is(.auto-hide-controls, .auto-hide-collapsed, .auto-hide-faded):not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics #studio-sidebar .studio-art-container,
+  body.layout-split:not(.split-tall-art):not(.has-animated-art-video):not(.has-motion-tall-art) .app-container:is(.auto-hide-controls, .auto-hide-collapsed, .auto-hide-faded) #screen-lyrics #studio-sidebar .studio-art-container {
+    width: min(100%, clamp(190px, 40vh, 320px)) !important;
+    height: auto !important;
+    max-width: 100% !important;
+    max-height: min(56vh, 390px) !important;
+  }
+
+  body.layout-split:is(.has-animated-art-video, .has-motion-tall-art).split-tall-art:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics #studio-sidebar .studio-art-container {
+    width: min(100%, clamp(140px, 28vw, 185px)) !important;
+    height: auto !important;
+    max-height: min(36vh, 290px) !important;
+  }
+
+  body.layout-split:is(.has-animated-art-video, .has-motion-tall-art).split-tall-art:is(.auto-hide-controls, .auto-hide-collapsed, .auto-hide-faded):not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics #studio-sidebar .studio-art-container {
+    width: min(100%, clamp(200px, 40vw, 260px)) !important;
+    height: auto !important;
+    max-height: none !important;
+    transform: translateX(-50%) scale(1.08) !important;
+    transform-origin: center bottom !important;
+    transition: transform 380ms cubic-bezier(.2,.75,.25,1) !important;
+  }
+
+  body.layout-split:is(.has-animated-art-video, .has-motion-tall-art):not(.split-tall-art):is(.auto-hide-controls, .auto-hide-collapsed, .auto-hide-faded):not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics #studio-sidebar .studio-art-container {
+    width: min(100%, clamp(190px, 40vw, 280px)) !important;
+    max-width: 100% !important;
+    max-height: min(52vh, 360px) !important;
+  }
+
+  body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics #studio-sidebar > .studio-track-meta {
+    bottom: 6px !important;
+  }
+
+  body.layout-split:is(.has-animated-art-video, .has-motion-tall-art).split-tall-art:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics #studio-sidebar > .studio-track-meta {
+    bottom: 8px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.layout-split #screen-lyrics #studio-sidebar .studio-art-container,
+  body.layout-split #screen-lyrics #studio-sidebar #studio-art-wrapper {
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Keep the split scrubber stationary and hide the transport row completely
+   once its idle timer fires. Pointer movement still wakes it through the
+   existing renderer handler; hover alone no longer keeps a shrunken panel. */
+body.layout-split.auto-hide-controls #playback-widget,
+body.layout-split.auto-hide-controls #playback-widget:hover,
+body.layout-split.auto-hide-controls #screen-lyrics:has(#playback-widget:hover) #playback-widget,
+body.layout-split.auto-hide-controls #screen-lyrics:has(.studio-sidebar:hover) #playback-widget {
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+}
+
+body.layout-split:is(.has-animated-art-video, .has-motion-tall-art):not(.split-tall-art):is(.auto-hide-controls):not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #playback-widget,
+body.layout-split:is(.has-animated-art-video, .has-motion-tall-art):not(.split-tall-art):is(.auto-hide-controls):not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics:has(#playback-widget:hover) #playback-widget {
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+}
+
+body.layout-split.auto-hide-controls:not(.split-tall-art) #playback-widget > .widget-track-panel,
+body.layout-split.auto-hide-controls:not(.split-tall-art) #playback-widget:hover > .widget-track-panel {
+  transform: none !important;
+  transition: none !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+body.layout-split.auto-hide-controls #playback-widget > .widget-controls,
+body.layout-split.auto-hide-controls #playback-widget:hover > .widget-controls,
+body.layout-split.auto-hide-controls #playback-widget > .widget-controls:hover,
+body.layout-split.auto-hide-controls #screen-lyrics:has(#playback-widget:hover) #playback-widget > .widget-controls,
+body.layout-split.auto-hide-controls #screen-lyrics:has(.studio-sidebar:hover) #playback-widget > .widget-controls,
+body.layout-split.auto-hide-controls #screen-lyrics:has(.studio-art-container:hover) #playback-widget > .widget-controls {
+  display: none !important;
+  height: 0 !important;
+  max-height: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border-width: 0 !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  overflow: hidden !important;
+  pointer-events: none !important;
+  transform: none !important;
+  transition: none !important;
+}
+
+body.layout-split:is(.has-animated-art-video, .has-motion-tall-art, .split-tall-art):is(.auto-hide-controls):not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #playback-widget:hover > .widget-controls,
+body.layout-split:is(.has-animated-art-video, .has-motion-tall-art, .split-tall-art):is(.auto-hide-controls):not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics:has(#playback-widget:hover) #playback-widget > .widget-controls,
+body.layout-split:is(.has-animated-art-video, .has-motion-tall-art, .split-tall-art):is(.auto-hide-controls):not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics:has(.studio-sidebar:hover) #playback-widget > .widget-controls {
+  display: none !important;
+  height: 0 !important;
+  max-height: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border-width: 0 !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  overflow: hidden !important;
+  pointer-events: none !important;
+  transform: none !important;
+  transition: none !important;
+}
+
+/* When tall motion artwork takes the expanded composition, clear its footer
+   scrubber pod so the expanded artwork has an uninterrupted stage. */
+body.layout-split.split-tall-art:is(.auto-hide-controls, .auto-hide-collapsed, .auto-hide-faded):not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #playback-widget:not(:hover) > .widget-track-panel,
+body.layout-split.split-tall-art .app-container:is(.auto-hide-controls, .auto-hide-collapsed, .auto-hide-faded):not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #playback-widget:not(:hover) > .widget-track-panel,
+body.layout-split:is(.has-animated-art-video, .has-motion-tall-art).split-tall-art:is(.auto-hide-controls, .auto-hide-collapsed, .auto-hide-faded):not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #playback-widget:not(:hover) > .widget-track-panel,
+body.layout-split:is(.has-animated-art-video, .has-motion-tall-art).split-tall-art .app-container:is(.auto-hide-controls, .auto-hide-collapsed, .auto-hide-faded):not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #playback-widget:not(:hover) > .widget-track-panel,
+body.layout-split.split-tall-art:is(.auto-hide-controls, .auto-hide-collapsed, .auto-hide-faded) #playback-widget > .widget-track-panel,
+body.layout-split.split-tall-art .app-container:is(.auto-hide-controls, .auto-hide-collapsed, .auto-hide-faded) #playback-widget > .widget-track-panel,
+body.layout-split.split-tall-art:is(.auto-hide-controls, .auto-hide-collapsed, .auto-hide-faded) #screen-lyrics:has(.studio-sidebar:hover):not(:has(#playback-widget:hover)) #playback-widget > .widget-track-panel,
+body.layout-split.split-tall-art:is(.auto-hide-controls, .auto-hide-collapsed, .auto-hide-faded) #screen-lyrics:has(.studio-art-container:hover):not(:has(#playback-widget:hover)) #playback-widget > .widget-track-panel {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+/* In non-expanded mode or when transport dock is hovered, show progress bar */
+body.layout-split.split-tall-art:not(.auto-hide-controls):not(.auto-hide-collapsed):not(.auto-hide-faded):not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #playback-widget > .widget-track-panel,
+body.layout-split.split-tall-art #playback-widget:hover > .widget-track-panel,
+body.layout-split.split-tall-art #screen-lyrics:has(#playback-widget:hover) #playback-widget > .widget-track-panel {
+  display: flex !important;
+  flex: 1 1 100% !important;
+  width: 100% !important;
+  max-width: none !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+}
+
+/* Keep expanded tall-art details styled as a frosted glass pill inside the expanded artwork. */
+body.layout-split.split-tall-art:is(.auto-hide-controls, .auto-hide-collapsed, .auto-hide-faded):not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics #studio-sidebar > .studio-track-meta,
+body.layout-split.split-tall-art .app-container:is(.auto-hide-controls, .auto-hide-collapsed, .auto-hide-faded) #screen-lyrics #studio-sidebar > .studio-track-meta {
+  position: absolute !important;
+  inset: auto !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: 8px !important;
+  left: 50% !important;
+  margin: 0 !important;
+  display: inline-flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 5px !important;
+  width: max-content !important;
+  min-width: max-content !important;
+  max-width: none !important;
+  padding: 6px 12px !important;
+  border: 1px solid rgba(255,255,255,.16) !important;
+  border-radius: 999px !important;
+  background: rgba(12,12,16,.58) !important;
+  box-shadow: 0 5px 16px rgba(0,0,0,.24) !important;
+  backdrop-filter: blur(12px) saturate(1.15) !important;
+  -webkit-backdrop-filter: blur(12px) saturate(1.15) !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+  transform: translateX(-50%) scaleX(1) !important;
+  transition: transform 380ms cubic-bezier(.2,.75,.25,1),
+              opacity 380ms cubic-bezier(.2,.75,.25,1),
+              background 380ms cubic-bezier(.2,.75,.25,1),
+              padding 380ms cubic-bezier(.2,.75,.25,1),
+              border-color 380ms cubic-bezier(.2,.75,.25,1),
+              box-shadow 380ms cubic-bezier(.2,.75,.25,1) !important;
+  z-index: 40 !important;
+}
+
+body.layout-split.split-tall-art:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics #studio-sidebar #studio-track-title,
+body.layout-split.split-tall-art #screen-lyrics:has(.studio-sidebar:hover) #studio-sidebar #studio-track-title,
+body.layout-split.split-tall-art #screen-lyrics:has(.studio-art-container:hover) #studio-sidebar #studio-track-title,
+body.layout-split.split-tall-art #screen-lyrics:has(#playback-widget:hover) #studio-sidebar #studio-track-title,
+body.layout-split.split-tall-art:is(.auto-hide-controls, .auto-hide-collapsed, .auto-hide-faded) #screen-lyrics #studio-sidebar #studio-track-title,
+body.layout-split.split-tall-art .app-container:is(.auto-hide-controls, .auto-hide-collapsed, .auto-hide-faded) #screen-lyrics #studio-sidebar #studio-track-title {
+  font-size: 14.5px !important;
+  font-style: normal !important;
+  font-weight: 650 !important;
+  letter-spacing: -.015em !important;
+  line-height: 1.2 !important;
+  display: block !important;
+  width: max-content !important;
+  max-width: none !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  white-space: nowrap !important;
+}
+
+body.layout-split.split-tall-art:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics #studio-sidebar #studio-track-artist,
+body.layout-split.split-tall-art #screen-lyrics:has(.studio-sidebar:hover) #studio-sidebar #studio-track-artist,
+body.layout-split.split-tall-art #screen-lyrics:has(.studio-art-container:hover) #studio-sidebar #studio-track-artist,
+body.layout-split.split-tall-art #screen-lyrics:has(#playback-widget:hover) #studio-sidebar #studio-track-artist,
+body.layout-split.split-tall-art:is(.auto-hide-controls, .auto-hide-collapsed, .auto-hide-faded) #screen-lyrics #studio-sidebar #studio-track-artist,
+body.layout-split.split-tall-art .app-container:is(.auto-hide-controls, .auto-hide-collapsed, .auto-hide-faded) #screen-lyrics #studio-sidebar #studio-track-artist {
+  font-size: 13.5px !important;
+  font-style: normal !important;
+  font-weight: 450 !important;
+  letter-spacing: -.01em !important;
+  line-height: 1.2 !important;
+  display: block !important;
+  width: max-content !important;
+  max-width: none !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  white-space: nowrap !important;
+}
+
+body.layout-split.split-tall-art:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics #studio-sidebar #studio-title-wrapper,
+body.layout-split.split-tall-art:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics #studio-sidebar #studio-artist-wrapper,
+body.layout-split.split-tall-art #screen-lyrics:has(.studio-sidebar:hover) #studio-sidebar #studio-title-wrapper,
+body.layout-split.split-tall-art #screen-lyrics:has(.studio-sidebar:hover) #studio-sidebar #studio-artist-wrapper,
+body.layout-split.split-tall-art #screen-lyrics:has(.studio-art-container:hover) #studio-sidebar #studio-title-wrapper,
+body.layout-split.split-tall-art #screen-lyrics:has(.studio-art-container:hover) #studio-sidebar #studio-artist-wrapper,
+body.layout-split.split-tall-art #screen-lyrics:has(#playback-widget:hover) #studio-sidebar #studio-title-wrapper,
+body.layout-split.split-tall-art #screen-lyrics:has(#playback-widget:hover) #studio-sidebar #studio-artist-wrapper,
+body.layout-split.split-tall-art:is(.auto-hide-controls, .auto-hide-collapsed, .auto-hide-faded) #screen-lyrics #studio-sidebar #studio-title-wrapper,
+body.layout-split.split-tall-art:is(.auto-hide-controls, .auto-hide-collapsed, .auto-hide-faded) #screen-lyrics #studio-sidebar #studio-artist-wrapper,
+body.layout-split.split-tall-art .app-container:is(.auto-hide-controls, .auto-hide-collapsed, .auto-hide-faded) #screen-lyrics #studio-sidebar #studio-title-wrapper,
+body.layout-split.split-tall-art .app-container:is(.auto-hide-controls, .auto-hide-collapsed, .auto-hide-faded) #screen-lyrics #studio-sidebar #studio-artist-wrapper {
+  display: inline-flex !important;
+  flex: 0 0 auto !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: max-content !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  overflow: visible !important;
+  white-space: nowrap !important;
+}
+
+html[data-theme="light"] body.layout-split.split-tall-art:is(.auto-hide-controls, .auto-hide-collapsed, .auto-hide-faded) #screen-lyrics #studio-sidebar > .studio-track-meta {
+  border-color: rgba(0,0,0,.1) !important;
+  background: rgba(255,255,255,.64) !important;
+  box-shadow: 0 5px 16px rgba(0,0,0,.12) !important;
+  backdrop-filter: blur(12px) saturate(1.1) !important;
+  -webkit-backdrop-filter: blur(12px) saturate(1.1) !important;
+}
+
+/* Restore the compact stacked split layout used by narrow windows. The
+   desktop artwork stage uses absolute art and details, which otherwise win
+   over the <=480px compact-card rules in _studio.css. */
+@media (max-width: 480px) {
+  body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+    padding: 8px 14px 12px !important;
+    overflow: hidden !important;
+  }
+
+  body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode):not(.cinematic-view-active) #screen-lyrics #studio-sidebar {
+    display: flex !important;
+    position: relative !important;
+    flex: 0 0 auto !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 12px !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 56px !important;
+    padding: 6px 10px !important;
+    border: 1px solid rgba(255,255,255,.08) !important;
+    border-radius: 14px !important;
+    background: rgba(255,255,255,.04) !important;
+    overflow: hidden !important;
+  }
+
+  body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode) #screen-lyrics #studio-sidebar .studio-art-container {
+    position: relative !important;
+    inset: auto !important;
+    flex: 0 0 44px !important;
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px !important;
+    max-width: 44px !important;
+    max-height: 44px !important;
+    aspect-ratio: 1 / 1 !important;
+    margin: 0 !important;
+    transform: none !important;
+  }
+
+  body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode) #screen-lyrics #studio-sidebar #studio-art-wrapper {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    border-radius: 10px !important;
+  }
+
+  body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode) #screen-lyrics #studio-sidebar #studio-art-glow,
+  body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode) #screen-lyrics #studio-sidebar > .studio-badges-row {
+    display: none !important;
+  }
+
+  body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode) #screen-lyrics #studio-sidebar > .studio-track-meta {
+    position: relative !important;
+    inset: auto !important;
+    display: inline-flex !important;
+    flex: 1 1 auto !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 4px !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    transform: none !important;
+  }
+
+  body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode) #screen-lyrics #studio-sidebar > .studio-track-meta > .studio-title-wrapper,
+  body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode) #screen-lyrics #studio-sidebar > .studio-track-meta > .studio-artist-wrapper {
+    flex: 0 0 auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    overflow: visible !important;
+  }
+
+  body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode) #screen-lyrics #studio-sidebar #studio-track-title {
+    font-size: 14px !important;
+  }
+
+  body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode) #screen-lyrics #studio-sidebar #studio-track-artist {
+    font-size: 12px !important;
+  }
+
+  body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode) #screen-lyrics .lyrics-view {
+    flex: 1 1 auto !important;
+    width: 100% !important;
+    min-height: 0 !important;
+    grid-column: auto !important;
+    grid-row: auto !important;
+  }
+
+  body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode) #playback-widget {
+    flex: 0 0 auto !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 auto 8px !important;
+  }
+
+  body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode) #playback-widget > .widget-controls {
+    gap: clamp(3px, 1vw, 6px) !important;
+    padding: 7px 6px !important;
+  }
+
+  body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode) #playback-widget .widget-ctrl-btn {
+    width: clamp(26px, 8vw, 32px) !important;
+    height: clamp(26px, 8vw, 32px) !important;
+    flex-shrink: 1 !important;
+  }
+
+  body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode) #playback-widget #btn-play-pause {
+    width: clamp(34px, 9vw, 40px) !important;
+    height: clamp(34px, 9vw, 40px) !important;
+  }
+}

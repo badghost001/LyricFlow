@@ -100,6 +100,27 @@
         }
       }
 
+      // If we are in the optical advance lead window for the upcoming line, advance focus
+      if (result >= 0 && result < lines.length - 1) {
+        const cur = lines[result];
+        const next = lines[result + 1];
+        let curVocalEnd = cur.end;
+        if (Array.isArray(cur.words) && cur.words.length > 0) {
+          const lw = cur.words[cur.words.length - 1];
+          if (lw && lw.end && lw.end > 0) curVocalEnd = lw.end;
+        }
+        let nextVocalStart = next.start;
+        if (Array.isArray(next.words) && next.words.length > 0) {
+          const fw = next.words[0];
+          if (fw && fw.start != null) nextVocalStart = fw.start;
+        }
+        const leadSec = (nextVocalStart - curVocalEnd >= 0.4) ? 0.28 : 0;
+        const switchPoint = Math.min(nextVocalStart, Math.max(curVocalEnd, nextVocalStart - leadSec));
+        if (time >= switchPoint) {
+          result = result + 1;
+        }
+      }
+
       return result;
     }
 
@@ -190,7 +211,26 @@
           : (curVocalEnd + 2.0);
         const switchPoint = isFinite(nextVocalStart) ? Math.min(nextVocalStart, rawSwitchPoint) : rawSwitchPoint;
 
-        const isPastStart = time >= curLine.start;
+        // Effective start of current line: if this line was entered via the lead window,
+        // it starts at effectiveStart, not strictly curLine.start
+        const prevLine = targetLineIndex > 0 ? lines[targetLineIndex - 1] : null;
+        let prevSwitchPoint = curLine.start;
+        if (prevLine) {
+          let prevVocalEnd = prevLine.end;
+          if (Array.isArray(prevLine.words) && prevLine.words.length > 0) {
+            const lw = prevLine.words[prevLine.words.length - 1];
+            if (lw && lw.end && lw.end > 0) prevVocalEnd = lw.end;
+          }
+          let curVocalStart = curLine.start;
+          if (Array.isArray(curLine.words) && curLine.words.length > 0) {
+            const fw = curLine.words[0];
+            if (fw && fw.start != null) curVocalStart = fw.start;
+          }
+          const prevLeadSec = (curVocalStart - prevVocalEnd >= 0.4) ? 0.28 : 0;
+          prevSwitchPoint = Math.min(curVocalStart, Math.max(prevVocalEnd, curVocalStart - prevLeadSec));
+        }
+
+        const isPastStart = time >= Math.min(curLine.start, prevSwitchPoint);
         const isBeforeNext = time < switchPoint;
 
         if (isPastStart && isBeforeNext) {

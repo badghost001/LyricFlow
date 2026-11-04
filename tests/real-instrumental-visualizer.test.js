@@ -1,6 +1,7 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
+const vm = require('vm');
 
 console.log('\n--- Running Real Instrumental Visualizer & Ubiquitous Audio Reactive Tests ---');
 
@@ -28,8 +29,8 @@ assert.ok(
   'index.html must include #instrumental-solo-stage'
 );
 assert.ok(
-  indexHtml.includes('class="solo-visualizer-wave"'),
-  'index.html must include .solo-visualizer-wave inside solo stage'
+  !indexHtml.includes('class="solo-visualizer-wave'),
+  'Desktop instrumental stage must not add a visualizer outside the Dynamic Island'
 );
 assert.ok(
   lyricsCss.includes('.solo-visualizer-wave.is-live-audio .solo-bar'),
@@ -47,8 +48,8 @@ console.log('  ✓ 1a. Instrumental solo stage defines real live audio rules and
 
 // 1b. Desktop bottom player bar live visualizer
 assert.ok(
-  indexHtml.includes('id="player-live-visualizer"') && indexHtml.includes('class="player-vis-bar bar-1"'),
-  'index.html must include #player-live-visualizer with .player-vis-bar elements'
+  !indexHtml.includes('id="player-live-visualizer"') && !indexHtml.includes('class="player-vis-bar'),
+  'index.html must keep the desktop player free of visualizer bars'
 );
 assert.ok(
   playbackCss.includes('.player-live-visualizer') && playbackCss.includes('.player-vis-bar'),
@@ -58,8 +59,8 @@ console.log('  ✓ 1b. Desktop player bar includes real audio visualizer markup 
 
 // 1c. Studio sidebar live equalizer badge
 assert.ok(
-  indexHtml.includes('id="studio-badge-live"') && indexHtml.includes('class="studio-vis-bar bar-1"'),
-  'index.html must include #studio-badge-live with .studio-vis-bar elements'
+  !indexHtml.includes('id="studio-badge-live"') && !indexHtml.includes('class="studio-vis-bar'),
+  'index.html must keep the studio sidebar free of visualizer bars'
 );
 assert.ok(
   studioCss.includes('.studio-badge-live') && studioCss.includes('.studio-vis-bar'),
@@ -74,8 +75,8 @@ console.log('  ✓ 1c. Studio sidebar includes real audio equalizer badge markup
 console.log('\n2. Audio Visualizer State Gating & Persistence:');
 
 assert.ok(
-  rendererJs.includes('const isDesktopActive = Boolean(!isDynamicIslandMode && !isWallpaperModeActive && (Boolean(isPlaying) || Boolean(currentTitle) || Boolean(document.body.classList.contains("is-playing"))));'),
-  'syncAudioVisualizerState must keep visualizer active in desktop window mode when music is playing'
+  rendererJs.includes('const isDesktopActive = Boolean(!isDynamicIslandMode && !isWallpaperModeActive && hasDesktopVisualizer && isPlayingActive);'),
+  'syncAudioVisualizerState must activate visualizer in desktop window mode only when an active visualizer consumer is mounted and music is playing'
 );
 assert.ok(
   rendererJs.includes('const shouldBeActive = Boolean((isIslandActive || isWallpaperBloomActive || isDesktopActive) && isVisible);'),
@@ -86,6 +87,32 @@ assert.ok(
   'syncAudioVisualizerState must pass shouldBeActive to backend IPC'
 );
 console.log('  ✓ 2a. syncAudioVisualizerState activates WASAPI capture loop in desktop window mode');
+
+// A paused track retains its title, but its visualizer must not keep WASAPI
+// capture alive solely because metadata remains on screen.
+const visualizerStateCode = rendererJs.match(/let _currentAudioVisualizerActiveState = null;[\s\S]*?function syncAudioVisualizerState\(\) \{[\s\S]*?\n\}/);
+assert.ok(visualizerStateCode, 'syncAudioVisualizerState should be extractable for a playback-state regression check');
+const pausedState = {
+  active: null,
+  isDynamicIslandMode: true,
+  isIslandSleeping: false,
+  isPlaying: false,
+  currentTitle: 'Paused Track',
+  settings: { wallpaperMode: false, wallpaperBeatBloom: true },
+  document: {
+    visibilityState: 'visible',
+    body: { classList: { contains: () => false } },
+    getElementById: () => null
+  },
+  window: { electronAPI: { setAudioVisualizerActive: value => { pausedState.active = value; } } },
+  ensureVisualizerFallbackWatchdog: () => {}
+};
+vm.runInNewContext(`${visualizerStateCode[0]}; syncAudioVisualizerState();`, pausedState);
+assert.strictEqual(pausedState.active, false, 'Paused track metadata must not keep WASAPI capture active');
+pausedState.isPlaying = true;
+vm.runInNewContext(`syncAudioVisualizerState();`, pausedState);
+assert.strictEqual(pausedState.active, true, 'Resuming playback must reactivate Dynamic Island audio capture');
+console.log('  ✓ 2b. Paused Dynamic Island with retained title releases audio capture');
 
 
 // --------------------------------------------------------------------------

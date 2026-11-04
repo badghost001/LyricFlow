@@ -6,56 +6,168 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self' ipc: http://ipc.localhost https://ipc.localhost https://tauri.localhost http://tauri.localhost tauri:; connect-src 'self' ipc: http://ipc.localhost https://ipc.localhost https://tauri.localhost http://tauri.localhost tauri:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline';">
   <title>LyricFlow Taskbar</title>
   <link rel="icon" type="image/png" href="assets/icon.png">
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
+    :root {
+      --tb-accent: #1DB954;
+      --tb-text: #ffffff;
+    }
+
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     html, body {
       width: 100%;
       height: 100%;
       overflow: hidden;
-      /* Minimum alpha so Windows hit-tests the full window area */
-      background: rgba(0, 0, 0, 0.06);
+      background: transparent;
       font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       user-select: none;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
     }
 
-    /* Lyrics float at a draggable position, centered */
-    #tb-lyric {
+    /* Container for the lyrics and optional hover controls */
+    #tb-container {
       position: absolute;
-      top: 0;
-      bottom: 2px; /* leave room for progress bar */
+      top: 50%;
       left: 50%;
-      transform: translateX(-50%);
+      transform: translate(-50%, -50%);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      height: 32px;
+      max-height: calc(100% - 6px);
+      max-width: min(840px, calc(100vw - 360px));
+      padding: 0 10px;
+      border-radius: 9999px;
+      cursor: grab;
+      transition: background 0.28s ease, border-color 0.28s ease, box-shadow 0.28s ease, opacity 0.25s ease;
+      z-index: 10;
+    }
+
+    #tb-container.dragging {
+      cursor: grabbing;
+    }
+
+    #tb-container.tb-hidden {
+      opacity: 0 !important;
+      pointer-events: none !important;
+    }
+
+    /* ── Presentation Styles ── */
+    /* A. Minimal (Default): Clean, transparent, no visible container, green accent */
+    .style-minimal #tb-container,
+    #tb-container.style-minimal {
+      background: transparent;
+      border: 1px solid transparent;
+      box-shadow: none;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
+
+    /* B. Glass: Restrained translucent acrylic background, subtle rounded corners, minimal border */
+    .style-glass #tb-container,
+    #tb-container.style-glass {
+      background: rgba(18, 18, 24, 0.62);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+      backdrop-filter: blur(12px) saturate(1.3);
+      -webkit-backdrop-filter: blur(12px) saturate(1.3);
+      padding: 0 14px;
+    }
+
+    .style-glass #tb-container:hover {
+      background: rgba(24, 24, 32, 0.74);
+      border-color: rgba(255, 255, 255, 0.18);
+    }
+
+    /* ── Hover Playback Controls ── */
+    #tb-controls {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      width: 0;
+      opacity: 0;
+      overflow: hidden;
+      pointer-events: none;
+      margin-right: 0;
+      transition: width 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.22s ease, margin-right 0.22s ease;
+      flex-shrink: 0;
+    }
+
+    /* Reveal controls smoothly on hover */
+    #tb-container:hover #tb-controls,
+    #tb-container.has-focus #tb-controls {
+      width: 74px;
+      opacity: 1;
+      pointer-events: auto;
+      margin-right: 8px;
+    }
+
+    .tb-btn {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      border: none;
+      background: transparent;
+      color: rgba(255, 255, 255, 0.85);
+      cursor: pointer;
       display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      outline: none;
+      transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+      flex-shrink: 0;
+    }
+
+    .tb-btn:hover {
+      background: rgba(255, 255, 255, 0.18);
+      color: #ffffff;
+      transform: scale(1.08);
+    }
+
+    .tb-btn:active {
+      transform: scale(0.92);
+    }
+
+    .tb-btn-play {
+      width: 22px;
+      height: 22px;
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .tb-btn-play:hover {
+      background: var(--tb-accent, #1DB954);
+      color: #ffffff;
+    }
+
+    /* ── Lyrics typography & text ── */
+    #tb-lyric {
+      display: inline-flex;
       align-items: center;
       justify-content: center;
       white-space: pre;
       font-size: 13px;
       font-weight: 500;
-      color: #ffffff;
+      color: var(--tb-text, #ffffff);
       text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
-      cursor: grab;
-      padding: 0 8px;
-      transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+      letter-spacing: -0.01em;
+      line-height: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+      transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s ease;
     }
 
-    #tb-lyric.tb-hidden {
-      opacity: 0 !important;
-      pointer-events: none !important;
+    #tb-container:hover #tb-lyric {
+      text-shadow: 0 0 8px rgba(255, 255, 255, 0.6), 0 1px 4px rgba(0, 0, 0, 0.95);
     }
 
-    #tb-lyric:hover {
-      text-shadow: 0 0 10px rgba(255, 255, 255, 0.7), 0 1px 4px rgba(0, 0, 0, 0.9);
-    }
-
-    #tb-lyric.dragging {
-      cursor: grabbing;
-    }
-
-    /* Word-by-Word Styling in Taskbar */
+    /* Word-by-Word Styling */
     .tb-lyric-word {
-      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: color 0.2s ease, opacity 0.2s ease, transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
       display: inline-block;
       pointer-events: auto;
     }
@@ -70,9 +182,10 @@
     }
 
     .tb-lyric-word.lyric-word-active {
-      color: #1DB954;
-      transform: scale(1.06);
-      text-shadow: 0 0 10px rgba(29, 185, 84, 0.6);
+      color: var(--tb-accent, #1DB954) !important;
+      font-weight: 600;
+      transform: scale(1.05);
+      text-shadow: 0 0 10px rgba(29, 185, 84, 0.65), 0 1px 3px rgba(0, 0, 0, 0.9);
     }
 
     .tb-lyric-word.lyric-word-passed {
@@ -80,7 +193,7 @@
     }
 
     .tb-lyric-word.lyric-word-upcoming {
-      opacity: 0.85;
+      opacity: 0.88;
     }
 
     /* Progress bar */
@@ -90,20 +203,20 @@
       left: 0;
       width: 0%;
       height: 2px;
-      background: #1DB954;
-      transition: width 0.4s linear, height 0.4s linear, opacity 0.35s ease;
+      background: var(--tb-accent, #1DB954);
+      transition: width 0.35s linear, height 0.35s linear, opacity 0.3s ease;
       pointer-events: none;
+      z-index: 5;
     }
 
     #tb-progress.tb-hidden {
       opacity: 0 !important;
     }
 
-    /* ── Position variants: Bottom (default) ─────────────────────── */
-    body.pos-bottom #tb-lyric {
-      top: 0;
-      bottom: 2px;
-      writing-mode: horizontal-tb;
+    /* ── Position variants ── */
+    body.pos-bottom #tb-container {
+      top: 50%;
+      transform: translate(-50%, -50%);
     }
     body.pos-bottom #tb-progress {
       bottom: 0;
@@ -114,11 +227,9 @@
       width: 0%;
     }
 
-    /* ── Position variants: Top ("Up Aligned") — progress bar switches sides ── */
-    body.pos-top #tb-lyric {
-      top: 2px;
-      bottom: 0;
-      writing-mode: horizontal-tb;
+    body.pos-top #tb-container {
+      top: 50%;
+      transform: translate(-50%, -50%);
     }
     body.pos-top #tb-progress {
       top: 0;
@@ -129,18 +240,43 @@
       width: 0%;
     }
 
-    /* ── Position variants: Left / Right — Vertical lyrics! ──────── */
+    /* Vertical Taskbar */
+    body.pos-left #tb-container,
+    body.pos-right #tb-container {
+      writing-mode: vertical-rl;
+      text-orientation: mixed;
+      white-space: pre;
+      height: auto;
+      width: 32px;
+      max-width: calc(100% - 6px);
+      max-height: min(780px, calc(100vh - 200px));
+      flex-direction: column;
+      padding: 10px 0;
+    }
+
     body.pos-left #tb-lyric,
     body.pos-right #tb-lyric {
       writing-mode: vertical-rl;
       text-orientation: mixed;
       white-space: pre;
-      left: 0;
-      right: 0;
-      top: 50%;
-      bottom: auto;
-      transform: translateY(-50%);
-      padding: 8px 0;
+    }
+
+    body.pos-left #tb-controls,
+    body.pos-right #tb-controls {
+      flex-direction: column;
+      width: auto;
+      height: 0;
+      margin-right: 0;
+      margin-bottom: 0;
+      transition: height 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.22s ease, margin-bottom 0.22s ease;
+    }
+
+    body.pos-left #tb-container:hover #tb-controls,
+    body.pos-right #tb-container:hover #tb-controls {
+      height: 74px;
+      width: auto;
+      margin-right: 0;
+      margin-bottom: 8px;
     }
 
     body.pos-left .tb-word-space,
@@ -149,13 +285,8 @@
       width: auto;
       height: 0.32em;
       min-height: 3px;
-      flex-shrink: 0;
     }
 
-    body.pos-left #tb-lyric {
-      right: 2px; /* room for progress bar on right edge */
-      left: 0;
-    }
     body.pos-left #tb-progress {
       top: 0;
       bottom: auto;
@@ -165,10 +296,6 @@
       height: 0%;
     }
 
-    body.pos-right #tb-lyric {
-      left: 2px; /* room for progress bar on left edge */
-      right: 0;
-    }
     body.pos-right #tb-progress {
       top: 0;
       bottom: auto;
@@ -179,8 +306,30 @@
     }
   </style>
 </head>
-<body class="pos-bottom" oncontextmenu="return false;">
-  <div id="tb-lyric" oncontextmenu="return false;">♫</div>
+<body class="pos-bottom style-minimal" oncontextmenu="return false;">
+  <div id="tb-container" class="style-minimal">
+    <div id="tb-controls" aria-label="Playback controls">
+      <button id="tb-btn-prev" class="tb-btn" title="Previous Track" aria-label="Previous Track" tabindex="0">
+        <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor">
+          <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/>
+        </svg>
+      </button>
+      <button id="tb-btn-play" class="tb-btn tb-btn-play" title="Play/Pause" aria-label="Play/Pause" tabindex="0">
+        <svg id="tb-icon-play" viewBox="0 0 24 24" width="11" height="11" fill="currentColor">
+          <path d="M8 5v14l11-7z"/>
+        </svg>
+        <svg id="tb-icon-pause" viewBox="0 0 24 24" width="11" height="11" fill="currentColor" style="display: none;">
+          <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+        </svg>
+      </button>
+      <button id="tb-btn-next" class="tb-btn" title="Next Track" aria-label="Next Track" tabindex="0">
+        <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor">
+          <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/>
+        </svg>
+      </button>
+    </div>
+    <div id="tb-lyric">♫</div>
+  </div>
   <div id="tb-progress"></div>
   <script src="./taskbar_renderer.js"></script>
 </body>

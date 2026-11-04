@@ -4,8 +4,8 @@ pub mod windows_smtc;
 #[cfg(target_os = "macos")]
 pub mod macos;
 
-use std::sync::{OnceLock, RwLock};
 use crate::models::{SpotifyPlaybackState, TrackMetadata};
+use std::sync::{OnceLock, RwLock};
 
 pub static CURRENT_PLAYBACK_STATE: OnceLock<RwLock<Option<SpotifyPlaybackState>>> = OnceLock::new();
 

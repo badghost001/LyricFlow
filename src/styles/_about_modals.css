@@ -1,0 +1,467 @@
+/* ==========================================================================
+   LyricFlow — About Song & About Artist Apple HIG Glassmorphism Modals
+   ========================================================================== */
+
+/* Clickable affordance on track title and artist name across all views */
+#widget-track-name,
+#widget-track-name-wrapper,
+.track-name-wrapper,
+.track-name,
+#widget-artist-name,
+#widget-artist-name-wrapper,
+.artist-name-wrapper,
+.artist-name,
+.track-artist,
+#island-track-title,
+.island-track-title,
+#island-track-artist,
+.island-track-artist,
+#wallpaper-track-title,
+.wallpaper-track-title,
+#wallpaper-track-artist,
+.wallpaper-track-artist,
+#studio-track-title,
+.studio-track-title,
+#studio-track-artist,
+.studio-track-artist {
+  cursor: pointer !important;
+  -webkit-app-region: no-drag !important;
+  pointer-events: auto !important;
+  transition: opacity 0.18s ease, transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), text-shadow 0.18s ease !important;
+}
+
+#widget-track-name:hover,
+#widget-track-name-wrapper:hover,
+.track-name-wrapper:hover,
+.track-name:hover,
+#island-track-title:hover,
+.island-track-title:hover,
+#wallpaper-track-title:hover,
+.wallpaper-track-title:hover,
+#studio-track-title:hover,
+.studio-track-title:hover {
+  opacity: 0.92 !important;
+  text-shadow: 0 0 12px rgba(255, 255, 255, 0.55) !important;
+}
+
+#widget-artist-name:hover,
+#widget-artist-name-wrapper:hover,
+.artist-name-wrapper:hover,
+.artist-name:hover,
+.track-artist:hover,
+#island-track-artist:hover,
+.island-track-artist:hover,
+#wallpaper-track-artist:hover,
+.wallpaper-track-artist:hover,
+#studio-track-artist:hover,
+.studio-track-artist:hover {
+  opacity: 0.92 !important;
+  text-shadow: 0 0 12px rgba(var(--art-color-1-rgb, 56, 189, 248), 0.65) !important;
+}
+
+/* Modals Overlay Base */
+.lf-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  box-sizing: border-box;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.lf-modal-overlay.is-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.lf-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.68);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  cursor: pointer;
+}
+
+.lf-modal-dialog {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 540px;
+  max-height: calc(88vh);
+  overflow-y: auto;
+  overflow-x: hidden;
+  border-radius: 20px;
+  padding: 24px 26px;
+  background:
+    radial-gradient(130% 120% at 50% 0%, rgba(var(--art-color-1-rgb, 56, 189, 248), 0.16), transparent 70%),
+    linear-gradient(155deg, rgba(28, 32, 44, 0.92), rgba(14, 16, 24, 0.96));
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow:
+    0 24px 70px rgba(0, 0, 0, 0.65),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 0 0 1px rgba(255, 255, 255, 0.05);
+  -webkit-backdrop-filter: blur(34px) saturate(1.85);
+  backdrop-filter: blur(34px) saturate(1.85);
+  color: #ffffff;
+  font-family: var(--font-family), -apple-system, BlinkMacSystemFont, "Outfit", "Inter", sans-serif;
+  transform: scale(0.96) translateY(8px);
+  transition: transform 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+  box-sizing: border-box;
+}
+
+.lf-modal-overlay.is-open .lf-modal-dialog {
+  transform: scale(1) translateY(0);
+}
+
+/* Custom sleek scrollbar for modal */
+.lf-modal-dialog::-webkit-scrollbar {
+  width: 6px;
+}
+.lf-modal-dialog::-webkit-scrollbar-track {
+  background: transparent;
+}
+.lf-modal-dialog::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 3px;
+}
+.lf-modal-dialog::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.32);
+}
+
+/* Modal Close Button */
+.lf-modal-close-btn {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.75);
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+.lf-modal-close-btn:hover {
+  background: rgba(255, 255, 255, 0.20);
+  color: #ffffff;
+  transform: scale(1.05);
+}
+
+/* Modal Header Pills */
+.lf-modal-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.10);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: var(--accent-bright, #38bdf8);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+
+/* Hero Section (Art + Main Info) */
+.lf-modal-hero {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.lf-modal-art {
+  width: 82px;
+  height: 82px;
+  border-radius: 12px;
+  object-fit: cover;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.lf-modal-hero-info {
+  min-width: 0;
+  flex: 1;
+}
+
+.lf-modal-title {
+  margin: 0 0 4px 0;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: #ffffff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.lf-modal-artist-link {
+  display: inline-block;
+  margin: 0 0 3px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent-bright, #38bdf8);
+  text-decoration: none;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+.lf-modal-artist-link:hover {
+  text-decoration: underline;
+  opacity: 0.85;
+}
+
+.lf-modal-subtitle {
+  margin: 0;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Stats Pill Cards */
+.lf-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.lf-stat-card {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lf-stat-value {
+  font-size: 15px;
+  font-weight: 700;
+  color: #ffffff;
+  font-variant-numeric: tabular-nums;
+}
+
+.lf-stat-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.55);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Tags Chips */
+.lf-tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 18px;
+}
+
+.lf-tag-chip {
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.82);
+  cursor: default;
+  transition: background 0.15s ease;
+}
+.lf-tag-chip:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+/* Biography / Wiki Text Section */
+.lf-modal-section-title {
+  margin: 0 0 8px 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.lf-modal-body-text {
+  font-size: 13px;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.85);
+  margin-bottom: 20px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding-right: 6px;
+}
+
+.lf-modal-body-text p {
+  margin: 0 0 10px 0;
+}
+
+.lf-modal-body-text a {
+  color: var(--accent-bright, #38bdf8);
+  text-decoration: none;
+}
+.lf-modal-body-text a:hover {
+  text-decoration: underline;
+}
+
+/* Top Tracks List (About Artist) */
+.lf-top-tracks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 20px;
+}
+
+.lf-track-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  transition: background 0.15s ease;
+  cursor: pointer;
+}
+.lf-track-item:hover {
+  background: rgba(255, 255, 255, 0.10);
+}
+
+.lf-track-rank {
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.45);
+  width: 18px;
+  text-align: center;
+}
+
+.lf-track-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffffff;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lf-track-plays {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Similar Artists (About Artist) */
+.lf-similar-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 20px;
+}
+
+.lf-similar-chip {
+  padding: 4px 10px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.85);
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+.lf-similar-chip:hover {
+  background: var(--accent-bright, #38bdf8);
+  color: #000000;
+  border-color: transparent;
+}
+
+/* Action Buttons Footer */
+.lf-modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.10);
+}
+
+.lf-btn-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.09);
+  color: #ffffff;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.16s ease;
+}
+.lf-btn-action:hover {
+  background: rgba(255, 255, 255, 0.18);
+  transform: translateY(-1px);
+}
+
+.lf-btn-action.btn-lastfm {
+  background: rgba(213, 16, 7, 0.22);
+  border-color: rgba(213, 16, 7, 0.45);
+}
+.lf-btn-action.btn-lastfm:hover {
+  background: rgba(213, 16, 7, 0.38);
+}
+
+.lf-btn-action.btn-apple {
+  background: rgba(252, 60, 68, 0.22);
+  border-color: rgba(252, 60, 68, 0.45);
+}
+.lf-btn-action.btn-apple:hover {
+  background: rgba(252, 60, 68, 0.38);
+}
+
+.lf-btn-action.btn-spotify {
+  background: rgba(30, 215, 96, 0.22);
+  border-color: rgba(30, 215, 96, 0.45);
+}
+.lf-btn-action.btn-spotify:hover {
+  background: rgba(30, 215, 96, 0.38);
+}
+
+/* Loading Skeleton */
+.lf-skeleton-loading {
+  animation: lfSkeletonPulse 1.4s ease-in-out infinite;
+}
+@keyframes lfSkeletonPulse {
+  0% { opacity: 0.5; }
+  50% { opacity: 0.9; }
+  100% { opacity: 0.5; }
+}
+
+
+/* GPU optimization: remove closed modals completely from compositor tree */
+.lf-modal-overlay:not(.is-open) {
+  display: none !important;
+  pointer-events: none !important;
+}

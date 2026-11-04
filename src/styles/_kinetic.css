@@ -228,7 +228,8 @@ body.cinematic-view-active:not(.mode-dynamic-island):not(.wallpaper-mode):not(.t
   height: 100% !important;
   z-index: 99990;
   display: flex !important;
-  background-color: #000000 !important;
+  background: transparent !important;
+  background-color: transparent !important;
   opacity: 1 !important;
   pointer-events: auto !important;
   border: none !important;
@@ -267,7 +268,11 @@ body.cinematic-view-active #btn-resync-lyrics,
 body.cinematic-view-active:not(.mode-dynamic-island):not(.wallpaper-mode):not(.taskbar-mode) #sync-resume-btn,
 body.cinematic-view-active:not(.mode-dynamic-island):not(.wallpaper-mode):not(.taskbar-mode) .sync-resume-btn,
 #btn-resync-lyrics.cinematic-hidden,
-body.cinematic-view-active:not(.mode-dynamic-island):not(.wallpaper-mode):not(.taskbar-mode) .lyrics-scroll-container {
+body.cinematic-view-active:not(.mode-dynamic-island):not(.wallpaper-mode):not(.taskbar-mode) #lyrics-container,
+body.cinematic-view-active:not(.mode-dynamic-island):not(.wallpaper-mode):not(.taskbar-mode) .lyrics-scroll-container,
+body.cinematic-view-active:not(.mode-dynamic-island):not(.wallpaper-mode):not(.taskbar-mode) .lyric-line,
+body.cinematic-view-active:not(.mode-dynamic-island):not(.wallpaper-mode):not(.taskbar-mode) #cinematic-lyrics-fallback,
+body.cinematic-view-active:not(.mode-dynamic-island):not(.wallpaper-mode):not(.taskbar-mode) .cinematic-lyrics-fallback {
   display: none !important;
   opacity: 0 !important;
   visibility: hidden !important;
@@ -325,6 +330,13 @@ body.wallpaper-mode.wallpaper-style-2 .wallpaper-now-playing {
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+.cinematic-lyrics-fallback {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 
 /* Liquid Glass Exit Button in Top-Right Corner */
@@ -417,3 +429,57 @@ body.wallpaper-mode.wallpaper-style-2 .wallpaper-now-playing {
 
 
 
+
+/* Liquid Glass Track Info Badge on Cinematic Stage */
+.cinematic-track-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 16px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: rgba(255, 255, 255, 0.92);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  outline: none;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  -webkit-app-region: no-drag;
+}
+
+.cinematic-track-badge:hover {
+  background: rgba(255, 255, 255, 0.24);
+  border-color: rgba(255, 255, 255, 0.42);
+  color: #ffffff;
+  transform: translateY(-1px) scale(1.03);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.55);
+}
+
+.cinematic-track-badge:active {
+  transform: scale(0.96);
+}
+
+.cinematic-badge-title {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cinematic-badge-artist {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.80;
+}
+
+.cinematic-badge-sep {
+  opacity: 0.40;
+}

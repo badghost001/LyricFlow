@@ -8,6 +8,14 @@ let _newsCache = {}; // key: filter+query -> { html, timestamp }
 const NEWS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 let _lastFetchTime = null;
 
+function pruneExpiredNewsCache(now = Date.now()) {
+  for (const [key, entry] of Object.entries(_newsCache)) {
+    if (!entry || !Number.isFinite(entry.timestamp) || now - entry.timestamp >= NEWS_CACHE_TTL) {
+      delete _newsCache[key];
+    }
+  }
+}
+
 function timeAgo(dateStr) {
   if (!dateStr) return "";
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -61,6 +69,7 @@ async function fetchMusicNews(bypassCache = false) {
   }
 
   const cacheKey = `${activeNewsFilter}||${queryText}`;
+  pruneExpiredNewsCache();
   const cached = _newsCache[cacheKey];
   if (!bypassCache && cached && (Date.now() - cached.timestamp) < NEWS_CACHE_TTL) {
     newsBody.innerHTML = cached.html;
@@ -147,6 +156,7 @@ async function fetchMusicNews(bypassCache = false) {
 
     newsBody.innerHTML = html;
     _newsCache[cacheKey] = { html, timestamp: Date.now() };
+    pruneExpiredNewsCache();
     _lastFetchTime = Date.now();
 
     if (updatedLabel) updatedLabel.textContent = "Updated just now";

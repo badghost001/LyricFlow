@@ -8,12 +8,13 @@ fn get_config_path() -> PathBuf {
         let config_path = app_dir.join("config.json");
 
         // Seamless migration: if LyricFlow config doesn't exist, check old spotify-lyrics-overlay
-        let old_path = config_dir.join("spotify-lyrics-overlay").join("config.json");
+        let old_path = config_dir
+            .join("spotify-lyrics-overlay")
+            .join("config.json");
         if !config_path.exists() && old_path.exists() {
             let _ = fs::copy(&old_path, &config_path);
         }
         config_path
-
     } else {
         PathBuf::from("config.json")
     }
@@ -26,7 +27,8 @@ pub fn load_config() -> Result<Option<serde_json::Value>, String> {
         return Ok(None);
     }
     let data = fs::read_to_string(&path).map_err(|e| e.to_string())?;
-    let json: serde_json::Value = serde_json::from_str(&data).unwrap_or_else(|_| serde_json::json!({}));
+    let json: serde_json::Value =
+        serde_json::from_str(&data).unwrap_or_else(|_| serde_json::json!({}));
     if json.as_object().map_or(true, |o| o.is_empty()) {
         return Ok(None);
     }
@@ -83,7 +85,12 @@ pub fn load_saved_window_bounds() -> Option<WindowBounds> {
     let y = win.get("y")?.as_i64()? as i32;
     let width = win.get("width")?.as_u64()? as u32;
     let height = win.get("height")?.as_u64()? as u32;
-    Some(WindowBounds { x, y, width, height })
+    Some(WindowBounds {
+        x,
+        y,
+        width,
+        height,
+    })
 }
 
 #[tauri::command]
@@ -111,7 +118,9 @@ pub fn get_desktop_wallpaper() -> Result<Option<String>, String> {
     {
         use std::ffi::OsString;
         use std::os::windows::ffi::OsStringExt;
-        use windows::Win32::UI::WindowsAndMessaging::{SystemParametersInfoW, SPI_GETDESKWALLPAPER, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS};
+        use windows::Win32::UI::WindowsAndMessaging::{
+            SystemParametersInfoW, SPI_GETDESKWALLPAPER, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS,
+        };
 
         let mut buf = [0u16; 260];
         unsafe {
@@ -132,7 +141,10 @@ pub fn get_desktop_wallpaper() -> Result<Option<String>, String> {
     {
         use std::process::Command;
         let out = Command::new("osascript")
-            .args(["-e", "tell application \"System Events\" to get picture of current desktop"])
+            .args([
+                "-e",
+                "tell application \"System Events\" to get picture of current desktop",
+            ])
             .output();
         if let Ok(o) = out {
             let path = String::from_utf8_lossy(&o.stdout).trim().to_string();
@@ -149,8 +161,8 @@ pub fn get_desktop_wallpaper() -> Result<Option<String>, String> {
 pub fn get_auto_launch() -> Result<bool, String> {
     #[cfg(target_os = "windows")]
     {
-        use std::process::Command;
         use std::os::windows::process::CommandExt;
+        use std::process::Command;
         let out = Command::new("cmd")
             .args(["/C", "reg query \"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\" /v \"LyricFlow\""])
             .creation_flags(0x08000000)
@@ -177,8 +189,8 @@ pub fn get_auto_launch() -> Result<bool, String> {
 pub fn set_auto_launch(enabled: bool) -> Result<bool, String> {
     #[cfg(target_os = "windows")]
     {
-        use std::process::Command;
         use std::os::windows::process::CommandExt;
+        use std::process::Command;
         if enabled {
             if let Ok(exe) = std::env::current_exe() {
                 let exe_str = exe.to_string_lossy().to_string();
@@ -232,8 +244,8 @@ pub fn set_auto_launch(enabled: bool) -> Result<bool, String> {
 pub fn get_taskbar_color() -> Result<serde_json::Value, String> {
     #[cfg(target_os = "windows")]
     {
-        use std::process::Command;
         use std::os::windows::process::CommandExt;
+        use std::process::Command;
         let out = Command::new("cmd")
             .args(["/C", "reg query \"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize\" /v SystemUsesLightTheme && reg query \"HKCU\\Software\\Microsoft\\Windows\\DWM\" /v ColorizationColor && reg query \"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize\" /v ColorPrevalence"])
             .creation_flags(0x08000000)
@@ -274,7 +286,11 @@ pub fn get_taskbar_color() -> Result<serde_json::Value, String> {
                 let g = ((colorization >> 8) & 0xff) as f32;
                 let b = (colorization & 0xff) as f32;
                 let luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255.0;
-                let text_color = if luminance > 0.5 { "#121212" } else { "#ffffff" };
+                let text_color = if luminance > 0.5 {
+                    "#121212"
+                } else {
+                    "#ffffff"
+                };
                 let theme = if luminance > 0.5 { "light" } else { "dark" };
                 return Ok(serde_json::json!({
                     "theme": theme,
@@ -364,7 +380,11 @@ pub async fn read_file_data_url(path: String) -> Result<String, String> {
         if !p.is_file() {
             return Err("Specified path is not a file".to_string());
         }
-        let ext = p.extension().and_then(|s| s.to_str()).unwrap_or("").to_lowercase();
+        let ext = p
+            .extension()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .to_lowercase();
         let mime = match ext.as_str() {
             "gif" => "image/gif",
             "png" => "image/png",
@@ -374,19 +394,26 @@ pub async fn read_file_data_url(path: String) -> Result<String, String> {
             "svg" => "image/svg+xml",
             "mp4" => "video/mp4",
             "webm" => "video/webm",
-            _ => return Err(format!("Unsupported file extension '.{}': only image and video files are supported", ext)),
+            _ => {
+                return Err(format!(
+                    "Unsupported file extension '.{}': only image and video files are supported",
+                    ext
+                ))
+            }
         };
 
         // DoS mitigation: restrict file size to 100MB max
-        let meta = std::fs::metadata(&clean_path).map_err(|e| format!("Failed to read file metadata: {e}"))?;
+        let meta = std::fs::metadata(&clean_path)
+            .map_err(|e| format!("Failed to read file metadata: {e}"))?;
         if meta.len() > 100 * 1024 * 1024 {
             return Err("File exceeds maximum allowed size of 100MB".to_string());
         }
 
-        let bytes = std::fs::read(&clean_path).map_err(|e| format!("Failed to read file: {}", e))?;
+        let bytes =
+            std::fs::read(&clean_path).map_err(|e| format!("Failed to read file: {}", e))?;
         let b64 = crate::models::base64_encode(&bytes);
         Ok(format!("data:{};base64,{}", mime, b64))
-    }).await.map_err(|e| e.to_string())?
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
-
-

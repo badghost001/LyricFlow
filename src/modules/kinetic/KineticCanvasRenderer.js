@@ -31,8 +31,8 @@
 })(typeof self !== 'undefined' ? self : this, function (ShapeMorpher, ColorEngine, TypographyEngine, Director, CinematicMotif, CinematicTransition, CinematicComposition, CinematicConcept) {
   'use strict';
 
-  const safeRaf = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (cb) => setTimeout(() => cb(Date.now()), 16);
-  const safeCaf = typeof cancelAnimationFrame === 'function' ? cancelAnimationFrame : (id) => clearTimeout(id);
+  const safeRaf = (cb) => (typeof requestAnimationFrame === 'function' ? requestAnimationFrame(cb) : setTimeout(() => cb(Date.now()), 16));
+  const safeCaf = (id) => (typeof cancelAnimationFrame === 'function' ? cancelAnimationFrame(id) : clearTimeout(id));
 
   const MotifEngine = CinematicMotif || (typeof window !== 'undefined' && window.CinematicMotif) || (typeof require === 'function' ? (() => { try { return require('./CinematicMotif'); } catch (_) { return null; } })() : null);
   const TransitionEngine = CinematicTransition || (typeof window !== 'undefined' && window.CinematicTransition) || (typeof require === 'function' ? (() => { try { return require('./CinematicTransition'); } catch (_) { return null; } })() : null);
@@ -108,6 +108,8 @@
       }, options);
 
       this.timeline = [];
+      this._activeSceneIndex = 0;
+      this._lastSceneLookupTime = null;
       this.activePalette = null;
       this.resolvedShape = 'astroid';
       this.resolvedConcept = null;
@@ -120,8 +122,97 @@
       };
       this._rafId = null;
       this._lastTimestamp = 0;
+      this._playUpdateCallback = null;
+      this._lastStaticFrameKey = null;
+      this._albumArtBackgroundCache = null;
+      this._motifSpriteCache = new Map();
+      this._cinematicAudio = { bass: 0, targetBass: 0, lastTimestamp: 0 };
+
+      this.albumArtImage = this.config.artworkImage || null;
+      this.albumArtUrl = this.config.artworkUrl || null;
+      if (this.config.artworkUrl && !this.albumArtImage) {
+        this.setAlbumArt(this.config.artworkUrl);
+      }
 
       this.updateCardBounds();
+    }
+
+    setAlbumArt(source) {
+      if (!source) {
+        this.albumArtImage = null;
+        this.albumArtUrl = null;
+        if (this.config) {
+          this.config.artworkImage = null;
+          this.config.artworkUrl = null;
+        }
+        if (this.isPlaying) this._syncPlaybackFrameLoop();
+        return;
+      }
+      if (source !== this.albumArtImage && source !== this.albumArtUrl) this._albumArtBackgroundCache = null;
+      if (typeof source === 'string') {
+        if (this.albumArtUrl === source && this.albumArtImage) return;
+        this.albumArtUrl = source;
+        if (this.config) this.config.artworkUrl = source;
+
+        // 1. Check if an existing DOM image element already has this artwork loaded
+        if (typeof document !== 'undefined') {
+          const domElements = [
+            document.getElementById('widget-album-art'),
+            document.getElementById('studio-album-art'),
+            document.getElementById('wallpaper-album-art')
+          ];
+          for (const el of domElements) {
+            if (el && el.complete && (el.naturalWidth > 0 || el.width > 0)) {
+              if (el.src === source || (el.src && source && el.src.includes(source.slice(-25)))) {
+                this.albumArtImage = el;
+                this._albumArtBackgroundCache = null;
+                if (this.config) this.config.artworkImage = el;
+                if (this.ctx && (this.isPaused || !this.isPlaying)) {
+                  this.renderFrame(this.currentTimeMs);
+                } else if (this.isPlaying) {
+                  this._syncPlaybackFrameLoop();
+                }
+                return;
+              }
+            }
+          }
+        }
+
+        // 2. Load Image object without crossOrigin restriction so external Spotify/Last.fm CDNs never fail on CORS
+        const img = new Image();
+        img.onload = () => {
+          this.albumArtImage = img;
+          this._albumArtBackgroundCache = null;
+          if (this.config) this.config.artworkImage = img;
+          if (this.ctx && (this.isPaused || !this.isPlaying)) {
+            this.renderFrame(this.currentTimeMs);
+          } else if (this.isPlaying) {
+            this._syncPlaybackFrameLoop();
+          }
+        };
+        img.onerror = () => {
+          if (typeof document !== 'undefined') {
+            const fallbackDom = document.getElementById('widget-album-art') || document.getElementById('studio-album-art');
+            if (fallbackDom && fallbackDom.complete && (fallbackDom.naturalWidth || fallbackDom.width) > 0) {
+              this.albumArtImage = fallbackDom;
+              if (this.config) this.config.artworkImage = fallbackDom;
+            }
+          }
+        };
+        img.src = source;
+      } else if (source && (source.tagName === 'IMG' || source.tagName === 'VIDEO' || source instanceof Image)) {
+        this.albumArtImage = source;
+        if (source.src) this.albumArtUrl = source.src;
+        if (this.config) {
+          this.config.artworkImage = source;
+          if (source.src) this.config.artworkUrl = source.src;
+        }
+        if (this.ctx && (this.isPaused || !this.isPlaying)) {
+          this.renderFrame(this.currentTimeMs);
+        } else if (this.isPlaying) {
+          this._syncPlaybackFrameLoop();
+        }
+      }
     }
 
     setPausedState(isPaused, trackInfo = null) {
@@ -132,8 +223,16 @@
           artist: trackInfo.artist || this.config.artist || ''
         };
       }
-      if (this.ctx && this.isPaused && this.config && this.config.isCinematic) {
-        this.renderFrame(this.currentTimeMs);
+      if (this.isPaused) {
+        this.pause();
+        if (this.ctx) {
+          this.renderFrame(this.currentTimeMs);
+        }
+      } else {
+        const isCinematicActive = Boolean(this.config && this.config.isCinematic);
+        if ((isCinematicActive || this.canvas) && !this.isPlaying) {
+          this.play();
+        }
       }
     }
 
@@ -175,6 +274,7 @@
     setDimensions(width, height) {
       this.width = width;
       this.height = height;
+      this._albumArtBackgroundCache = null;
       if (this.canvas) {
         this.canvas.width = width;
         this.canvas.height = height;
@@ -185,6 +285,11 @@
 
     configure(newConfig = {}) {
       Object.assign(this.config, newConfig);
+      if (newConfig.artworkUrl) {
+        this.setAlbumArt(newConfig.artworkUrl);
+      } else if (newConfig.artworkImage) {
+        this.setAlbumArt(newConfig.artworkImage);
+      }
       this.updateCardBounds();
 
       // 1. Resolve active shape
@@ -205,7 +310,7 @@
       });
 
       // 3. Build scene timeline
-      this.timeline = this.director.buildTimeline(this.config.lyrics, {
+      const generatedTimeline = this.director.buildTimeline(this.config.lyrics, {
         startTimeMs: this.config.startTimeMs,
         endTimeMs: this.config.endTimeMs,
         artist: this.config.artist,
@@ -216,6 +321,37 @@
         initialShape: this.resolvedShape
       });
 
+      if (this.config.isCinematic) {
+        // Cinematic lyric pauses should hold the editorial lyric over the
+        // album-art atmosphere. Drop the solid shape morph and stretch the
+        // preceding lyric scene to the next vocal so the normal lyric
+        // cross-fade handles the transition.
+        this.timeline = [];
+        for (const scene of generatedTimeline) {
+          if (scene && scene.style === 'break_morph') {
+            const previousScene = this.timeline[this.timeline.length - 1];
+            if (previousScene && previousScene.style !== 'morph') {
+              previousScene.endTimeMs = scene.endTimeMs;
+              previousScene.duration = Math.max(1, previousScene.endTimeMs - previousScene.startTimeMs);
+            }
+            continue;
+          }
+          this.timeline.push(scene);
+        }
+
+        for (let i = 0; i < this.timeline.length; i++) {
+          const scene = this.timeline[i];
+          const previousScene = this.timeline[i - 1] || null;
+          const nextScene = this.timeline[i + 1] || null;
+          scene.sharesConceptWithPrev = Boolean(previousScene && previousScene.concept && scene.concept && previousScene.concept === scene.concept);
+          scene.sharesConceptWithNext = Boolean(nextScene && nextScene.concept && scene.concept && nextScene.concept === scene.concept);
+        }
+      } else {
+        this.timeline = generatedTimeline;
+      }
+      this._activeSceneIndex = 0;
+      this._lastSceneLookupTime = null;
+
       // Resolve initial concept from timeline or shape
       const firstConceptScene = Array.isArray(this.timeline) ? this.timeline.find(s => s && s.concept) : null;
       if (firstConceptScene && firstConceptScene.concept) {
@@ -224,7 +360,86 @@
         this.resolvedConcept = this.morpher.SHAPE_TO_CONCEPT[this.resolvedShape] || 'night';
       }
 
+      if (this.isPlaying) this._syncPlaybackFrameLoop();
       this.renderFrame(this.currentTimeMs);
+    }
+
+    _needsContinuousFrames() {
+      if (this.timeline.length > 0 || this._previewProgress != null || this._playUpdateCallback) return true;
+      // Cinematic album-art backgrounds have a subtle pan; keep that motion
+      // while art is available. A static no-lyrics card needs no RAF.
+      return Boolean(this.config?.isCinematic && !this.config?.reducedMotion && this.albumArtImage);
+    }
+
+    _stopPlaybackFrameLoop() {
+      if (this._rafId) {
+        safeCaf(this._rafId);
+        this._rafId = null;
+      }
+    }
+
+    _syncPlaybackFrameLoop() {
+      if (!this.isPlaying || this.isPaused) return;
+      if (this._needsContinuousFrames()) {
+        this.play(this._playUpdateCallback);
+      } else {
+        this._stopPlaybackFrameLoop();
+      }
+    }
+
+    getActiveSceneIndex(timeMs) {
+      const timeline = this.timeline;
+      if (!Array.isArray(timeline) || timeline.length === 0) return -1;
+
+      let index = Math.max(0, Math.min(this._activeSceneIndex || 0, timeline.length - 1));
+      const current = timeline[index];
+      if (current && timeMs >= current.startTimeMs && timeMs < current.endTimeMs) {
+        // Preserve the director's first-matching-scene behavior if authored
+        // transitions overlap adjacent timeline entries.
+        while (index > 0 && timeline[index - 1].startTimeMs <= timeMs && timeMs < timeline[index - 1].endTimeMs) index--;
+        this._activeSceneIndex = index;
+        this._lastSceneLookupTime = timeMs;
+        return index;
+      }
+
+      // Playback frames normally cross one adjacent boundary at a time. Keep
+      // that common path constant-time, while seeks and large clock jumps use
+      // binary search instead of walking the whole timeline.
+      const previousTime = this._lastSceneLookupTime;
+      const sequential = Number.isFinite(previousTime) && timeMs >= previousTime && (timeMs - previousTime) <= 500;
+      if (sequential && current && timeMs >= current.endTimeMs) {
+        const next = timeline[index + 1];
+        if (next && timeMs >= next.startTimeMs) index++;
+        else if (timeMs < current.endTimeMs) index = Math.max(0, index - 1);
+      } else {
+        let low = 0;
+        let high = timeline.length;
+        while (low < high) {
+          const mid = (low + high) >> 1;
+          if (timeline[mid].startTimeMs <= timeMs) low = mid + 1;
+          else high = mid;
+        }
+        index = Math.max(0, Math.min(timeline.length - 1, low - 1));
+      }
+
+      // If a sequential frame crossed a gap containing multiple short scenes,
+      // correct with binary search. Gaps retain the director's latest-started
+      // scene behavior.
+      while (index > 0 && timeline[index - 1].startTimeMs <= timeMs && timeMs < timeline[index - 1].endTimeMs) index--;
+      let active = timeline[index];
+      if (active && !(timeMs >= active.startTimeMs && timeMs < active.endTimeMs)) {
+        let low = 0;
+        let high = timeline.length;
+        while (low < high) {
+          const mid = (low + high) >> 1;
+          if (timeline[mid].startTimeMs <= timeMs) low = mid + 1;
+          else high = mid;
+        }
+        index = Math.max(0, Math.min(timeline.length - 1, low - 1));
+      }
+      this._activeSceneIndex = index;
+      this._lastSceneLookupTime = timeMs;
+      return index;
     }
 
     /**
@@ -252,6 +467,17 @@
       const minDim = Math.min(w, h);
       const baseR = minDim * 0.16;
 
+      // Reuse the existing audio spectrum feed. Smooth modestly in this render loop
+      // so audio never schedules its own animation or causes per-event redraws.
+      const now = (typeof options.timeMs === 'number' ? options.timeMs : this.currentTimeMs);
+      const audio = (typeof window !== 'undefined' && window.__lfCinematicAudioLevels) || null;
+      const freshBass = audio && (Date.now() - audio.timestamp) < 450 ? audio.bass : 0;
+      const dt = this._cinematicAudio.lastTimestamp ? Math.min(64, Math.max(0, now - this._cinematicAudio.lastTimestamp)) : 16;
+      this._cinematicAudio.lastTimestamp = now;
+      this._cinematicAudio.targetBass = freshBass;
+      this._cinematicAudio.bass += (freshBass - this._cinematicAudio.bass) * (1 - Math.exp(-dt / 180));
+      const audioScale = 1 + Math.min(0.035, this._cinematicAudio.bass * 0.035);
+
       ctx.save();
       ctx.shadowColor = 'transparent';
 
@@ -262,13 +488,13 @@
 
         const cx = anchor.nx * w + driftX;
         const cy = anchor.ny * h + driftY;
-        const rx = baseR * anchor.baseScale;
-        const ry = baseR * anchor.baseScale;
+        const rx = baseR * anchor.baseScale * audioScale;
+        const ry = baseR * anchor.baseScale * audioScale;
         const variation = (baseVariation + anchor.varOffset) % totalVariations;
         const alpha = anchor.baseAlpha * alphaMultiplier;
 
         if (alpha > 0.005) {
-          this.motifEngine.drawMotif(ctx, {
+          this.drawCachedMotif(ctx, {
             concept,
             variation,
             cx,
@@ -278,7 +504,7 @@
             strokeColor,
             alpha,
             strokeWidth: 1.2,
-            drift: elapsedSec,
+            drift: 0,
             reducedMotion
           });
         }
@@ -287,45 +513,158 @@
       ctx.restore();
     }
 
-    renderFrame(timeMs) {
+    drawCachedMotif(ctx, options) {
+      if (!this.motifEngine || !ctx || options.alpha <= 0.005) return;
+      const key = `${options.concept}|${options.variation}|${options.strokeColor}|${options.strokeWidth}|${Boolean(options.reducedMotion)}`;
+      let sprite = this._motifSpriteCache.get(key);
+      if (!sprite) {
+        const size = 256;
+        const canvas = (typeof OffscreenCanvas !== 'undefined')
+          ? new OffscreenCanvas(size, size)
+          : (typeof document !== 'undefined' ? document.createElement('canvas') : null);
+        if (!canvas) {
+          this.motifEngine.drawMotif(ctx, options);
+          return;
+        }
+        canvas.width = size;
+        canvas.height = size;
+        const spriteCtx = canvas.getContext('2d');
+        if (!spriteCtx) return;
+        this.motifEngine.drawMotif(spriteCtx, {
+          ...options, cx: size / 2, cy: size / 2, rx: size / 4, ry: size / 4,
+          alpha: 1, drift: 0, reducedMotion: true
+        });
+        sprite = canvas;
+        if (this._motifSpriteCache.size >= 24) {
+          const oldestKey = this._motifSpriteCache.keys().next().value;
+          if (oldestKey !== undefined) this._motifSpriteCache.delete(oldestKey);
+        }
+        this._motifSpriteCache.set(key, sprite);
+      }
+      const drawW = options.rx * 4;
+      const drawH = options.ry * 4;
+      ctx.save();
+      ctx.globalAlpha *= options.alpha;
+      ctx.drawImage(sprite, options.cx - drawW / 2, options.cy - drawH / 2, drawW, drawH);
+      ctx.restore();
+    }
+
+    /**
+     * Renders an ambient blurred album artwork background with soft drift
+     * and a deep cinematic vignette for immersive mode.
+     */
+    renderAlbumArtBackground(ctx, timeMs, palette) {
+      if (!ctx) return;
+
+      const w = this.width;
+      const h = this.height;
+
+      // Resolve artwork first so the expensive filtered treatment can be cached.
+      let artSource = null;
+      // Blur only the still cover. Reprocessing a live motion-art frame would
+      // rebuild a full-size filtered surface several times per second and
+      // recreate the CPU/GPU pressure this cache is intended to avoid.
+      if (this.albumArtImage && this.albumArtImage.tagName !== 'VIDEO' && (this.albumArtImage.naturalWidth || this.albumArtImage.width) > 0) {
+        artSource = this.albumArtImage;
+      } else if (this.config && this.config.artworkImage && this.config.artworkImage.tagName !== 'VIDEO' && (this.config.artworkImage.naturalWidth || this.config.artworkImage.width) > 0) {
+        artSource = this.config.artworkImage;
+      } else if (typeof document !== 'undefined') {
+        const domArt = document.getElementById('widget-album-art') || document.getElementById('studio-album-art') || document.getElementById('wallpaper-album-art');
+        if (domArt && domArt.complete && (domArt.naturalWidth || domArt.width) > 0) artSource = this.albumArtImage = domArt;
+      }
+      const baseRgb = (palette && palette.cardRgb) || { r: 32, g: 18, b: 26 };
+      const cacheKey = `${w}x${h}|${baseRgb.r},${baseRgb.g},${baseRgb.b}|${palette.canvasColor || ''}|${this.albumArtUrl || ''}`;
+      const cache = this._albumArtBackgroundCache;
+      if (!cache || cache.key !== cacheKey || cache.source !== artSource) {
+        const margin = 48;
+        const surface = (typeof OffscreenCanvas !== 'undefined') ? new OffscreenCanvas(w + margin * 2, h + margin * 2) : (typeof document !== 'undefined' ? document.createElement('canvas') : null);
+        if (!surface) return;
+        surface.width = w + margin * 2;
+        surface.height = h + margin * 2;
+        const bg = surface.getContext('2d');
+        if (!bg) return;
+        if (typeof bg.createRadialGradient === 'function') {
+          const g = bg.createRadialGradient((w + margin * 2) * 0.5, (h + margin * 2) * 0.45, Math.min(w, h) * 0.15, (w + margin * 2) * 0.5, (h + margin * 2) * 0.5, Math.max(w, h) * 0.75);
+          g.addColorStop(0, `rgba(${baseRgb.r}, ${baseRgb.g}, ${baseRgb.b}, 0.72)`);
+          g.addColorStop(0.55, `rgba(${Math.round(baseRgb.r * 0.55)}, ${Math.round(baseRgb.g * 0.55)}, ${Math.round(baseRgb.b * 0.55)}, 0.90)`);
+          g.addColorStop(1, palette.canvasColor || '#070709');
+          bg.fillStyle = g;
+        } else bg.fillStyle = palette.canvasColor || '#070709';
+        bg.fillRect(0, 0, surface.width, surface.height);
+        if (artSource) {
+          const aw = artSource.videoWidth || artSource.naturalWidth || artSource.width || 500;
+          const ah = artSource.videoHeight || artSource.naturalHeight || artSource.height || 500;
+          if (aw > 0 && ah > 0) {
+            const scale = Math.max(surface.width / aw, surface.height / ah) * 1.04;
+            bg.save();
+            bg.globalAlpha = 0.92;
+            bg.filter = 'blur(28px) brightness(0.68) saturate(1.5)';
+            bg.drawImage(artSource, (surface.width - aw * scale) / 2, (surface.height - ah * scale) / 2, aw * scale, ah * scale);
+            bg.filter = 'none';
+            bg.restore();
+          }
+        }
+        if (typeof bg.createRadialGradient === 'function') {
+          const vignette = bg.createRadialGradient(surface.width / 2, surface.height / 2, Math.min(w, h) * 0.20, surface.width / 2, surface.height / 2, Math.max(w, h) * 0.78);
+          vignette.addColorStop(0, 'rgba(4, 5, 8, 0.25)');
+          vignette.addColorStop(0.60, 'rgba(4, 5, 8, 0.58)');
+          vignette.addColorStop(1, 'rgba(2, 2, 4, 0.88)');
+          bg.fillStyle = vignette;
+          bg.fillRect(0, 0, surface.width, surface.height);
+        }
+        this._albumArtBackgroundCache = { key: cacheKey, source: artSource, surface, margin };
+      }
+      const cached = this._albumArtBackgroundCache;
+      const drift = !this.config.reducedMotion ? (1 + Math.sin(timeMs * 0.00045) * 0.006) : 1;
+      const panX = !this.config.reducedMotion ? Math.sin(timeMs * 0.0003) * 5 : 0;
+      const panY = !this.config.reducedMotion ? Math.cos(timeMs * 0.00025) * 4 : 0;
+      const sw = w / drift;
+      const sh = h / drift;
+      ctx.drawImage(cached.surface, cached.margin + (w - sw) / 2 - panX, cached.margin + (h - sh) / 2 - panY, sw, sh, 0, 0, w, h);
+    }
+
+    renderFrame(timeMs, sceneIndexHint = null) {
       this.currentTimeMs = timeMs;
       if (!this.ctx) return;
+      if (this.canvas && (this.canvas.isConnected === false || this.canvas.style?.display === 'none')) return;
 
       const ctx = this.ctx;
       const palette = this.activePalette || this.colorEngine.PRESETS.velvet_plum;
 
       // Find active scene and its index in timeline
-      let sceneIndex = -1;
-      if (Array.isArray(this.timeline) && this.timeline.length > 0) {
-        for (let i = 0; i < this.timeline.length; i++) {
-          const s = this.timeline[i];
-          if (timeMs >= s.startTimeMs && timeMs < s.endTimeMs) {
-            sceneIndex = i;
-            break;
-          }
-        }
-        if (sceneIndex === -1) {
-          if (timeMs <= this.timeline[0].startTimeMs) {
-            sceneIndex = 0;
-          } else {
-            for (let i = this.timeline.length - 1; i >= 0; i--) {
-              if (timeMs >= this.timeline[i].startTimeMs) {
-                sceneIndex = i;
-                break;
-              }
-            }
-            if (sceneIndex === -1) sceneIndex = this.timeline.length - 1;
-          }
-        }
-      }
+      const sceneIndex = Number.isInteger(sceneIndexHint) ? sceneIndexHint : this.getActiveSceneIndex(timeMs);
 
       const scene = (sceneIndex >= 0 && this.timeline[sceneIndex])
         ? this.timeline[sceneIndex]
         : this.director.getSceneAt(this.timeline, timeMs);
 
-      // 1. Canvas Background: Deep dark cinematic stage
-      ctx.fillStyle = palette.canvasColor || '#070709';
-      ctx.fillRect(0, 0, this.width, this.height);
+      // A no-scene fallback is a still card when its background is not panning
+      // (or reduced motion is enabled). Reuse that bitmap until visible state
+      // changes. Active lyric and morph scenes are never gated because their
+      // word fills, fades, and motifs animate with playback time.
+      const staticFallback = !scene && !this._previewProgress &&
+        (!this.config?.isCinematic || this.config?.reducedMotion);
+      if (staticFallback) {
+        const frameKey = [
+          this.width, this.height, this.config.title || '', this.config.artist || '',
+          this.pausedTrackInfo?.title || '', this.pausedTrackInfo?.artist || '',
+          this.albumArtUrl || '', this.resolvedShape || '', this.resolvedConcept || '',
+          palette.canvasColor || palette.cardColor || '', palette.textColor || '',
+          JSON.stringify(palette.cardRgb || null), this.isPaused ? 1 : 0
+        ].join('|');
+        if (frameKey === this._lastStaticFrameKey) return;
+        this._lastStaticFrameKey = frameKey;
+      } else {
+        this._lastStaticFrameKey = null;
+      }
+
+      // 1. Canvas Background: Deep dark cinematic stage with ambient album art projection
+      if (this.config && this.config.isCinematic) {
+        this.renderAlbumArtBackground(ctx, timeMs, palette);
+      } else {
+        ctx.fillStyle = palette.canvasColor || '#070709';
+        ctx.fillRect(0, 0, this.width, this.height);
+      }
 
       // Check for Paused State in Cinematic Mode:
       // When playback is paused in Cinematic Mode, present the editorial track card
@@ -404,7 +743,9 @@
           shapeType,
           progress,
           bounds: this.cardBounds,
-          fillColor: palette.cardColor,
+          fillColor: this.config.isCinematic
+            ? (palette.cardRgb ? `rgba(${palette.cardRgb.r}, ${palette.cardRgb.g}, ${palette.cardRgb.b}, 0.65)` : 'rgba(30, 20, 28, 0.65)')
+            : palette.cardColor,
           strokeColor: palette.textColor || '#ffffff',
           strokeWidth: 2,
           shadowColor: 'rgba(0,0,0,0.85)',
@@ -451,7 +792,9 @@
         shapeType: currentShape,
         progress: morphProgress,
         bounds: this.cardBounds,
-        fillColor: palette.cardColor,
+        fillColor: this.config.isCinematic
+          ? (palette.cardRgb ? `rgba(${palette.cardRgb.r}, ${palette.cardRgb.g}, ${palette.cardRgb.b}, 0.22)` : 'rgba(10, 10, 15, 0.22)')
+          : palette.cardColor,
         showAccentStar: showBottomStar,
         starColor: palette.textColor,
         concept: scene.concept || this.resolvedConcept || (this.morpher && this.morpher.SHAPE_TO_CONCEPT ? this.morpher.SHAPE_TO_CONCEPT[currentShape] : 'night'),
@@ -503,11 +846,23 @@
           if (!isContiguousWithNext) {
             const pOut = Math.max(0, Math.min(1, remaining / fadeDur));
             const easeOut = pOut < 0.5 ? 2 * pOut * pOut : 1 - Math.pow(-2 * pOut + 2, 2) / 2;
-            currAlpha = easeOut;
+            currAlpha = this.config.isCinematic ? Math.max(0.75, easeOut) : easeOut;
           } else {
             currAlpha = 1.0;
           }
+        } else {
+          currAlpha = 1.0;
         }
+      }
+
+      if (this.isPaused) {
+        // When paused, strictly freeze the active scene without any cross-fade ghosting
+        crossFadeScene = null;
+        crossFadeAlpha = 0.0;
+        currAlpha = 1.0;
+      } else if (this.config.isCinematic && !crossFadeScene) {
+        // Guarantee lyrics are NEVER completely invisible in cinematic mode during standalone playback
+        currAlpha = Math.max(0.75, currAlpha);
       }
 
       // Layer 1c (Cinematic Mode): Background field of multiple keyword illustrations of the same kind
@@ -549,7 +904,7 @@
         // Outgoing secondary motif during cross-dissolve with differing concept
         if (transState && transState.secondary && transState.secondary.alpha > 0.005) {
           const sec = transState.secondary;
-          this.motifEngine.drawMotif(ctx, {
+          this.drawCachedMotif(ctx, {
             concept: sec.concept,
             variation: sec.variation,
             cx: sec.cx,
@@ -559,7 +914,7 @@
             strokeColor: palette.textColor,
             alpha: sec.alpha * (crossFadeAlpha || (1.0 - currAlpha)),
             drift: 0,
-            reducedMotion: this.config.reducedMotion
+            reducedMotion: true
           });
         }
 
@@ -570,7 +925,7 @@
 
           // FAR LAYER: If composition is cropped_large or behind, draw ultra-faint large contour
           if (scene.composition && (scene.composition.type === 'cropped_large' || scene.composition.type === 'behind')) {
-            this.motifEngine.drawMotif(ctx, {
+            this.drawCachedMotif(ctx, {
               concept: prim.concept,
               variation: prim.variation,
               cx: prim.cx + driftX * 0.5,
@@ -580,13 +935,13 @@
               strokeColor: palette.textColor,
               alpha: motifAlpha * 0.45,
               strokeWidth: 1.0,
-              drift: (timeMs - scene.startTimeMs) * 0.001,
-              reducedMotion: this.config.reducedMotion
+              drift: 0,
+              reducedMotion: true
             });
           }
 
           // MID LAYER: Active motif
-          this.motifEngine.drawMotif(ctx, {
+          this.drawCachedMotif(ctx, {
             concept: prim.concept,
             variation: prim.variation,
             cx: prim.cx + driftX,
@@ -596,8 +951,8 @@
             strokeColor: palette.textColor,
             alpha: motifAlpha,
             strokeWidth: 1.5,
-            drift: (timeMs - scene.startTimeMs) * 0.001,
-            reducedMotion: this.config.reducedMotion
+            drift: 0,
+            reducedMotion: true
           });
         }
       }
@@ -624,13 +979,18 @@
      * when playback is paused in Cinematic Mode.
      */
     renderPausedTrackCard(ctx, palette, timeMs) {
+      if (this.config && this.config.isCinematic) {
+        this.renderAlbumArtBackground(ctx, timeMs, palette);
+      }
       // 1. Draw card container backdrop
       const currentShape = this.resolvedShape || 'diamond';
       this.morpher.drawMorphedCard(ctx, {
         shapeType: currentShape,
         progress: 1.0,
         bounds: this.cardBounds,
-        fillColor: palette.cardColor,
+        fillColor: this.config.isCinematic
+          ? (palette.cardRgb ? `rgba(${palette.cardRgb.r}, ${palette.cardRgb.g}, ${palette.cardRgb.b}, 0.22)` : 'rgba(10, 10, 15, 0.22)')
+          : palette.cardColor,
         showAccentStar: true,
         starColor: palette.textColor,
         concept: this.resolvedConcept || 'night',
@@ -645,7 +1005,7 @@
       if (this.motifEngine) {
         const breath = 1.0 + Math.sin(timeMs * 0.00075) * 0.025;
         const motifR = Math.min(180, Math.round(Math.min(width, height) * 0.28)) * breath;
-        this.motifEngine.drawMotif(ctx, {
+        this.drawCachedMotif(ctx, {
           concept: this.resolvedConcept || 'night',
           variation: 0,
           cx,
@@ -789,6 +1149,20 @@
 
       const isCinematic = Boolean(this.config && this.config.isCinematic);
 
+      if (isCinematic && !this.config.reducedMotion && !this.isPaused) {
+        // Subtle acoustic rhythm pulsing for cinematic mode lyrics (gentle breathing scale: ~1.000 to 1.015)
+        const pulse = Math.sin(timeMs * 0.0032);
+        const pulseScale = 1.0 + (pulse * 0.012);
+        const bounds = this.cardBounds || { x: 0, y: 0, width: this.width || 960, height: this.height || 600 };
+        const cx = bounds.x + bounds.width / 2;
+        const cy = bounds.y + bounds.height / 2;
+        if (!isNaN(cx) && !isNaN(cy)) {
+          ctx.translate(cx, cy);
+          ctx.scale(pulseScale, pulseScale);
+          ctx.translate(-cx, -cy);
+        }
+      }
+
       switch (scene.style) {
         case 'styleA': {
           this.typography.renderStyleA(ctx, {
@@ -827,7 +1201,7 @@
             words: scene.words || [],
             currentTimeMs: timeMs,
             creatorTag: scene.creatorTag,
-            artworkImage: this.config.artworkImage,
+            artworkImage: isCinematic ? null : this.config.artworkImage,
             bounds: this.cardBounds,
             palette,
             colorEngine: this.colorEngine,
@@ -859,20 +1233,48 @@
     }
 
     play(onUpdate = null) {
-      if (this.isPlaying) return;
+      if (typeof isKineticMode !== 'undefined' && !isKineticMode && typeof isCinematicView !== 'undefined' && !isCinematicView) {
+        this.isPlaying = false;
+        return;
+      }
+      this.isPaused = false;
+      if (typeof onUpdate === 'function') this._playUpdateCallback = onUpdate;
+      else if (!this.isPlaying) this._playUpdateCallback = null;
+      if (this.isPlaying && this._rafId) return;
+      this._stopPlaybackFrameLoop();
       this.isPlaying = true;
       this._lastTimestamp = performance.now();
 
       const loop = (now) => {
         if (!this.isPlaying) return;
+        if (typeof isKineticMode !== 'undefined' && !isKineticMode && typeof isCinematicView !== 'undefined' && !isCinematicView) {
+          this.pause();
+          return;
+        }
         const delta = now - this._lastTimestamp;
         this._lastTimestamp = now;
 
         this.currentTimeMs += delta;
-        this.renderFrame(this.currentTimeMs);
 
-        if (typeof onUpdate === 'function') {
-          onUpdate(this.currentTimeMs);
+        // R7: Occlusion gating & 15 FPS instrumental interlude downclocking
+        const isHidden = typeof document !== 'undefined' && document.hidden;
+        const isWindowBlurred = typeof document !== 'undefined' && Boolean(document.body && document.body.classList.contains('window-blurred'));
+        const isCanvasDetached = this.canvas && (this.canvas.isConnected === false || this.canvas.style.display === 'none' || this.canvas.offsetWidth === 0);
+
+        if (!isHidden && !isWindowBlurred && !isCanvasDetached) {
+          const activeSceneIndex = this.getActiveSceneIndex(this.currentTimeMs);
+          const activeScene = activeSceneIndex >= 0 ? this.timeline[activeSceneIndex] : null;
+          const isInterlude = Boolean(activeScene && (activeScene.style === 'break_morph' || activeScene.isBreak));
+          const isCinematicThrottle = Boolean(this.config && this.config.isCinematic) && ((now - (this._lastRenderTime || 0)) < 30);
+
+          if (!isCinematicThrottle && (!isInterlude || (now - (this._lastRenderTime || 0)) >= 66)) {
+            this.renderFrame(this.currentTimeMs, activeSceneIndex);
+            this._lastRenderTime = now;
+          }
+        }
+
+        if (typeof this._playUpdateCallback === 'function') {
+          this._playUpdateCallback(this.currentTimeMs);
         }
 
         this._rafId = safeRaf(loop);
@@ -883,10 +1285,27 @@
 
     pause() {
       this.isPlaying = false;
+      this.isPaused = true;
+      this._playUpdateCallback = null;
       if (this._rafId) {
         safeCaf(this._rafId);
         this._rafId = null;
       }
+    }
+
+    syncPlaybackTime(timeMs) {
+      const nextTimeMs = Number.isFinite(timeMs) ? timeMs : this.currentTimeMs;
+      const changed = nextTimeMs !== this.currentTimeMs;
+      this.currentTimeMs = nextTimeMs;
+      if (this.isPlaying && !this.isPaused) {
+        // Keep RAF as the sole frame renderer during playback and restart its
+        // delta baseline so clock correction never creates a catch-up jump.
+        this._lastTimestamp = performance.now();
+        if (!this._rafId && this._needsContinuousFrames()) this.play(this._playUpdateCallback);
+        return;
+      }
+      // While paused there is no RAF owner, so show clock/seek changes now.
+      if (changed) this.renderFrame(this.currentTimeMs);
     }
 
     triggerShapePreview(shapeKey = null) {

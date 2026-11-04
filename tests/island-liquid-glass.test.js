@@ -28,8 +28,8 @@ console.log('  ✓ 1a. Primary Dynamic Island capsule declares translucent glass
 
 // 1b. Expanded Hover Card in Glass Mode
 assert(cssCode.includes('body.mode-dynamic-island.island-glass-mode #dynamic-island:hover'), 'Must declare glass mode rules for expanded hover card');
-assert(cssCode.includes('backdrop-filter: blur(36px) saturate(200%)'), 'Expanded hover card must have 36px deep blur in glass mode');
-console.log('  ✓ 1b. Expanded hover card declares 36px deep blur and specular highlights');
+assert(cssCode.includes('backdrop-filter: blur(28px) saturate(190%)'), 'Expanded hover card must preserve the resting blur radius to avoid a hover compositing spike');
+console.log('  ✓ 1b. Expanded hover card preserves the resting blur radius and specular highlights');
 
 // 1c. Duet & Backing Vocal Satellite Capsule
 assert(cssCode.includes('body.mode-dynamic-island.island-glass-mode #island-duet-capsule'), 'Must style duet capsule in glass mode');

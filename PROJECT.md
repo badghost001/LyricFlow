@@ -1,40 +1,45 @@
-# Project: LyricFlow Visualizer, Lyrics & Syllables Refinement
+# Project: LyricFlow Dynamic Island CPU & Compositing Elimination
 
 ## Architecture
 - Module/package boundaries, data flow, shared interfaces:
-  - **Audio Loopback**: Rust WASAPI loopback capture (`src-tauri/src/audio.rs`) emitting `audio-visualizer-bands` events to WebView.
-  - **Dynamic Island Visualizer & Lyrics Rendering**: `src/renderer.js` handles visualizer state syncing, audio spectrum morphing, marquee scroll masking, duet vocal splitting, and timed word space calculation.
-  - **Dynamic Island Styling**: `src/styles/_dynamic_island.css` defines island layout, capsule box shadows, and marquee wrapper overflow behavior.
-  - **Lyrics Engine**: `src/services/lyrics/LyricsEngine.js` evaluates active word/syllable timing state for karaoke highlighting.
-  - **Lyrics Parsers**: `src/modules/parsers.js` parses LRC and LyricsPlus formats, extracting time tags, syllable tokens, text, and subText.
-  - **Acceptance Test Suite**: `tests/corrections-visualizer-lyrics-syllables.test.js` executed via `npm test`.
+  - **Frontend Renderer Engine (`src/renderer.js`)**: Playhead animation loop (`updatePlayhead`), Dynamic Island word progress ticks (`updateDynamicIslandWordProgressTick`), audio spectrum handler (`onAudioSpectrum`), visualizer canvas renderer (`drawIslandVisualizer`), and energy morph styling (`updateIslandEnergyMorph`).
+  - **WebGL Fluid Mesh Engine (`src/modules/fluid-mesh.js`)**: WebGL shader background, `sleep()` / `wake()` lifecycle, and `setPlaybackState()` integration.
+  - **Dynamic Island Styling & Compositor Layers (`src/styles/_dynamic_island.css`)**: Glass capsule layout, box shadows, art halo filters, canvas layers, active lyric word gradient clipping, and metamorphosis transitions.
+  - **Win32 Window Bounds & DWM Compositing (`src-tauri/src/commands/window.rs`)**: Physical HWND bounds shrinking and DirectComposition transparent swapchain presentation.
+  - **Acceptance & Regression Test Suites (`tests/`)**: 72+ test suites executed via `npm test`.
 
 ## Feature Inventory
 | # | Feature | Description | Milestone | Source |
 |---|---------|-------------|-----------|--------|
-| 1 | R1: WASAPI Loopback Buffer & Silence Sleep | Increase buffer to 500ms, eliminate 100ms nested sleep, clear enumerator on reconnect, handle AUDCLNT_E_BUFFER_ERROR non-fatally | M1 | Survey (Explorer 1) |
-| 2 | R1: Visualizer Wallpaper & Energy Gating | Wallpaper Mode visualizer persistence under hidden visibility, direct WASAPI energy driving with >350ms silence settling grace period | M1 | Survey (Explorer 1) |
-| 3 | R2: Right-Edge Shadow & Mask Elimination | Remove static gradient masks on .island-duet-marquee-wrapper, .island-satellite-marquee-wrapper, .island-stage-original; dynamic JS edge fade on overflow only; crisp 0 4px 14px shadow on duet capsule | M1 | Survey (Explorer 2) |
-| 4 | R3: Syllable Tokenization & CJK Continuity | Prevent spaces between syllables of same word (hyphens, cleanLine ground-truth), expand CJK to Hiragana/Katakana/Hangul, strictly preserve hasSpace: false | M1 | Survey (Explorer 3) |
-| 5 | R3: Lyrics Engine Micro-Gap Continuity | Keep active syllable state continuous across intra-word micro-gaps up to nextWord.start (or word.end + 0.15) | M1 | Survey (Explorer 3) |
-| 6 | R4: Brackets Preceded by 2+ Spaces Secondary Lyrics | Detect 2+ spaces / tabs before brackets as subText in parseLRC/parseLyricsPlus; slice words to primary vocal words; route to duet capsule in parseDuetVocalSplit | M1 | Survey (Explorer 2 & 3) |
-| 7 | Acceptance Test Suite & Cargo Check | Create tests/corrections-visualizer-lyrics-syllables.test.js, register in package.json, verify npm test and cargo check | M1 | Survey (Explorer 3) |
+| 1 | Fluid Mesh Sleep Hardening | Fix `this.isSleeping = true` outside GL context check in `src/modules/fluid-mesh.js` | M1 (DONE) | Survey (Explorer 1 & 3) |
+| 2 | Fluid Mesh Gated Playback State | Check `shouldRunFluidMesh()` in `adaptBpmSync` before waking `fluidMeshGradientInstance` | M1 (DONE) | Survey (Explorer 1 & 3) |
+| 3 | Playhead Interval Normalization | Align hidden Dynamic Island playhead tick from 25ms (40 FPS) to 33.3ms (30 FPS) | M1 (DONE) | Survey (Explorer 1 & 3) |
+| 4 | Scrubber DOM Mutation Gating | Gate scrubber fill/time updates when `.island-expanded-controls` is not hovered | M1 (DONE) | Survey (Explorer 1) |
+| 5 | Deduplicate Line Transform | Guard `islandLine.style.transform = 'translate3d(0px, 0, 0)'` against redundant writes | M1 (DONE) | Survey (Explorer 1) |
+| 6 | Canvas Layer & Paint Containment | Add `contain: strict; transform: translateZ(0)` to `.island-wave-canvas` and `.island-wave-visualizer` | M2 | Survey (Explorer 2) |
+| 7 | Bloom Shadow & Blur Decoupling | Decouple dynamic bloom from static box-shadows / stabilize halo blur radius | M2 | Survey (Explorer 2) |
+| 8 | Active Word Layer Promotion Cleanup | Remove redundant `will-change: transform` from `.lyric-word.lyric-word-active` | M2 | Survey (Explorer 2) |
+| 9 | Inactive Overlay Canvas Suppression | Set `display: none` on `#island-ca-emitter-canvas` when idle | M2 | Survey (Explorer 2) |
+| 10 | Metamorphosis Transition Scoping | Scope tier transitions away from `transition: all` to specific properties | M2 | Survey (Explorer 2) |
+| 11 | Empirical CPU Reduction Verification | Measure live CPU via `measure_cpu.ps1` confirming Renderer < 5% and GPU < 4% | M3 | Survey (Explorer 3) |
+| 12 | Test Suite 100% Pass Rate | Verify 100% green pass across all 72+ test suites in `npm test` | M3 | Survey (All) |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| 1 | M1: LyricFlow Audio, Masking, Syllables & Secondary Lyrics Refinement | Implement R1, R2, R3, R4, acceptance test suite, verify npm test & cargo check | None | DONE |
+| 1 | M1: Frontend JS Renderer & WebGL Loop Throttling | Implement Features 1, 2, 3, 4, 5 in `src/renderer.js` and `src/modules/fluid-mesh.js` | None | DONE |
+| 2 | M2: GPU Compositing, CSS Containment & Canvas Layer Isolation | Implement Features 6, 7, 8, 9, 10 in `src/styles/_dynamic_island.css` and `src/renderer.js` | M1 | IN_PROGRESS |
+| 3 | M3: Empirical CPU Profiling & Full Test Suite Verification | Execute Features 11, 12, verify live process CPU metrics and run all 72+ test suites | M1, M2 | PLANNED |
 
 ## Interface Contracts
-- **WASAPI Audio Capture -> Renderer**: `audio-visualizer-bands` event payload `Vec<f32>` (NUM_BANDS=4).
-- **Renderer Visualizer Sync -> Tauri Bridge**: `window.electronAPI.setAudioVisualizerActive(Boolean)`.
-- **Parsers -> Renderer / Engine**: Parsed line object contains `{ timeMs, text, words: Array<{ text, timeMs?, hasSpace? }>, subText?: string }`.
-- **Duet Split Contract**: `parseDuetVocalSplit(text)` returns `{ leadText: string, duetText: string, type: 'parenthetical' }` or `null`.
+- **FluidMesh Lifecycle Contract**: `sleep()` must set `this.isSleeping = true` regardless of GL state; `start()` must abort immediately when `this.isSleeping === true`.
+- **Playhead Cadence Contract**: `updatePlayhead()` runs at `PLAYHEAD_FRAME_INTERVAL_MS = 33.3ms` (30 Hz) during active word karaoke and relaxes when resting.
+- **Island Scrubber Contract**: `#island-progress-fill` and time labels only update if `#dynamic-island:hover` is active.
+- **Visualizer Compositing Contract**: `.island-wave-canvas` renders on an isolated composited quad (`contain: strict; transform: translateZ(0)`), never invalidating `#dynamic-island` raster tiles.
 
 ## Code Layout
-- Rust Audio: `src-tauri/src/audio.rs`
+- Frontend JS Renderer: `src/renderer.js`
+- WebGL Fluid Mesh: `src/modules/fluid-mesh.js`
 - Dynamic Island Styling: `src/styles/_dynamic_island.css`
-- Frontend Renderer: `src/renderer.js`
-- Lyrics Engine: `src/services/lyrics/LyricsEngine.js`
-- Parsers: `src/modules/parsers.js`
-- Tests: `tests/corrections-visualizer-lyrics-syllables.test.js`, `package.json`
+- Empirical Measurement Script: `.agents/teamwork/teamwork_explorer_o7_system/measure_cpu.ps1`
+- Test Suites: `tests/` and `package.json`

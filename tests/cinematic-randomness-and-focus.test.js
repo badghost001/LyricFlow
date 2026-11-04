@@ -319,7 +319,8 @@ test('4c. renderer.js suspends cinematic canvas seek and DOM lyric scrolling whe
   assert.ok(code.includes('let isWallpaperDesktopFocused = true;'), 'Must track isWallpaperDesktopFocused');
   assert.ok(code.includes('window.electronAPI.onWallpaperFocusChanged'), 'Must listen to onWallpaperFocusChanged');
   assert.ok(code.includes('isWallpaperSuspended && !isDynamicIslandMode'), 'Must gate DOM lyric scrolling on wallpaper suspension');
-  assert.ok(code.includes('if (isWallpaperDesktopFocused) {\n        const syncProgress = getAcousticSyncProgress();\n        cinematicMainRendererInstance.seek(syncProgress);\n      }'), 'Must only seek cinematic wallpaper when desktop is focused');
+  assert.ok(code.includes('if (isWallpaperDesktopFocused) {\n        const syncProgress = getAcousticSyncProgress();\n        cinematicMainRendererInstance.syncPlaybackTime(syncProgress);\n      }'), 'Must only synchronize cinematic wallpaper while desktop is focused');
 });
 
 console.log(`\nAll ${passedTests}/${totalTests} Cinematic Randomness & Wallpaper Focus tests passed successfully!\n`);
+process.exit(0);

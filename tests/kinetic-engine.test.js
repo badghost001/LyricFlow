@@ -33,6 +33,31 @@ function test(name, fn) {
 
 console.log('\n--- Running Kinetic Typography Video Engine Tests ---\n');
 
+test('playhead clock sync does not render while RAF playback owns frames', () => {
+  const mockCanvas = { getContext: () => ({ fillStyle: '', fillRect: () => {}, save: () => {}, restore: () => {}, beginPath: () => {}, roundRect: () => {}, fill: () => {}, stroke: () => {}, fillText: () => {} }) };
+  const renderer = new KineticCanvasRenderer(mockCanvas, { width: 720, height: 1280 });
+  let renders = 0;
+  renderer.renderFrame = () => { renders++; };
+  renderer.isPlaying = true;
+  renderer._lastTimestamp = 500;
+
+  const syncBaseline = performance.now();
+  renderer.syncPlaybackTime(12345);
+  assert.strictEqual(renderer.currentTimeMs, 12345, 'sync must keep renderer time aligned to playback clock');
+  assert.ok(renderer._lastTimestamp >= syncBaseline, 'sync must reset the RAF delta baseline after clock correction');
+  assert.strictEqual(renders, 0, 'sync must not render a duplicate frame while RAF playback is active');
+
+  renderer.isPlaying = false;
+  renderer.syncPlaybackTime(23456);
+  assert.strictEqual(renderer.currentTimeMs, 23456, 'paused sync must update the playhead');
+  assert.strictEqual(renders, 1, 'paused sync must render immediately for seek and state changes');
+  renderer.syncPlaybackTime(23456);
+  assert.strictEqual(renders, 1, 'unchanged paused clock sync must not redraw the same frame');
+  renderer.seek(34567);
+  assert.strictEqual(renders, 2, 'explicit seeks must still render immediately');
+  renderer.destroy();
+});
+
 // ==========================================
 // 1. KineticShapeMorpher Tests
 // ==========================================
@@ -590,7 +615,7 @@ test('8d. Cinematic Mode Main App Integration in index.html and renderer.js', ()
   assert.ok(rendererSrc.includes('function syncCinematicState()'), 'renderer.js must define syncCinematicState');
   assert.ok(rendererSrc.includes('function toggleCinematicView('), 'renderer.js must define toggleCinematicView');
   assert.ok(rendererSrc.includes('settings.cinematicMode = true;'), 'renderer.js must default settings.cinematicMode to true');
-  assert.ok(rendererSrc.includes('cinematicMainRendererInstance.seek(syncProgress)'), 'updatePlayhead must drive cinematicMainRendererInstance.seek with synchronized progress');
+  assert.ok(rendererSrc.includes('cinematicMainRendererInstance.syncPlaybackTime(syncProgress)'), 'updatePlayhead must synchronize cinematic time without causing duplicate RAF renders');
   assert.ok(rendererSrc.includes('btn-cinematic-exit'), 'renderer.js must bind click on #btn-cinematic-exit');
 });
 

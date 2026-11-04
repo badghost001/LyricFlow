@@ -271,6 +271,9 @@ function runParserTests() {
     assert.strictEqual(isLyricMetadataOrCreditLine('Produced by Teddy Riley'), true);
     assert.strictEqual(isLyricMetadataOrCreditLine('Producer: Teddy Riley'), true);
     assert.strictEqual(isLyricMetadataOrCreditLine('Composer: Teron Beal'), true);
+    assert.strictEqual(isLyricMetadataOrCreditLine('Writers: Jeff Bass/Steve King/Eminem'), true);
+    assert.strictEqual(isLyricMetadataOrCreditLine('Sample: 2 Pack (2020) — Dedrick'), true);
+    assert.strictEqual(isLyricMetadataOrCreditLine('Sample the hook one more time'), false);
     assert.strictEqual(isLyricMetadataOrCreditLine('纯音乐，请欣赏'), true);
     assert.strictEqual(isLyricMetadataOrCreditLine('[ar:Michael Jackson]'), true);
     assert.strictEqual(isLyricMetadataOrCreditLine('[ti:Remember The Time]'), true);
@@ -288,6 +291,8 @@ function runParserTests() {
     const rawLrc = `[00:00.00]制作人 : Michael Jackson/Teddy Riley
 [00:01.00]词 : Michael Jackson
 [00:02.00]作曲 : Teddy Riley
+[00:03.00]Writers: Jeff Bass/Steve King/Eminem
+[00:04.00]Sample: 2 Pack (2020) - Dedrick
 [00:15.50]Do you remember when we fell in love
 [00:20.00]We were so young and innocent then`;
 

@@ -46,14 +46,37 @@ body.wallpaper-mode .app-container {
     rgba(5, 5, 7, 0.52) !important;
 }
 
+/* Keep the selected fluid mesh visible behind Wallpaper Mode content. */
+body.wallpaper-mode.bg-style-fluid .app-container {
+  background:
+    radial-gradient(ellipse at center, rgba(var(--art-color-1-rgb, 40, 40, 50), 0.10), transparent 58%),
+    rgba(5, 5, 7, 0.22) !important;
+  backdrop-filter: blur(14px) saturate(1.35) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(1.35) !important;
+}
+
 body.wallpaper-mode.custom-bg-active .app-container {
   background: rgba(5, 5, 7, 0.35) !important;
 }
 
 body.wallpaper-mode .hud-header,
 body.wallpaper-mode .app-container:hover .hud-header,
+body.wallpaper-mode #playback-widget,
 body.wallpaper-mode .playback-widget,
+body.wallpaper-mode .app-container:hover #playback-widget,
 body.wallpaper-mode .app-container:hover .playback-widget,
+body.wallpaper-mode .app-container.auto-hide-collapsed #playback-widget,
+body.wallpaper-mode .app-container.auto-hide-collapsed .playback-widget,
+body.wallpaper-mode .widget-track-panel,
+body.wallpaper-mode #playback-widget > .widget-track-panel,
+body.wallpaper-mode .widget-controls,
+body.wallpaper-mode #playback-widget > .widget-controls,
+body.wallpaper-mode .progress-bar-container,
+body.wallpaper-mode .progress-bar-bg,
+body.wallpaper-mode #main-progress-track,
+body.wallpaper-mode .progress-time,
+body.wallpaper-mode .studio-sidebar,
+body.wallpaper-mode #studio-sidebar,
 body.wallpaper-mode .settings-panel,
 body.wallpaper-mode #news-panel,
 body.wallpaper-mode #search-overlay,
@@ -62,8 +85,20 @@ body.wallpaper-mode #sync-resume-btn,
 body.wallpaper-mode #genius-fact-card,
 body.wallpaper-mode .genius-live-meaning,
 body.wallpaper-mode .lyric-annotation-btn,
-body.wallpaper-mode #genius-modal {
+body.wallpaper-mode #genius-modal,
+body.wallpaper-mode #floating-tip-banner,
+body.wallpaper-mode .floating-tip-banner,
+body.wallpaper-mode .instrumental-solo-stage,
+body.wallpaper-mode #instrumental-solo-stage,
+body.wallpaper-mode .cinematic-top-actions,
+body.wallpaper-mode .cinematic-exit-btn,
+body.wallpaper-mode .cinematic-wallpaper-btn,
+body.wallpaper-mode #btn-cinematic-exit,
+body.wallpaper-mode #btn-cinematic-set-wallpaper {
   display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
 }
 
 body.wallpaper-mode .lyric-line.has-annotation::after {
@@ -83,8 +118,33 @@ body.wallpaper-mode .lyrics-view {
   mask-image: linear-gradient(to bottom, transparent 0%, black 22%, black 78%, transparent 100%);
 }
 
-body.wallpaper-mode .lyric-line {
+body.wallpaper-mode .lyric-line,
+body.wallpaper-mode .lyric-line.active,
+body.wallpaper-mode.wallpaper-style-1 .lyric-line,
+body.wallpaper-mode.wallpaper-style-1 .lyric-line.active,
+body.wallpaper-mode.wallpaper-style-2 .lyric-line,
+body.wallpaper-mode.wallpaper-style-2 .lyric-line.active,
+body.wallpaper-mode.wallpaper-style-3 .lyric-line,
+body.wallpaper-mode.wallpaper-style-3 .lyric-line.active {
+  font-family: var(--font-family), sans-serif !important;
+  font-weight: 700 !important;
   text-shadow: 0 4px 22px rgba(0, 0, 0, 0.85);
+}
+
+body.wallpaper-mode .lyric-line .lyric-word,
+body.wallpaper-mode .lyric-line.active .lyric-word,
+body.wallpaper-mode .lyric-word.lyric-word-passed,
+body.wallpaper-mode .lyric-word.lyric-word-completed,
+body.wallpaper-mode .lyric-word.lyric-word-active,
+body.wallpaper-mode .lyric-word.lyric-word-upcoming {
+  font-family: inherit !important;
+  font-weight: 700 !important;
+  contain: layout;
+}
+
+/* Style 2 follows the regular Split View lyric weight. */
+body.wallpaper-mode.wallpaper-style-2 .lyric-line .lyric-word {
+  font-weight: inherit !important;
 }
 
 .wallpaper-now-playing {
@@ -107,10 +167,21 @@ body.wallpaper-mode.wallpaper-style-2 .app-container {
 
 body.wallpaper-mode.wallpaper-style-2 .wallpaper-album-bg {
   display: block;
-  opacity: 1 !important;
+  opacity: 0.28 !important;
   filter: blur(32px) saturate(1.8) brightness(0.45);
   transform: scale(1.08) translate3d(0, 0, 0);
-  will-change: opacity;
+  will-change: auto;
+}
+
+/* Pre-rendered canvas/bitmap cache overrides runtime GPU blur */
+body.wallpaper-mode.wallpaper-style-2 .wallpaper-album-bg.has-preblurred-art,
+body.wallpaper-mode .wallpaper-album-bg.has-preblurred-art {
+  filter: none !important;
+}
+
+/* Style 2 keeps its tall cover video as the single animated surface. */
+body.wallpaper-mode.wallpaper-style-2 #wallpaper-album-bg-video {
+  display: none !important;
 }
 
 body.wallpaper-mode.wallpaper-style-2 #screen-lyrics {
@@ -185,6 +256,7 @@ body.wallpaper-mode.wallpaper-style-2 .wallpaper-style-art {
 body.wallpaper-mode .wallpaper-art-fallback {
   position: absolute;
   inset: 0;
+  z-index: 11;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -220,6 +292,14 @@ body.wallpaper-mode .wallpaper-track-artist {
   white-space: nowrap;
 }
 
+body.wallpaper-mode.wallpaper-style-2 .wallpaper-track-title {
+  font-weight: 700;
+}
+
+body.wallpaper-mode.wallpaper-style-2 .wallpaper-track-artist {
+  font-weight: 500;
+}
+
 body.wallpaper-mode.wallpaper-style-2 .lyrics-view {
   display: flex !important;
   position: relative !important;
@@ -250,50 +330,73 @@ body.wallpaper-mode.wallpaper-style-2 .lyric-line {
   padding: 18px 8px !important;
   opacity: 0.45 !important;
   color: #ffffff !important;
-  transition: opacity 0.4s ease, transform 0.4s ease, color 0.4s ease !important;
-  font-weight: 700 !important;
+  transition: opacity var(--lyric-line-duration, 0.35s) cubic-bezier(0.16, 1, 0.3, 1),
+              transform var(--lyric-line-duration, 0.35s) cubic-bezier(0.16, 1, 0.3, 1),
+              filter var(--lyric-line-duration, 0.35s) cubic-bezier(0.16, 1, 0.3, 1),
+              color 0.3s ease !important;
+  font-weight: inherit !important;
 }
 
 body.wallpaper-mode.wallpaper-style-2 .lyric-line.active {
   opacity: 1 !important;
   color: #ffffff !important;
-  font-weight: 800 !important;
+  font-family: var(--font-family), sans-serif !important;
+  font-weight: inherit !important;
   transform: scale(1.02) !important;
   text-shadow: 0 4px 30px rgba(0, 0, 0, 0.4) !important;
 }
 
 /* Override WBW highlight colors for Style 2 to keep it Apple Music themed (white) */
+body.wallpaper-mode.wallpaper-style-2.wbw-active .lyric-line.active {
+  text-shadow: none !important;
+}
+
 body.wallpaper-mode.wallpaper-style-2.wbw-active .lyric-line.active .lyric-word.lyric-word-passed,
 body.wallpaper-mode.wallpaper-style-2.wbw-active .lyric-line.active .lyric-word.lyric-word-completed {
-  background: none;
-  -webkit-text-fill-color: initial;
+  background: none !important;
+  -webkit-background-clip: border-box !important;
+  background-clip: border-box !important;
+  -webkit-text-fill-color: #ffffff !important;
   color: #ffffff !important;
-  opacity: 0.6 !important;
-  filter: none;
+  opacity: 1 !important;
+  transform: scale(1) translateY(0) !important;
+  text-shadow: 0 0 12px var(--highlight-glow, rgba(255, 255, 255, 0.4)), 0 1px 3px rgba(0, 0, 0, 0.25) !important;
+  font-family: inherit !important;
+  font-weight: inherit !important;
+  filter: none !important;
 }
 
 body.wallpaper-mode.wallpaper-style-2.wbw-active .lyric-line.active .lyric-word.lyric-word-active {
   background: linear-gradient(
     90deg,
-    #ffffff 0%,
-    #ffffff calc(var(--word-progress, 1) * 100%),
-    rgba(255, 255, 255, 0.4) calc(var(--word-progress, 1) * 100% + 4px),
-    rgba(255, 255, 255, 0.4) 100%
-  );
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+    var(--highlight-color, #ffffff) 0%,
+    var(--highlight-color, #ffffff) var(--word-progress-percent, calc(var(--word-progress, 0) * 100%)),
+    rgba(255, 255, 255, 0.45) calc(var(--word-progress-percent, calc(var(--word-progress, 0) * 100%)) + 3px),
+    rgba(255, 255, 255, 0.45) 100%
+  ) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  color: transparent !important;
   opacity: 1 !important;
-  transform: scale(1.05) translateY(-2px) translateZ(0) !important;
-  filter: drop-shadow(0 4px 16px rgba(0, 0, 0, 0.5));
+  font-family: inherit !important;
+  font-weight: inherit !important;
+  transform: scale(1) translateY(0) !important;
+  filter: none !important;
+  text-shadow: none !important;
 }
 
 body.wallpaper-mode.wallpaper-style-2.wbw-active .lyric-line.active .lyric-word.lyric-word-upcoming {
-  background: none;
-  -webkit-text-fill-color: initial;
-  color: rgba(255, 255, 255, 0.4) !important;
-  opacity: 0.4 !important;
-  filter: none;
+  background: none !important;
+  -webkit-background-clip: border-box !important;
+  background-clip: border-box !important;
+  -webkit-text-fill-color: rgba(255, 255, 255, 0.45) !important;
+  color: rgba(255, 255, 255, 0.45) !important;
+  opacity: 1 !important;
+  font-family: inherit !important;
+  font-weight: inherit !important;
+  filter: none !important;
+  text-shadow: none !important;
 }
 
 /* Style 3: Transparent Customizable Lyric Overlay */
@@ -363,7 +466,8 @@ body.wallpaper-style-3 .lyric-line {
 body.wallpaper-style-3 .lyric-line.active {
   opacity: 1 !important;
   color: var(--highlight-color, #ffffff) !important;
-  font-weight: 800 !important;
+  font-family: var(--font-family), sans-serif !important;
+  font-weight: 700 !important;
   transform: scale(1.05) !important;
   -webkit-text-stroke: 0 !important;
   text-shadow:
@@ -376,11 +480,15 @@ body.wallpaper-mode.wbw-active .lyric-line.active .lyric-word.lyric-word-passed,
 body.wallpaper-mode.wbw-active .lyric-line.active .lyric-word.lyric-word-completed {
   color: #ffffff !important;
   opacity: 0.7 !important;
+  font-family: inherit !important;
+  font-weight: 700 !important;
 }
 
 body.wallpaper-mode.wbw-active .lyric-line.active .lyric-word.lyric-word-active {
   color: #ffffff !important;
   opacity: 1 !important;
+  font-family: inherit !important;
+  font-weight: 700 !important;
   text-shadow:
     0 0 20px var(--highlight-glow, rgba(var(--art-color-1-rgb, 255, 255, 255), 0.8)),
     0 0 35px var(--highlight-glow, rgba(var(--art-color-1-rgb, 255, 255, 255), 0.5)),
@@ -391,6 +499,8 @@ body.wallpaper-mode.wbw-active .lyric-line.active .lyric-word.lyric-word-active 
 body.wallpaper-mode.wbw-active .lyric-line.active .lyric-word.lyric-word-upcoming {
   color: rgba(255, 255, 255, 0.6) !important;
   opacity: 0.35 !important;
+  font-family: inherit !important;
+  font-weight: 700 !important;
 }
 
 /* ==========================================================
@@ -403,14 +513,13 @@ body.wallpaper-mode.wallpaper-style-1.has-beat-bloom .lyric-line.active,
 body.wallpaper-mode.wallpaper-style-2.has-beat-bloom .lyric-line.active,
 body.wallpaper-mode.wallpaper-style-3.has-beat-bloom .lyric-line.active,
 body.wallpaper-style-3.has-beat-bloom .lyric-line.active {
-  transform: scale(var(--wb-beat-scale, 1.045)) !important;
+  transform: scale(var(--wb-beat-scale, 1.045)) translateZ(0) !important;
+  will-change: transform;
   text-shadow:
     0 0 var(--wb-bloom-glow, 16px) rgba(var(--art-color-1-rgb, 255, 255, 255), var(--wb-bloom-alpha, 0.75)),
     0 0 calc(var(--wb-bloom-glow, 16px) * 1.8) rgba(var(--art-color-2-rgb, 56, 189, 248), calc(var(--wb-bloom-alpha, 0.75) * 0.7)),
-    0 2px 24px rgba(0, 0, 0, 0.85),
-    0 0 16px rgba(0, 0, 0, 0.95),
-    0 4px 30px rgba(0, 0, 0, 0.5) !important;
-  transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.25, 1), text-shadow 0.28s cubic-bezier(0.2, 0.8, 0.25, 1) !important;
+    0 2px 24px rgba(0, 0, 0, 0.85) !important;
+  transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.25, 1) !important;
 }
 
 body.wallpaper-mode .lyric-word.lyric-word-active {
@@ -419,12 +528,20 @@ body.wallpaper-mode .lyric-word.lyric-word-active {
 
 body.wallpaper-mode.has-beat-bloom.wbw-active .lyric-line.active .lyric-word.lyric-word-active,
 body.wallpaper-mode.wallpaper-style-2.has-beat-bloom.wbw-active .lyric-line.active .lyric-word.lyric-word-active {
-  transform: scale(calc(var(--wb-beat-scale, 1.05) * 1.03)) translateY(-2px) !important;
+  transform: scale(calc(var(--wb-beat-scale, 1.05) * 1.03)) translateY(-2px) translateZ(0) !important;
+  will-change: transform;
   text-shadow:
     0 0 var(--wb-bloom-glow, 18px) rgba(var(--art-color-1-rgb, 255, 255, 255), var(--wb-bloom-alpha, 0.85)),
-    0 0 calc(var(--wb-bloom-glow, 18px) * 2.2) rgba(var(--art-color-2-rgb, 56, 189, 248), calc(var(--wb-bloom-alpha, 0.85) * 0.85)),
-    0 4px 22px rgba(0, 0, 0, 0.9) !important;
-  transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.25, 1), text-shadow 0.28s cubic-bezier(0.2, 0.8, 0.25, 1) !important;
+    0 2px 24px rgba(0, 0, 0, 0.85) !important;
+  transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.25, 1) !important;
+}
+
+/* Style 2's karaoke fill stays stationary like Split View. */
+body.wallpaper-mode.wallpaper-style-2.wbw-active .lyric-line.active .lyric-word.lyric-word-active,
+body.wallpaper-mode.wallpaper-style-2.has-beat-bloom.wbw-active .lyric-line.active .lyric-word.lyric-word-active {
+  transform: none !important;
+  transition: none !important;
+  text-shadow: none !important;
 }
 
 @media (max-width: 900px) {
@@ -466,6 +583,83 @@ body.wallpaper-mode #wallpaper-album-bg-video {
 
 body.wallpaper-mode.custom-bg-active #wallpaper-album-bg-video {
   display: none !important;
+}
+
+body.has-animated-art-video.wallpaper-mode #wallpaper-album-bg {
+  opacity: 1 !important;
+  display: block !important;
+  z-index: 0 !important;
+}
+
+body.has-animated-art-video.wallpaper-mode #wallpaper-album-bg-video {
+  display: block !important;
+  opacity: 0 !important;
+  z-index: 1 !important;
+  object-fit: cover !important;
+  filter: blur(18px) saturate(1.40) brightness(0.55) !important;
+  transform: scale(1.05) translate3d(0, 0, 0) !important;
+  transition: opacity 0.5s ease !important;
+  background-color: transparent !important;
+}
+
+body.has-animated-art-video.wallpaper-mode #wallpaper-album-bg-video.is-playing {
+  opacity: 0.85 !important;
+}
+
+body.has-animated-art-video.wallpaper-mode.wallpaper-style-2 #wallpaper-album-bg-video.is-playing {
+  opacity: 0.78 !important;
+  filter: blur(24px) saturate(1.45) brightness(0.48) !important;
+}
+
+body.has-animated-art-video.wallpaper-mode.wallpaper-style-2 #wallpaper-album-bg-video,
+body.has-animated-art-video.wallpaper-mode.wallpaper-style-2 #wallpaper-album-bg-video.is-playing {
+  display: none !important;
+  opacity: 0 !important;
+}
+
+body.has-animated-art-video.wallpaper-mode.wallpaper-style-2 #wallpaper-style-art {
+  opacity: 1 !important;
+  display: block !important;
+  z-index: 1 !important;
+}
+
+body.has-animated-art-video.wallpaper-mode.wallpaper-style-2 #wallpaper-style-art-video {
+  display: block !important;
+  opacity: 0 !important;
+  z-index: 10 !important;
+  transition: opacity 0.35s ease;
+  background-color: transparent !important;
+}
+
+body.has-animated-art-video.wallpaper-mode.wallpaper-style-2 #wallpaper-style-art-video.is-playing {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+/* Tall motion artwork becomes the Wallpaper Mode cover, with track details
+   layered legibly over its lower edge. Static artwork keeps the square layout. */
+body.has-animated-art-video.wallpaper-mode.wallpaper-style-2 .wallpaper-now-playing {
+  position: relative !important;
+  align-self: center !important;
+}
+
+body.has-animated-art-video.wallpaper-mode.wallpaper-style-2 .wallpaper-art-shell {
+  aspect-ratio: 3 / 4 !important;
+  max-height: 72vh !important;
+  border-radius: 24px !important;
+}
+
+body.has-animated-art-video.wallpaper-mode.wallpaper-style-2 .wallpaper-track-meta {
+  position: absolute !important;
+  z-index: 12 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  margin: 0 !important;
+  padding: 68px 22px 22px !important;
+  border-radius: 0 0 24px 24px !important;
+  background: linear-gradient(to bottom, transparent, rgba(0,0,0,.82)) !important;
+  text-shadow: 0 2px 14px rgba(0,0,0,.75) !important;
 }
 
 /* ==========================================================
@@ -557,8 +751,8 @@ body.wallpaper-mode.wallpaper-style-cinematic #cinematic-main-canvas {
 
 .wallpaper-selector-glass {
   background: rgba(18, 18, 24, 0.85);
-  backdrop-filter: blur(36px) saturate(200%);
-  -webkit-backdrop-filter: blur(36px) saturate(200%);
+  backdrop-filter: blur(18px) saturate(165%);
+  -webkit-backdrop-filter: blur(18px) saturate(165%);
   border: 1.5px solid rgba(255, 255, 255, 0.18);
   border-radius: 20px;
   padding: 10px 16px;
@@ -630,3 +824,41 @@ body.wallpaper-mode.wallpaper-style-cinematic #cinematic-main-canvas {
   box-shadow: 0 0 16px rgba(29, 185, 84, 0.45);
 }
 
+/* Keep the selected fluid mesh visible over animated full-screen artwork.
+   The art video stays the backdrop; the translucent mesh supplies its moving
+   color field instead of being hidden behind an opaque video surface. */
+body.wallpaper-mode.bg-style-fluid.has-animated-art-video:not(.wallpaper-style-2):not(.wallpaper-style-cinematic) #wallpaper-album-bg-video {
+  z-index: 0 !important;
+}
+
+body.wallpaper-mode.bg-style-fluid.has-animated-art-video:not(.wallpaper-style-2):not(.wallpaper-style-cinematic) .fluid-mesh-canvas {
+  z-index: 1;
+  opacity: calc(var(--glow-intensity, 1) * 0.56) !important;
+}
+
+/* Let the mesh and motion art read through the full-screen lyric surface. */
+body.wallpaper-mode.bg-style-fluid.has-animated-art-video:not(.wallpaper-style-2):not(.wallpaper-style-cinematic) .app-container {
+  background:
+    radial-gradient(ellipse at center, rgba(var(--art-color-1-rgb, 40, 40, 50), 0.10), transparent 58%),
+    rgba(5, 5, 7, 0.24) !important;
+  backdrop-filter: blur(14px) saturate(1.35) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(1.35) !important;
+}
+
+/* Fluid WebGL Mesh Background in Wallpaper Mode (Style 2 & Non-Cinematic) */
+body.wallpaper-mode.bg-style-fluid .fluid-mesh-canvas {
+  display: block !important;
+  visibility: visible !important;
+  opacity: calc(var(--glow-intensity, 1) * 0.95) !important;
+  z-index: 0 !important;
+}
+
+body.wallpaper-mode.bg-style-fluid.wallpaper-style-2 .wallpaper-album-bg {
+  opacity: 0.28 !important;
+}
+
+body.wallpaper-mode.bg-style-fluid.wallpaper-style-2 .app-container {
+  background:
+    radial-gradient(ellipse at center, rgba(var(--art-color-1-rgb, 40, 40, 50), 0.10), transparent 58%),
+    rgba(5, 5, 7, 0.22) !important;
+}

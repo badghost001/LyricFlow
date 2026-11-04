@@ -17,7 +17,7 @@
   'use strict';
 
   const FONT_FAMILIES = {
-    serifNarrative: '"Fraunces", "Playfair Display", Georgia, "Times New Roman", serif',
+    serifNarrative: '"Fraunces", "Bodoni Moda", "Playfair Display", Georgia, "Times New Roman", serif',
     serifDisplay: '"Playfair Display", "Fraunces", "Bodoni Moda", "Cinzel", Georgia, serif',
     metaSans: '"Inter", "Outfit", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
   };
@@ -247,6 +247,15 @@
 
     const targetMaxW = (typeof optMaxW === 'number') ? optMaxW : bounds.width * 0.86;
     let actualFontSize = options.actualFontSize || initFontSize;
+    if (!options.actualFontSize) {
+      if (words.length === 1) {
+        actualFontSize = Math.max(54, Math.min(130, Math.round(safeH * 0.38)));
+      } else if (words.length === 2) {
+        actualFontSize = Math.max(46, Math.min(105, Math.round(safeH * 0.30)));
+      } else if (words.length === 3) {
+        actualFontSize = Math.max(40, Math.min(88, Math.round(safeH * 0.24)));
+      }
+    }
     const hasPunchWord = words.some(w => w && (w.isPunchWord || (w.scaleMultiplier && w.scaleMultiplier > 1.05)));
     let lineHeightMultiplier = hasPunchWord ? 1.60 : 1.45;
     let lineHeight = options.lineHeight || initLineHeight || Math.round(actualFontSize * lineHeightMultiplier);
@@ -337,27 +346,58 @@
         currentX += Math.round(fullW + (hasSpace ? wordSpaceW : 0));
 
         const em = computeWordEmergence(w, currentTimeMs, { reducedMotion });
-        if (!em.isVisible) continue;
+        const isPreEmergence = !em.isVisible;
+        const prevWord = j > 0 ? line.words[j - 1] : null;
+        const prevEnd = prevWord ? (typeof prevWord.endMs === 'number' ? prevWord.endMs : (prevWord.timeMs + 400)) : 0;
+        const hasLargeInterWordGap = prevWord && ((w.timeMs - prevEnd) >= 450);
+        const isDistantWord = (typeof w.timeMs === 'number' && typeof currentTimeMs === 'number') && ((w.timeMs - currentTimeMs) > 400);
+        if (isPreEmergence && (hasLargeInterWordGap || options.wordAppearance === 'appear') && isDistantWord) {
+          continue;
+        }
 
         ctx.font = fontToUse;
         ctx.save();
 
         const wordCenterX = Math.round(wordBaseX + fullW / 2);
-        const yOffset = reducedMotion ? 0 : Math.round(em.yOffset);
+        const yOffset = (reducedMotion || isPreEmergence) ? 0 : Math.round(em.yOffset);
         // Shared typographic baseline: baseline offset lifts larger punch words so baseline aligns seamlessly
         const baselineOffset = Math.round((fontMeta.fontSize - actualFontSize) * 0.22);
         const wordCenterY = Math.round(lineY - baselineOffset - yOffset);
         ctx.translate(wordCenterX, wordCenterY);
 
-        const wordAlpha = Math.min(1.0, Math.max(0.0, fadeAlpha * em.opacity));
+        const wordAlpha = Math.min(1.0, Math.max(0.0, fadeAlpha * (isPreEmergence ? 0.38 : em.opacity)));
         ctx.globalAlpha = wordAlpha;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
 
         if (em.isCurrent) {
-          // Active singing word: pure brilliant text color
-          ctx.fillStyle = palette.textColor;
-          ctx.fillText(w.text, 0, 0);
+          // Active singing word: progressive karaoke highlight sweep (matching implementation.mp4)
+          const dur = Math.max(1, (typeof w.endMs === 'number' ? w.endMs : (w.timeMs + 400)) - w.timeMs);
+          const p = Math.min(1.0, Math.max(0.0, (currentTimeMs - w.timeMs) / dur));
+          const wLeft = -fullW / 2;
+
+          const baseAlpha = isPreEmergence ? 0.35 : (0.45 + 0.45 * em.factor);
+          const mutedColorStr = (palette && palette.textRgb)
+            ? `rgba(${palette.textRgb.r}, ${palette.textRgb.g}, ${palette.textRgb.b}, ${(baseAlpha * 0.85).toFixed(3)})`
+            : (palette.mutedTextColor || 'rgba(255, 255, 255, 0.40)');
+
+          if (typeof ctx.createLinearGradient === 'function') {
+            try {
+              const grad = ctx.createLinearGradient(wLeft, 0, wLeft + fullW, 0);
+              grad.addColorStop(0, palette.textColor);
+              grad.addColorStop(Math.min(1.0, Math.max(0.0, p)), palette.textColor);
+              grad.addColorStop(Math.min(1.0, Math.max(0.0, p + 0.001)), mutedColorStr);
+              grad.addColorStop(1.0, mutedColorStr);
+              ctx.fillStyle = grad;
+              ctx.fillText(w.text, 0, 0);
+            } catch (_) {
+              ctx.fillStyle = palette.textColor;
+              ctx.fillText(w.text, 0, 0);
+            }
+          } else {
+            ctx.fillStyle = palette.textColor;
+            ctx.fillText(w.text, 0, 0);
+          }
         } else if (em.isSung) {
           // Already sung word: stable secondary illumination
           const sungAlpha = (fontMeta.isEmp || fontMeta.isPunch) ? 0.95 : 0.85;
@@ -366,8 +406,8 @@
             : palette.textColor;
           ctx.fillText(w.text, 0, 0);
         } else {
-          // Emerging word: gentle luminous arrival with opacity ramp
-          const a = 0.50 + 0.50 * em.factor;
+          // Emerging or upcoming resting word: gentle luminous arrival with opacity ramp
+          const a = isPreEmergence ? 0.38 : (0.50 + 0.50 * em.factor);
           ctx.fillStyle = (palette && palette.textRgb)
             ? `rgba(${palette.textRgb.r}, ${palette.textRgb.g}, ${palette.textRgb.b}, ${(a * 0.9).toFixed(3)})`
             : palette.textColor;
@@ -767,15 +807,11 @@
             : ((palette && palette.textRgb) ? `rgba(${palette.textRgb.r}, ${palette.textRgb.g}, ${palette.textRgb.b}, 0.88)` : palette.textColor);
 
           ctx.textAlign = 'left';
-          const isCinematicMode = Boolean(
-            options.isCinematic ||
-            (options.scene && options.scene.isCinematic) ||
-            options.wordAppearance === 'appear'
-          );
+          const isAppearMode = Boolean(options.wordAppearance === 'appear');
 
-          if (isCinematicMode) {
+          if (isAppearMode) {
             if (isCurrent) {
-              // Cinematic word appear: discrete luminous illumination with subtle emergence (not progressive completing/filling)
+              // Word appear: discrete luminous illumination
               const dur = Math.max(1, wordEnd - w.timeMs);
               const elapsed = currentTimeMs - w.timeMs;
               const appearDur = Math.min(90, Math.max(30, dur * 0.2));
@@ -803,7 +839,7 @@
             }
           } else {
             if (isCurrent) {
-              // Active word: progressive sweep + luminous highlight
+              // Active word: progressive sweep + luminous highlight (matching implementation.mp4)
               const dur = Math.max(1, wordEnd - w.timeMs);
               const p = Math.min(1.0, Math.max(0.0, (currentTimeMs - w.timeMs) / dur));
 
@@ -925,18 +961,22 @@
 
     let isLit = true;
     let litRatio = 1.0;
+    let isSecLit = true;
     if (Array.isArray(words) && words.length > 0 && typeof currentTimeMs === 'number') {
       const firstStart = words[0].timeMs;
-      if (typeof firstStart === 'number') {
-        if (currentTimeMs < firstStart) {
-          isLit = false;
-          litRatio = 0.0;
-        } else {
-          const litDur = 180;
-          const litElapsed = currentTimeMs - firstStart;
-          litRatio = Math.min(1.0, Math.max(0.0, litElapsed / litDur));
-          isLit = litRatio >= 0.99;
-        }
+      const punchWordObj = words.find(w => w.text && w.text.trim().toUpperCase() === upperText) || words[words.length - 1];
+      const pStart = (punchWordObj && typeof punchWordObj.timeMs === 'number') ? punchWordObj.timeMs : firstStart;
+      const pEnd = (punchWordObj && typeof punchWordObj.endMs === 'number') ? punchWordObj.endMs : (pStart + 400);
+
+      isSecLit = currentTimeMs >= (firstStart - 80);
+      if (currentTimeMs < pStart) {
+        isLit = false;
+        litRatio = 0.0;
+      } else {
+        const litDur = 180;
+        const litElapsed = currentTimeMs - pStart;
+        litRatio = Math.min(1.0, Math.max(0.0, litElapsed / litDur));
+        isLit = litRatio >= 0.98;
       }
     }
 
@@ -952,7 +992,7 @@
 
     if (secondaryText) {
       ctx.font = `italic 400 ${secSize}px ${FONT_FAMILIES.serifNarrative}`;
-      ctx.fillStyle = isLit ? (palette.subtitleColor || palette.textColor) : mutedColor;
+      ctx.fillStyle = isSecLit ? (palette.subtitleColor || palette.textColor) : mutedColor;
       const secY = secondaryPosition === 'above' ? cy - secYOffset : cy + secYOffset;
       ctx.fillText(secondaryText.toLowerCase(), cx, secY);
     }

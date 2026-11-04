@@ -112,13 +112,14 @@ console.log('\n--- Running Cinematic Dynamic Typography & GPU Optimization Tests
 // ==========================================
 console.log('1. GPU & Resource Hotspot Elimination:');
 
-test('1a. FluidMeshGradient renders at native compositor cadence while playing and throttles to 15 FPS paused (64ms)', () => {
+test('1a. FluidMeshGradient caps decorative rendering at 45 FPS playing and 15 FPS paused', () => {
   const meshPath = path.join(__dirname, '../src/modules/fluid-mesh.js');
   const meshCode = fs.readFileSync(meshPath, 'utf8');
 
-  assert.ok(meshCode.includes('this._minFrameInterval = 0;'), 'Must default to unthrottled native compositor cadence');
-  assert.ok(meshCode.includes('this._minFrameInterval = this.isPlaying ? 0 : 64;'), 'Must render at native cadence when playing and throttle to 64ms when paused');
-  assert.ok(meshCode.includes('if (!this.isPlaying && this._minFrameInterval > 0)'), 'Must skip frame dispatch only when paused/inactive');
+  assert.ok(meshCode.includes('this._targetFps = 45;'), 'Must default to a 45 FPS rendering target');
+  assert.ok(meshCode.includes('this._targetFps = this.isPlaying ? 45 : 15;'), 'Must cap at 45 FPS while playing and 15 FPS while paused');
+  assert.ok(meshCode.includes('this._minFrameInterval = 1000 / this._targetFps;'), 'Must derive the minimum render interval from the target frame rate');
+  assert.ok(meshCode.includes('if (this._minFrameInterval > 0)'), 'Must skip redundant GPU draws when the frame interval has not elapsed');
 });
 
 test('1b. FluidMeshGradient clamps canvas dimensions to maximum 540x320 to avoid 4K GPU fill-rate spikes', () => {
@@ -134,8 +135,9 @@ test('1c. src/renderer.js stops FluidMeshGradient on entering Cinematic View and
   const rendererCode = fs.readFileSync(rendererPath, 'utf8').replace(/\r\n/g, '\n');
 
   assert.ok(rendererCode.includes('if (isCinematicView) {\n    if (fluidMeshGradientInstance) {\n      fluidMeshGradientInstance.stop();'), 'Must stop fluid mesh when entering cinematic view');
-  assert.ok(rendererCode.includes('if (shouldRunMesh && !isCinematicView)'), 'applyVisualSettings must guard fluid mesh on !isCinematicView');
-  assert.ok(rendererCode.includes('if (fluidMeshGradientInstance && !isCinematicView && !isDynamicIslandMode'), 'visibilitychange must guard fluid mesh on !isCinematicView');
+  assert.ok(rendererCode.includes('function shouldRunFluidMesh()') && rendererCode.includes('!isCinematicView'), 'The shared fluid mesh gate must exclude cinematic rendering');
+  assert.ok(rendererCode.includes('if (shouldRunFluidMesh())'), 'applyVisualSettings must use the shared fluid mesh mode gate');
+  assert.ok(rendererCode.includes('fluidMeshGradientInstance && shouldRunFluidMesh()'), 'mode transitions and visibility changes must use the shared mesh gate');
 });
 
 test('1d. CSS enforces display: none on #fluid-mesh-canvas when .cinematic-view-active is set', () => {

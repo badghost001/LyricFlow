@@ -288,6 +288,164 @@
   pointer-events: none !important;
 }
 
+/* Screenshot-led first run mode picker */
+#screen-onboarding.active {
+  display: flex !important;
+  overflow: auto;
+  padding: 0 !important;
+  color: #f5f6fb;
+  background:
+    radial-gradient(ellipse 70% 60% at 10% 0%, rgba(var(--accent-primary-rgb, 29, 185, 84), .2), transparent 70%),
+    radial-gradient(ellipse 60% 70% at 100% 100%, rgba(100, 88, 220, .16), transparent 68%),
+    #090a10 !important;
+}
+
+#screen-onboarding .onboarding-shell {
+  width: min(100%, 1120px);
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 42px 36px 32px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+#screen-onboarding .onboarding-title {
+  margin: 0 0 8px;
+  color: #f8f9fc;
+  font-size: clamp(28px, 4vw, 38px);
+  letter-spacing: -.04em;
+}
+
+#screen-onboarding .onboarding-intro {
+  max-width: 620px;
+  margin: 0 0 24px;
+  color: rgba(238, 241, 250, .68);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+#screen-onboarding .onboarding-mode-grid {
+  max-width: 760px !important;
+  gap: 16px !important;
+}
+
+#screen-onboarding .onboarding-mode-grid .onboarding-card {
+  min-height: 292px !important;
+  padding: 12px !important;
+  align-items: stretch !important;
+  justify-content: flex-start !important;
+  overflow: hidden;
+  text-align: left;
+}
+
+#screen-onboarding .onboarding-mode-preview-frame {
+  position: relative;
+  width: 100%;
+  height: 146px;
+  flex: 0 0 146px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, .28);
+  border: 1px solid rgba(255, 255, 255, .1);
+  border-radius: 11px;
+}
+
+#screen-onboarding .onboarding-mode-preview,
+#screen-onboarding .onboarding-mode-preview-video {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+
+#screen-onboarding .onboarding-mode-preview-video {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .16s ease;
+}
+
+#screen-onboarding .onboarding-mode-preview-frame.is-playing .onboarding-mode-preview-video {
+  opacity: 1;
+}
+
+#screen-onboarding .onboarding-mode-preview-frame + div { display: none !important; }
+
+#screen-onboarding .onboarding-preview-hint {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  z-index: 1;
+  padding: 5px 8px;
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 999px;
+  color: rgba(255, 255, 255, .9);
+  background: rgba(8, 10, 15, .72);
+  font-size: 10px;
+  line-height: 1;
+  opacity: .9;
+  transition: opacity .16s ease;
+  pointer-events: none;
+}
+
+#screen-onboarding .onboarding-mode-preview-frame.is-playing .onboarding-preview-hint {
+  opacity: 0;
+}
+
+#screen-onboarding .onboarding-mode-grid .onboarding-card h3 {
+  height: auto !important;
+  justify-content: flex-start !important;
+  margin: 14px 2px 4px !important;
+  font-size: 16px !important;
+  letter-spacing: -.02em;
+}
+
+#screen-onboarding .onboarding-mode-grid .onboarding-card p {
+  height: auto !important;
+  min-height: 34px !important;
+  flex-grow: 0 !important;
+  justify-content: flex-start !important;
+  margin: 0 2px !important;
+  text-align: left !important;
+  font-size: 12px !important;
+  line-height: 1.45 !important;
+}
+
+#screen-onboarding .onboarding-mode-grid .ob-card-badge {
+  height: 32px !important;
+  flex: 0 0 32px;
+  margin: auto 0 0 !important;
+}
+
+@media (max-width: 620px) {
+  #screen-onboarding .onboarding-shell { justify-content: flex-start; padding: 54px 16px 24px; }
+  #screen-onboarding .onboarding-mode-grid { grid-template-columns: 1fr !important; max-width: 430px !important; }
+  #screen-onboarding .onboarding-mode-grid .onboarding-card { min-height: 250px !important; }
+  #screen-onboarding .onboarding-mode-preview-frame { height: 120px; flex-basis: 120px; }
+  #screen-onboarding .onboarding-source-grid {
+    flex-direction: column !important;
+    align-items: stretch;
+    max-width: 430px !important;
+  }
+  #screen-onboarding .onboarding-source-grid .onboarding-card {
+    max-width: none !important;
+    min-width: 0;
+  }
+  #screen-onboarding .onboarding-tips-grid { grid-template-columns: 1fr !important; max-width: 430px !important; }
+  #screen-onboarding .onboarding-actions { flex-wrap: wrap; max-width: 100%; }
+  #screen-onboarding .onboarding-actions button { max-width: 100%; }
+}
+
+#screen-onboarding .onboarding-card[role="button"]:focus-visible {
+  outline: 2px solid var(--accent-primary, #1DB954);
+  outline-offset: 3px;
+}
+
 .btn-primary {
   background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-bright) 100%);
   color: #ffffff;

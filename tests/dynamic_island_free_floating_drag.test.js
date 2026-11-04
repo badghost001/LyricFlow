@@ -9,14 +9,11 @@ const htmlPath = path.join(__dirname, '../src/index.html');
 const htmlContent = fs.readFileSync(htmlPath, 'utf8');
 
 assert(
-  htmlContent.includes('data-val="free"'),
-  'index.html must include free segment button in select-island-position liquid bar'
-);
-assert(
-  htmlContent.includes('<option value="free">free</option>'),
+  htmlContent.includes('id="island-dock-position-control"') &&
+  htmlContent.includes('<option value="free">Free floating</option>'),
   'index.html must include free option in select-island-position dropdown'
 );
-console.log('  ✓ 1. Static HTML defines Free-Floating dock option in settings liquid bar and select menu');
+console.log('  ✓ 1. Static HTML defines the Free-Floating option in the Dynamic Island dock select menu');
 
 // 2. CSS Styling & Grab Cursor Verification
 const cssPath = path.join(__dirname, '../src/styles/_dynamic_island.css');

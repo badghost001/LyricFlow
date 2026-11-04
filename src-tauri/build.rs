@@ -1,3 +1,4 @@
 fn main() {
-  tauri_build::build()
+    println!("cargo:rerun-if-changed=../src");
+    tauri_build::build();
 }

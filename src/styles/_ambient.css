@@ -5,12 +5,12 @@
   left: 0;
   width: 100vw;
   height: 100vh;
-  z-index: -2;
+  z-index: 0;
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1);
-  contain: strict;
   will-change: opacity;
+  transform: translate3d(0, 0, 0);
 }
 
 body.bg-style-fluid .fluid-mesh-canvas {
@@ -45,7 +45,7 @@ body.app-paused .fluid-mesh-canvas {
   opacity: calc(var(--glow-intensity, 1) * 0.65);
 }
 
-body.window-blurred .fluid-mesh-canvas {
+body.window-blurred:not(.is-playing) .fluid-mesh-canvas {
   opacity: 0.35 !important;
 }
 
@@ -108,6 +108,15 @@ body.app-paused .ambient-glow {
 body.window-blurred .glow-orb {
   animation-play-state: paused !important;
   opacity: 0.12 !important;
+}
+
+body.mode-dynamic-island .ambient-glow,
+body.mode-dynamic-island .glow-orb,
+body.taskbar-mode .ambient-glow,
+body.taskbar-mode .glow-orb,
+body.app-paused .ambient-glow,
+body.app-paused .glow-orb {
+  animation-play-state: paused !important;
 }
 
 

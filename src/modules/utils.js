@@ -9,6 +9,18 @@
     if (fontLink && fontLink.media !== 'all') {
       fontLink.media = 'all';
     }
+    if (typeof document !== 'undefined' && document.fonts && typeof document.fonts.load === 'function') {
+      Promise.all([
+        document.fonts.load('400 36px "Fraunces"'),
+        document.fonts.load('700 48px "Fraunces"'),
+        document.fonts.load('700 72px "Bodoni Moda"'),
+        document.fonts.load('400 36px "Bodoni Moda"')
+      ]).then(() => {
+        if (typeof window !== 'undefined' && window.cinematicMainRendererInstance && typeof window.cinematicMainRendererInstance.renderFrame === 'function') {
+          window.cinematicMainRendererInstance.renderFrame(window.cinematicMainRendererInstance.currentTimeMs || 0);
+        }
+      }).catch(() => {});
+    }
   }
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', enableFontStyles, { once: true });
@@ -78,6 +90,26 @@ const DEFAULT_FLUID_PALETTE = [
 
 const _colorDataCache = new Map();
 const _colorDataPromises = new Map();
+const COLOR_DATA_CACHE_LIMIT = 50;
+
+function getCachedColorData(imgUrl) {
+  if (!_colorDataCache.has(imgUrl)) return null;
+  const value = _colorDataCache.get(imgUrl);
+  // Map insertion order acts as the LRU list: recently read values move to end.
+  _colorDataCache.delete(imgUrl);
+  _colorDataCache.set(imgUrl, value);
+  return value;
+}
+
+function setCachedColorData(imgUrl, data) {
+  _colorDataCache.delete(imgUrl);
+  _colorDataCache.set(imgUrl, data);
+  while (_colorDataCache.size > COLOR_DATA_CACHE_LIMIT) {
+    const leastRecentlyUsed = _colorDataCache.keys().next().value;
+    if (leastRecentlyUsed === undefined) break;
+    _colorDataCache.delete(leastRecentlyUsed);
+  }
+}
 
 function hslToRgb(h, s, l) {
   let r, g, b;
@@ -677,9 +709,8 @@ async function extractColorData(imgUrl) {
   if (!imgUrl) {
     return { dominant: DEFAULT_DOMINANT_COLOR, palette: DEFAULT_FLUID_PALETTE };
   }
-  if (_colorDataCache.has(imgUrl)) {
-    return _colorDataCache.get(imgUrl);
-  }
+  const cachedColorData = getCachedColorData(imgUrl);
+  if (cachedColorData) return cachedColorData;
   if (_colorDataPromises.has(imgUrl)) {
     return _colorDataPromises.get(imgUrl);
   }
@@ -689,27 +720,43 @@ async function extractColorData(imgUrl) {
 
     if (imgUrl.startsWith('http://') || imgUrl.startsWith('https://')) {
       if (window.electronAPI && typeof window.electronAPI.fetchImageDataUrl === 'function') {
+        let fetchTimeoutId = null;
         try {
-          const dataUrl = await window.electronAPI.fetchImageDataUrl(imgUrl);
+          const dataUrl = await Promise.race([
+            window.electronAPI.fetchImageDataUrl(imgUrl),
+            new Promise(resolve => {
+              fetchTimeoutId = setTimeout(() => resolve(null), 8000);
+            })
+          ]);
           if (dataUrl) targetUrl = dataUrl;
         } catch (err) {
           console.warn('[Utils] fetchImageDataUrl fallback to direct load:', err);
+        } finally {
+          if (fetchTimeoutId) clearTimeout(fetchTimeoutId);
         }
       }
     }
 
     return new Promise((resolve) => {
       let resolved = false;
-      const done = (data) => {
+      let imageTimeoutId = null;
+      let img = null;
+      const done = (data, cacheResult = true) => {
         if (!resolved) {
           resolved = true;
-          _colorDataCache.set(imgUrl, data);
+          if (imageTimeoutId) clearTimeout(imageTimeoutId);
+          if (img) {
+            img.onload = null;
+            img.onerror = null;
+            if (!cacheResult) img.removeAttribute('src');
+          }
+          if (cacheResult) setCachedColorData(imgUrl, data);
           _colorDataPromises.delete(imgUrl);
           resolve(data);
         }
       };
 
-      const img = new Image();
+      img = new Image();
       if (!targetUrl.startsWith('data:')) {
         img.crossOrigin = "Anonymous";
       }
@@ -728,20 +775,29 @@ async function extractColorData(imgUrl) {
           done(result);
         } catch (e) {
           console.warn('[Utils] Failed analyzing artwork pixels:', e);
-          done({ dominant: DEFAULT_DOMINANT_COLOR, palette: DEFAULT_FLUID_PALETTE });
+          done({ dominant: DEFAULT_DOMINANT_COLOR, palette: DEFAULT_FLUID_PALETTE }, false);
         }
       };
 
       img.onerror = () => {
-        done({ dominant: DEFAULT_DOMINANT_COLOR, palette: DEFAULT_FLUID_PALETTE });
+        // Network failures are often temporary. Avoid pinning the fallback
+        // palette in the LRU cache so the next track change can retry the art.
+        done({ dominant: DEFAULT_DOMINANT_COLOR, palette: DEFAULT_FLUID_PALETTE }, false);
       };
 
+      imageTimeoutId = setTimeout(() => {
+        done({ dominant: DEFAULT_DOMINANT_COLOR, palette: DEFAULT_FLUID_PALETTE }, false);
+      }, 12000);
       img.src = targetUrl;
       if (img.complete && img.naturalWidth > 0) {
         img.onload();
       }
     });
-  })();
+  })().catch((err) => {
+    console.warn('[Utils] Artwork palette extraction failed:', err);
+    _colorDataPromises.delete(imgUrl);
+    return { dominant: DEFAULT_DOMINANT_COLOR, palette: DEFAULT_FLUID_PALETTE };
+  });
 
   _colorDataPromises.set(imgUrl, promise);
   return promise;

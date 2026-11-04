@@ -26,7 +26,7 @@ function isLyricMetadataOrCreditLine(text) {
   if (chineseSingleRegex.test(t)) return true;
 
   // 5. English contributor credit phrases
-  const englishPrefixRegex = /^\s*(written\s+by|lyrics?\s+by|composed?\s+by|produced?\s+by|arranged?\s+by|mixed?\s+by|mastered?\s+by|recorded?\s+by|engineered?\s+by|published?\s+by|released?\s+by|remixed?\s+by|performed?\s+by|songwriters?:|lyricists?:|composers?:|producers?:|arrangers?:|audio\s+engineers?:|mixing\s+engineers?:|mastering\s+engineers?:|vocal\s+producers?:)/i;
+  const englishPrefixRegex = /^\s*(written\s+by|lyrics?\s+by|composed?\s+by|produced?\s+by|arranged?\s+by|mixed?\s+by|mastered?\s+by|recorded?\s+by|engineered?\s+by|published?\s+by|released?\s+by|remixed?\s+by|performed?\s+by|songwriters?:|writers?:|samples?:|sampled\s+from:|lyricists?:|composers?:|producers?:|arrangers?:|audio\s+engineers?:|mixing\s+engineers?:|mastering\s+engineers?:|vocal\s+producers?:)/i;
   if (englishPrefixRegex.test(t)) return true;
 
   // 6. English role words followed by colon
@@ -147,6 +147,20 @@ function parseLRC(lrcText) {
   const lines = lrcText.split('\n');
   const parsed = [];
   const tagTimeRegex = /\[(\d{1,2}):(\d{2})(?:[.:](\d{2,3}))?\]/g;
+
+  // LRCLIB and some provider fallbacks return plain text rather than LRC.
+  // Keep those lyrics visible with the unsynced sentinel instead of returning
+  // an empty list and making the UI report that no lyrics exist.
+  if (!tagTimeRegex.test(lrcText)) {
+    return lines
+      .map((line) => line
+        .replace(/^\s*\[(?:ti|ar|al|by|offset|length|re|ve):[^\]]*\]\s*/ig, '')
+        .replace(/^\s*\[(?:\d{1,2}:\d{2}(?:[.:]\d{2,3})?)\]/, '')
+        .trim())
+      .map(cleanLyricText)
+      .filter((text) => text && !isLyricMetadataOrCreditLine(text) && !/^\[[^\]]+\]$/.test(text))
+      .map((text) => ({ timeMs: 9999999, text }));
+  }
 
   for (const line of lines) {
     const trimmed = line.trim();
@@ -319,9 +333,11 @@ function parseLRC(lrcText) {
         .replace(/\[(\d{1,2}):(\d{2})(?:[.:](\d{2,3}))?\]/g, '');
 
       // R4: Before collapsing multiple spaces, detect brackets preceded by 2+ spaces or a tab
-      const secBracketMatch = rawClean.match(/^(.*?)(?:[ \t]{2,}|\t)([\(\[\{（【][^\(\[\]\)\}）】]+[\)\]\}）】])\s*$/);
+      const secBracketMatch = rawClean.match(/^(.*?)(?:[ \t]{2,}|\t)((?:\([^()]+\)|\[[^\[\]]+\]|\{[^{}]+\})(?:[ \t]*(?:\([^()]+\)|\[[^\[\]]+\]|\{[^{}]+\}))*)\s*$/)
+        || rawClean.match(/^(.*?)(?:[ \t]{2,}|\t)([\(\[\{（【][^\(\[\]\)\}）】]+[\)\]\}）】])\s*$/);
       let cleanText = '';
       let subText = undefined;
+      let backingWords = undefined;
       let primaryWords = words;
 
       if (secBracketMatch) {
@@ -349,6 +365,7 @@ function parseLRC(lrcText) {
           }
           if (splitIdx > 0) {
             primaryWords = words.slice(0, splitIdx);
+            backingWords = words.slice(splitIdx);
           }
         }
       } else {
@@ -362,7 +379,11 @@ function parseLRC(lrcText) {
             text: cleanWordPunctuation(w.text)
           }));
           const lineEntry = { timeMs, text: cleanText, words: lineWords };
-          if (subText) lineEntry.subText = subText;
+          if (subText) {
+            lineEntry.subText = subText; // legacy compatibility; migrated at fetch time
+            lineEntry.backingText = subText;
+          }
+          if (backingWords?.length) lineEntry.backingWords = backingWords;
           parsed.push(lineEntry);
         }
       }
@@ -472,9 +493,11 @@ function parseLyricsPlus(data) {
     }
 
     // R4: Before collapsing multiple spaces, detect brackets preceded by 2+ spaces or a tab
-    const secBracketMatch = text.match(/^(.*?)(?:[ \t]{2,}|\t)([\(\[\{（【][^\(\[\]\)\}）】]+[\)\]\}）】])\s*$/);
+    const secBracketMatch = text.match(/^(.*?)(?:[ \t]{2,}|\t)((?:\([^()]+\)|\[[^\[\]]+\]|\{[^{}]+\})(?:[ \t]*(?:\([^()]+\)|\[[^\[\]]+\]|\{[^{}]+\}))*)\s*$/)
+      || text.match(/^(.*?)(?:[ \t]{2,}|\t)([\(\[\{（【][^\(\[\]\)\}）】]+[\)\]\}）】])\s*$/);
     let lineSubText = typeof line.subText === 'string' ? line.subText.trim() : undefined;
     let primaryWords = words;
+    let backingWords = undefined;
 
     if (secBracketMatch) {
       text = secBracketMatch[1].trim();
@@ -499,6 +522,7 @@ function parseLyricsPlus(data) {
         }
         if (splitIdx > 0) {
           primaryWords = words.slice(0, splitIdx);
+          backingWords = words.slice(splitIdx);
         }
       }
     } else {
@@ -506,7 +530,12 @@ function parseLyricsPlus(data) {
     }
 
     const result = { timeMs: lineTimeMs, text, words: primaryWords };
+    const rawSinger = line.singer || line.agent || line.vocalist || line.voice;
+    if (rawSinger) result.singer = String(rawSinger).trim();
     if (lineSubText) result.subText = lineSubText;
+    if (secBracketMatch) result.backingText = secBracketMatch[2].trim();
+    else if (typeof line.backingText === 'string' && line.backingText.trim()) result.backingText = line.backingText.trim();
+    if (backingWords?.length) result.backingWords = backingWords;
     return result;
   }).filter(l => l.text !== "" && !isLyricMetadataOrCreditLine(l.text));
 }
@@ -597,6 +626,323 @@ function yrcToEnhancedLRC(yrcText) {
   }).join('\n');
 }
 
+/**
+ * Splits track artist string into individual artist names.
+ * e.g. "Taylor Swift feat. Post Malone" -> ["Taylor Swift", "Post Malone"]
+ * e.g. "Lady Gaga & Bradley Cooper" -> ["Lady Gaga", "Bradley Cooper"]
+ */
+function splitTrackArtists(artistStr) {
+  if (!artistStr || typeof artistStr !== 'string') return [];
+  const raw = artistStr.trim();
+  if (!raw) return [];
+
+  // Common collaborative delimiters
+  const parts = raw.split(/\s+(?:feat\.?|ft\.?|featuring|with|vs\.?|x|\/|&|and)\s+|,\s*/i);
+  const result = [];
+  for (let part of parts) {
+    let clean = part.replace(/^["']|["']$/g, '').trim();
+    if (clean && !result.some(r => r.toLowerCase() === clean.toLowerCase())) {
+      result.push(clean);
+    }
+  }
+  return result;
+}
+
+/**
+ * Resolves a singer identifier (e.g. "v1", "2", "Taylor", "Both") into a normalized singer object.
+ */
+function resolveSingerIdentifier(rawVal, knownArtists = []) {
+  if (!rawVal || typeof rawVal !== 'string') {
+    return { singer: 'Singer 1', singerId: 1, singerRole: 'primary' };
+  }
+  const v = rawVal.trim().toLowerCase();
+  if (v === 'both' || v === 'all' || v === 'together' || v === 'unison' || v === 'duet' || v === 'chorus' || v === 'v1000' || v === 'v2000') {
+    return { singer: 'Duet', singerId: 'both', singerRole: 'both' };
+  }
+  const numMatch = v.match(/^(?:v|singer|artist|agent)?\s*(\d+)$/);
+  if (numMatch) {
+    const num = parseInt(numMatch[1], 10);
+    if (num >= 1000) {
+      return { singer: 'Duet', singerId: 'both', singerRole: 'both' };
+    }
+    const role = num === 1 ? 'primary' : (num === 2 ? 'secondary' : 'tertiary');
+    const singerName = (knownArtists && knownArtists[num - 1]) ? knownArtists[num - 1] : `Singer ${num}`;
+    return { singer: singerName, singerId: num, singerRole: role };
+  }
+  // Check if rawVal matches any known artist name
+  if (Array.isArray(knownArtists) && knownArtists.length > 0) {
+    for (let i = 0; i < knownArtists.length; i++) {
+      const art = knownArtists[i];
+      if (art && (art.toLowerCase() === v || art.toLowerCase().includes(v) || v.includes(art.toLowerCase()))) {
+        const role = i === 0 ? 'primary' : (i === 1 ? 'secondary' : 'tertiary');
+        return { singer: art, singerId: i + 1, singerRole: role };
+      }
+    }
+  }
+  return { singer: rawVal.trim(), singerId: 2, singerRole: 'secondary' };
+}
+
+/**
+ * Parses singer tags, role markers, or artist name prefixes from a lyric line.
+ * Handles:
+ * 1. [v1], [v2], [v3], [v:1], [v:2], [singer:1], [singer:Post Malone], [artist:2]
+ * 2. v1:, v2:, Singer 1:, Singer 2:, Vocal 1 -
+ * 3. Both:, [Both], (Both), All:, [All], Together:
+ * 4. Known artist prefixes: "Lady Gaga: ...", "(Bradley Cooper) ...", "[Post Malone] ..."
+ */
+function parseSingerTag(lineText, knownArtists = []) {
+  if (!lineText || typeof lineText !== 'string') return null;
+  const t = lineText.trim();
+  if (!t) return null;
+
+  // 1. Bracket tags: [v1], [v2], [v:1], [v:2], [singer:1], [singer:name], [artist:1]
+  const bracketMatch = t.match(/^\[(?:v|singer|artist|agent):?\s*([^\]]+)\]\s*(.*)$/i);
+  if (bracketMatch) {
+    const rawVal = bracketMatch[1].trim();
+    const rest = bracketMatch[2].trim();
+    const parsed = resolveSingerIdentifier(rawVal, knownArtists);
+    return { ...parsed, cleanText: rest, matchedPrefix: bracketMatch[0].replace(rest, '').trim() };
+  }
+
+  // 2. Parentheses tags: (v1), (v2), (singer:1), (singer:name)
+  const parenTagMatch = t.match(/^\((?:v|singer|artist|agent):?\s*([^)]+)\)\s*(.*)$/i);
+  if (parenTagMatch) {
+    const rawVal = parenTagMatch[1].trim();
+    const rest = parenTagMatch[2].trim();
+    const parsed = resolveSingerIdentifier(rawVal, knownArtists);
+    return { ...parsed, cleanText: rest, matchedPrefix: parenTagMatch[0].replace(rest, '').trim() };
+  }
+
+  // 3. Colon / dash prefixes: v1:, v2:, Singer 1:, Singer 2:
+  const prefixMatch = t.match(/^(?:v(\d+)|singer\s*(\d+)|vocal\s*(\d+))\s*[:：\-]\s*(.*)$/i);
+  if (prefixMatch) {
+    const num = parseInt(prefixMatch[1] || prefixMatch[2] || prefixMatch[3], 10);
+    const rest = prefixMatch[4].trim();
+    const role = num === 1 ? 'primary' : (num === 2 ? 'secondary' : 'tertiary');
+    const singerName = (knownArtists && knownArtists[num - 1]) ? knownArtists[num - 1] : `Singer ${num}`;
+    return { singer: singerName, singerId: num, singerRole: role, cleanText: rest, matchedPrefix: prefixMatch[0].replace(rest, '').trim() };
+  }
+
+  // 4. Both / All / Together / Chorus / Unison
+  const bothMatch = t.match(/^(?:\[\s*(both|all|together|unison|duet)\s*\]|\(\s*(both|all|together|unison|duet)\s*\)|(?:both|all|together|unison|duet)\s*[:：\-])\s*[:：\-]?\s*(.*)$/i);
+  if (bothMatch) {
+    const rest = (bothMatch[3] !== undefined ? bothMatch[3] : bothMatch[2] || bothMatch[1] || '').trim();
+    return { singer: 'Duet', singerId: 'both', singerRole: 'both', cleanText: rest, matchedPrefix: bothMatch[0].replace(rest, '').trim() };
+  }
+
+  // 4b. Bracket tags with section header + artist: [Verse 2: Drake], [Chorus: KAROL G], or [Drake]
+  const sectionBracketMatch = t.match(/^\[\s*([^\]]+?)\s*\]\s*(.*)$/);
+  if (sectionBracketMatch) {
+    const inside = sectionBracketMatch[1].trim();
+    const rest = sectionBracketMatch[2].trim();
+    const isPureSection = /^(?:intro|outro|verse(?:\s*\d+)?|chorus(?:\s*\d+)?|bridge|hook|pre-chorus|instrumental|solo|breakdown|drop|interlude|coro|estrofa(?:\s*\d+)?|puente)$/i.test(inside);
+    const colonSection = inside.match(/^(?:verse\s*\d*|chorus|coro|estrofa\s*\d*|bridge|hook|outro|intro)\s*[:：\-]\s*(.+)$/i);
+    if (colonSection) {
+      const singerPart = colonSection[1].trim();
+      const parsed = resolveSingerIdentifier(singerPart, knownArtists);
+      return { ...parsed, cleanText: rest, matchedPrefix: sectionBracketMatch[0].replace(rest, '').trim() };
+    }
+    const isMeta = /^(?:ti|ar|al|by|offset|length|re|ve):/i.test(inside);
+    if (!isPureSection && !isMeta) {
+      if (Array.isArray(knownArtists) && knownArtists.length > 0) {
+        for (let i = 0; i < knownArtists.length; i++) {
+          const art = knownArtists[i];
+          if (art && (art.toLowerCase() === inside.toLowerCase() || art.toLowerCase().includes(inside.toLowerCase()) || inside.toLowerCase().includes(art.toLowerCase()))) {
+            const role = i === 0 ? 'primary' : (i === 1 ? 'secondary' : 'tertiary');
+            return { singer: art, singerId: i + 1, singerRole: role, cleanText: rest, matchedPrefix: sectionBracketMatch[0].replace(rest, '').trim() };
+          }
+        }
+      }
+      // Unrecognized bracketed text is often a section cue or vocal direction
+      // (for example, [whispering]), so only known artists and explicit singer
+      // markers should change the speaker lane.
+    }
+  }
+
+  // 5. Match against known artists in metadata
+  if (Array.isArray(knownArtists) && knownArtists.length > 0) {
+    for (let i = 0; i < knownArtists.length; i++) {
+      const artist = knownArtists[i];
+      if (!artist || artist.length < 2) continue;
+      const escaped = artist.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+      // A: "Artist Name:" or "Artist Name -"
+      const colonRegex = new RegExp(`^(?:\\[|\\()?\\s*${escaped}\\s*(?:\\]|\\))?\\s*[:：\\-]\\s*(.*)$`, 'i');
+      const cm = t.match(colonRegex);
+      if (cm) {
+        const rest = cm[1].trim();
+        const role = i === 0 ? 'primary' : (i === 1 ? 'secondary' : 'tertiary');
+        return { singer: artist, singerId: i + 1, singerRole: role, cleanText: rest, matchedPrefix: cm[0].replace(rest, '').trim() };
+      }
+
+      // B: "[Artist Name] Rest of lyric" or "(Artist Name) Rest of lyric" or standalone "[Artist Name]" / "[Verse 2: Artist Name]"
+      const bracketRegex = new RegExp(`^[\\[\\(]\\s*(?:(?:verse\\s*\\d*|chorus|coro|estrofa\\s*\\d*|bridge|hook|outro|intro)\\s*[:：\\-]?\\s*)?${escaped}\\s*[\\]\\)](?:\\s+(.*)|$)`, 'i');
+      const bm = t.match(bracketRegex);
+      if (bm) {
+        const rest = (bm[1] || '').trim();
+        const role = i === 0 ? 'primary' : (i === 1 ? 'secondary' : 'tertiary');
+        return { singer: artist, singerId: i + 1, singerRole: role, cleanText: rest, matchedPrefix: bm[0].replace(rest, '').trim() };
+      }
+
+      // C: First name check if full name has multiple words and first name is unique
+      const firstName = artist.split(/\s+/)[0];
+      if (firstName && firstName.length >= 3 && !knownArtists.some((other, idx) => idx !== i && other.toLowerCase().includes(firstName.toLowerCase()))) {
+        const fnEscaped = firstName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const fnRegex = new RegExp(`^(?:\\[|\\()?\\s*${fnEscaped}\\s*(?:\\]|\\))?\\s*[:：\\-]\\s*(.*)$`, 'i');
+        const fnm = t.match(fnRegex);
+        if (fnm) {
+          const rest = fnm[1].trim();
+          const role = i === 0 ? 'primary' : (i === 1 ? 'secondary' : 'tertiary');
+          return { singer: artist, singerId: i + 1, singerRole: role, cleanText: rest, matchedPrefix: fnm[0].replace(rest, '').trim() };
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Processes an array of lyric lines and attributes multi-artist singers, duet roles,
+ * and turn transitions when multiple artists are involved.
+ */
+function applyLyricsArtistSeparation(lines, artistInput) {
+  if (!Array.isArray(lines) || lines.length === 0) return lines;
+
+  const artistValues = Array.isArray(artistInput)
+    ? artistInput.flatMap((item) => {
+      if (typeof item === 'string') return [item];
+      if (item && typeof item.name === 'string') return [item.name];
+      return [];
+    })
+    : splitTrackArtists(artistInput);
+  const knownArtists = [];
+  for (const value of artistValues) {
+    const clean = String(value || '').trim();
+    if (clean && !knownArtists.some((artist) => artist.toLocaleLowerCase() === clean.toLocaleLowerCase())) {
+      knownArtists.push(clean);
+    }
+  }
+
+  // Only explicit line tags or singer properties can establish speaker lanes.
+  // Track credits alone do not identify which singer performs each lyric line.
+  let hasSingerTagsOrProps = lines.some(l => {
+    if (!l) return false;
+    if (l.singer || l.singerName || l.singerId != null || l.singerRole || l.agent || l.vocalist || l.voice || l.element?.singer || l.element?.agent) return true;
+    const txt = l.text || '';
+    return parseSingerTag(txt, knownArtists) !== null;
+  });
+
+  // Track credits without per-line attribution cannot safely be split by singer.
+  if (!hasSingerTagsOrProps) {
+    return lines;
+  }
+
+  // If this track has explicit duet attribution somewhere in the lyrics,
+  // treat otherwise-unlabelled lines before the first tag as the lead artist.
+  // This matches common qApple/LyricsPlus payloads that tag only guest verses.
+  let currentSinger = knownArtists.length > 1
+    ? { singer: knownArtists[0], singerId: 1, singerRole: 'primary' }
+    : null;
+  let previousSingerId = null;
+
+  const filtered = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line) continue;
+
+    const rawText = line.text || '';
+    const tagResult = parseSingerTag(rawText, knownArtists);
+
+    if (tagResult) {
+      currentSinger = {
+        singer: tagResult.singer,
+        singerId: tagResult.singerId,
+        singerRole: tagResult.singerRole
+      };
+      if (tagResult.cleanText !== undefined) {
+        line.text = tagResult.cleanText;
+      }
+      // If word-level timings exist, strip any word token that was part of the singer prefix tag
+      if (Array.isArray(line.words) && line.words.length > 0 && tagResult.matchedPrefix) {
+        const prefixLower = tagResult.matchedPrefix.toLowerCase();
+        while (line.words.length > 0) {
+          const firstWord = (line.words[0].text || line.words[0].word || '').trim().toLowerCase();
+          if (!firstWord || prefixLower.includes(firstWord) || firstWord === '[' || firstWord === '(' || firstWord === ':' || firstWord === '-') {
+            line.words.shift();
+          } else {
+            break;
+          }
+        }
+      }
+    } else if (line.singer || line.singerName || line.singerId != null || line.singerRole || line.agent || line.vocalist || line.voice || line.element?.singer || line.element?.agent) {
+      const label = line.singer || line.singerName || line.agent || line.vocalist || line.voice || line.element?.singer || line.element?.agent;
+      const rawVal = String(label || line.singerId || line.singerRole || '').trim();
+      const resolved = resolveSingerIdentifier(rawVal, knownArtists);
+      const explicitRole = ['primary', 'secondary', 'tertiary', 'both'].includes(String(line.singerRole || '').toLowerCase())
+        ? String(line.singerRole).toLowerCase()
+        : null;
+      const singerRole = explicitRole || resolved.singerRole;
+      const singerId = line.singerId != null
+        ? line.singerId
+        : (singerRole === 'primary' ? 1 : (singerRole === 'secondary' ? 2 : (singerRole === 'tertiary' ? 3 : resolved.singerId)));
+      const indexedArtist = Number.isInteger(Number(singerId)) && Number(singerId) > 0
+        ? knownArtists[Number(singerId) - 1]
+        : null;
+      const labelIsSingerIndex = /^(?:v|singer|artist|agent)?\s*\d+$/i.test(rawVal);
+      currentSinger = {
+        // LyricsPlus/qApple may provide singer="v1" / "v2" as a label.
+        // Keep the resolved credit name for those indexed tags instead of
+        // exposing the provider's internal identifier in the UI.
+        singer: label && !labelIsSingerIndex ? String(label).trim() : (indexedArtist || resolved.singer),
+        singerId,
+        singerRole
+      };
+    }
+
+    // Thoroughly strip any residual bracketed or colon-prefixed artist tags
+    if (line.text) {
+      line.text = line.text.replace(/^\[(?:(?:verse\s*\d*|chorus|coro|bridge|hook|outro|intro)\s*[:：\-]?\s*)?[^\]]+\]\s*/i, (match) => {
+        const inside = match.replace(/[\[\]]/g, '').trim();
+        const isTag = /^(?:v\d+|singer\s*\d+|both|duet|together|chorus)/i.test(inside) ||
+          (knownArtists && knownArtists.some(a => a && (inside.toLowerCase().includes(a.toLowerCase()) || a.toLowerCase().includes(inside.toLowerCase()))));
+        return isTag ? '' : match;
+      });
+      line.text = line.text.replace(/^(?:v\d+|singer\s*\d+)\s*[:：\-]\s*/i, '');
+      if (knownArtists && knownArtists.length > 0) {
+        for (const art of knownArtists) {
+          if (!art || art.length < 2) continue;
+          const esc = art.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          line.text = line.text.replace(new RegExp(`^(?:\\[|\\()?\\s*${esc}\\s*(?:\\]|\\))?\\s*[:：\\-]\\s*`, 'i'), '');
+        }
+      }
+      line.text = line.text.trim();
+    }
+
+    // If this line was purely a standalone section header (like "[Drake]" or "[Verse 2: Drake]")
+    // that set the singer and has no lyric text or words remaining, omit it from the display list.
+    const hasRemainingWords = Array.isArray(line.words) && line.words.some(w => (w.text || w.word || '').trim());
+    if (!line.text && !hasRemainingWords) {
+      continue;
+    }
+
+    if (currentSinger) {
+      line.singer = currentSinger.singer;
+      line.singerName = currentSinger.singer;
+      line.singerId = currentSinger.singerId;
+      line.singerRole = currentSinger.singerRole;
+
+      const isTurnStart = previousSingerId !== currentSinger.singerId;
+      line.singerTurnStart = isTurnStart;
+      previousSingerId = currentSinger.singerId;
+    }
+
+    filtered.push(line);
+  }
+
+  return filtered;
+}
+
 // Expose on global window object and Node.js exports
 if (typeof window !== 'undefined') {
   window.isLyricMetadataOrCreditLine = isLyricMetadataOrCreditLine;
@@ -607,6 +953,10 @@ if (typeof window !== 'undefined') {
   window.parseLyricsPlus = parseLyricsPlus;
   window.parseYRC = parseYRC;
   window.yrcToEnhancedLRC = yrcToEnhancedLRC;
+  window.splitTrackArtists = splitTrackArtists;
+  window.parseSingerTag = parseSingerTag;
+  window.resolveSingerIdentifier = resolveSingerIdentifier;
+  window.applyLyricsArtistSeparation = applyLyricsArtistSeparation;
 }
 
 if (typeof module !== 'undefined' && module.exports) {
@@ -618,6 +968,10 @@ if (typeof module !== 'undefined' && module.exports) {
     parseMusixmatch,
     parseLyricsPlus,
     parseYRC,
-    yrcToEnhancedLRC
+    yrcToEnhancedLRC,
+    splitTrackArtists,
+    parseSingerTag,
+    resolveSingerIdentifier,
+    applyLyricsArtistSeparation
   };
 }

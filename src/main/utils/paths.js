@@ -58,6 +58,9 @@ function getAssetPath(assetName) {
  * Get path to an HTML file in src directory.
  */
 function getHtmlPath(htmlName) {
+  if (htmlName === 'edge_glow.html') {
+    return path.join(getProjectRoot(), 'legacy-electron', htmlName);
+  }
   return path.join(getProjectRoot(), 'src', htmlName);
 }
 

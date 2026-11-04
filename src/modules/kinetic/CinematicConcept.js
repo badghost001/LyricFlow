@@ -183,15 +183,15 @@
     },
     road: {
       id: 'road',
-      name: 'Road & Horizon',
+      name: 'Road & Journey',
       phrases: [
         'on the road', 'highway drive', 'down this path', 'endless road',
         'runaway car', 'hit the highway', 'lost on the road', 'drive away',
-        'open road', 'cross the line', 'long journey', 'horizon line'
+        'open road', 'cross the line', 'long journey'
       ],
       keywords: [
         'road', 'highway', 'drive', 'driving', 'path', 'street', 'journey',
-        'horizon', 'runaway', 'tracks', 'travel', 'lane', 'miles', 'wheels'
+        'runaway', 'tracks', 'travel', 'lane', 'miles', 'wheels'
       ],
       tonalTint: {
         type: 'dusty_warm',
@@ -245,6 +245,98 @@
         bgOffset: { r: 12, g: 8, b: 18 }
       },
       preferredCompositions: ['above', 'offset_left', 'behind', 'cropped_large']
+    },
+    music: {
+      id: 'music',
+      name: 'Music & Acoustics',
+      phrases: [
+        'play the music', 'sing along', 'hear the song', 'melody plays',
+        'sound of music', 'radio plays', 'turn up the radio', 'feel the beat',
+        'sweet melody', 'acoustic harmony', 'sing to me', 'dancing to the rhythm',
+        'spinning records', 'record player', 'bass is pumping', 'notes fly'
+      ],
+      keywords: [
+        'music', 'song', 'melody', 'rhythm', 'sing', 'singing', 'songbird',
+        'radio', 'record', 'vinyl', 'sound', 'beat', 'beats', 'tune', 'tunes',
+        'dance', 'dancing', 'listen', 'voice', 'stereo', 'bass', 'guitar',
+        'piano', 'harmony', 'acoustic', 'tempo', 'track'
+      ],
+      tonalTint: {
+        type: 'vibrant_cool',
+        name: 'Acoustic Violet Wave',
+        r: 165, g: 145, b: 245,
+        warmth: 0.05,
+        bgOffset: { r: 12, g: 6, b: 20 }
+      },
+      preferredCompositions: ['behind', 'above', 'cropped_large', 'offset_right']
+    },
+    galaxy: {
+      id: 'galaxy',
+      name: 'Galaxy & Cosmos',
+      phrases: [
+        'in the galaxy', 'across the universe', 'solar system', 'orbiting around',
+        'outer space', 'milky way', 'shooting star', 'cosmic light',
+        'distant planet', 'rings of saturn', 'stardust in our eyes',
+        'infinite universe', 'gravity pulls', 'deep cosmos'
+      ],
+      keywords: [
+        'galaxy', 'universe', 'cosmos', 'planet', 'planets', 'orbit', 'solar',
+        'eclipse', 'constellation', 'milky way', 'space', 'gravity', 'nebula',
+        'comet', 'meteor', 'infinity', 'satellite', 'cosmic', 'interstellar'
+      ],
+      tonalTint: {
+        type: 'deep_cosmic',
+        name: 'Cosmic Sapphire',
+        r: 115, g: 175, b: 255,
+        warmth: -0.06,
+        bgOffset: { r: 4, g: 8, b: 24 }
+      },
+      preferredCompositions: ['above', 'behind', 'distant_small', 'cropped_large']
+    },
+    nature: {
+      id: 'nature',
+      name: 'Nature & Botanical',
+      phrases: [
+        'bloom like a flower', 'growing wild', 'in the garden', 'under the tree',
+        'green leaves', 'rose in bloom', 'deep in the forest', 'roots and branches',
+        'smell the roses', 'petals fall', 'mother earth', 'springtime breeze'
+      ],
+      keywords: [
+        'nature', 'flower', 'flowers', 'bloom', 'blooming', 'blossom', 'rose',
+        'roses', 'leaves', 'leaf', 'tree', 'trees', 'forest', 'garden', 'wild',
+        'grow', 'growing', 'growth', 'earth', 'spring', 'seeds', 'branch',
+        'petal', 'petals', 'vine', 'flora'
+      ],
+      tonalTint: {
+        type: 'botanical_warm',
+        name: 'Emerald Flora',
+        r: 135, g: 215, b: 165,
+        warmth: 0.08,
+        bgOffset: { r: 6, g: 18, b: 12 }
+      },
+      preferredCompositions: ['below', 'behind', 'offset_left', 'cropped_large']
+    },
+    horizon: {
+      id: 'horizon',
+      name: 'Sun & Golden Horizon',
+      phrases: [
+        'rising sun', 'sunset glow', 'golden hour', 'morning sun', 'sun comes up',
+        'see the horizon', 'break of dawn', 'sunshine on my face',
+        'bright and early', 'golden rays', 'across the horizon', 'chasing the sun'
+      ],
+      keywords: [
+        'sun', 'sunrise', 'sunset', 'dawn', 'morning', 'sunlight', 'sunshine',
+        'golden', 'shine', 'shining', 'bright', 'daylight', 'daybreak',
+        'horizon', 'mountain', 'mountains', 'sea', 'ocean', 'glory', 'radiant'
+      ],
+      tonalTint: {
+        type: 'golden_dawn',
+        name: 'Golden Sunburst',
+        r: 255, g: 200, b: 110,
+        warmth: 0.18,
+        bgOffset: { r: 20, g: 14, b: 4 }
+      },
+      preferredCompositions: ['above', 'below', 'behind', 'cropped_large']
     }
   };
 

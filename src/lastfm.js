@@ -139,7 +139,18 @@ class LastFMManager {
     this.saveConfig();
   }
 
-  async onTrackChange(trackInfo) {
+  onTrackChange(trackInfo) {
+    if (!this.isConnected()) return;
+    if (this._trackChangeTimer) {
+      clearTimeout(this._trackChangeTimer);
+      this._trackChangeTimer = null;
+    }
+    this._trackChangeTimer = setTimeout(() => {
+      this._executeTrackChange(trackInfo);
+    }, 280);
+  }
+
+  async _executeTrackChange(trackInfo) {
     if (!this.isConnected()) return;
     
     this.currentTrack = trackInfo;
@@ -203,43 +214,70 @@ class LastFMManager {
 
   async getTrackAlbumArt(track, artist) {
     if (!track) return null;
-    try {
-      const infoRes = await window.electronAPI.lastfmApi('track.getInfo', {
-        artist: artist || '',
-        track: track,
-        autocorrect: '0'
-      }, this.apiKey, this.apiSecret, null);
+    const cacheKey = `${artist || ''}:::${track || ''}`.toLowerCase().trim();
+    if (this._artCache && this._artCache.has(cacheKey)) {
+      return this._artCache.get(cacheKey);
+    }
+    if (this._artPending && this._artPending.has(cacheKey)) {
+      return await this._artPending.get(cacheKey);
+    }
+    if (!this._artCache) this._artCache = new Map();
+    if (!this._artPending) this._artPending = new Map();
 
-      if (infoRes && infoRes.track) {
-        if (artist && infoRes.track.artist && infoRes.track.artist.name) {
-          const reqA = artist.toLowerCase().trim();
-          const candA = infoRes.track.artist.name.toLowerCase().trim();
-          if (!candA.includes(reqA) && !reqA.includes(candA)) {
-            return null;
+    const pendingPromise = (async () => {
+      try {
+        const infoRes = await window.electronAPI.lastfmApi('track.getInfo', {
+          artist: artist || '',
+          track: track,
+          autocorrect: '0'
+        }, this.apiKey, this.apiSecret, null);
+
+        if (infoRes && infoRes.track) {
+          if (artist && infoRes.track.artist && infoRes.track.artist.name) {
+            const reqA = artist.toLowerCase().trim();
+            const candA = infoRes.track.artist.name.toLowerCase().trim();
+            if (!candA.includes(reqA) && !reqA.includes(candA)) {
+              return null;
+            }
           }
-        }
 
-        if (infoRes.track.album) {
-          const art = this.extractImageFromList(infoRes.track.album.image);
-          if (art) return art;
+          if (infoRes.track.album) {
+            const art = this.extractImageFromList(infoRes.track.album.image);
+            if (art) return art;
 
-          if (infoRes.track.album.title) {
-            const albumRes = await window.electronAPI.lastfmApi('album.getInfo', {
-              artist: infoRes.track.album.artist || artist || '',
-              album: infoRes.track.album.title,
-              autocorrect: '0'
-            }, this.apiKey, this.apiSecret, null);
-            if (albumRes && albumRes.album) {
-              const albumArt = this.extractImageFromList(albumRes.album.image);
-              if (albumArt) return albumArt;
+            if (infoRes.track.album.title) {
+              const albumRes = await window.electronAPI.lastfmApi('album.getInfo', {
+                artist: infoRes.track.album.artist || artist || '',
+                album: infoRes.track.album.title,
+                autocorrect: '0'
+              }, this.apiKey, this.apiSecret, null);
+              if (albumRes && albumRes.album) {
+                const albumArt = this.extractImageFromList(albumRes.album.image);
+                if (albumArt) return albumArt;
+              }
             }
           }
         }
+      } catch (e) {
+        console.warn("Last.fm getTrackAlbumArt failed:", e);
       }
-    } catch (e) {
-      console.warn("Last.fm getTrackAlbumArt failed:", e);
+      return null;
+    })();
+
+    this._artPending.set(cacheKey, pendingPromise);
+    try {
+      const artUrl = await pendingPromise;
+      if (artUrl) {
+        this._artCache.set(cacheKey, artUrl);
+        while (this._artCache.size > 50) {
+          const firstKey = this._artCache.keys().next().value;
+          this._artCache.delete(firstKey);
+        }
+      }
+      return artUrl;
+    } finally {
+      this._artPending.delete(cacheKey);
     }
-    return null;
   }
 
   updatePlaybackProgress(currentMs, durationMs) {

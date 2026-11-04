@@ -5,6 +5,7 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
+const vm = require('vm');
 
 let totalTests = 0;
 let passedTests = 0;
@@ -34,17 +35,19 @@ function runTests() {
   const libRs = fs.readFileSync(path.join(__dirname, '../src-tauri/src/lib.rs'), 'utf-8');
   const bridgeJs = fs.readFileSync(path.join(__dirname, '../src/tauri-bridge.js'), 'utf-8');
 
-  // Test 1: LyricsPlus service default timeout is lowered to 2500ms
-  test('1a. LyricsPlus service lowers timeout to 2500ms to eliminate 8s stall', () => {
-    assert.ok(lyricsPlusSrc.includes('this.timeoutMs = options.timeoutMs || 2500;'), 'timeoutMs must default to 2500');
+  // qApple needs the longer cold-cache window; the test follows the current provider contract.
+  test('1a. LyricsPlus qApple timeout allows the scraper cold-cache window', () => {
+    assert.ok(lyricsPlusSrc.includes('this.timeoutMs = options.timeoutMs || 8500;'), 'timeoutMs must default to 8500');
   });
 
-  // Test 2: Primary lyrics providers run concurrently
-  test('1b. renderer.js queries Rust multi-provider & LyricsPlus concurrently with fast-path race', () => {
-    assert.ok(rendererSrc.includes('const rustPromise = rustLyricsFetch();'), 'Must initiate rustLyricsFetch promise');
-    assert.ok(rendererSrc.includes('const lpPromise ='), 'Must initiate lpPromise');
-    assert.ok(rendererSrc.includes('Promise.race([rustPromise, lpPromise])'), 'Must race for instant level 3 resolution');
-    assert.ok(rendererSrc.includes('Promise.allSettled([rustPromise, lpPromise])'), 'Must settle both providers for upgrade');
+  // Test 2: qApple is applied before Rust/NetEase fallback providers
+  test('1b. renderer.js prioritizes qApple before word-synced fallback providers', () => {
+    const qAppleBlock = rendererSrc.indexOf("// LyricsPlus' primary endpoint defaults to qApple.");
+    const qAppleAwait = rendererSrc.indexOf('await lyricsPlusFetch();', qAppleBlock);
+    const rustAwait = rendererSrc.indexOf('await rustLyricsFetch();', qAppleAwait);
+    assert.ok(qAppleBlock >= 0 && qAppleAwait > qAppleBlock, 'Must await qApple before fallback lookup');
+    assert.ok(rustAwait > qAppleAwait, 'Must start Rust/NetEase only after the qApple attempt');
+    assert.ok(rendererSrc.includes('preferQApple: true'), 'Must pass the qApple preference into LyricsPlus');
   });
 
   // Test 3: Audio spectrum listener guards against null islandWave / bars in Wallpaper Mode
@@ -53,9 +56,32 @@ function runTests() {
     assert.ok(rendererSrc.includes('if (settings.wallpaperMode && settings.wallpaperBeatBloom !== false)'), 'Wallpaper beat bloom must execute independently of islandWave');
   });
 
-  // Test 4: Fluid WebGL mesh loop stops in Wallpaper Mode unless fluid background is explicitly selected
-  test('2b. renderer.js stops WebGL mesh in Wallpaper Mode when bgStyle is not fluid', () => {
-    assert.ok(rendererSrc.includes('const shouldRunMesh = !isDynamicIslandMode && !settings.taskbarMode && (currentBgStyle === \'fluid\') && !hasCustomBackground;'), 'shouldRunMesh must only be true for fluid background style');
+  // Test 4: Wallpaper fluid mesh is active only on supported styles with fluid background selected
+  test('2b. renderer.js gates WebGL mesh correctly across Wallpaper styles', () => {
+    const sandbox = {
+      isDynamicIslandMode: false,
+      isCinematicView: false,
+      settings: { wallpaperMode: true, wallpaperStyle: 'style1', taskbarMode: false, bgStyle: 'fluid' },
+      document: { getElementById: () => null }
+    };
+    const customBackground = rendererSrc.match(/function isCustomBackgroundActive\(\) \{[\s\S]*?\n\}/)[0];
+    const shouldRunMesh = rendererSrc.match(/function shouldRunFluidMesh\(\) \{[\s\S]*?\n\}/)[0];
+    vm.createContext(sandbox);
+    vm.runInContext(`${customBackground}\n${shouldRunMesh}`, sandbox);
+    assert.strictEqual(vm.runInContext('shouldRunFluidMesh()', sandbox), true,
+      'Fluid mesh should run in supported Wallpaper styles when fluid background is selected');
+    sandbox.settings.bgStyle = 'minimal';
+    assert.strictEqual(vm.runInContext('shouldRunFluidMesh()', sandbox), false,
+      'Fluid mesh should stop when the minimal background is selected');
+    sandbox.settings.bgStyle = 'fluid';
+    sandbox.settings.wallpaperStyle = 'cinematic';
+    assert.strictEqual(vm.runInContext('shouldRunFluidMesh()', sandbox), false,
+      'Cinematic Wallpaper owns its renderer and must not run the fluid mesh');
+    sandbox.settings.wallpaperStyle = 'style2';
+    sandbox.settings.customBgSrc = 'C:/custom/background.png';
+    sandbox.settings.customBgType = 'image';
+    assert.strictEqual(vm.runInContext('shouldRunFluidMesh()', sandbox), false,
+      'Custom Wallpaper backgrounds must not be covered by the fluid mesh');
   });
 
   // Test 5: Wallpaper background CSS optimizes blur and removes continuous pan keyframe

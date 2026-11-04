@@ -30,6 +30,31 @@ function autoPruneStorage(aggressive = false) {
     }
     geniusKeys.forEach(k => localStorage.removeItem(k));
 
+    // 0b. Purge transient previous lyrics snapshots
+    const prevLrcKeys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith("lyrics_previous_lrc_")) {
+        prevLrcKeys.push(k);
+      }
+    }
+    prevLrcKeys.forEach(k => localStorage.removeItem(k));
+
+    // 0c. Bound LyricsPlus persistent cache entries (lyrics_plus_track_*)
+    const lyricsPlusKeys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith("lyrics_plus_track_")) {
+        lyricsPlusKeys.push(k);
+      }
+    }
+    const maxLyricsPlus = aggressive ? 5 : 20;
+    if (lyricsPlusKeys.length > maxLyricsPlus) {
+      for (let i = 0; i < lyricsPlusKeys.length - maxLyricsPlus; i++) {
+        localStorage.removeItem(lyricsPlusKeys[i]);
+      }
+    }
+
     // 1. Remove legacy v1 art cache unconditionally
     localStorage.removeItem("lyricflow_local_art_cache");
 
@@ -180,8 +205,22 @@ function safeStorageSet(key, value) {
       localStorage.setItem(key, value);
       return true;
     } catch (retryErr) {
-      console.error(`[Storage] Fatal quota error on '${key}':`, retryErr);
-      return false;
+      // Second fallback: clear all lyrics_plus_track_ and older v21 caches
+      try {
+        const toPurge = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && (k.startsWith("lyrics_plus_track_") || k.startsWith("lyrics_cache_v21_") || k.startsWith("lyrics_previous_lrc_"))) {
+            toPurge.push(k);
+          }
+        }
+        toPurge.forEach(k => localStorage.removeItem(k));
+        localStorage.setItem(key, value);
+        return true;
+      } catch (finalErr) {
+        console.error(`[Storage] Fatal quota error on '${key}':`, finalErr);
+        return false;
+      }
     }
   }
 }

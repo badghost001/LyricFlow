@@ -1,6 +1,6 @@
-use tauri::{AppHandle, Manager, WebviewWindow};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
+use tauri::{AppHandle, Manager, WebviewWindow};
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Copy, Debug)]
 pub struct LyricBounds {
@@ -51,11 +51,15 @@ pub fn update_taskbar_lyric_bounds(rect: LyricBounds) -> Result<(), String> {
 
 static ISLAND_BOUNDS: OnceLock<Mutex<Option<LyricBounds>>> = OnceLock::new();
 static ISLAND_GEOMETRY: OnceLock<Mutex<(i32, i32, f64)>> = OnceLock::new();
-static DYNAMIC_ISLAND_GHOST_ACTIVE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-static DYNAMIC_ISLAND_GHOST_ENTERED_AT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-static DYNAMIC_ISLAND_GHOST_LAST_TOGGLE_MS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+static DYNAMIC_ISLAND_GHOST_ACTIVE: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+static DYNAMIC_ISLAND_GHOST_ENTERED_AT: std::sync::atomic::AtomicU64 =
+    std::sync::atomic::AtomicU64::new(0);
+static DYNAMIC_ISLAND_GHOST_LAST_TOGGLE_MS: std::sync::atomic::AtomicU64 =
+    std::sync::atomic::AtomicU64::new(0);
 static GHOST_LOCKED_BOUNDS: OnceLock<Mutex<Option<LyricBounds>>> = OnceLock::new();
-static GHOST_ENTERED_WHILE_HOVERING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static GHOST_ENTERED_WHILE_HOVERING: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
 
 pub fn toggle_dynamic_island_ghost() -> bool {
     let now = std::time::SystemTime::now()
@@ -125,9 +129,39 @@ fn get_island_geometry() -> &'static Mutex<(i32, i32, f64)> {
 }
 
 #[tauri::command]
-pub fn update_island_bounds(rect: LyricBounds) -> Result<(), String> {
+pub fn update_island_bounds(window: WebviewWindow, rect: LyricBounds) -> Result<(), String> {
     if let Ok(mut lock) = get_island_bounds().lock() {
         *lock = Some(rect);
+    }
+    if DYNAMIC_ISLAND_ACTIVE.load(Ordering::SeqCst) && rect.width > 0 && rect.height > 0 {
+        let scale = window.scale_factor().unwrap_or(1.0);
+        let pad_w = (32.0 * scale) as u32;
+        let pad_h = (24.0 * scale) as u32;
+        let target_w =
+            (((rect.width as f64) * scale).round() as u32 + pad_w).max((520.0 * scale) as u32);
+        let target_h =
+            (((rect.height as f64) * scale).round() as u32 + pad_h).max((260.0 * scale) as u32);
+
+        #[cfg(target_os = "windows")]
+        {
+            use windows::Win32::UI::WindowsAndMessaging::{
+                SetWindowPos, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOZORDER,
+            };
+            if let Ok(hwnd) = window.hwnd() {
+                let hwnd_val = windows::Win32::Foundation::HWND(hwnd.0 as _);
+                unsafe {
+                    let _ = SetWindowPos(
+                        hwnd_val,
+                        None,
+                        0,
+                        0,
+                        target_w as i32,
+                        target_h as i32,
+                        SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE,
+                    );
+                }
+            }
+        }
     }
     Ok(())
 }
@@ -153,12 +187,16 @@ pub fn set_taskbar_dragging(dragging: bool) -> Result<(), String> {
 
 #[tauri::command]
 pub fn set_click_through(window: WebviewWindow, ignore: bool) -> Result<(), String> {
-    window.set_ignore_cursor_events(ignore).map_err(|e| e.to_string())
+    window
+        .set_ignore_cursor_events(ignore)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn set_always_on_top(window: WebviewWindow, always_on_top: bool) -> Result<(), String> {
-    window.set_always_on_top(always_on_top).map_err(|e| e.to_string())
+    window
+        .set_always_on_top(always_on_top)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -171,9 +209,13 @@ pub async fn copy_to_clipboard(text: String) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
         #[cfg(target_os = "windows")]
         {
-            use windows::Win32::System::DataExchange::{OpenClipboard, CloseClipboard, EmptyClipboard, SetClipboardData};
-            use windows::Win32::System::Memory::{GlobalAlloc, GlobalLock, GlobalUnlock, GMEM_MOVEABLE};
             use windows::Win32::Foundation::HANDLE;
+            use windows::Win32::System::DataExchange::{
+                CloseClipboard, EmptyClipboard, OpenClipboard, SetClipboardData,
+            };
+            use windows::Win32::System::Memory::{
+                GlobalAlloc, GlobalLock, GlobalUnlock, GMEM_MOVEABLE,
+            };
 
             let wide: Vec<u16> = text.encode_utf16().chain(std::iter::once(0)).collect();
             let bytes_len = wide.len() * std::mem::size_of::<u16>();
@@ -184,7 +226,11 @@ pub async fn copy_to_clipboard(text: String) -> Result<(), String> {
                     if let Ok(h_mem) = GlobalAlloc(GMEM_MOVEABLE, bytes_len) {
                         let ptr = GlobalLock(h_mem);
                         if !ptr.is_null() {
-                            std::ptr::copy_nonoverlapping(wide.as_ptr() as *const u8, ptr as *mut u8, bytes_len);
+                            std::ptr::copy_nonoverlapping(
+                                wide.as_ptr() as *const u8,
+                                ptr as *mut u8,
+                                bytes_len,
+                            );
                             let _ = GlobalUnlock(h_mem);
                             // 13 is CF_UNICODETEXT
                             let _ = SetClipboardData(13, Some(HANDLE(h_mem.0 as *mut _)));
@@ -212,7 +258,9 @@ pub async fn copy_to_clipboard(text: String) -> Result<(), String> {
         }
         #[allow(unreachable_code)]
         Ok(())
-    }).await.map_err(|e| e.to_string())?
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -265,25 +313,43 @@ pub fn get_is_startup() -> bool {
     is_startup()
 }
 
+#[tauri::command]
 pub fn is_taskbar_mode_active() -> bool {
     TASKBAR_MODE_ACTIVE.load(Ordering::SeqCst)
 }
 
 #[tauri::command]
-pub async fn set_taskbar_mode(app: AppHandle, enabled: bool, _from_tray: Option<bool>) -> Result<(), String> {
-    crate::log_to_file(&format!("[LyricFlow Command] set_taskbar_mode(enabled={}) called!", enabled));
+pub async fn set_taskbar_mode(
+    app: AppHandle,
+    enabled: bool,
+    from_tray: Option<bool>,
+) -> Result<(), String> {
+    crate::log_to_file(&format!(
+        "[LyricFlow Command] set_taskbar_mode(enabled={}) called!",
+        enabled
+    ));
     use tauri::Emitter;
     if enabled {
         if TASKBAR_MODE_ACTIVE.load(Ordering::SeqCst) {
-            crate::log_to_file("[LyricFlow Command] Taskbar mode is already active, ignoring duplicate enable request");
-            return Ok(());
-        }
-        let tb_win = match app.get_webview_window("taskbar") {
-            Some(w) => {
-                crate::log_to_file("[LyricFlow Command] Found taskbar window");
-                w
+            if let Some(existing) = app.get_webview_window("taskbar") {
+                if existing.is_visible().unwrap_or(false) && existing.hwnd().is_ok() {
+                    crate::log_to_file("[LyricFlow Command] Taskbar mode is already active and healthy, ignoring duplicate enable request");
+                    return Ok(());
+                }
             }
-            None => {
+            crate::log_to_file("[LyricFlow Command] Taskbar mode active flag was true but window was not visible/healthy. Re-asserting...");
+        }
+        let tb_win = {
+            let existing = app.get_webview_window("taskbar");
+            let is_healthy = existing.as_ref().map(|w| w.hwnd().is_ok()).unwrap_or(false);
+            if is_healthy {
+                crate::log_to_file("[LyricFlow Command] Found healthy taskbar window");
+                existing.unwrap()
+            } else {
+                if let Some(w) = existing {
+                    crate::log_to_file("[LyricFlow Command] Existing taskbar window was unhealthy or closed, destroying it...");
+                    let _ = w.destroy();
+                }
                 crate::log_to_file("[LyricFlow Command] Building taskbar window dynamically...");
                 let tb_builder = tauri::WebviewWindowBuilder::new(
                     &app,
@@ -299,11 +365,13 @@ pub async fn set_taskbar_mode(app: AppHandle, enabled: bool, _from_tray: Option<
                 .skip_taskbar(true)
                 .resizable(false);
 
-                match tb_builder.build()
-                {
+                match tb_builder.build() {
                     Ok(w) => w,
                     Err(e) => {
-                        let msg = format!("[LyricFlow Command] ERROR: Failed to create 'taskbar' window: {}", e);
+                        let msg = format!(
+                            "[LyricFlow Command] ERROR: Failed to create 'taskbar' window: {}",
+                            e
+                        );
                         crate::log_to_file(&msg);
                         return Err(msg);
                     }
@@ -315,14 +383,14 @@ pub async fn set_taskbar_mode(app: AppHandle, enabled: bool, _from_tray: Option<
 
         #[cfg(target_os = "windows")]
         {
-            use windows::Win32::UI::WindowsAndMessaging::{
-                GetSystemMetrics, SystemParametersInfoW, SetWindowPos, FindWindowW,
-                HWND_TOPMOST, SM_CXSCREEN, SM_CYSCREEN, SPI_GETWORKAREA,
-                SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS, SWP_SHOWWINDOW, SWP_NOACTIVATE, SWP_FRAMECHANGED,
-                GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE, GWLP_HWNDPARENT, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_NOACTIVATE,
-            };
-            use windows::core::w;
             use windows::Win32::Foundation::RECT;
+            use windows::Win32::UI::WindowsAndMessaging::{
+                GetSystemMetrics, GetWindowLongPtrW, SetWindowLongPtrW, SetWindowPos,
+                SystemParametersInfoW, GWL_EXSTYLE, HWND_TOPMOST, SM_CXSCREEN,
+                SM_CYSCREEN, SPI_GETWORKAREA, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_SHOWWINDOW,
+                SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
+                WS_EX_TOPMOST,
+            };
 
             let screen_w = unsafe { GetSystemMetrics(SM_CXSCREEN) };
             let screen_h = unsafe { GetSystemMetrics(SM_CYSCREEN) };
@@ -384,20 +452,28 @@ pub async fn set_taskbar_mode(app: AppHandle, enabled: bool, _from_tray: Option<
             let _ = tb_win.show();
             let _ = tb_win.set_always_on_top(true);
 
-            if let Ok(hwnd) = tb_win.hwnd() {
-                unsafe {
-                    let hwnd_val = windows::Win32::Foundation::HWND(hwnd.0 as _);
-
-                    // 1. Establish Win32 shell ownership with Shell_TrayWnd so Windows WM permanently stacks tb_win on top of the taskbar
-                    if let Ok(tray) = FindWindowW(w!("Shell_TrayWnd"), None) {
-                        if !tray.is_invalid() {
-                            let _ = SetWindowLongPtrW(hwnd_val, GWLP_HWNDPARENT, tray.0 as isize);
-                            crate::log_to_file(&format!("[LyricFlow Command] Set Shell_TrayWnd ({:?}) as owner of taskbar window", tray));
-                        }
+            // Wait for HWND if window was dynamically created or asynchronously initialized
+            let mut hwnd_raw_opt: Option<isize> = tb_win.hwnd().ok().map(|h| h.0 as isize);
+            if hwnd_raw_opt.is_none() {
+                for _ in 0..20 {
+                    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+                    if let Ok(h) = tb_win.hwnd() {
+                        hwnd_raw_opt = Some(h.0 as isize);
+                        break;
                     }
+                }
+            }
+
+            if let Some(hwnd_raw) = hwnd_raw_opt {
+                crate::log_to_file(&format!("[LyricFlow Command] Got taskbar HWND: 0x{:x}", hwnd_raw));
+                unsafe {
+                    let hwnd_val = windows::Win32::Foundation::HWND(hwnd_raw as _);
 
                     let cur_ex = GetWindowLongPtrW(hwnd_val, GWL_EXSTYLE);
-                    let new_ex = cur_ex | (WS_EX_TOOLWINDOW.0 as isize) | (WS_EX_TOPMOST.0 as isize) | (WS_EX_NOACTIVATE.0 as isize);
+                    let new_ex = cur_ex
+                        | (WS_EX_TOOLWINDOW.0 as isize)
+                        | (WS_EX_TOPMOST.0 as isize)
+                        | (WS_EX_NOACTIVATE.0 as isize);
                     let _ = SetWindowLongPtrW(hwnd_val, GWL_EXSTYLE, new_ex);
 
                     let _ = SetWindowPos(
@@ -410,6 +486,8 @@ pub async fn set_taskbar_mode(app: AppHandle, enabled: bool, _from_tray: Option<
                         SWP_SHOWWINDOW | SWP_NOACTIVATE | SWP_FRAMECHANGED,
                     );
                 }
+            } else {
+                crate::log_to_file("[LyricFlow Command] WARNING: Failed to acquire taskbar HWND!");
             }
 
             #[derive(serde::Serialize, Clone)]
@@ -438,18 +516,18 @@ pub async fn set_taskbar_mode(app: AppHandle, enabled: bool, _from_tray: Option<
         std::thread::spawn(move || {
             #[cfg(target_os = "windows")]
             {
-                use windows::Win32::UI::WindowsAndMessaging::{
-                    GetCursorPos, GetForegroundWindow, SetWindowPos, HWND_TOPMOST,
-                    SWP_NOMOVE, SWP_NOSIZE, SWP_NOACTIVATE, SWP_SHOWWINDOW,
-                };
                 use windows::Win32::Foundation::{HWND, POINT};
+                use windows::Win32::UI::WindowsAndMessaging::{
+                    GetCursorPos, GetForegroundWindow, SetWindowPos, HWND_TOPMOST, SWP_NOACTIVATE,
+                    SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW,
+                };
 
                 let mut current_clickthrough = true;
                 let mut tick_counter: u32 = 0;
                 let mut last_foreground = HWND::default();
 
-                // Cache HWND once so we don't query Tauri window methods every tick
-                let tb_hwnd = app_handle
+                // Cache HWND; re-query if not yet available
+                let mut tb_hwnd = app_handle
                     .get_webview_window("taskbar")
                     .and_then(|w| w.hwnd().ok())
                     .map(|h| windows::Win32::Foundation::HWND(h.0 as _));
@@ -459,6 +537,13 @@ pub async fn set_taskbar_mode(app: AppHandle, enabled: bool, _from_tray: Option<
 
                     if !TASKBAR_MODE_ACTIVE.load(Ordering::SeqCst) {
                         break;
+                    }
+
+                    if tb_hwnd.is_none() {
+                        tb_hwnd = app_handle
+                            .get_webview_window("taskbar")
+                            .and_then(|w| w.hwnd().ok())
+                            .map(|h| windows::Win32::Foundation::HWND(h.0 as _));
                     }
 
                     tick_counter = tick_counter.wrapping_add(1);
@@ -538,24 +623,37 @@ pub async fn set_taskbar_mode(app: AppHandle, enabled: bool, _from_tray: Option<
         let vis = tb_win.is_visible().unwrap_or(false);
         let pos = tb_win.outer_position().ok();
         let sz = tb_win.outer_size().ok();
-        crate::log_to_file(&format!("[LyricFlow Command] tb_win final state: is_visible={}, outer_pos={:?}, outer_sz={:?}", vis, pos, sz));
+        crate::log_to_file(&format!(
+            "[LyricFlow Command] tb_win final state: is_visible={}, outer_pos={:?}, outer_sz={:?}",
+            vis, pos, sz
+        ));
 
-        // Instead of hiding the main window (which causes WebView2 to aggressively throttle
-        // and suspend background JS timers / polling), park it off-screen and skip taskbar.
-        if let Some(main_win) = app.get_webview_window("main") {
-            if let Ok(pos) = main_win.outer_position() {
-                if pos.x > -10000 && pos.y > -10000 {
-                    if let Ok(mut lock) = get_saved_main_pos().lock() {
-                        *lock = Some((pos.x, pos.y));
+        let taskbar_succeeded = tb_win.hwnd().is_ok() || vis;
+        if taskbar_succeeded {
+            // Instead of hiding the main window (which causes WebView2 to aggressively throttle
+            // and suspend background JS timers / polling), park it off-screen and skip taskbar.
+            if let Some(main_win) = app.get_webview_window("main") {
+                if let Ok(pos) = main_win.outer_position() {
+                    if pos.x > -10000 && pos.y > -10000 {
+                        if let Ok(mut lock) = get_saved_main_pos().lock() {
+                            *lock = Some((pos.x, pos.y));
+                        }
                     }
                 }
+                crate::log_to_file(
+                    "[LyricFlow Command] Parking main window off-screen to keep JS engine alive",
+                );
+                let _ = main_win.set_skip_taskbar(true);
+                let _ = main_win.set_position(tauri::PhysicalPosition::new(-32000, -32000));
             }
-            crate::log_to_file("[LyricFlow Command] Parking main window off-screen to keep JS engine alive");
-            let _ = main_win.set_skip_taskbar(true);
-            let _ = main_win.set_position(tauri::PhysicalPosition::new(-32000, -32000));
+            let _ = app.emit("taskbar-mode-ready", ());
+        } else {
+            crate::log_to_file(
+                "[LyricFlow Command] ERROR: Taskbar window failed to become ready! Keeping main window on-screen.",
+            );
+            TASKBAR_MODE_ACTIVE.store(false, Ordering::SeqCst);
+            return Err("Failed to initialize taskbar window".into());
         }
-
-        let _ = app.emit("taskbar-mode-ready", ());
     } else {
         crate::log_to_file("[LyricFlow Command] Disabling taskbar mode");
         TASKBAR_MODE_ACTIVE.store(false, Ordering::SeqCst);
@@ -568,7 +666,11 @@ pub async fn set_taskbar_mode(app: AppHandle, enabled: bool, _from_tray: Option<
             let _ = main_win.set_skip_taskbar(false);
             let saved_pos = get_saved_main_pos().lock().ok().and_then(|g| *g);
             if let Some((sx, sy)) = saved_pos {
-                let _ = main_win.set_position(tauri::PhysicalPosition::new(sx, sy));
+                if sx > -10000 && sy > -10000 {
+                    let _ = main_win.set_position(tauri::PhysicalPosition::new(sx, sy));
+                } else {
+                    let _ = main_win.center();
+                }
             } else {
                 let _ = main_win.center();
             }
@@ -576,7 +678,9 @@ pub async fn set_taskbar_mode(app: AppHandle, enabled: bool, _from_tray: Option<
             let _ = main_win.unminimize();
             let _ = main_win.set_focus();
         }
-        let _ = app.emit("force-normal-mode", ());
+        if from_tray.unwrap_or(false) {
+            let _ = app.emit("force-normal-mode", ());
+        }
     }
     Ok(())
 }
@@ -590,45 +694,6 @@ pub fn move_taskbar_window(app: AppHandle, delta_x: i32) -> Result<(), String> {
     }
     Ok(())
 }
-
-#[tauri::command]
-pub async fn set_edge_glow(app: AppHandle, enabled: bool, color: Option<String>) -> Result<(), String> {
-    use tauri::Emitter;
-    if enabled {
-        let eg_win = match app.get_webview_window("edge-glow") {
-            Some(w) => w,
-            None => {
-                crate::log_to_file("[LyricFlow Command] Building edge-glow window dynamically...");
-                let eg_builder = tauri::WebviewWindowBuilder::new(
-                    &app,
-                    "edge-glow",
-                    tauri::WebviewUrl::App("edge_glow.html".into()),
-                )
-                .title("LyricFlow Edge Glow")
-                .inner_size(800.0, 600.0)
-                .center()
-                .decorations(false)
-                .transparent(true)
-                .always_on_top(true)
-                .shadow(false)
-                .skip_taskbar(true);
-
-                eg_builder.build()
-                .map_err(|e| format!("[LyricFlow Command] Failed to create 'edge-glow' window: {}", e))?
-            }
-        };
-        let _ = eg_win.show();
-        let _ = eg_win.set_always_on_top(true);
-        let _ = eg_win.set_ignore_cursor_events(true);
-        if let Some(c) = color {
-            let _ = eg_win.emit("update-edge-glow-color", c);
-        }
-    } else if let Some(eg_win) = app.get_webview_window("edge-glow") {
-        let _ = eg_win.hide();
-    }
-    Ok(())
-}
-
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct MonitorInfo {
@@ -645,7 +710,9 @@ pub struct MonitorInfo {
 #[tauri::command]
 pub fn get_available_monitors(app: AppHandle) -> Result<Vec<MonitorInfo>, String> {
     let main_win = app.get_webview_window("main");
-    let primary = main_win.as_ref().and_then(|w| w.primary_monitor().ok().flatten());
+    let primary = main_win
+        .as_ref()
+        .and_then(|w| w.primary_monitor().ok().flatten());
     let monitors = if let Some(w) = main_win.as_ref() {
         w.available_monitors().map_err(|e| e.to_string())?
     } else {
@@ -687,11 +754,10 @@ mod workerw {
     use windows::core::{w, BOOL};
     use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
     use windows::Win32::UI::WindowsAndMessaging::{
-        EnumWindows, FindWindowExW, FindWindowW, GetWindowLongPtrW,
-        SendMessageTimeoutW, SetParent, SetWindowLongPtrW, SetWindowPos, ShowWindow,
-        GWL_EXSTYLE, GWL_STYLE, SMTO_NORMAL, SWP_FRAMECHANGED, SWP_NOMOVE, SWP_NOSIZE,
-        SWP_NOZORDER, SWP_SHOWWINDOW, SW_SHOW, WS_CHILD, WS_EX_APPWINDOW, WS_EX_TOOLWINDOW,
-        WS_POPUP, WS_VISIBLE,
+        EnumWindows, FindWindowExW, FindWindowW, GetWindowLongPtrW, SendMessageTimeoutW, SetParent,
+        SetWindowLongPtrW, SetWindowPos, ShowWindow, GWL_EXSTYLE, GWL_STYLE, SMTO_NORMAL,
+        SWP_FRAMECHANGED, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SWP_SHOWWINDOW, SW_SHOW, WS_CHILD,
+        WS_EX_APPWINDOW, WS_EX_TOOLWINDOW, WS_POPUP, WS_VISIBLE,
     };
 
     struct WorkerWState {
@@ -760,7 +826,9 @@ mod workerw {
             };
 
             let cur_style = GetWindowLongPtrW(hwnd, GWL_STYLE);
-            let new_style = (cur_style & !(WS_POPUP.0 as isize)) | (WS_CHILD.0 as isize) | (WS_VISIBLE.0 as isize);
+            let new_style = (cur_style & !(WS_POPUP.0 as isize))
+                | (WS_CHILD.0 as isize)
+                | (WS_VISIBLE.0 as isize);
             let _ = SetWindowLongPtrW(hwnd, GWL_STYLE, new_style);
 
             let cur_ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
@@ -792,7 +860,10 @@ mod workerw {
             }
 
             let _ = ShowWindow(hwnd, SW_SHOW);
-            crate::log_to_file(&format!("[Wallpaper] Successfully attached hwnd={:?} to WorkerW target={:?}", hwnd, target));
+            crate::log_to_file(&format!(
+                "[Wallpaper] Successfully attached hwnd={:?} to WorkerW target={:?}",
+                hwnd, target
+            ));
             true
         }
     }
@@ -802,7 +873,9 @@ mod workerw {
             let _ = SetParent(hwnd, None);
 
             let cur_style = GetWindowLongPtrW(hwnd, GWL_STYLE);
-            let new_style = (cur_style & !(WS_CHILD.0 as isize)) | (WS_POPUP.0 as isize) | (WS_VISIBLE.0 as isize);
+            let new_style = (cur_style & !(WS_CHILD.0 as isize))
+                | (WS_POPUP.0 as isize)
+                | (WS_VISIBLE.0 as isize);
             let _ = SetWindowLongPtrW(hwnd, GWL_STYLE, new_style);
 
             let cur_ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
@@ -819,16 +892,26 @@ mod workerw {
                 0,
                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED | SWP_SHOWWINDOW,
             );
-            crate::log_to_file(&format!("[Wallpaper] Detached hwnd={:?} from WorkerW", hwnd));
+            crate::log_to_file(&format!(
+                "[Wallpaper] Detached hwnd={:?} from WorkerW",
+                hwnd
+            ));
             true
         }
     }
 }
 
 #[tauri::command]
-pub async fn set_wallpaper_mode(app: AppHandle, enabled: bool, monitor_target: Option<String>) -> Result<(), String> {
+pub async fn set_wallpaper_mode(
+    app: AppHandle,
+    enabled: bool,
+    monitor_target: Option<String>,
+) -> Result<(), String> {
     use tauri::Emitter;
-    crate::log_to_file(&format!("[Wallpaper Command] set_wallpaper_mode(enabled={}) called", enabled));
+    crate::log_to_file(&format!(
+        "[Wallpaper Command] set_wallpaper_mode(enabled={}) called",
+        enabled
+    ));
     WALLPAPER_MODE_ACTIVE.store(enabled, Ordering::SeqCst);
 
     if let Some(main_win) = app.get_webview_window("main") {
@@ -861,39 +944,40 @@ pub async fn set_wallpaper_mode(app: AppHandle, enabled: bool, monitor_target: O
                 let monitors = main_win.available_monitors().unwrap_or_default();
                 let target = monitor_target.unwrap_or_else(|| "0".to_string());
 
-                let (x, y, w, h) = if (target == "all" || target == "all_screens") && !monitors.is_empty() {
-                    let mut min_x = i32::MAX;
-                    let mut min_y = i32::MAX;
-                    let mut max_x = i32::MIN;
-                    let mut max_y = i32::MIN;
-                    for m in &monitors {
-                        let pos = m.position();
-                        let size = m.size();
-                        min_x = min_x.min(pos.x);
-                        min_y = min_y.min(pos.y);
-                        max_x = max_x.max(pos.x + size.width as i32);
-                        max_y = max_y.max(pos.y + size.height as i32);
-                    }
-                    (min_x, min_y, (max_x - min_x) as u32, (max_y - min_y) as u32)
-                } else if let Ok(idx) = target.parse::<usize>() {
-                    if let Some(m) = monitors.get(idx) {
-                        let pos = m.position();
-                        let size = m.size();
-                        (pos.x, pos.y, size.width, size.height)
+                let (x, y, w, h) =
+                    if (target == "all" || target == "all_screens") && !monitors.is_empty() {
+                        let mut min_x = i32::MAX;
+                        let mut min_y = i32::MAX;
+                        let mut max_x = i32::MIN;
+                        let mut max_y = i32::MIN;
+                        for m in &monitors {
+                            let pos = m.position();
+                            let size = m.size();
+                            min_x = min_x.min(pos.x);
+                            min_y = min_y.min(pos.y);
+                            max_x = max_x.max(pos.x + size.width as i32);
+                            max_y = max_y.max(pos.y + size.height as i32);
+                        }
+                        (min_x, min_y, (max_x - min_x) as u32, (max_y - min_y) as u32)
+                    } else if let Ok(idx) = target.parse::<usize>() {
+                        if let Some(m) = monitors.get(idx) {
+                            let pos = m.position();
+                            let size = m.size();
+                            (pos.x, pos.y, size.width, size.height)
+                        } else if let Some(m) = monitors.first() {
+                            let pos = m.position();
+                            let size = m.size();
+                            (pos.x, pos.y, size.width, size.height)
+                        } else {
+                            (0, 0, 1920, 1080)
+                        }
                     } else if let Some(m) = monitors.first() {
                         let pos = m.position();
                         let size = m.size();
                         (pos.x, pos.y, size.width, size.height)
                     } else {
                         (0, 0, 1920, 1080)
-                    }
-                } else if let Some(m) = monitors.first() {
-                    let pos = m.position();
-                    let size = m.size();
-                    (pos.x, pos.y, size.width, size.height)
-                } else {
-                    (0, 0, 1920, 1080)
-                };
+                    };
 
                 let _ = main_win.set_position(tauri::PhysicalPosition::new(x, y));
                 let _ = main_win.set_size(tauri::PhysicalSize::new(w, h));
@@ -912,14 +996,20 @@ pub async fn set_wallpaper_mode(app: AppHandle, enabled: bool, monitor_target: O
                         .name("wallpaper-focus-monitor".to_string())
                         .spawn(move || {
                             let mut last_focused: Option<bool> = None;
-                            while WALLPAPER_FOCUS_MONITOR_ACTIVE.load(Ordering::SeqCst) && WALLPAPER_MODE_ACTIVE.load(Ordering::SeqCst) {
+                            while WALLPAPER_FOCUS_MONITOR_ACTIVE.load(Ordering::SeqCst)
+                                && WALLPAPER_MODE_ACTIVE.load(Ordering::SeqCst)
+                            {
                                 std::thread::sleep(std::time::Duration::from_millis(250));
-                                if !WALLPAPER_FOCUS_MONITOR_ACTIVE.load(Ordering::SeqCst) || !WALLPAPER_MODE_ACTIVE.load(Ordering::SeqCst) {
+                                if !WALLPAPER_FOCUS_MONITOR_ACTIVE.load(Ordering::SeqCst)
+                                    || !WALLPAPER_MODE_ACTIVE.load(Ordering::SeqCst)
+                                {
                                     break;
                                 }
                                 #[cfg(target_os = "windows")]
                                 {
-                                    use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetClassNameW, IsZoomed};
+                                    use windows::Win32::UI::WindowsAndMessaging::{
+                                        GetClassNameW, GetForegroundWindow, IsZoomed,
+                                    };
                                     let is_focused = unsafe {
                                         let fg = GetForegroundWindow();
                                         if fg.0.is_null() || fg.is_invalid() {
@@ -928,7 +1018,9 @@ pub async fn set_wallpaper_mode(app: AppHandle, enabled: bool, monitor_target: O
                                             let mut class_buf = [0u16; 256];
                                             let len = GetClassNameW(fg, &mut class_buf);
                                             if len > 0 {
-                                                let class_name = String::from_utf16_lossy(&class_buf[..len as usize]);
+                                                let class_name = String::from_utf16_lossy(
+                                                    &class_buf[..len as usize],
+                                                );
                                                 let is_desktop_shell = class_name == "Progman"
                                                     || class_name == "WorkerW"
                                                     || class_name == "Shell_TrayWnd"
@@ -948,7 +1040,8 @@ pub async fn set_wallpaper_mode(app: AppHandle, enabled: bool, monitor_target: O
                                     };
                                     if last_focused != Some(is_focused) {
                                         last_focused = Some(is_focused);
-                                        let _ = app_focus.emit("wallpaper-focus-changed", is_focused);
+                                        let _ =
+                                            app_focus.emit("wallpaper-focus-changed", is_focused);
                                     }
                                 }
                             }
@@ -983,11 +1076,15 @@ pub async fn set_wallpaper_mode(app: AppHandle, enabled: bool, monitor_target: O
                     let _ = main_win.set_size(tauri::PhysicalSize::new(sw, sh));
                     let _ = main_win.set_position(tauri::PhysicalPosition::new(px, py));
                 } else if let Some(bounds) = crate::commands::config::load_saved_window_bounds() {
-                    let _ = main_win.set_size(tauri::PhysicalSize::new(bounds.width, bounds.height));
+                    let _ =
+                        main_win.set_size(tauri::PhysicalSize::new(bounds.width, bounds.height));
                     let _ = main_win.set_position(tauri::PhysicalPosition::new(bounds.x, bounds.y));
                 } else {
                     let scale = main_win.scale_factor().unwrap_or(1.0);
-                    let _ = main_win.set_size(tauri::PhysicalSize::new((960.0 * scale) as u32, (600.0 * scale) as u32));
+                    let _ = main_win.set_size(tauri::PhysicalSize::new(
+                        (960.0 * scale) as u32,
+                        (600.0 * scale) as u32,
+                    ));
                     let _ = main_win.center();
                 }
 
@@ -1057,9 +1154,13 @@ pub fn log_debug(msg: String) -> Result<(), String> {
 #[tauri::command]
 pub fn update_taskbar_lyric(app: AppHandle, data: serde_json::Value) -> Result<(), String> {
     use tauri::Emitter;
+    let _ = app.emit("update-taskbar-lyric", &data);
     if let Some(tb) = app.get_webview_window("taskbar") {
         let _ = tb.emit("update-taskbar-lyric", &data);
-        let js = format!("if (window.__onTaskbarLyric) {{ window.__onTaskbarLyric({}); }}", data);
+        let js = format!(
+            "try {{ if (window.__onTaskbarLyric) window.__onTaskbarLyric({}); }} catch (_) {{}}",
+            data
+        );
         let _ = tb.eval(&js);
     }
     Ok(())
@@ -1068,9 +1169,13 @@ pub fn update_taskbar_lyric(app: AppHandle, data: serde_json::Value) -> Result<(
 #[tauri::command]
 pub fn sync_taskbar_config(app: AppHandle, config: serde_json::Value) -> Result<(), String> {
     use tauri::Emitter;
+    let _ = app.emit("sync-taskbar-config", &config);
     if let Some(tb) = app.get_webview_window("taskbar") {
         let _ = tb.emit("sync-taskbar-config", &config);
-        let js = format!("if (window.__onTaskbarConfig) {{ window.__onTaskbarConfig({}); }}", config);
+        let js = format!(
+            "try {{ if (window.__onTaskbarConfig) window.__onTaskbarConfig({}); }} catch (_) {{}}",
+            config
+        );
         let _ = tb.eval(&js);
     }
     Ok(())
@@ -1086,11 +1191,16 @@ pub fn is_dynamic_island_mode() -> bool {
 }
 
 #[tauri::command]
-pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_pos: Option<String>) -> Result<(), String> {
+pub async fn set_dynamic_island_mode(
+    window: WebviewWindow,
+    enabled: bool,
+    dock_pos: Option<String>,
+) -> Result<(), String> {
     use tauri::Emitter;
     let app = window.app_handle();
 
     if enabled {
+        cancel_pending_save_window_bounds();
         // Save current window position & size only on first entry from a legitimate main window
         if !DYNAMIC_ISLAND_ACTIVE.load(Ordering::SeqCst) {
             let scale = window.scale_factor().unwrap_or(1.0);
@@ -1099,21 +1209,39 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
 
             if let Ok(size) = window.inner_size() {
                 if size.width >= min_w && size.height >= min_h {
-                    if let Ok(mut lock) = SAVED_ISLAND_MAIN_SIZE.get_or_init(|| Mutex::new(None)).lock() {
+                    if let Ok(mut lock) = SAVED_ISLAND_MAIN_SIZE
+                        .get_or_init(|| Mutex::new(None))
+                        .lock()
+                    {
                         *lock = Some((size.width, size.height));
                     }
                     if let Ok(pos) = window.outer_position() {
-                        if let Ok(mut lock) = SAVED_ISLAND_MAIN_POS.get_or_init(|| Mutex::new(None)).lock() {
+                        if let Ok(mut lock) = SAVED_ISLAND_MAIN_POS
+                            .get_or_init(|| Mutex::new(None))
+                            .lock()
+                        {
                             *lock = Some((pos.x, pos.y));
                         }
+                        let _ = crate::commands::config::save_window_bounds(
+                            crate::commands::config::WindowBounds {
+                                x: pos.x,
+                                y: pos.y,
+                                width: size.width,
+                                height: size.height,
+                            },
+                        );
                     }
                 }
             }
         }
 
+        DYNAMIC_ISLAND_ACTIVE.store(true, Ordering::SeqCst);
+
         let scale = window.scale_factor().unwrap_or(1.0);
         let island_w = (520.0 * scale) as u32;
-        let island_h = (210.0 * scale) as u32;
+        // Reserve transparent space below the expanded capsule for the scrubber,
+        // translation/duet satellites, and their connector without clipping.
+        let island_h = (260.0 * scale) as u32;
 
         let dock = dock_pos.as_deref().unwrap_or("top-center");
 
@@ -1122,7 +1250,12 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
             .ok()
             .flatten()
             .or_else(|| window.primary_monitor().ok().flatten())
-            .or_else(|| window.available_monitors().ok().and_then(|m| m.into_iter().next()));
+            .or_else(|| {
+                window
+                    .available_monitors()
+                    .ok()
+                    .and_then(|m| m.into_iter().next())
+            });
 
         let (target_x, target_y) = if let Some(m) = monitor {
             let m_pos = m.position();
@@ -1132,10 +1265,10 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
 
             #[cfg(target_os = "windows")]
             let taskbar_top = {
+                use windows::Win32::Foundation::RECT;
                 use windows::Win32::UI::WindowsAndMessaging::{
                     SystemParametersInfoW, SPI_GETWORKAREA, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS,
                 };
-                use windows::Win32::Foundation::RECT;
                 let mut wa = RECT::default();
                 let ok = unsafe {
                     SystemParametersInfoW(
@@ -1194,15 +1327,18 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
         #[cfg(target_os = "windows")]
         {
             use windows::Win32::UI::WindowsAndMessaging::{
-                SetWindowPos, HWND_TOPMOST, SWP_SHOWWINDOW, SWP_NOACTIVATE, SWP_FRAMECHANGED,
-                GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE, WS_EX_TOPMOST,
-                WS_EX_TOOLWINDOW, WS_EX_APPWINDOW, WS_EX_TRANSPARENT,
+                GetWindowLongPtrW, SetWindowLongPtrW, SetWindowPos, GWL_EXSTYLE, HWND_TOPMOST,
+                SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_SHOWWINDOW, WS_EX_APPWINDOW,
+                WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT,
             };
             if let Ok(hwnd) = window.hwnd() {
                 let hwnd_val = windows::Win32::Foundation::HWND(hwnd.0 as _);
                 unsafe {
                     let cur_ex = GetWindowLongPtrW(hwnd_val, GWL_EXSTYLE);
-                    let new_ex = (cur_ex & !(WS_EX_APPWINDOW.0 as isize | WS_EX_TRANSPARENT.0 as isize)) | (WS_EX_TOOLWINDOW.0 as isize) | (WS_EX_TOPMOST.0 as isize);
+                    let new_ex = (cur_ex
+                        & !(WS_EX_APPWINDOW.0 as isize | WS_EX_TRANSPARENT.0 as isize))
+                        | (WS_EX_TOOLWINDOW.0 as isize)
+                        | (WS_EX_TOPMOST.0 as isize);
                     let _ = SetWindowLongPtrW(hwnd_val, GWL_EXSTYLE, new_ex);
                     let _ = SetWindowPos(
                         hwnd_val,
@@ -1228,10 +1364,30 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
 
         if let Ok(mut lock) = get_island_bounds().lock() {
             let initial_rect = match dock {
-                "top-left" => LyricBounds { x: 0, y: 0, width: 340, height: 36 },
-                "top-right" => LyricBounds { x: 180, y: 0, width: 340, height: 36 },
-                "bottom-center" => LyricBounds { x: 90, y: 174, width: 340, height: 36 },
-                _ => LyricBounds { x: 90, y: 0, width: 340, height: 36 },
+                "top-left" => LyricBounds {
+                    x: 0,
+                    y: 0,
+                    width: 340,
+                    height: 36,
+                },
+                "top-right" => LyricBounds {
+                    x: 180,
+                    y: 0,
+                    width: 340,
+                    height: 36,
+                },
+                "bottom-center" => LyricBounds {
+                    x: 90,
+                    y: 174,
+                    width: 340,
+                    height: 36,
+                },
+                _ => LyricBounds {
+                    x: 90,
+                    y: 0,
+                    width: 340,
+                    height: 36,
+                },
             };
             *lock = Some(initial_rect);
         }
@@ -1245,10 +1401,12 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
             std::thread::Builder::new()
                 .name("dynamic-island-hit-test".to_string())
                 .spawn(move || {
-                    use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
-                    use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_OEM_3, VK_OEM_5, VK_OEM_8};
-                    use windows::Win32::Foundation::POINT;
                     use tauri::Emitter;
+                    use windows::Win32::Foundation::POINT;
+                    use windows::Win32::UI::Input::KeyboardAndMouse::{
+                        GetAsyncKeyState, VK_OEM_3, VK_OEM_5, VK_OEM_8,
+                    };
+                    use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
 
                     let mut current_clickthrough = false;
                     let mut current_ghost_mode = false;
@@ -1268,14 +1426,26 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
                         let mut pt = POINT::default();
                         if unsafe { GetCursorPos(&mut pt) }.is_ok() {
                             let bounds_opt = get_island_bounds().lock().ok().and_then(|g| *g);
-                            let cur_bounds_id = bounds_opt.map(|b| (b.x, b.y, b.width, b.height)).unwrap_or((0, 0, 0, 0));
+                            let cur_bounds_id = bounds_opt
+                                .map(|b| (b.x, b.y, b.width, b.height))
+                                .unwrap_or((0, 0, 0, 0));
 
-                            let (win_x, win_y, scale) = get_island_geometry().lock().ok().map(|g| *g).unwrap_or((0, 0, 1.0));
+                            let (win_x, win_y, scale) = get_island_geometry()
+                                .lock()
+                                .ok()
+                                .map(|g| *g)
+                                .unwrap_or((0, 0, 1.0));
 
                             // While in ghost mode, prefer the snapshot bounds so CSS :hover unmatch doesn't collapse hit-testing
-                            let is_ghost_active = DYNAMIC_ISLAND_GHOST_ACTIVE.load(Ordering::SeqCst);
+                            let is_ghost_active =
+                                DYNAMIC_ISLAND_GHOST_ACTIVE.load(Ordering::SeqCst);
                             let active_bounds = if is_ghost_active {
-                                GHOST_LOCKED_BOUNDS.get_or_init(|| Mutex::new(None)).lock().ok().and_then(|g| *g).or(bounds_opt)
+                                GHOST_LOCKED_BOUNDS
+                                    .get_or_init(|| Mutex::new(None))
+                                    .lock()
+                                    .ok()
+                                    .and_then(|g| *g)
+                                    .or(bounds_opt)
                             } else {
                                 bounds_opt
                             };
@@ -1285,8 +1455,10 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
                                     let pad = (16.0 * scale) as i32; // Generous 16px buffer for seamless interaction
                                     let left = win_x + (b.x as f64 * scale) as i32 - pad;
                                     let top = win_y + (b.y as f64 * scale) as i32 - pad;
-                                    let right = win_x + ((b.x + b.width) as f64 * scale) as i32 + pad;
-                                    let bottom = win_y + ((b.y + b.height) as f64 * scale) as i32 + pad;
+                                    let right =
+                                        win_x + ((b.x + b.width) as f64 * scale) as i32 + pad;
+                                    let bottom =
+                                        win_y + ((b.y + b.height) as f64 * scale) as i32 + pad;
 
                                     pt.x >= left && pt.x <= right && pt.y >= top && pt.y <= bottom
                                 } else {
@@ -1301,9 +1473,11 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
                             let is_near_island = if let Some(b) = active_bounds {
                                 let pad = (160.0 * scale) as i32;
                                 pt.x >= (win_x + (b.x as f64 * scale) as i32 - pad)
-                                    && pt.x <= (win_x + ((b.x + b.width) as f64 * scale) as i32 + pad)
+                                    && pt.x
+                                        <= (win_x + ((b.x + b.width) as f64 * scale) as i32 + pad)
                                     && pt.y >= (win_y + (b.y as f64 * scale) as i32 - pad)
-                                    && pt.y <= (win_y + ((b.y + b.height) as f64 * scale) as i32 + pad)
+                                    && pt.y
+                                        <= (win_y + ((b.y + b.height) as f64 * scale) as i32 + pad)
                             } else {
                                 false
                             };
@@ -1316,9 +1490,15 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
 
                             // Real-time tap of ` (Tilde / Backtick):
                             // Support US (VK_OEM_3 / 0xC0), UK (VK_OEM_5 / 0xDC), and International (VK_OEM_8 / 0xDF) keyboards
-                            let is_oem3 = (unsafe { GetAsyncKeyState(VK_OEM_3.0 as i32) } as u16 & 0x8000) != 0;
-                            let is_oem5 = (unsafe { GetAsyncKeyState(VK_OEM_5.0 as i32) } as u16 & 0x8000) != 0;
-                            let is_oem8 = (unsafe { GetAsyncKeyState(VK_OEM_8.0 as i32) } as u16 & 0x8000) != 0;
+                            let is_oem3 = (unsafe { GetAsyncKeyState(VK_OEM_3.0 as i32) } as u16
+                                & 0x8000)
+                                != 0;
+                            let is_oem5 = (unsafe { GetAsyncKeyState(VK_OEM_5.0 as i32) } as u16
+                                & 0x8000)
+                                != 0;
+                            let is_oem8 = (unsafe { GetAsyncKeyState(VK_OEM_8.0 as i32) } as u16
+                                & 0x8000)
+                                != 0;
                             let is_tilde_down = is_oem3 || is_oem5 || is_oem8;
 
                             if is_tilde_down && !last_tilde_state {
@@ -1338,8 +1518,10 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
                                     .duration_since(std::time::UNIX_EPOCH)
                                     .map(|d| d.as_millis() as u64)
                                     .unwrap_or(0);
-                                let entered_at = DYNAMIC_ISLAND_GHOST_ENTERED_AT.load(Ordering::SeqCst);
-                                let should_auto_restore = now.saturating_sub(entered_at) > 500 && (!is_over_island || now.saturating_sub(entered_at) > 7000);
+                                let entered_at =
+                                    DYNAMIC_ISLAND_GHOST_ENTERED_AT.load(Ordering::SeqCst);
+                                let should_auto_restore = now.saturating_sub(entered_at) > 500
+                                    && (!is_over_island || now.saturating_sub(entered_at) > 7000);
 
                                 if should_auto_restore {
                                     set_dynamic_island_ghost(false);
@@ -1359,7 +1541,12 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
                                 let _ = win_clone.set_ignore_cursor_events(should_clickthrough);
                             }
 
-                            if pt.x == last_pt.x && pt.y == last_pt.y && cur_bounds_id == last_bounds_id && !is_ghost_now && !current_ghost_mode {
+                            if pt.x == last_pt.x
+                                && pt.y == last_pt.y
+                                && cur_bounds_id == last_bounds_id
+                                && !is_ghost_now
+                                && !current_ghost_mode
+                            {
                                 continue;
                             }
                             last_pt = pt;
@@ -1377,12 +1564,19 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
         if !DYNAMIC_ISLAND_ACTIVE.load(Ordering::SeqCst) {
             return Ok(());
         }
-        DYNAMIC_ISLAND_ACTIVE.store(false, Ordering::SeqCst);
         let _ = window.set_ignore_cursor_events(false);
         let _ = window.emit("island-ghost-mode", false);
 
-        let saved_pos = SAVED_ISLAND_MAIN_POS.get_or_init(|| Mutex::new(None)).lock().ok().and_then(|mut g| g.take());
-        let saved_size = SAVED_ISLAND_MAIN_SIZE.get_or_init(|| Mutex::new(None)).lock().ok().and_then(|mut g| g.take());
+        let saved_pos = SAVED_ISLAND_MAIN_POS
+            .get_or_init(|| Mutex::new(None))
+            .lock()
+            .ok()
+            .and_then(|mut g| g.take());
+        let saved_size = SAVED_ISLAND_MAIN_SIZE
+            .get_or_init(|| Mutex::new(None))
+            .lock()
+            .ok()
+            .and_then(|mut g| g.take());
 
         let scale = window.scale_factor().unwrap_or(1.0);
         let default_w = (960.0 * scale) as u32;
@@ -1395,39 +1589,68 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
             let h = if sh < min_h { default_h } else { sh };
             (px, py, w, h)
         } else if let Some(bounds) = crate::commands::config::load_saved_window_bounds() {
-            let w = if bounds.width < min_w { default_w } else { bounds.width };
-            let h = if bounds.height < min_h { default_h } else { bounds.height };
+            let w = if bounds.width < min_w {
+                default_w
+            } else {
+                bounds.width
+            };
+            let h = if bounds.height < min_h {
+                default_h
+            } else {
+                bounds.height
+            };
             (bounds.x, bounds.y, w, h)
         } else {
             (100, 100, default_w, default_h)
+        };
+
+        let monitor = window
+            .current_monitor()
+            .ok()
+            .flatten()
+            .or_else(|| window.primary_monitor().ok().flatten());
+        let (final_x, final_y) = if let Some(m) = monitor {
+            let m_pos = m.position();
+            let m_size = m.size();
+            let safe_top = m_pos.y + (70.0 * scale) as i32;
+            let centered_x = m_pos.x + ((m_size.width as i32 - rw as i32) / 2);
+            let centered_y = m_pos.y + ((m_size.height as i32 - rh as i32) / 2);
+            if ry < safe_top || rx < m_pos.x - 100 || rx > m_pos.x + m_size.width as i32 - 100 {
+                (centered_x, centered_y.max(safe_top))
+            } else {
+                (rx, ry)
+            }
+        } else {
+            let safe_y = if ry < 70 { 100 } else { ry };
+            (rx, safe_y)
         };
 
         let _ = window.unminimize();
         let _ = window.show();
         let _ = window.set_resizable(true);
         let _ = window.set_size(tauri::PhysicalSize::new(rw, rh));
-        let _ = window.set_position(tauri::PhysicalPosition::new(rx, ry));
+        let _ = window.set_position(tauri::PhysicalPosition::new(final_x, final_y));
         let _ = window.set_always_on_top(false);
         let _ = window.set_skip_taskbar(false);
 
         #[cfg(target_os = "windows")]
         {
             use windows::Win32::UI::WindowsAndMessaging::{
-                SetWindowPos, HWND_NOTOPMOST, SWP_SHOWWINDOW, SWP_FRAMECHANGED,
-                GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE,
-                WS_EX_TOOLWINDOW, WS_EX_APPWINDOW,
+                GetWindowLongPtrW, SetWindowLongPtrW, SetWindowPos, GWL_EXSTYLE, HWND_NOTOPMOST,
+                SWP_FRAMECHANGED, SWP_SHOWWINDOW, WS_EX_APPWINDOW, WS_EX_TOOLWINDOW,
             };
             if let Ok(hwnd) = window.hwnd() {
                 let hwnd_val = windows::Win32::Foundation::HWND(hwnd.0 as _);
                 unsafe {
                     let cur_ex = GetWindowLongPtrW(hwnd_val, GWL_EXSTYLE);
-                    let new_ex = (cur_ex & !(WS_EX_TOOLWINDOW.0 as isize)) | (WS_EX_APPWINDOW.0 as isize);
+                    let new_ex =
+                        (cur_ex & !(WS_EX_TOOLWINDOW.0 as isize)) | (WS_EX_APPWINDOW.0 as isize);
                     let _ = SetWindowLongPtrW(hwnd_val, GWL_EXSTYLE, new_ex);
                     let _ = SetWindowPos(
                         hwnd_val,
                         Some(HWND_NOTOPMOST),
-                        rx,
-                        ry,
+                        final_x,
+                        final_y,
                         rw as i32,
                         rh as i32,
                         SWP_SHOWWINDOW | SWP_FRAMECHANGED,
@@ -1438,7 +1661,7 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
 
         crate::log_to_file(&format!(
             "[DynamicIsland] Restored main window: pos=({}, {}), size=({}x{})",
-            rx, ry, rw, rh
+            final_x, final_y, rw, rh
         ));
         DYNAMIC_ISLAND_ACTIVE.store(false, Ordering::SeqCst);
     }
@@ -1450,7 +1673,9 @@ pub async fn set_dynamic_island_mode(window: WebviewWindow, enabled: bool, dock_
 #[tauri::command]
 pub fn reset_window_size(window: WebviewWindow) -> Result<(), String> {
     if WALLPAPER_MODE_ACTIVE.load(Ordering::SeqCst) {
-        crate::log_to_file("[Window Command] reset_window_size ignored: WALLPAPER_MODE_ACTIVE is true");
+        crate::log_to_file(
+            "[Window Command] reset_window_size ignored: WALLPAPER_MODE_ACTIVE is true",
+        );
         return Ok(());
     }
     let scale = window.scale_factor().unwrap_or(1.0);
@@ -1464,13 +1689,17 @@ pub fn reset_window_size(window: WebviewWindow) -> Result<(), String> {
     let _ = window.set_focus();
 
     if let Ok(pos) = window.outer_position() {
-        let _ = crate::commands::config::save_window_bounds(crate::commands::config::WindowBounds {
-            x: pos.x,
-            y: pos.y,
-            width: sw,
-            height: sh,
-        });
-        crate::log_to_file(&format!("[Window Bounds] Saved reset bounds: pos=({}, {}), size=({}x{})", pos.x, pos.y, sw, sh));
+        let _ =
+            crate::commands::config::save_window_bounds(crate::commands::config::WindowBounds {
+                x: pos.x,
+                y: pos.y,
+                width: sw,
+                height: sh,
+            });
+        crate::log_to_file(&format!(
+            "[Window Bounds] Saved reset bounds: pos=({}, {}), size=({}x{})",
+            pos.x, pos.y, sw, sh
+        ));
     }
     Ok(())
 }
@@ -1478,20 +1707,45 @@ pub fn reset_window_size(window: WebviewWindow) -> Result<(), String> {
 #[tauri::command]
 pub async fn set_cinematic_mode(window: WebviewWindow, enabled: bool) -> Result<(), String> {
     if WALLPAPER_MODE_ACTIVE.load(Ordering::SeqCst) {
-        crate::log_to_file("[Window Command] set_cinematic_mode ignored: WALLPAPER_MODE_ACTIVE is true");
+        crate::log_to_file(
+            "[Window Command] set_cinematic_mode ignored: WALLPAPER_MODE_ACTIVE is true",
+        );
         return Ok(());
     }
-    crate::log_to_file(&format!("[Window Command] set_cinematic_mode(enabled={}) — preserved stable window bounds", enabled));
+    crate::log_to_file(&format!(
+        "[Window Command] set_cinematic_mode(enabled={}) — preserved stable window bounds",
+        enabled
+    ));
     use tauri::Emitter;
     let _ = window.emit("cinematic-mode-changed", enabled);
     Ok(())
 }
 
 static PENDING_WINDOW_BOUNDS: OnceLock<Mutex<Option<(i32, i32, u32, u32)>>> = OnceLock::new();
-static SAVE_WINDOW_BOUNDS_DEBOUNCE_TIMER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+static SAVE_WINDOW_BOUNDS_DEBOUNCE_TIMER: std::sync::atomic::AtomicU64 =
+    std::sync::atomic::AtomicU64::new(0);
+
+pub fn cancel_pending_save_window_bounds() {
+    if let Ok(mut lock) = PENDING_WINDOW_BOUNDS
+        .get_or_init(|| Mutex::new(None))
+        .lock()
+    {
+        *lock = None;
+    }
+    SAVE_WINDOW_BOUNDS_DEBOUNCE_TIMER.store(0, Ordering::SeqCst);
+}
 
 pub fn queue_save_window_bounds(x: i32, y: i32, width: u32, height: u32) {
-    if let Ok(mut lock) = PENDING_WINDOW_BOUNDS.get_or_init(|| Mutex::new(None)).lock() {
+    if DYNAMIC_ISLAND_ACTIVE.load(Ordering::SeqCst)
+        || WALLPAPER_MODE_ACTIVE.load(Ordering::SeqCst)
+        || TASKBAR_MODE_ACTIVE.load(Ordering::SeqCst)
+    {
+        return;
+    }
+    if let Ok(mut lock) = PENDING_WINDOW_BOUNDS
+        .get_or_init(|| Mutex::new(None))
+        .lock()
+    {
         *lock = Some((x, y, width, height));
     }
     let now = std::time::SystemTime::now()
@@ -1514,19 +1768,65 @@ pub fn queue_save_window_bounds(x: i32, y: i32, width: u32, height: u32) {
 }
 
 pub fn flush_save_window_bounds() {
-    if let Ok(mut lock) = PENDING_WINDOW_BOUNDS.get_or_init(|| Mutex::new(None)).lock() {
+    if DYNAMIC_ISLAND_ACTIVE.load(Ordering::SeqCst)
+        || WALLPAPER_MODE_ACTIVE.load(Ordering::SeqCst)
+        || TASKBAR_MODE_ACTIVE.load(Ordering::SeqCst)
+    {
+        cancel_pending_save_window_bounds();
+        return;
+    }
+    if let Ok(mut lock) = PENDING_WINDOW_BOUNDS
+        .get_or_init(|| Mutex::new(None))
+        .lock()
+    {
         if let Some((x, y, width, height)) = lock.take() {
-            let _ = crate::commands::config::save_window_bounds(crate::commands::config::WindowBounds {
-                x,
-                y,
-                width,
-                height,
-            });
-            crate::log_to_file(&format!("[Window Bounds] Persisted window: pos=({}, {}), size=({}x{})", x, y, width, height));
+            if width >= 600 && height >= 420 {
+                let _ = crate::commands::config::save_window_bounds(
+                    crate::commands::config::WindowBounds {
+                        x,
+                        y,
+                        width,
+                        height,
+                    },
+                );
+                crate::log_to_file(&format!(
+                    "[Window Bounds] Persisted window: pos=({}, {}), size=({}x{})",
+                    x, y, width, height
+                ));
+            }
         }
     }
 }
 
+#[tauri::command]
+pub async fn set_memory_target_level(window: WebviewWindow, level: String) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        use webview2_com::Microsoft::Web::WebView2::Win32::{
+            ICoreWebView2_19, COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW,
+            COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL,
+        };
+        use windows::core::Interface;
 
+        let target_level = if level.eq_ignore_ascii_case("low") {
+            COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW
+        } else {
+            COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL
+        };
 
-
+        let _ = window.with_webview(move |webview| {
+            unsafe {
+                if let Ok(core) = webview.controller().CoreWebView2() {
+                    if let Ok(core19) = core.cast::<ICoreWebView2_19>() {
+                        let _ = core19.SetMemoryUsageTargetLevel(target_level);
+                    }
+                }
+            }
+        });
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = (window, level);
+    }
+    Ok(())
+}

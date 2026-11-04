@@ -20,6 +20,49 @@
   transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1), transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), background 0.3s ease;
 }
 
+/* Keep track identity/progress and transport controls in distinct glass pods. */
+.playback-widget {
+  gap: 12px;
+  padding: 0;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.widget-track-panel {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 10px 16px;
+  border-radius: 18px;
+  background: var(--glass-liquid-bg, rgba(16, 16, 26, 0.78));
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  contain: layout;
+  overflow: visible;
+  border: var(--glass-border, 1px solid rgba(255, 255, 255, 0.11));
+  box-shadow: 0 16px 36px -6px rgba(0, 0, 0, 0.42), inset 0 1.5px 0.5px rgba(255, 255, 255, 0.18), inset 0 -1px 0.5px rgba(0, 0, 0, 0.3);
+  transition: transform 0.24s cubic-bezier(0.2, 0.75, 0.25, 1);
+  will-change: transform;
+}
+
+.widget-controls {
+  margin-left: 0;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  background: rgba(22, 23, 31, 0.82);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  contain: layout;
+  overflow: visible;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.17);
+}
+
 /* Keep the regular player dock sized to its content instead of stretching
    glass across the whole lyric canvas. Split layout defines its own width. */
 body:not(.layout-split):not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode) .playback-widget {
@@ -40,7 +83,7 @@ body:not(.layout-split):not(.wallpaper-mode):not(.mode-dynamic-island):not(.task
 }
 .album-art-sparkle-old {
   opacity: 1;
-  transition: opacity 650ms ease;
+  transition: opacity 220ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 .album-art-sparkle-old.is-revealing { opacity: 0; }
 .album-art-sparkle-wave {
@@ -57,30 +100,45 @@ body:not(.layout-split):not(.wallpaper-mode):not(.mode-dynamic-island):not(.task
 }
 .album-art-sparkle-wave.is-sweeping {
   opacity: 1;
-  animation: album-art-sparkle-sweep 700ms ease-out forwards;
+  animation: album-art-sparkle-sweep 260ms ease-out forwards;
 }
 @keyframes album-art-sparkle-sweep {
   0% { transform: translateX(-110%); }
   100% { transform: translateX(110%); opacity: 0; }
 }
 
-body.auto-hide-controls .playback-widget {
+body.auto-hide-controls .playback-widget,
+body.auto-hide-controls #playback-widget > .widget-controls {
   opacity: 0;
   transform: translateY(6px);
+  pointer-events: none !important;
+  transition: opacity 0.22s ease, transform 0.22s ease;
 }
 
-body.auto-hide-controls .app-container:hover .playback-widget {
+body.auto-hide-controls .playback-widget:hover,
+body.auto-hide-controls .playback-widget:focus-within,
+body.auto-hide-controls #playback-widget > .widget-controls:focus-within {
   opacity: 1;
   transform: translateY(0);
+  pointer-events: auto !important;
 }
 
 [data-theme="light"] .playback-widget {
-  background: rgba(250, 250, 252, 0.94);
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+[data-theme="light"] .widget-track-panel {
+  background: rgba(250, 250, 252, 0.88);
   border-color: rgba(255, 255, 255, 0.78);
-  box-shadow:
-    0 12px 28px -4px rgba(0, 0, 0, 0.12),
-    inset 0 1.5px 0.5px rgba(255, 255, 255, 0.65),
-    inset 0 -1px 0.5px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 12px 28px -4px rgba(0, 0, 0, 0.12), inset 0 1.5px 0.5px rgba(255, 255, 255, 0.65), inset 0 -1px 0.5px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .widget-controls {
+  border-color: rgba(255, 255, 255, 0.78);
+  background: rgba(250, 250, 252, 0.88);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.72);
 }
 
 .widget-art-container {
@@ -120,6 +178,44 @@ body.auto-hide-controls .app-container:hover .playback-widget {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+#widget-album-art-video {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 2;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+  background-color: transparent !important;
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+body.has-animated-art-video #widget-album-art {
+  opacity: 1 !important;
+  display: block !important;
+  z-index: 1 !important;
+}
+
+body.has-animated-art-video #widget-album-art-video {
+  display: block !important;
+}
+
+body.has-animated-art-video #widget-album-art-video.is-playing {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+body.has-animated-art-video .album-art-sparkle-old,
+body.has-animated-art-video .album-art-sparkle-wave {
+  display: none !important;
 }
 
 .art-fallback {
@@ -410,15 +506,34 @@ body.auto-hide-controls .app-container:hover .playback-widget {
 
 .progress-bar-fill {
   height: 100%;
-  width: 0%;
+  width: 100%;
+  transform: scaleX(var(--progress-ratio, 0));
+  transform-origin: left center;
   background: linear-gradient(90deg, var(--accent-primary), var(--accent-bright));
   border-radius: 999px;
-  transition: width 0.1s linear;
+  /* Hardware compositor driven by playhead RAF */
+  will-change: transform;
+  transform: scaleX(var(--progress-ratio, 0)) translateZ(0);
   position: relative;
   box-shadow: 0 0 10px rgba(var(--accent-primary-rgb), 0.5), inset 0 1px 0.5px rgba(255, 255, 255, 0.4);
   animation: progressPulse 2.5s ease-in-out infinite;
+  animation-play-state: paused;
   z-index: 2;
   pointer-events: none;
+}
+
+body.is-playing .progress-bar-fill:not(.idle-shimmer) {
+  animation-play-state: running;
+}
+
+body.window-blurred .progress-bar-fill,
+body.app-paused .progress-bar-fill {
+  animation-play-state: paused !important;
+}
+
+body.window-blurred .playback-widget {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
 .progress-bar-bg.is-scrubbing .progress-bar-fill {
@@ -486,6 +601,7 @@ body.auto-hide-controls .app-container:hover .playback-widget {
 
 .progress-bar-fill.idle-shimmer {
   width: 100% !important;
+  transform: scaleX(1) !important;
   background: linear-gradient(90deg, transparent 0%, rgba(var(--accent-primary-rgb, 29, 185, 84), 0.35) 50%, transparent 100%) !important;
   background-size: 200% 100% !important;
   animation: idleShimmer 2.5s ease-in-out infinite !important;
@@ -495,6 +611,15 @@ body.auto-hide-controls .app-container:hover .playback-widget {
 @keyframes idleShimmer {
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
+}
+
+body.app-paused .idle-eq-bar,
+body.app-paused .idle-shimmer,
+body.mode-dynamic-island .idle-eq-bar,
+body.mode-dynamic-island .idle-shimmer,
+body.taskbar-mode .idle-eq-bar,
+body.taskbar-mode .idle-shimmer {
+  animation-play-state: paused !important;
 }
 
 .progress-time {
@@ -552,10 +677,22 @@ body.auto-hide-controls .app-container:hover .playback-widget {
 .widget-controls {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   margin-left: 20px;
   flex-shrink: 0;
   -webkit-app-region: no-drag !important;
+}
+
+@media (max-width: 640px) {
+  .playback-widget { flex-wrap: wrap; align-items: stretch; }
+  .widget-track-panel { flex-basis: 100%; }
+  .widget-controls { justify-content: center; flex: 1 1 100%; }
+}
+
+@media (max-width: 500px) {
+  .playback-widget { padding: 0 !important; }
+  .widget-track-panel { gap: 8px; padding: 8px 10px; }
+  .widget-controls { gap: 6px; padding: 7px 9px; }
 }
 
 .widget-ctrl-btn {
@@ -772,4 +909,10 @@ body.auto-hide-controls .app-container:hover .playback-widget {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+
+/* Visual separation between utility tools and transport controls */
+.widget-controls #btn-prev {
+  margin-left: 4px;
 }

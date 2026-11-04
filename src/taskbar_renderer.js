@@ -1,12 +1,22 @@
 // === LyricFlow Taskbar Renderer ===
-// Window is full taskbar width and docked to the Windows taskbar strip.
-// Text is draggable along the strip and clicks pass through when not interacting with lyrics.
+// Clean, minimal lyric presentation docked to the Windows taskbar strip.
+// Text is draggable along the available taskbar strip and clicks pass through when not interacting.
+// Optional Glass presentation style supported; hover reveals compact playback controls.
 
-const lyricEl    = document.getElementById('tb-lyric');
-const progressEl = document.getElementById('tb-progress');
+const containerEl = document.getElementById('tb-container');
+const lyricEl     = document.getElementById('tb-lyric');
+const progressEl  = document.getElementById('tb-progress');
+const controlsEl  = document.getElementById('tb-controls');
+const btnPrev     = document.getElementById('tb-btn-prev');
+const btnPlay     = document.getElementById('tb-btn-play');
+const btnNext     = document.getElementById('tb-btn-next');
+const iconPlay    = document.getElementById('tb-icon-play');
+const iconPause   = document.getElementById('tb-icon-pause');
 
 let currentPosition = 'bottom'; // 'bottom' | 'top' | 'left' | 'right'
-document.body.className = `pos-${currentPosition}`;
+let currentStyle    = 'minimal'; // 'minimal' (default) | 'glass'
+
+document.body.className = `pos-${currentPosition} style-${currentStyle}`;
 
 let lyricOffsetX = 0;
 let lyricOffsetY = 0;
@@ -16,6 +26,10 @@ try {
   const savedY = parseFloat(localStorage.getItem('tb_lyric_offset_y'));
   if (!isNaN(savedX)) lyricOffsetX = savedX;
   if (!isNaN(savedY)) lyricOffsetY = savedY;
+  const savedStyle = localStorage.getItem('tb_presentation_style');
+  if (savedStyle === 'glass' || savedStyle === 'minimal') {
+    currentStyle = savedStyle;
+  }
 } catch (e) {}
 
 let dragStartMouseX = 0;
@@ -23,44 +37,117 @@ let dragStartMouseY = 0;
 let dragStartOffset = 0;
 let isDragging      = false;
 let hasMoved        = false;
+let lastReportedBounds = null;
 
 function isVertical() {
   return currentPosition === 'left' || currentPosition === 'right';
 }
 
+function setPresentationStyle(style) {
+  currentStyle = (style === 'glass') ? 'glass' : 'minimal';
+  document.body.classList.remove('style-minimal', 'style-glass');
+  document.body.classList.add(`style-${currentStyle}`);
+  if (containerEl) {
+    containerEl.classList.remove('style-minimal', 'style-glass');
+    containerEl.classList.add(`style-${currentStyle}`);
+  }
+  try {
+    localStorage.setItem('tb_presentation_style', currentStyle);
+  } catch (_) {}
+  reportBounds();
+}
+
+function updatePlayState(isPlaying) {
+  if (iconPlay && iconPause) {
+    iconPlay.style.display = isPlaying ? 'none' : 'block';
+    iconPause.style.display = isPlaying ? 'block' : 'none';
+  }
+}
+
 function reportBounds() {
   if (!window.taskbarAPI || !window.taskbarAPI.updateLyricBounds) return;
-  if (!lyricEl || lyricEl.classList.contains('tb-hidden') || !lyricEl.textContent || lyricEl.textContent.trim() === '' || lyricEl.textContent === '♫') {
-    window.taskbarAPI.updateLyricBounds({ x: 0, y: 0, width: 0, height: 0 });
+  const target = containerEl || lyricEl;
+  if (!target || target.classList.contains('tb-hidden') || !lyricEl || !lyricEl.textContent || lyricEl.textContent.trim() === '') {
+    if (lastReportedBounds && lastReportedBounds.width === 0) return;
+    lastReportedBounds = { x: 0, y: 0, width: 0, height: 0 };
+    window.taskbarAPI.updateLyricBounds(lastReportedBounds);
     return;
   }
-  const rect = lyricEl.getBoundingClientRect();
-  window.taskbarAPI.updateLyricBounds({
+  const rect = target.getBoundingClientRect();
+  const nextBounds = {
     x: Math.round(rect.left),
     y: Math.round(rect.top),
     width: Math.round(rect.width),
     height: Math.round(rect.height)
-  });
+  };
+  if (lastReportedBounds &&
+      lastReportedBounds.x === nextBounds.x &&
+      lastReportedBounds.y === nextBounds.y &&
+      lastReportedBounds.width === nextBounds.width &&
+      lastReportedBounds.height === nextBounds.height) {
+    return;
+  }
+  lastReportedBounds = nextBounds;
+  window.taskbarAPI.updateLyricBounds(nextBounds);
 }
 
 function applyOffset() {
+  const target = containerEl || lyricEl;
+  if (!target) return;
+
   if (isVertical()) {
-    const maxOffset = Math.max(10, (window.innerHeight / 2) - 40);
+    // Leave safe space at top (Start button ~60px) and bottom (clock/tray ~90px)
+    const screenH = window.innerHeight || 1080;
+    const maxOffset = Math.max(20, Math.floor((screenH / 2) - 100));
     lyricOffsetY = Math.max(-maxOffset, Math.min(maxOffset, lyricOffsetY));
-    lyricEl.style.top       = `calc(50% + ${lyricOffsetY}px)`;
-    lyricEl.style.left      = '';
-    lyricEl.style.transform = 'translateY(-50%)';
+    target.style.top       = `calc(50% + ${lyricOffsetY}px)`;
+    target.style.left      = '50%';
+    target.style.transform = 'translate(-50%, -50%)';
   } else {
-    const maxOffset = Math.max(10, (window.innerWidth / 2) - 40);
+    // Leave safe space at left (Start button + app icons, min 180px) and right (system tray / clock, min 220px)
+    const screenW = window.innerWidth || 1920;
+    const maxOffset = Math.max(20, Math.floor((screenW / 2) - 220));
     lyricOffsetX = Math.max(-maxOffset, Math.min(maxOffset, lyricOffsetX));
-    lyricEl.style.left      = `calc(50% + ${lyricOffsetX}px)`;
-    lyricEl.style.top       = '';
-    lyricEl.style.transform = 'translateX(-50%)';
+    target.style.left      = `calc(50% + ${lyricOffsetX}px)`;
+    target.style.top       = '50%';
+    target.style.transform = 'translate(-50%, -50%)';
   }
   reportBounds();
 }
 
+setPresentationStyle(currentStyle);
 applyOffset();
+
+// ── Hover Controls Interaction ─────────────────────────────────────────────
+if (btnPrev) {
+  btnPrev.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (window.taskbarAPI && window.taskbarAPI.prevTrack) {
+      window.taskbarAPI.prevTrack();
+    }
+  });
+}
+
+if (btnPlay) {
+  btnPlay.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (window.taskbarAPI && window.taskbarAPI.togglePlayPause) {
+      window.taskbarAPI.togglePlayPause();
+    }
+  });
+}
+
+if (btnNext) {
+  btnNext.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (window.taskbarAPI && window.taskbarAPI.nextTrack) {
+      window.taskbarAPI.nextTrack();
+    }
+  });
+}
 
 // ── Drag & Click interactions ──────────────────────────────────────────────
 // Suppress context menu & right-click actions completely in taskbar mode
@@ -70,11 +157,66 @@ document.addEventListener('contextmenu', (e) => {
   return false;
 }, { capture: true });
 
-lyricEl.addEventListener('contextmenu', (e) => {
-  e.preventDefault();
-  e.stopPropagation();
-  return false;
-}, { capture: true });
+const dragTarget = containerEl || lyricEl;
+
+if (dragTarget) {
+  dragTarget.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    return false;
+  }, { capture: true });
+
+  dragTarget.addEventListener('mousedown', (e) => {
+    // Ignore clicks inside controls so buttons receive normal clicks
+    if (e.target && e.target.closest && e.target.closest('#tb-controls')) {
+      return;
+    }
+    if (e.button === 2) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    if (e.button !== 0) return;
+    e.preventDefault();
+    isDragging      = true;
+    hasMoved        = false;
+    dragStartMouseX = e.screenX;
+    dragStartMouseY = e.screenY;
+    dragStartOffset = isVertical() ? lyricOffsetY : lyricOffsetX;
+    dragTarget.classList.add('dragging');
+    if (window.taskbarAPI && window.taskbarAPI.setDragging) {
+      window.taskbarAPI.setDragging(true);
+    }
+  });
+
+  // Restore/open main app on intentional double-click
+  dragTarget.addEventListener('dblclick', (e) => {
+    if (e.target && e.target.closest && e.target.closest('#tb-controls')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (window.taskbarAPI && window.taskbarAPI.openApp) {
+      window.taskbarAPI.openApp();
+    }
+  });
+
+  // Middle-click to quickly toggle Play/Pause directly from the taskbar; ignore right click
+  dragTarget.addEventListener('auxclick', (e) => {
+    if (e.button === 2) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    if (e.button === 1) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (window.taskbarAPI && window.taskbarAPI.togglePlayPause) {
+        window.taskbarAPI.togglePlayPause();
+      }
+    }
+  });
+
+  dragTarget.title = "Double-click to open LyricFlow\nDrag along taskbar to reposition\nMiddle-click to Play/Pause";
+}
 
 window.addEventListener('mousedown', (e) => {
   if (e.button === 2) {
@@ -104,25 +246,6 @@ window.addEventListener('auxclick', (e) => {
   }
 }, { capture: true });
 
-lyricEl.addEventListener('mousedown', (e) => {
-  if (e.button === 2) {
-    e.preventDefault();
-    e.stopPropagation();
-    return;
-  }
-  if (e.button !== 0) return;
-  e.preventDefault();
-  isDragging      = true;
-  hasMoved        = false;
-  dragStartMouseX = e.screenX;
-  dragStartMouseY = e.screenY;
-  dragStartOffset = isVertical() ? lyricOffsetY : lyricOffsetX;
-  lyricEl.classList.add('dragging');
-  if (window.taskbarAPI && window.taskbarAPI.setDragging) {
-    window.taskbarAPI.setDragging(true);
-  }
-});
-
 document.addEventListener('mousemove', (e) => {
   if (!isDragging) return;
   const delta = isVertical() ? (e.screenY - dragStartMouseY) : (e.screenX - dragStartMouseX);
@@ -139,10 +262,10 @@ document.addEventListener('mousemove', (e) => {
   }
 }, { capture: false });
 
-document.addEventListener('mouseup', () => {
+function endDrag() {
   if (!isDragging) return;
   isDragging = false;
-  lyricEl.classList.remove('dragging');
+  if (dragTarget) dragTarget.classList.remove('dragging');
   if (window.taskbarAPI && window.taskbarAPI.setDragging) {
     window.taskbarAPI.setDragging(false);
   }
@@ -161,58 +284,10 @@ document.addEventListener('mouseup', () => {
     }
     reportBounds();
   }
-});
+}
 
-// Restore/open main app on intentional double-click
-lyricEl.addEventListener('dblclick', (e) => {
-  e.preventDefault();
-  e.stopPropagation();
-  if (window.taskbarAPI && window.taskbarAPI.openApp) {
-    window.taskbarAPI.openApp();
-  }
-});
-
-// Middle-click to quickly toggle Play/Pause directly from the taskbar; ignore right click
-lyricEl.addEventListener('auxclick', (e) => {
-  if (e.button === 2) {
-    e.preventDefault();
-    e.stopPropagation();
-    return;
-  }
-  if (e.button === 1) {
-    e.preventDefault();
-    e.stopPropagation();
-    if (window.taskbarAPI && window.taskbarAPI.togglePlayPause) {
-      window.taskbarAPI.togglePlayPause();
-    }
-  }
-});
-
-lyricEl.title = "Double-click to open LyricFlow\nDrag along taskbar to reposition\nMiddle-click to Play/Pause";
-
-document.addEventListener('mouseleave', () => {
-  if (isDragging) {
-    isDragging = false;
-    lyricEl.classList.remove('dragging');
-    if (window.taskbarAPI && window.taskbarAPI.setDragging) {
-      window.taskbarAPI.setDragging(false);
-    }
-    if (hasMoved) {
-      const offsetVal = isVertical() ? lyricOffsetY : lyricOffsetX;
-      try {
-        if (isVertical()) {
-          localStorage.setItem('tb_lyric_offset_y', String(lyricOffsetY));
-        } else {
-          localStorage.setItem('tb_lyric_offset_x', String(lyricOffsetX));
-        }
-      } catch (e) {}
-      if (window.taskbarAPI && window.taskbarAPI.saveOffset) {
-        window.taskbarAPI.saveOffset(offsetVal);
-      }
-    }
-    reportBounds();
-  }
-});
+document.addEventListener('mouseup', endDrag);
+document.addEventListener('mouseleave', endDrag);
 
 function sanitizeTaskbarHtml(rawHtml) {
   if (!rawHtml || typeof rawHtml !== 'string') return '';
@@ -257,58 +332,103 @@ function sanitizeTaskbarHtml(rawHtml) {
 // ── IPC: lyrics + progress ─────────────────────────────────────────────────
 function handleTaskbarData(data) {
   if (!data) return;
+  let layoutChanged = false;
+  const target = containerEl || lyricEl;
+
+  if (data.isPlaying !== undefined) {
+    updatePlayState(Boolean(data.isPlaying));
+  }
+
   if (data.hidden !== undefined) {
+    const wasHidden = target ? target.classList.contains('tb-hidden') : false;
     if (data.hidden) {
-      lyricEl.classList.add('tb-hidden');
-      progressEl.classList.add('tb-hidden');
+      if (target) target.classList.add('tb-hidden');
+      if (lyricEl) lyricEl.classList.add('tb-hidden');
+      if (progressEl) progressEl.classList.add('tb-hidden');
     } else {
-      lyricEl.classList.remove('tb-hidden');
-      progressEl.classList.remove('tb-hidden');
+      if (target) target.classList.remove('tb-hidden');
+      if (lyricEl) lyricEl.classList.remove('tb-hidden');
+      if (progressEl) progressEl.classList.remove('tb-hidden');
     }
+    layoutChanged = wasHidden !== !!data.hidden;
   }
 
   if (data.html !== undefined && data.html) {
-    lyricEl.innerHTML = sanitizeTaskbarHtml(data.html);
-    if (data.hidden !== true) {
-      lyricEl.classList.remove('tb-hidden');
-      progressEl.classList.remove('tb-hidden');
+    if (lyricEl) {
+      lyricEl.innerHTML = sanitizeTaskbarHtml(data.html);
+      layoutChanged = true;
     }
-  } else if (data.text !== undefined) {
+    if (data.hidden !== true) {
+      if (target) target.classList.remove('tb-hidden');
+      if (lyricEl) lyricEl.classList.remove('tb-hidden');
+      if (progressEl) progressEl.classList.remove('tb-hidden');
+    }
+  } else if (data.text !== undefined &&
+      !(Array.isArray(data.wordStates) && lyricEl && lyricEl.querySelector('.tb-lyric-word'))) {
     if (data.text) {
-      lyricEl.textContent = data.text;
-      if (data.hidden !== true) {
-        lyricEl.classList.remove('tb-hidden');
-        progressEl.classList.remove('tb-hidden');
+      if (lyricEl && lyricEl.textContent !== data.text) {
+        lyricEl.textContent = data.text;
+        layoutChanged = true;
       }
-    } else if (!data.hidden) {
+      if (data.hidden !== true) {
+        if (target) target.classList.remove('tb-hidden');
+        if (lyricEl) lyricEl.classList.remove('tb-hidden');
+        if (progressEl) progressEl.classList.remove('tb-hidden');
+      }
+    } else if (!data.hidden && lyricEl) {
       lyricEl.textContent = '♫';
     }
   }
 
-  if (data.progress !== undefined) {
+  if (Array.isArray(data.wordStates) && lyricEl) {
+    const spans = lyricEl.querySelectorAll('.tb-lyric-word');
+    if (spans.length === data.wordStates.length) {
+      spans.forEach((span, index) => {
+        const state = data.wordStates[index] || 'upcoming';
+        span.classList.toggle('lyric-word-completed', state === 'completed');
+        span.classList.toggle('lyric-word-passed', state === 'completed');
+        span.classList.toggle('lyric-word-active', state === 'active');
+        span.classList.toggle('lyric-word-upcoming', state === 'upcoming');
+      });
+    }
+  }
+
+  if (data.progress !== undefined && progressEl) {
+    const pct = Math.min(100, Math.max(0, data.progress));
     if (isVertical()) {
-      progressEl.style.height = Math.min(100, Math.max(0, data.progress)) + '%';
+      progressEl.style.height = pct + '%';
       progressEl.style.width = '2px';
     } else {
-      progressEl.style.width = Math.min(100, Math.max(0, data.progress)) + '%';
+      progressEl.style.width = pct + '%';
       progressEl.style.height = '2px';
     }
   }
 
-  reportBounds();
+  if (layoutChanged) reportBounds();
 }
 
 // ── IPC: config ────────────────────────────────────────────────────────────
 function handleTaskbarConfig(cfg) {
   if (!cfg) return;
+  if (cfg.style !== undefined) {
+    setPresentationStyle(cfg.style);
+  } else if (cfg.taskbarStyle !== undefined) {
+    setPresentationStyle(cfg.taskbarStyle);
+  }
   if (cfg.position && cfg.position !== currentPosition) {
     document.body.classList.remove(`pos-${currentPosition}`);
     currentPosition = cfg.position;
     document.body.classList.add(`pos-${currentPosition}`);
     applyOffset();
   }
-  if (cfg.accentColor) progressEl.style.background = cfg.accentColor;
-  if (cfg.textColor) lyricEl.style.color = cfg.textColor;
+  if (cfg.accentColor) {
+    document.documentElement.style.setProperty('--tb-accent', cfg.accentColor);
+    if (progressEl) progressEl.style.background = cfg.accentColor;
+  }
+  if (cfg.textColor) {
+    document.documentElement.style.setProperty('--tb-text', cfg.textColor);
+    if (lyricEl) lyricEl.style.color = cfg.textColor;
+  }
   const newOffset = cfg.lyricOffsetX !== undefined ? cfg.lyricOffsetX : cfg.taskbarOffset;
   if (newOffset !== undefined && !isDragging) {
     if (isVertical()) {
@@ -336,12 +456,14 @@ if (window.taskbarAPI && window.taskbarAPI.onSyncConfig) {
 window.addEventListener('resize', () => {
   applyOffset();
 });
-setTimeout(reportBounds, 300);
-setTimeout(reportBounds, 1000);
+setTimeout(reportBounds, 250);
+setTimeout(reportBounds, 800);
 
 // Notify main window that taskbar DOM is loaded and ready to receive lyrics
 try {
-  if (window.__TAURI__ && window.__TAURI__.event && window.__TAURI__.event.emit) {
+  if (window.taskbarAPI && typeof window.taskbarAPI.taskbarReady === 'function') {
+    window.taskbarAPI.taskbarReady();
+  } else if (window.__TAURI__ && window.__TAURI__.event && window.__TAURI__.event.emit) {
     window.__TAURI__.event.emit('taskbar-mode-ready', {});
   }
 } catch (_) {}
@@ -350,6 +472,9 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     sanitizeTaskbarHtml,
     handleTaskbarData,
-    handleTaskbarConfig
+    handleTaskbarConfig,
+    setPresentationStyle,
+    applyOffset,
+    reportBounds
   };
 }

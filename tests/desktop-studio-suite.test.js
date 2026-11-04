@@ -50,6 +50,10 @@ assert.ok(
   studioCss.includes('.studio-art-glow'),
   '_studio.css must define reactive ambient aura halo .studio-art-glow'
 );
+assert.ok(
+  /body\.layout-split:not\(\.wallpaper-mode\):not\(\.mode-dynamic-island\):not\(\.taskbar-mode\):not\(\.cinematic-view-active\) #instrumental-solo-stage\s*\{\s*display: none !important;/.test(studioCss),
+  'Split View must keep the floating instrumental card out of the full-height lyric column'
+);
 console.log('  ✓ 1c. Studio sidebar squircle artwork and ambient glow styles defined');
 
 // 1d. index.html contains #studio-sidebar and #btn-layout-split
@@ -160,7 +164,7 @@ assert.ok(
   '_studio.css must provide generous pseudo-element touch/click expander on progress-bar-bg'
 );
 assert.ok(
-  rendererJs.includes('widgetProgressFill.style.width = `${pct}%`'),
+  rendererJs.includes('setMainProgressFill(pct);'),
   'renderer.js seekPlayback must immediately apply optimistic visual update'
 );
 console.log('  ✓ 2d. Progress bar features 26px expanded hit zone and instant seek feedback');

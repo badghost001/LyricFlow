@@ -18,6 +18,7 @@ class CAEmitterEngine {
     this.isEmitting = false;
     this.spriteCache = new Map();
     this.lastDirtyRect = null;
+    this.pendingVaporizeTimeouts = new WeakMap();
 
     this._ensureCanvas();
   }
@@ -29,24 +30,50 @@ class CAEmitterEngine {
       this.canvas = document.createElement("canvas");
       this.canvas.id = this.canvasId;
       this.canvas.className = "island-ca-emitter-canvas";
+      this.canvas.style.cssText = "position:fixed;pointer-events:none;z-index:999999;display:none;width:1px;height:1px;";
+      this.canvas.width = 1;
+      this.canvas.height = 1;
       const container = document.querySelector(".app-container") || document.body;
       container.appendChild(this.canvas);
     }
     this.ctx = this.canvas.getContext("2d", { willReadFrequently: false });
-    this._resizeCanvas();
 
-    window.addEventListener("resize", () => this._resizeCanvas());
+    if (!this._hasResizeListener && typeof window !== 'undefined') {
+      this._hasResizeListener = true;
+      window.addEventListener("resize", () => {
+        if (this.isEmitting) this._resizeCanvas();
+      }, { passive: true });
+    }
+  }
+
+  _expandCanvas() {
+    this._ensureCanvas();
+    if (!this.canvas) return;
+    if (this.canvas.style) this.canvas.style.display = "block";
+    this._resizeCanvas();
+  }
+
+  _collapseCanvas() {
+    if (!this.canvas) return;
+    if (this.canvas.style) this.canvas.style.display = "none";
+    // Evict full-screen backing store buffer to free 15–30MB VRAM
+    this.canvas.width = 1;
+    this.canvas.height = 1;
+    this.lastDirtyRect = null;
   }
 
   _resizeCanvas() {
     if (!this.canvas) return;
-    const dpr = window.devicePixelRatio || 1;
-    const w = window.innerWidth;
-    const h = window.innerHeight;
+    const hasWindow = typeof window !== 'undefined';
+    const dpr = (hasWindow && window.devicePixelRatio) || 1;
+    const w = (hasWindow && window.innerWidth) || (this.canvas.width ? this.canvas.width / dpr : 800);
+    const h = (hasWindow && window.innerHeight) || (this.canvas.height ? this.canvas.height / dpr : 600);
     this.canvas.width = Math.round(w * dpr);
     this.canvas.height = Math.round(h * dpr);
-    this.canvas.style.width = `${w}px`;
-    this.canvas.style.height = `${h}px`;
+    if (this.canvas.style) {
+      this.canvas.style.width = `${w}px`;
+      this.canvas.style.height = `${h}px`;
+    }
     if (this.ctx) {
       this.ctx.setTransform(1, 0, 0, 1, 0, 0);
       this.ctx.scale(dpr, dpr);
@@ -166,6 +193,9 @@ class CAEmitterEngine {
       return;
     }
 
+    const previousCleanup = this.pendingVaporizeTimeouts.get(targetElement);
+    if (previousCleanup) clearTimeout(previousCleanup);
+
     this._ensureCanvas();
     if (!this.canvas || !this.ctx) {
       targetElement.style.display = 'none';
@@ -239,17 +269,31 @@ class CAEmitterEngine {
 
     // 3. Coordinate DOM removal after spring transition
     const cleanupTimeout = setTimeout(() => {
+      this.pendingVaporizeTimeouts.delete(targetElement);
       targetElement.style.display = 'none';
       targetElement.classList.remove("island-vaporizing");
       if (onComplete) onComplete();
     }, 420);
+    this.pendingVaporizeTimeouts.set(targetElement, cleanupTimeout);
 
     // 4. Start particle loop if not already running
     if (!this.isEmitting) {
+      this._expandCanvas();
       this.isEmitting = true;
       this.lastTime = performance.now();
       this._renderLoop();
     }
+  }
+
+  cancelVaporize(targetElement) {
+    if (!targetElement) return;
+    const timeout = this.pendingVaporizeTimeouts.get(targetElement);
+    if (timeout) {
+      clearTimeout(timeout);
+      this.pendingVaporizeTimeouts.delete(targetElement);
+    }
+    targetElement.classList.remove("island-vaporizing");
+    targetElement.style.opacity = '';
   }
 
   /**
@@ -260,6 +304,7 @@ class CAEmitterEngine {
       if (onComplete) onComplete();
       return;
     }
+    this.cancelVaporize(targetElement);
     targetElement.classList.remove("island-vaporizing");
     targetElement.style.display = '';
     targetElement.classList.add("island-materializing");
@@ -295,6 +340,7 @@ class CAEmitterEngine {
           });
         });
         if (!this.isEmitting) {
+          this._expandCanvas();
           this.isEmitting = true;
           this.lastTime = performance.now();
           this._renderLoop();
@@ -397,6 +443,7 @@ class CAEmitterEngine {
       ctx.globalCompositeOperation = 'source-over';
       ctx.globalAlpha = 1.0;
       ctx.clearRect(0, 0, winW, winH);
+      this._collapseCanvas();
     }
   }
 
@@ -417,6 +464,7 @@ class CAEmitterEngine {
       this.ctx.globalAlpha = 1.0;
       this.ctx.clearRect(0, 0, winW, winH);
     }
+    this._collapseCanvas();
     this.lastDirtyRect = null;
   }
 }

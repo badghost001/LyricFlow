@@ -3,6 +3,8 @@
  */
 
 const assert = require('assert');
+const fs = require('fs');
+const path = require('path');
 
 let totalTests = 0;
 let passedTests = 0;
@@ -176,6 +178,45 @@ function runProgressSeekTests() {
     settings.progressBarSeek = false;
     assert.strictEqual(canInitiateSeek(), false, 'Click/drag seeking is blocked');
     assert.strictEqual(canWheelSeek(), false, 'Wheel seeking is blocked');
+  });
+
+  test('6a. Main scrubber uses one progress ratio for normal updates and dragging', () => {
+    const renderer = fs.readFileSync(path.join(__dirname, '../src/renderer.js'), 'utf8');
+    const controllerStart = renderer.indexOf('function attachScrubberController');
+    const controllerEnd = renderer.indexOf('\n  attachScrubberController({', controllerStart + 1);
+    const controller = renderer.slice(controllerStart, controllerEnd);
+    const seekStart = renderer.indexOf('function seekPlayback(targetMs)');
+    const seekEnd = renderer.indexOf('function adjustSyncOffset', seekStart);
+    const seek = renderer.slice(seekStart, seekEnd);
+    assert.match(controller, /if \(isIsland\) fillEl\.style\.width = `\$\{percent\}%`;\s*else setMainProgressFill\(percent\);/,
+      'The main scrubber must update the same CSS ratio used by playback ticks');
+    assert.doesNotMatch(seek, /widgetProgressFill\.style\.width/,
+      'Seeking must not set width on top of the CSS scale ratio');
+    assert.match(renderer, /function setMainProgressFill\(percent\)[\s\S]*?style\.setProperty\('--progress-ratio'/,
+      'The main progress fill must have a single ratio-based update path');
+  });
+
+  test('6b. Split-view progress track has no dark inset backing shadow', () => {
+    const css = fs.readFileSync(path.join(__dirname, '../src/styles/_studio.css'), 'utf8');
+    const baseStart = css.indexOf('body.layout-split .playback-widget .progress-bar-bg {');
+    const baseEnd = css.indexOf('\n}', baseStart);
+    const lightStart = css.indexOf('html[data-theme="light"] body.layout-split .playback-widget .progress-bar-bg {');
+    const lightEnd = css.indexOf('\n}', lightStart);
+    assert.match(css.slice(baseStart, baseEnd), /box-shadow:\s*none\s*!important;/,
+      'Dark split-view progress track must not retain the black inset shadow');
+    assert.match(css.slice(lightStart, lightEnd), /box-shadow:\s*none\s*!important;/,
+      'Pearl split-view progress track must not restore the dark inset shadow');
+  });
+
+  test('6c. Split-view scrubber tooltip is not clipped by paint containment', () => {
+    const css = fs.readFileSync(path.join(__dirname, '../src/styles/_studio.css'), 'utf8');
+    const widgetStart = css.indexOf('body.layout-split:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode) #playback-widget {');
+    const widgetEnd = css.indexOf('\n}', widgetStart);
+    const widgetRule = css.slice(widgetStart, widgetEnd);
+    assert.match(widgetRule, /contain:\s*layout;/,
+      'Split player may isolate layout without clipping overflow content');
+    assert.doesNotMatch(widgetRule, /contain:\s*layout\s+paint;/,
+      'Paint containment clips the floating seek tooltip at the player boundary');
   });
 
   // Test 7: Seek Ahead Tooltip Delta Formatting

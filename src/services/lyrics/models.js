@@ -59,9 +59,10 @@
    * @param {number} end in seconds
    * @param {Array} words optional array of LyricWord
    * @param {string} subText optional translation or romanization
+   * @param {string} singer optional singer or agent identifier
    * @returns {object}
    */
-  function createLyricLine(text, start, end, words = undefined, subText = undefined) {
+  function createLyricLine(text, start, end, words = undefined, subText = undefined, singer = undefined) {
     const s = Math.max(0, Number(start) || 0);
     const e = Math.max(s, Number(end) || s);
     const line = {
@@ -80,6 +81,10 @@
       line.subText = subText.trim();
     }
 
+    if (singer && typeof singer === 'string' && singer.trim()) {
+      line.singer = singer.trim();
+    }
+
     return line;
   }
 
@@ -92,7 +97,8 @@
    * @returns {object}
    */
   function createNormalizedLyrics(type, lines, source = "Unknown", metadata = {}) {
-    const normType = (type === "WORD" || type === "Word") ? "WORD" : "LINE";
+    const rawType = String(type || '').toUpperCase();
+    const normType = (rawType === "WORD") ? "WORD" : ((rawType === "UNSYNCED" || rawType === "PLAIN" || rawType === "NONE") ? "UNSYNCED" : "LINE");
     const validLines = Array.isArray(lines) ? lines : [];
 
     // Ensure lines are sorted strictly by start time

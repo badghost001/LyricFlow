@@ -1,4 +1,7 @@
-use super::fuzzy::{clean_artist, clean_title, compute_similarity_score, has_lrc_timestamps};
+use super::fuzzy::{
+    clean_artist, clean_title, compute_similarity_score, has_lrc_timestamps,
+    is_track_metadata_match,
+};
 use super::models::{LyricLineParsed, LyricsCandidate, SyncType, WordTiming};
 use reqwest::Client;
 use serde_json::Value;
@@ -37,41 +40,137 @@ pub fn is_credit_metadata_line(text: &str) -> bool {
 
     // 3. Multi-character Chinese credit prefixes
     let chinese_prefixes = [
-        "作词", "作曲", "填词", "谱曲", "制作人", "制作", "编曲", "混音", "母带", "监制",
-        "录音", "和声", "和音", "弦乐", "吉他", "贝斯", "鼓手", "打击乐", "键盘", "钢琴",
-        "企划", "统筹", "文案", "发行", "出品", "版权", "鸣谢", "提供", "词曲", "词/曲",
-        "原唱", "翻唱", "策划", "伴奏", "音频", "后期", "剪辑", "设计", "封面", "发行人",
-        "录音室", "混音室", "母带室", "录音师", "混音师", "母带师",
-        "作 词", "作 曲", "填 词", "谱 曲", "制 作 人", "制 作", "编 曲", "混 音", "母 带",
-        "监 制", "录 音", "和 声", "和 音", "弦 乐", "吉 他", "贝 斯", "鼓 手", "键 盘",
-        "钢 琴", "企 划", "统 筹", "文 案", "发 行", "出 品", "版 权", "鸣 谢", "提 供",
-        "词 曲", "原 唱", "翻 唱", "策 划", "后 期",
+        "作词",
+        "作曲",
+        "填词",
+        "谱曲",
+        "制作人",
+        "制作",
+        "编曲",
+        "混音",
+        "母带",
+        "监制",
+        "录音",
+        "和声",
+        "和音",
+        "弦乐",
+        "吉他",
+        "贝斯",
+        "鼓手",
+        "打击乐",
+        "键盘",
+        "钢琴",
+        "企划",
+        "统筹",
+        "文案",
+        "发行",
+        "出品",
+        "版权",
+        "鸣谢",
+        "提供",
+        "词曲",
+        "词/曲",
+        "原唱",
+        "翻唱",
+        "策划",
+        "伴奏",
+        "音频",
+        "后期",
+        "剪辑",
+        "设计",
+        "封面",
+        "发行人",
+        "录音室",
+        "混音室",
+        "母带室",
+        "录音师",
+        "混音师",
+        "母带师",
+        "作 词",
+        "作 曲",
+        "填 词",
+        "谱 曲",
+        "制 作 人",
+        "制 作",
+        "编 曲",
+        "混 音",
+        "母 带",
+        "监 制",
+        "录 音",
+        "和 声",
+        "和 音",
+        "弦 乐",
+        "吉 他",
+        "贝 斯",
+        "鼓 手",
+        "键 盘",
+        "钢 琴",
+        "企 划",
+        "统 筹",
+        "文 案",
+        "发 行",
+        "出 品",
+        "版 权",
+        "鸣 谢",
+        "提 供",
+        "词 曲",
+        "原 唱",
+        "翻 唱",
+        "策 划",
+        "后 期",
     ];
 
     for prefix in &chinese_prefixes {
         if let Some(rest) = normalized.strip_prefix(prefix) {
             let rest_trimmed = rest.trim_start();
-            if rest_trimmed.starts_with(':') || rest_trimmed.starts_with('：') || rest_trimmed.starts_with('-') {
+            if rest_trimmed.starts_with(':')
+                || rest_trimmed.starts_with('：')
+                || rest_trimmed.starts_with('-')
+            {
                 return true;
             }
         }
     }
 
     // 4. Single-character Chinese credit tags: "词" or "曲" followed by colon
-    if let Some(rest) = normalized.strip_prefix('词').or_else(|| normalized.strip_prefix('曲')) {
+    if let Some(rest) = normalized
+        .strip_prefix('词')
+        .or_else(|| normalized.strip_prefix('曲'))
+    {
         let rest_trimmed = rest.trim_start();
-        if rest_trimmed.starts_with(':') || rest_trimmed.starts_with('：') || rest_trimmed.starts_with('-') {
+        if rest_trimmed.starts_with(':')
+            || rest_trimmed.starts_with('：')
+            || rest_trimmed.starts_with('-')
+        {
             return true;
         }
     }
 
     // 5. English contributor credit phrases
     let english_prefixes = [
-        "written by", "lyrics by", "composed by", "produced by", "arranged by",
-        "mixed by", "mastered by", "recorded by", "engineered by", "published by",
-        "released by", "remixed by", "performed by", "songwriters:", "songwriter:",
-        "lyricist:", "composer:", "producer:", "arranger:", "audio engineer:",
-        "mixing engineer:", "mastering engineer:", "vocal producer:",
+        "written by",
+        "lyrics by",
+        "composed by",
+        "produced by",
+        "arranged by",
+        "mixed by",
+        "mastered by",
+        "recorded by",
+        "engineered by",
+        "published by",
+        "released by",
+        "remixed by",
+        "performed by",
+        "songwriters:",
+        "songwriter:",
+        "lyricist:",
+        "composer:",
+        "producer:",
+        "arranger:",
+        "audio engineer:",
+        "mixing engineer:",
+        "mastering engineer:",
+        "vocal producer:",
     ];
 
     for prefix in &english_prefixes {
@@ -82,16 +181,40 @@ pub fn is_credit_metadata_line(text: &str) -> bool {
 
     // 6. English role words followed by colon (e.g., "Producer :", "Composer :", "OP :")
     let english_roles = [
-        "producer", "producers", "composer", "composers", "lyricist", "lyricists",
-        "arranger", "arrangers", "mixer", "mastering", "engineer", "vocals",
-        "backing vocals", "guitar", "guitars", "bass", "drums", "keyboard",
-        "keyboards", "piano", "strings", "lyrics", "music", "op", "sp",
+        "producer",
+        "producers",
+        "composer",
+        "composers",
+        "lyricist",
+        "lyricists",
+        "arranger",
+        "arrangers",
+        "mixer",
+        "mastering",
+        "engineer",
+        "vocals",
+        "backing vocals",
+        "guitar",
+        "guitars",
+        "bass",
+        "drums",
+        "keyboard",
+        "keyboards",
+        "piano",
+        "strings",
+        "lyrics",
+        "music",
+        "op",
+        "sp",
     ];
 
     for role in &english_roles {
         if let Some(rest) = norm_lower.strip_prefix(role) {
             let rest_trimmed = rest.trim_start();
-            if rest_trimmed.starts_with(':') || rest_trimmed.starts_with('：') || rest_trimmed.starts_with('-') {
+            if rest_trimmed.starts_with(':')
+                || rest_trimmed.starts_with('：')
+                || rest_trimmed.starts_with('-')
+            {
                 return true;
             }
         }
@@ -178,7 +301,10 @@ fn parse_lrc_ref_lines(lrc: &str) -> Vec<LrcLineRef> {
 ///
 /// NetEase YRC Format:
 /// `[line_start_ms,line_duration_ms](word_start_ms,word_duration_ms,flag)word_text...`
-pub fn parse_yrc_to_enhanced_lrc_and_lines(yrc: &str, lrc_ref: Option<&str>) -> Option<(String, Vec<LyricLineParsed>)> {
+pub fn parse_yrc_to_enhanced_lrc_and_lines(
+    yrc: &str,
+    lrc_ref: Option<&str>,
+) -> Option<(String, Vec<LyricLineParsed>)> {
     if yrc.is_empty() {
         return None;
     }
@@ -205,7 +331,10 @@ pub fn parse_yrc_to_enhanced_lrc_and_lines(yrc: &str, lrc_ref: Option<&str>) -> 
             Some(ms) => ms,
             None => continue,
         };
-        let _line_dur_ms: u32 = header_parts.next().and_then(|s| s.trim().parse().ok()).unwrap_or(0);
+        let _line_dur_ms: u32 = header_parts
+            .next()
+            .and_then(|s| s.trim().parse().ok())
+            .unwrap_or(0);
 
         let remainder = &line[close_bracket_idx + 1..];
 
@@ -230,7 +359,10 @@ pub fn parse_yrc_to_enhanced_lrc_and_lines(yrc: &str, lrc_ref: Option<&str>) -> 
                     continue;
                 }
             };
-            let w_dur_ms: u32 = syl_parts.next().and_then(|s| s.trim().parse().ok()).unwrap_or(0);
+            let w_dur_ms: u32 = syl_parts
+                .next()
+                .and_then(|s| s.trim().parse().ok())
+                .unwrap_or(0);
 
             let after_close = &after_open[close_paren_idx + 1..];
             // Word text ends at the next '(' or end of string
@@ -240,7 +372,9 @@ pub fn parse_yrc_to_enhanced_lrc_and_lines(yrc: &str, lrc_ref: Option<&str>) -> 
             if !word_str.is_empty() {
                 let trimmed_word = word_str.trim();
                 let is_pure_closing_punct = !trimmed_word.is_empty()
-                    && trimmed_word.chars().all(|c| ",.!?;:’”'»)}]-~～、。，．！？–—\"'".contains(c));
+                    && trimmed_word
+                        .chars()
+                        .all(|c| ",.!?;:’”'»)}]-~～、。，．！？–—\"'".contains(c));
 
                 if is_pure_closing_punct && !words.is_empty() {
                     let last_idx = words.len() - 1;
@@ -308,40 +442,138 @@ pub fn parse_yrc_to_enhanced_lrc_and_lines(yrc: &str, lrc_ref: Option<&str>) -> 
                 clean_text = truth.clone();
             }
         } else {
-            // Universal Latin word boundary & punctuation spacing fallback:
-            // Only needed if the line has no spaces at all between tokens
-            let already_has_spaces = words.iter().any(|w| w.text.ends_with(' ') || w.text.starts_with(' '));
-            if !already_has_spaces {
-                for i in 0..words.len().saturating_sub(1) {
+            // Conservative spacing fallback when no line-synced reference exists.
+            for i in 0..words.len().saturating_sub(1) {
                 let cur_trim = words[i].text.trim();
                 let next_trim = words[i + 1].text.trim();
                 if cur_trim.is_empty() || next_trim.is_empty() {
                     continue;
                 }
 
-                let cur_ends_alpha = cur_trim.chars().last().map(|c| c.is_alphanumeric()).unwrap_or(false);
-                let cur_ends_punct = cur_trim.ends_with(',') || cur_trim.ends_with('.') || cur_trim.ends_with('!')
-                    || cur_trim.ends_with('?') || cur_trim.ends_with(';') || cur_trim.ends_with(':');
+                let cur_ends_alpha = cur_trim
+                    .chars()
+                    .last()
+                    .map(|c| c.is_alphanumeric())
+                    .unwrap_or(false);
+                let cur_ends_punct = cur_trim.ends_with(',')
+                    || cur_trim.ends_with('.')
+                    || cur_trim.ends_with('!')
+                    || cur_trim.ends_with('?')
+                    || cur_trim.ends_with(';')
+                    || cur_trim.ends_with(':');
 
-                let next_starts_alpha = next_trim.chars().next().map(|c| c.is_alphanumeric()).unwrap_or(false);
-                let next_is_contraction = next_trim.starts_with("'t") || next_trim.starts_with("'s")
-                    || next_trim.starts_with("'m") || next_trim.starts_with("'re")
-                    || next_trim.starts_with("'ve") || next_trim.starts_with("'ll")
-                    || next_trim.starts_with("'d") || next_trim.starts_with("’t")
-                    || next_trim.starts_with("’s") || next_trim.starts_with("’m")
-                    || next_trim.starts_with("’re") || next_trim.starts_with("’ve")
-                    || next_trim.starts_with("’ll") || next_trim.starts_with("’d");
+                let next_starts_alpha = next_trim
+                    .chars()
+                    .next()
+                    .map(|c| c.is_alphanumeric())
+                    .unwrap_or(false);
+                let next_is_contraction = next_trim.starts_with("'t")
+                    || next_trim.starts_with("'s")
+                    || next_trim.starts_with("'m")
+                    || next_trim.starts_with("'re")
+                    || next_trim.starts_with("'ve")
+                    || next_trim.starts_with("'ll")
+                    || next_trim.starts_with("'d")
+                    || next_trim.starts_with("’t")
+                    || next_trim.starts_with("’s")
+                    || next_trim.starts_with("’m")
+                    || next_trim.starts_with("’re")
+                    || next_trim.starts_with("’ve")
+                    || next_trim.starts_with("’ll")
+                    || next_trim.starts_with("’d");
+
+                let cur_end_ms = words[i]
+                    .time_ms
+                    .saturating_add(words[i].duration_ms.unwrap_or(0));
+                let inter_token_gap_ms = words[i + 1].time_ms.saturating_sub(cur_end_ms);
+                let both_latin = cur_trim
+                    .chars()
+                    .last()
+                    .is_some_and(|c| c.is_ascii_alphanumeric())
+                    && next_trim
+                        .chars()
+                        .next()
+                        .is_some_and(|c| c.is_ascii_alphanumeric());
+                // YRC frequently emits consecutive English words with adjacent timestamps
+                // and no literal whitespace. Use a small lexical heuristic for those cases;
+                // preserve short capitalized syllables such as `Ne` + `ver`.
+                let common_short_word = matches!(
+                    cur_trim.to_ascii_lowercase().as_str(),
+                    "i" | "a"
+                        | "an"
+                        | "am"
+                        | "as"
+                        | "at"
+                        | "be"
+                        | "by"
+                        | "do"
+                        | "he"
+                        | "if"
+                        | "in"
+                        | "is"
+                        | "it"
+                        | "me"
+                        | "my"
+                        | "no"
+                        | "of"
+                        | "on"
+                        | "or"
+                        | "so"
+                        | "to"
+                        | "up"
+                        | "us"
+                        | "we"
+                        | "ya"
+                );
+                let lower_word_pair = cur_trim
+                    .chars()
+                    .all(|c| !c.is_ascii_alphabetic() || c.is_ascii_lowercase())
+                    && next_trim
+                        .chars()
+                        .all(|c| !c.is_ascii_alphabetic() || c.is_ascii_lowercase())
+                    && cur_trim.len() >= 3
+                    && (next_trim.len() >= 3
+                        || matches!(
+                            next_trim,
+                            "a" | "an"
+                                | "as"
+                                | "at"
+                                | "by"
+                                | "do"
+                                | "if"
+                                | "in"
+                                | "is"
+                                | "of"
+                                | "on"
+                                | "or"
+                                | "to"
+                                | "up"
+                        ));
+                let standalone_i = next_trim == "I" && cur_trim.len() >= 3;
+                let inferred_word_boundary = both_latin
+                    && (inter_token_gap_ms >= 90
+                        || common_short_word
+                        || lower_word_pair
+                        || standalone_i);
 
                 if !words[i].text.ends_with(' ') && !words[i + 1].text.starts_with(' ') {
                     if cur_ends_punct {
                         words[i].text.push(' ');
-                    } else if cur_ends_alpha && next_starts_alpha && !next_is_contraction {
+                    } else if cur_ends_alpha
+                        && next_starts_alpha
+                        && !next_is_contraction
+                        && inferred_word_boundary
+                    {
                         words[i].text.push(' ');
                     }
                 }
             }
-            }
-            clean_text = words.iter().map(|word| word.text.as_str()).collect::<String>().trim().to_string();
+            clean_text = words
+                .iter()
+                .map(|word| word.text.as_str())
+                .collect::<String>()
+                .trim()
+                .to_string();
         }
 
         // 3. Format as standard A2 Enhanced LRC line: [mm:ss.xx] <mm:ss.xx>word <mm:ss.xx>word
@@ -357,7 +589,10 @@ pub fn parse_yrc_to_enhanced_lrc_and_lines(yrc: &str, lrc_ref: Option<&str>) -> 
                 let w_min = w.time_ms / 60000;
                 let w_sec = (w.time_ms % 60000) / 1000;
                 let w_cs = (w.time_ms % 1000) / 10;
-                enhanced_lrc.push_str(&format!("<{:02}:{:02}.{:02}>{}", w_min, w_sec, w_cs, w.text));
+                enhanced_lrc.push_str(&format!(
+                    "<{:02}:{:02}.{:02}>{}",
+                    w_min, w_sec, w_cs, w.text
+                ));
             }
         }
         enhanced_lrc.push('\n');
@@ -367,6 +602,7 @@ pub fn parse_yrc_to_enhanced_lrc_and_lines(yrc: &str, lrc_ref: Option<&str>) -> 
             text: clean_text,
             words,
             sub_text: None,
+            singer: None,
         });
     }
 
@@ -382,7 +618,7 @@ use std::sync::OnceLock;
 
 static NETEASE_CLIENT: OnceLock<Client> = OnceLock::new();
 
-fn get_netease_client() -> &'static Client {
+pub fn get_netease_client() -> &'static Client {
     NETEASE_CLIENT.get_or_init(|| {
         let overseas_addr: SocketAddr = "103.135.240.77:443".parse().unwrap();
         Client::builder()
@@ -405,16 +641,22 @@ pub async fn search_netease(
     let clean_a = clean_artist(artist);
     let query = format!("{} {}", clean_t, clean_a);
 
-    let search_url = format!(
-        "https://interface.music.163.com/api/search/get/web?csrf_token=&hlpretag=&hlposttag=&s={}&type=1&offset=0&total=true&limit=3",
+    let search_url = "https://interface.music.163.com/api/cloudsearch/pc";
+    let body = format!(
+        "s={}&type=1&offset=0&limit=3&total=false",
         urlencoding::encode(&query)
     );
 
     let search_res = match ne_client
-        .get(&search_url)
-        .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-        .header("Referer", "https://music.163.com")
-        .header("X-Real-IP", "118.88.88.88")
+        .post(search_url)
+        .header(
+            "User-Agent",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        )
+        .header("Referer", "https://music.163.com/")
+        .header("Cookie", "os=pc; appver=8.9.70")
+        .header("Content-Type", "application/x-www-form-urlencoded")
+        .body(body)
         .send()
         .await
     {
@@ -436,95 +678,166 @@ pub async fn search_netease(
         None => return Vec::new(),
     };
 
+    let matched_songs: Vec<_> = songs
+        .iter()
+        .take(3)
+        .filter_map(|song| {
+            let song_id = song["id"].as_i64()?;
+            let song_name = song["name"].as_str().unwrap_or("");
+            let song_artist = song["ar"][0]["name"]
+                .as_str()
+                .or_else(|| song["artists"][0]["name"].as_str())
+                .unwrap_or("");
+            let candidate_query = format!("{} {}", song_name, song_artist);
+            let score = compute_similarity_score(&query, &candidate_query);
+
+            if score < 0.60 || !is_track_metadata_match(&clean_t, &clean_a, song_name, song_artist)
+            {
+                return None;
+            }
+            Some((song_id, score))
+        })
+        .collect();
+
     let mut candidates = Vec::new();
-
-    for song in songs.iter().take(2) {
-        let song_id = match song["id"].as_i64() {
-            Some(id) => id,
-            None => continue,
-        };
-
-        let song_name = song["name"].as_str().unwrap_or("");
-        let song_artist = song["artists"][0]["name"].as_str().unwrap_or("");
-        let candidate_query = format!("{} {}", song_name, song_artist);
-        let score = compute_similarity_score(&query, &candidate_query);
-
-        if score < 0.60 {
-            continue;
-        }
-
-        // Query NetEase lyric endpoint with lv, kv, tv, rv (romalrc), and yv (yrc word-by-word)
-        let lyric_url = format!(
-            "https://interface.music.163.com/api/song/lyric?os=pc&id={}&lv=-1&kv=-1&tv=-1&rv=-1&yv=-1",
-            song_id
-        );
-
-        let lyric_res = match ne_client
-            .get(&lyric_url)
-            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-            .header("Referer", "https://music.163.com")
-            .header("X-Real-IP", "118.88.88.88")
-            .send()
+    match matched_songs.len() {
+        1 => {
+            if let Some(cand) = fetch_netease_lyric(
+                ne_client,
+                matched_songs[0].0,
+                matched_songs[0].1,
+                enable_yrc,
+            )
             .await
-        {
-            Ok(r) => r,
-            Err(_) => continue,
+            {
+                candidates.push(cand);
+            }
+        }
+        2 => {
+            let (c1, c2) = tokio::join!(
+                fetch_netease_lyric(
+                    ne_client,
+                    matched_songs[0].0,
+                    matched_songs[0].1,
+                    enable_yrc
+                ),
+                fetch_netease_lyric(
+                    ne_client,
+                    matched_songs[1].0,
+                    matched_songs[1].1,
+                    enable_yrc
+                )
+            );
+            if let Some(cand) = c1 {
+                candidates.push(cand);
+            }
+            if let Some(cand) = c2 {
+                candidates.push(cand);
+            }
+        }
+        3 => {
+            let (c1, c2, c3) = tokio::join!(
+                fetch_netease_lyric(
+                    ne_client,
+                    matched_songs[0].0,
+                    matched_songs[0].1,
+                    enable_yrc
+                ),
+                fetch_netease_lyric(
+                    ne_client,
+                    matched_songs[1].0,
+                    matched_songs[1].1,
+                    enable_yrc
+                ),
+                fetch_netease_lyric(
+                    ne_client,
+                    matched_songs[2].0,
+                    matched_songs[2].1,
+                    enable_yrc
+                )
+            );
+            if let Some(cand) = c1 {
+                candidates.push(cand);
+            }
+            if let Some(cand) = c2 {
+                candidates.push(cand);
+            }
+            if let Some(cand) = c3 {
+                candidates.push(cand);
+            }
+        }
+        _ => {}
+    }
+
+    candidates
+}
+
+async fn fetch_netease_lyric(
+    ne_client: &Client,
+    song_id: i64,
+    score: f32,
+    enable_yrc: bool,
+) -> Option<LyricsCandidate> {
+    // Query NetEase lyric endpoint with lv, kv, tv, rv (romalrc), and yv (yrc word-by-word)
+    let lyric_url = format!(
+        "https://interface.music.163.com/api/song/lyric?os=pc&id={}&lv=-1&kv=-1&tv=-1&rv=-1&yv=-1",
+        song_id
+    );
+
+    let lyric_res = match ne_client
+        .get(&lyric_url)
+        .header(
+            "User-Agent",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        )
+        .header("Referer", "https://music.163.com/")
+        .header("Cookie", "os=pc")
+        .send()
+        .await
+    {
+        Ok(r) => r,
+        Err(_) => return None,
+    };
+
+    if !lyric_res.status().is_success() {
+        return None;
+    }
+
+    if let Ok(lyric_json) = lyric_res.json::<Value>().await {
+        let lrc_body = lyric_json["lrc"]["lyric"].as_str().unwrap_or("").trim();
+        let tlrc_body = lyric_json["tlyric"]["lyric"].as_str().unwrap_or("").trim();
+        let yrc_body = lyric_json["yrc"]["lyric"].as_str().unwrap_or("").trim();
+
+        let translation_lrc = if !tlrc_body.is_empty() && has_lrc_timestamps(tlrc_body) {
+            Some(tlrc_body.to_string())
+        } else {
+            None
         };
 
-        if !lyric_res.status().is_success() {
-            continue;
-        }
-
-        if let Ok(lyric_json) = lyric_res.json::<Value>().await {
-            let lrc_body = lyric_json["lrc"]["lyric"].as_str().unwrap_or("").trim();
-            let tlrc_body = lyric_json["tlyric"]["lyric"].as_str().unwrap_or("").trim();
-            let yrc_body = lyric_json["yrc"]["lyric"].as_str().unwrap_or("").trim();
-
-            let translation_lrc = if !tlrc_body.is_empty() && has_lrc_timestamps(tlrc_body) {
-                Some(tlrc_body.to_string())
-            } else {
+        // Strict reversible fallback hierarchy:
+        // 1. If enable_yrc is true and yrc_body is present: parse YRC into WordSynced candidate
+        // 2. If YRC is absent/disabled/fails: fall back to standard line-synced LRC
+        // 3. If line-synced LRC has no timestamps: fall back to PlainText
+        if enable_yrc && !yrc_body.is_empty() {
+            let lrc_ref_opt = if lrc_body.is_empty() {
                 None
+            } else {
+                Some(lrc_body)
             };
-
-            // Strict reversible fallback hierarchy:
-            // 1. If enable_yrc is true and yrc_body is present: parse YRC into WordSynced candidate
-            // 2. If YRC is absent/disabled/fails: fall back to standard line-synced LRC
-            // 3. If line-synced LRC has no timestamps: fall back to PlainText
-            let candidate_opt = if enable_yrc && !yrc_body.is_empty() {
-                let lrc_ref_opt = if lrc_body.is_empty() { None } else { Some(lrc_body) };
-                if let Some((enhanced_lrc, lines)) = parse_yrc_to_enhanced_lrc_and_lines(yrc_body, lrc_ref_opt) {
-                    Some(LyricsCandidate {
-                        provider: "NetEase".to_string(),
-                        sync_type: SyncType::WordSynced,
-                        raw_lrc: enhanced_lrc,
-                        translation_lrc,
-                        parsed_lines: Some(lines),
-                        candidate_id: song_id.to_string(),
-                        score,
-                        candidate_info: Some("NetEase (YRC)".to_string()),
-                        duration_diff_sec: None,
-                    })
-                } else if !lrc_body.is_empty() {
-                    let filtered_lrc = filter_lrc_credit_lines(lrc_body);
-                    let sync_type = if has_lrc_timestamps(&filtered_lrc) {
-                        SyncType::LineSynced
-                    } else {
-                        SyncType::PlainText
-                    };
-                    Some(LyricsCandidate {
-                        provider: "NetEase".to_string(),
-                        sync_type,
-                        raw_lrc: filtered_lrc,
-                        translation_lrc,
-                        parsed_lines: None,
-                        candidate_id: song_id.to_string(),
-                        score,
-                        candidate_info: Some("NetEase".to_string()),
-                        duration_diff_sec: None,
-                    })
-                } else {
-                    None
-                }
+            if let Some((enhanced_lrc, lines)) =
+                parse_yrc_to_enhanced_lrc_and_lines(yrc_body, lrc_ref_opt)
+            {
+                return Some(LyricsCandidate {
+                    provider: "NetEase".to_string(),
+                    sync_type: SyncType::WordSynced,
+                    raw_lrc: enhanced_lrc,
+                    translation_lrc,
+                    parsed_lines: Some(lines),
+                    candidate_id: song_id.to_string(),
+                    score,
+                    candidate_info: Some("NetEase (YRC)".to_string()),
+                    duration_diff_sec: None,
+                });
             } else if !lrc_body.is_empty() {
                 let filtered_lrc = filter_lrc_credit_lines(lrc_body);
                 let sync_type = if has_lrc_timestamps(&filtered_lrc) {
@@ -532,7 +845,7 @@ pub async fn search_netease(
                 } else {
                     SyncType::PlainText
                 };
-                Some(LyricsCandidate {
+                return Some(LyricsCandidate {
                     provider: "NetEase".to_string(),
                     sync_type,
                     raw_lrc: filtered_lrc,
@@ -542,18 +855,30 @@ pub async fn search_netease(
                     score,
                     candidate_info: Some("NetEase".to_string()),
                     duration_diff_sec: None,
-                })
-            } else {
-                None
-            };
-
-            if let Some(cand) = candidate_opt {
-                candidates.push(cand);
+                });
             }
+        } else if !lrc_body.is_empty() {
+            let filtered_lrc = filter_lrc_credit_lines(lrc_body);
+            let sync_type = if has_lrc_timestamps(&filtered_lrc) {
+                SyncType::LineSynced
+            } else {
+                SyncType::PlainText
+            };
+            return Some(LyricsCandidate {
+                provider: "NetEase".to_string(),
+                sync_type,
+                raw_lrc: filtered_lrc,
+                translation_lrc,
+                parsed_lines: None,
+                candidate_id: song_id.to_string(),
+                score,
+                candidate_info: Some("NetEase".to_string()),
+                duration_diff_sec: None,
+            });
         }
     }
 
-    candidates
+    None
 }
 
 #[cfg(test)]
@@ -627,7 +952,9 @@ mod tests {
     #[test]
     fn test_is_credit_metadata_line() {
         // Screenshot samples
-        assert!(is_credit_metadata_line("制作人 : Michael Jackson/Teddy Riley"));
+        assert!(is_credit_metadata_line(
+            "制作人 : Michael Jackson/Teddy Riley"
+        ));
         assert!(is_credit_metadata_line("词 : Michael Jackson/Teddy Riley/Nate Smith/Teron Beal/Eritza Laues/Kenny Quiller/Andreao Heard"));
         assert!(is_credit_metadata_line("作曲 : Teron Beal/Andreao Heard/Michael Jackson/Eritza Laues/Kenny Quiller/Teddy Riley/Nate Smith"));
         assert!(is_credit_metadata_line("作词 : David Burke"));
@@ -651,7 +978,9 @@ mod tests {
 
         // Genuine lyrics should NOT be filtered
         assert!(!is_credit_metadata_line("Never gonna give you up"));
-        assert!(!is_credit_metadata_line("I said, ooh, I'm blinded by the lights"));
+        assert!(!is_credit_metadata_line(
+            "I said, ooh, I'm blinded by the lights"
+        ));
         assert!(!is_credit_metadata_line("词不达意"));
         assert!(!is_credit_metadata_line("曲终人散"));
         assert!(!is_credit_metadata_line("Produced like a champion"));
@@ -716,5 +1045,3 @@ mod tests {
         assert_eq!(words[1].text, "world");
     }
 }
-
-

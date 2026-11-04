@@ -25,8 +25,8 @@ assert(
   '_dynamic_island.css must wire --island-halo-scale to .island-art-halo'
 );
 assert(
-  cssContent.includes('--island-halo-blur'),
-  '_dynamic_island.css must wire --island-halo-blur to .island-art-halo'
+  cssContent.includes('filter: blur(8px);'),
+  '_dynamic_island.css must keep the halo blur radius stable at 8px'
 );
 console.log('  ✓ 1. CSS defines liquid specular highlight rim, beat pulse transform, and reactive halo properties');
 
@@ -34,18 +34,16 @@ console.log('  ✓ 1. CSS defines liquid specular highlight rim, beat pulse tran
 function computeHaloAndBeatPulse(subBass) {
   let haloOpacity = null;
   let haloScale = null;
-  let haloBlur = null;
   let beatScale = null;
 
   if (subBass > 0.05) {
     haloOpacity = Math.min(0.92, Math.max(0.35, 0.35 + subBass * 0.57)).toFixed(2);
     haloScale = (1.0 + subBass * 0.14).toFixed(3);
-    haloBlur = Math.round(5 + subBass * 7);
   }
   if (subBass > 0.70) {
     beatScale = (1.0 + (subBass - 0.70) * 0.024).toFixed(3);
   }
-  return { haloOpacity, haloScale, haloBlur, beatScale };
+  return { haloOpacity, haloScale, beatScale };
 }
 
 // Test resting/silence (subBass = 0)

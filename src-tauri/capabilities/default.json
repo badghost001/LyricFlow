@@ -6,7 +6,8 @@
     "main",
     "taskbar",
     "edge-glow",
-    "wallpaper-hud"
+    "wallpaper-hud",
+    "spotify-login"
   ],
   "permissions": [
     "core:default",

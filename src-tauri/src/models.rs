@@ -99,14 +99,26 @@ impl TrackMetadata {
         Some(SpotifyPlaybackState {
             is_playing: self.is_playing,
             progress_ms: self.position_ms,
-            playback_rate: if self.playback_rate > 0.0 { self.playback_rate } else { 1.0 },
-            timestamp_ms: if current_unix_ms > 0 { Some(current_unix_ms) } else { None },
+            playback_rate: if self.playback_rate > 0.0 {
+                self.playback_rate
+            } else {
+                1.0
+            },
+            timestamp_ms: if current_unix_ms > 0 {
+                Some(current_unix_ms)
+            } else {
+                None
+            },
             item: SpotifyItem {
                 id: track_id,
                 name: self.title.clone(),
                 duration_ms: self.duration_ms,
                 artists: vec![SpotifyArtist {
-                    name: if self.artist.is_empty() { "Unknown Artist".to_string() } else { self.artist.clone() },
+                    name: if self.artist.is_empty() {
+                        "Unknown Artist".to_string()
+                    } else {
+                        self.artist.clone()
+                    },
                 }],
                 album: SpotifyAlbum { images },
             },
@@ -120,8 +132,16 @@ pub fn base64_encode(input: &[u8]) -> String {
     let mut i = 0;
     while i < input.len() {
         let b0 = input[i] as usize;
-        let b1 = if i + 1 < input.len() { input[i + 1] as usize } else { 0 };
-        let b2 = if i + 2 < input.len() { input[i + 2] as usize } else { 0 };
+        let b1 = if i + 1 < input.len() {
+            input[i + 1] as usize
+        } else {
+            0
+        };
+        let b2 = if i + 2 < input.len() {
+            input[i + 2] as usize
+        } else {
+            0
+        };
 
         let triple = (b0 << 16) | (b1 << 8) | b2;
         out.push(CHARSET[(triple >> 18) & 63] as char);

@@ -53,9 +53,21 @@ assert(
   'index.html select-island-position must be an advanced dropdown bifurcated into Screen Edges and Floating / Custom'
 );
 assert(
-  htmlContent.includes('data-val="free"') &&
-  htmlContent.includes('<option value="free">free</option>'),
-  'index.html select-island-position must retain data-val="free" and <option value="free">free</option>'
+  htmlContent.includes('id="island-dock-position-control"') &&
+  !htmlContent.includes('data-val="free"') &&
+  htmlContent.includes('<option value="free">Free floating</option>'),
+  'index.html select-island-position must show a human-readable Free floating option without stale selection metadata'
+);
+assert(
+  !htmlContent.includes('Interactive Drag Mode') && !htmlContent.includes('btn-start-wallpaper-edit'),
+  'Wallpaper Mode settings must not expose the removed Interactive Drag Mode control'
+);
+const rendererContent = fs.readFileSync(path.join(__dirname, '../src/renderer.js'), 'utf8');
+assert(
+  rendererContent.includes('function normalizeDynamicIslandDockPosition(dockPos)') &&
+  rendererContent.includes('positionSelect.value = pos;') &&
+  rendererContent.includes('const dockPos = normalizeDynamicIslandDockPosition(settings.dynamicIslandPosition);'),
+  'Dynamic Island dock selection must normalize saved values and keep the settings select in sync'
 );
 console.log('  ✓ 1. Static HTML declares bifurcated <optgroup> dropdowns for provider priority, font, translation, and dock position');
 

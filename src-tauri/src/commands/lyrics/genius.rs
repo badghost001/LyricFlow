@@ -1,4 +1,4 @@
-use super::fuzzy::{clean_artist, clean_title, compute_similarity_score};
+use super::fuzzy::{clean_artist, clean_title, compute_similarity_score, is_track_metadata_match};
 use super::models::{LyricsCandidate, SyncType};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -34,11 +34,7 @@ async fn parse_genius_json(response: reqwest::Response, endpoint: &str) -> Optio
     }
 }
 
-pub async fn search_genius(
-    client: &Client,
-    track: &str,
-    artist: &str,
-) -> Option<LyricsCandidate> {
+pub async fn search_genius(client: &Client, track: &str, artist: &str) -> Option<LyricsCandidate> {
     let clean_a = clean_artist(artist);
     let clean_t = clean_title(track);
     let query = format!("{} {}", clean_a, clean_t);
@@ -87,7 +83,7 @@ pub async fn search_genius(
     let candidate_query = format!("{} {}", hit_title, hit_artist);
 
     let score = compute_similarity_score(&query, &candidate_query);
-    if score < 0.65 {
+    if score < 0.65 || !is_track_metadata_match(&clean_t, &clean_a, hit_title, hit_artist) {
         return None;
     }
 
@@ -97,7 +93,10 @@ pub async fn search_genius(
 
     let page_res = client
         .get(&full_url)
-        .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+        .header(
+            "User-Agent",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        )
         .send()
         .await
         .ok()?;
@@ -255,8 +254,12 @@ pub async fn get_genius_annotations(
         .get(&search_url)
         .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
         .send()
-        .await
-        .map_err(|e| e.to_string())?;
+        .await;
+    // Genius frequently blocks or times out optional annotation requests.
+    // Treat transport failures as an empty result instead of a command error.
+    let Ok(res) = res else {
+        return Ok(vec![]);
+    };
 
     if !res.status().is_success() {
         return Ok(vec![]);
@@ -291,13 +294,16 @@ pub async fn get_genius_annotations(
         return Ok(vec![]);
     };
 
-    let ref_url = format!("https://genius.com/api/referents?song_id={id}&per_page=50&text_format=plain");
+    let ref_url =
+        format!("https://genius.com/api/referents?song_id={id}&per_page=50&text_format=plain");
     let ref_res = client
         .get(&ref_url)
         .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
         .send()
-        .await
-        .map_err(|e| e.to_string())?;
+        .await;
+    let Ok(ref_res) = ref_res else {
+        return Ok(vec![]);
+    };
 
     if !ref_res.status().is_success() {
         return Ok(vec![]);
@@ -309,7 +315,10 @@ pub async fn get_genius_annotations(
     let mut annotations = Vec::new();
     if let Some(referents) = ref_data["response"]["referents"].as_array() {
         for r in referents {
-            let body_text = r["annotations"][0]["body"]["plain"].as_str().unwrap_or("").trim();
+            let body_text = r["annotations"][0]["body"]["plain"]
+                .as_str()
+                .unwrap_or("")
+                .trim();
             let fragment = r["fragment"].as_str().unwrap_or("").trim();
             if !fragment.is_empty() && body_text.len() > 10 && body_text != "?" {
                 annotations.push(GeniusAnnotation {

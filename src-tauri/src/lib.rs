@@ -1,51 +1,193 @@
-pub mod models;
-pub mod media;
-pub mod commands;
 pub mod audio;
+pub mod commands;
+pub mod media;
+pub mod models;
 
 use commands::*;
+use std::collections::HashMap;
+use std::fs::OpenOptions;
+use std::io::{Seek, Write};
+use std::sync::mpsc::{sync_channel, SyncSender};
+use std::sync::{Mutex, OnceLock};
+use std::time::Duration;
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     Emitter, Manager,
 };
-use std::time::Duration;
-use std::fs::OpenOptions;
-use std::io::Write;
+
+static SHORTCUT_BINDINGS: OnceLock<Mutex<HashMap<String, (String, String)>>> = OnceLock::new();
+
+fn shortcut_bindings() -> &'static Mutex<HashMap<String, (String, String)>> {
+    SHORTCUT_BINDINGS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+#[tauri::command]
+fn rebind_global_shortcut(
+    app: tauri::AppHandle,
+    action: String,
+    shortcut: String,
+) -> Result<String, String> {
+    const ALLOWED: &[&str] = &[
+        "cinematic",
+        "share",
+        "island",
+        "kinetic",
+        "wallpaper",
+        "taskbar",
+        "copy",
+    ];
+    if !ALLOWED.contains(&action.as_str()) {
+        return Err("This shortcut cannot be changed here.".into());
+    }
+    let parsed = shortcut
+        .parse::<tauri_plugin_global_shortcut::Shortcut>()
+        .map_err(|e| format!("Invalid shortcut: {e}"))?;
+    let normalized = format!("{:?}", parsed).to_lowercase();
+    let mut bindings = shortcut_bindings()
+        .lock()
+        .map_err(|_| "Shortcut registry unavailable".to_string())?;
+    if bindings
+        .iter()
+        .any(|(key, (bound_action, _))| key == &normalized && bound_action != &action)
+    {
+        return Err("That key combination is already assigned.".into());
+    }
+    let old = bindings
+        .iter()
+        .find(|(_, (bound_action, _))| bound_action == &action)
+        .map(|(key, (_, spec))| (key.clone(), spec.clone()));
+    if let Some((_, old_spec)) = &old {
+        if old_spec == &shortcut {
+            return Ok(shortcut);
+        }
+    }
+    if let Some((_, old_spec)) = &old {
+        if old_spec != &shortcut {
+            let _ = app.global_shortcut().unregister(old_spec.as_str());
+        }
+    }
+    if let Err(error) = app.global_shortcut().register(parsed.clone()) {
+        if let Some((_, old_spec)) = &old {
+            let _ = app.global_shortcut().register(old_spec.as_str());
+        }
+        return Err(format!("Could not register shortcut: {error}"));
+    }
+    if let Some((old_key, _)) = old {
+        bindings.remove(&old_key);
+    }
+    bindings.insert(normalized, (action, shortcut.clone()));
+    Ok(shortcut)
+}
+
+fn emit_shortcut_action(app: &tauri::AppHandle, action: &str) -> bool {
+    let event = match action {
+        "cinematic" => "toggle-cinematic-mode-shortcut",
+        "share" => "share-active-lyric",
+        "island" => "toggle-dynamic-island-shortcut",
+        "kinetic" => "toggle-kinetic-mode-shortcut",
+        "wallpaper" => "toggle-wallpaper-mode-shortcut",
+        "taskbar" => "toggle-taskbar-mode-shortcut",
+        "ghost" => "toggle-click-through-shortcut",
+        "copy" => "copy-active-lyric",
+        _ => return false,
+    };
+    let _ = app.emit(event, ());
+    true
+}
 
 #[tauri::command]
 fn get_app_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
 
-pub fn log_to_file(msg: &str) {
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0);
-    static LOG_FILE: std::sync::OnceLock<Option<std::path::PathBuf>> = std::sync::OnceLock::new();
-    let log_path_opt = LOG_FILE.get_or_init(|| {
-        dirs::config_dir().map(|config_dir| {
-            let app_dir = config_dir.join("LyricFlow");
-            let _ = std::fs::create_dir_all(&app_dir);
-            app_dir.join("lyricflow.log")
+static LOG_FILE: std::sync::OnceLock<Option<std::path::PathBuf>> = std::sync::OnceLock::new();
+static LOG_CHANNEL: std::sync::OnceLock<SyncSender<String>> = std::sync::OnceLock::new();
+
+fn get_log_file_path() -> Option<&'static std::path::PathBuf> {
+    LOG_FILE
+        .get_or_init(|| {
+            dirs::config_dir().map(|config_dir| {
+                let app_dir = config_dir.join("LyricFlow");
+                let _ = std::fs::create_dir_all(&app_dir);
+                app_dir.join("lyricflow.log")
+            })
         })
-    });
-    if let Some(log_file) = log_path_opt {
-        if let Ok(mut file) = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(log_file)
-        {
-            if let Ok(meta) = file.metadata() {
-                if meta.len() > 5 * 1024 * 1024 {
-                    let _ = file.set_len(0);
+        .as_ref()
+}
+
+fn get_log_channel() -> &'static SyncSender<String> {
+    LOG_CHANNEL.get_or_init(|| {
+        let (tx, rx) = sync_channel::<String>(2048);
+        std::thread::Builder::new()
+            .name("lyricflow-logger".into())
+            .spawn(move || {
+                let log_path_opt = get_log_file_path();
+                let mut file_opt = log_path_opt
+                    .and_then(|path| OpenOptions::new().create(true).append(true).open(path).ok());
+
+                let mut bytes_written: u64 = file_opt
+                    .as_ref()
+                    .and_then(|f| f.metadata().ok())
+                    .map(|m| m.len())
+                    .unwrap_or(0);
+
+                let mut last_flush = std::time::Instant::now();
+                let mut last_msg: Option<String> = None;
+                let mut repeat_count: usize = 0;
+
+                while let Ok(msg) = rx.recv() {
+                    if let Some(ref prev) = last_msg {
+                        if prev == &msg {
+                            repeat_count += 1;
+                            continue;
+                        }
+                    }
+
+                    if let Some(ref mut file) = file_opt {
+                        let now = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .map(|d| d.as_secs())
+                            .unwrap_or(0);
+
+                        if repeat_count > 0 {
+                            let dup_line = format!(
+                                "[{}] [LOG DEDUP] (Previous message repeated {} times)\n",
+                                now, repeat_count
+                            );
+                            let _ = file.write_all(dup_line.as_bytes());
+                            bytes_written += dup_line.len() as u64;
+                            repeat_count = 0;
+                        }
+
+                        if bytes_written > 5 * 1024 * 1024 {
+                            let _ = file.set_len(0);
+                            let _ = file.seek(std::io::SeekFrom::Start(0));
+                            bytes_written = 0;
+                        }
+
+                        let line = format!("[{}] {}\n", now, msg);
+                        if let Ok(_) = file.write_all(line.as_bytes()) {
+                            bytes_written += line.len() as u64;
+                        }
+
+                        if last_flush.elapsed() >= std::time::Duration::from_millis(500) {
+                            let _ = file.flush();
+                            last_flush = std::time::Instant::now();
+                        }
+                    }
+                    last_msg = Some(msg);
                 }
-            }
-            let _ = writeln!(file, "[{}] {}", now, msg);
-        }
-    }
+            })
+            .expect("Failed to spawn background logger thread");
+        tx
+    })
+}
+
+pub fn log_to_file(msg: &str) {
     println!("{}", msg);
+    let sender = get_log_channel();
+    let _ = sender.try_send(msg.to_string());
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -57,7 +199,9 @@ pub fn run() {
     let b = tauri::Builder::default();
     log_to_file("[LyricFlow] Adding single_instance plugin...");
     let b = b.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-        log_to_file("[LyricFlow] Second instance launched! Bringing existing main window to front...");
+        log_to_file(
+            "[LyricFlow] Second instance launched! Bringing existing main window to front...",
+        );
         if let Some(w) = app.get_webview_window("main") {
             if let Ok(pos) = w.outer_position() {
                 if pos.x < -1000 || pos.y < -1000 {
@@ -80,6 +224,11 @@ pub fn run() {
                 .with_handler(|app, shortcut, event| {
                     if event.state() == tauri_plugin_global_shortcut::ShortcutState::Pressed {
                         let text = format!("{:?}", shortcut).to_lowercase();
+                        if let Ok(bindings) = shortcut_bindings().lock() {
+                            if let Some((action, _)) = bindings.get(&text) {
+                                if emit_shortcut_action(app, action) { return; }
+                            }
+                        }
                         if text.contains("shift") && text.contains("keyc") {
                             let _ = app.emit("toggle-cinematic-mode-shortcut", ());
                         } else if text.contains("shift") && text.contains("keyk") {
@@ -120,10 +269,14 @@ pub fn run() {
                         if !commands::window::is_wallpaper_mode_active()
                             && !commands::window::is_taskbar_mode_active()
                             && !commands::window::is_dynamic_island_mode()
+                            && !window.is_maximized().unwrap_or(false)
                             && !window.is_minimized().unwrap_or(false)
                         {
                             if let (Ok(pos), Ok(size)) = (window.outer_position(), window.inner_size()) {
-                                if pos.x > -10000 && pos.y > -10000 && size.width >= 400 && size.height >= 300 {
+                                let scale = window.scale_factor().unwrap_or(1.0);
+                                let min_desktop_w = (600.0 * scale) as u32;
+                                let min_desktop_h = (420.0 * scale) as u32;
+                                if pos.x > -10000 && pos.y > -10000 && size.width >= min_desktop_w && size.height >= min_desktop_h {
                                     commands::window::queue_save_window_bounds(pos.x, pos.y, size.width, size.height);
                                 }
                             }
@@ -136,9 +289,29 @@ pub fn run() {
                     // Actual exit only happens via the tray "Quit" menu item calling app.exit(0).
                     if window.label() == "main" {
                         commands::window::flush_save_window_bounds();
+                        #[cfg(target_os = "windows")]
+                        {
+                            use webview2_com::Microsoft::Web::WebView2::Win32::{
+                                ICoreWebView2_19, COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW,
+                            };
+                            use windows::core::Interface;
+                            if let Some(win) = window.app_handle().get_webview_window(window.label()) {
+                                let _ = win.with_webview(|webview| unsafe {
+                                    if let Ok(core) = webview.controller().CoreWebView2() {
+                                        if let Ok(core19) = core.cast::<ICoreWebView2_19>() {
+                                            let _ = core19.SetMemoryUsageTargetLevel(COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW);
+                                        }
+                                    }
+                                });
+                            }
+                        }
                         api.prevent_close();
                         let _ = window.hide();
-                        log_to_file("[LyricFlow] CloseRequested intercepted on 'main' — hiding instead of closing");
+                        log_to_file("[LyricFlow] CloseRequested intercepted on 'main' — hiding and setting memory target to LOW");
+                    } else if window.label() == "taskbar" {
+                        api.prevent_close();
+                        let _ = window.hide();
+                        log_to_file("[LyricFlow] CloseRequested intercepted on 'taskbar' — hiding window");
                     }
                 }
                 tauri::WindowEvent::Destroyed => {
@@ -146,6 +319,26 @@ pub fn run() {
                         commands::window::flush_save_window_bounds();
                     }
                     log_to_file(&format!("[LyricFlow] Window '{}' DESTROYED", window.label()));
+                }
+                tauri::WindowEvent::Focused(focused) => {
+                    log_to_file(&format!("[LyricFlow Window Event] Focused({}) on '{}'", focused, window.label()));
+                    let _ = window.emit("window-focus-changed", *focused);
+                    #[cfg(target_os = "windows")]
+                    if !focused && window.is_minimized().unwrap_or(false) {
+                        use webview2_com::Microsoft::Web::WebView2::Win32::{
+                            ICoreWebView2_19, COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW,
+                        };
+                        use windows::core::Interface;
+                        if let Some(win) = window.app_handle().get_webview_window(window.label()) {
+                            let _ = win.with_webview(|webview| unsafe {
+                                if let Ok(core) = webview.controller().CoreWebView2() {
+                                    if let Ok(core19) = core.cast::<ICoreWebView2_19>() {
+                                        let _ = core19.SetMemoryUsageTargetLevel(COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW);
+                                    }
+                                }
+                            });
+                        }
+                    }
                 }
                 _ => {
                     log_to_file(&format!("[LyricFlow Window Event] {:?} on '{}'", event, window.label()));
@@ -182,8 +375,23 @@ pub fn run() {
             ];
             for sc_str in &shortcuts {
                 if let Ok(sc) = sc_str.parse::<tauri_plugin_global_shortcut::Shortcut>() {
-                    let res = app.global_shortcut().register(sc);
+                    let res = app.global_shortcut().register(sc.clone());
                     log_to_file(&format!("[LyricFlow] Global shortcut '{}' registration result: {:?}", sc_str, res));
+                    let action = match *sc_str {
+                        "ctrl+shift+c" => Some("cinematic"),
+                        "ctrl+shift+s" => Some("share"),
+                        "ctrl+shift+d" => Some("island"),
+                        "ctrl+shift+k" => Some("kinetic"),
+                        "ctrl+shift+w" => Some("wallpaper"),
+                        "ctrl+shift+b" => Some("taskbar"),
+                        "ctrl+alt+c" => Some("copy"),
+                        _ => None,
+                    };
+                    if let Some(action) = action {
+                        if let Ok(mut bindings) = shortcut_bindings().lock() {
+                            bindings.insert(format!("{:?}", sc).to_lowercase(), (action.to_string(), sc_str.to_string()));
+                        }
+                    }
                 }
             }
             log_to_file("[LyricFlow] Shortcuts registered successfully");
@@ -417,31 +625,54 @@ pub fn run() {
                         let mut restored = false;
 
                         if let Some(bounds) = saved_bounds {
-                            let w = bounds.width.max((640.0 * scale) as u32);
-                            let h = bounds.height.max((440.0 * scale) as u32);
+                            let min_desktop_w = (640.0 * scale) as u32;
+                            let min_desktop_h = (440.0 * scale) as u32;
+                            let is_island_bounds = bounds.height <= (380.0 * scale) as u32
+                                || bounds.width <= (620.0 * scale) as u32;
 
-                            let monitors = main_win.available_monitors().unwrap_or_default();
-                            let mut is_on_screen = false;
-                            for mon in &monitors {
-                                let m_pos = mon.position();
-                                let m_size = mon.size();
-                                let overlap_x = (bounds.x < m_pos.x + m_size.width as i32 - 100)
-                                    && (bounds.x + w as i32 > m_pos.x + 100);
-                                let overlap_y = (bounds.y < m_pos.y + m_size.height as i32 - 100)
-                                    && (bounds.y + h as i32 > m_pos.y + 100);
-                                if overlap_x && overlap_y {
-                                    is_on_screen = true;
-                                    break;
+                            if !is_island_bounds {
+                                let w = bounds.width.max(min_desktop_w);
+                                let h = bounds.height.max(min_desktop_h);
+
+                                let monitors = main_win.available_monitors().unwrap_or_default();
+                                let mut is_on_screen = false;
+                                let mut looks_fullscreen = false;
+                                let mut safe_target_x = bounds.x;
+                                let mut safe_target_y = bounds.y;
+
+                                for mon in &monitors {
+                                    let m_pos = mon.position();
+                                    let m_size = mon.size();
+                                    let overlap_x = (bounds.x < m_pos.x + m_size.width as i32 - 100)
+                                        && (bounds.x + w as i32 > m_pos.x + 100);
+                                    let overlap_y = (bounds.y < m_pos.y + m_size.height as i32 - 100)
+                                        && (bounds.y + h as i32 > m_pos.y + 100);
+                                    if overlap_x && overlap_y {
+                                        is_on_screen = true;
+                                        looks_fullscreen = w >= m_size.width.saturating_mul(9) / 10
+                                            && h >= m_size.height.saturating_mul(9) / 10;
+                                        let min_safe_top = m_pos.y + (36.0 * scale) as i32;
+                                        let safe_top = m_pos.y + (70.0 * scale) as i32;
+                                        if safe_target_y < safe_top {
+                                            safe_target_y = (m_pos.y + ((m_size.height as i32 - h as i32) / 2)).max(min_safe_top);
+                                            safe_target_x = m_pos.x + ((m_size.width as i32 - w as i32) / 2);
+                                        }
+                                        break;
+                                    }
                                 }
-                            }
 
-                            if is_on_screen {
-                                let _ = main_win.set_size(tauri::PhysicalSize::new(w, h));
-                                let _ = main_win.set_position(tauri::PhysicalPosition::new(bounds.x, bounds.y));
-                                restored = true;
-                                log_to_file(&format!("[LyricFlow] Restored window: pos=({}, {}), size=({}x{})", bounds.x, bounds.y, w, h));
+                                if is_on_screen && !looks_fullscreen {
+                                    let _ = main_win.set_size(tauri::PhysicalSize::new(w, h));
+                                    let _ = main_win.set_position(tauri::PhysicalPosition::new(safe_target_x, safe_target_y));
+                                    restored = true;
+                                    log_to_file(&format!("[LyricFlow] Restored window: pos=({}, {}), size=({}x{})", safe_target_x, safe_target_y, w, h));
+                                } else if looks_fullscreen {
+                                    log_to_file("[LyricFlow] Saved window bounds fill the monitor. Restoring normal window size instead.");
+                                } else {
+                                    log_to_file(&format!("[LyricFlow] Saved bounds ({}, {}) off-screen. Re-centering...", bounds.x, bounds.y));
+                                }
                             } else {
-                                log_to_file(&format!("[LyricFlow] Saved bounds ({}, {}) off-screen. Re-centering...", bounds.x, bounds.y));
+                                log_to_file(&format!("[LyricFlow] Ignored island-sized saved bounds ({}x{}). Centering default window.", bounds.width, bounds.height));
                             }
                         }
 
@@ -495,17 +726,21 @@ pub fn run() {
                     }
 
                     let backend = media::get_platform_backend();
+                    let worker_start = std::time::Instant::now();
                     let mut last_track_id = String::new();
+                    let mut last_art_url: Option<String> = None;
                     let mut last_playback_emit = std::time::Instant::now() - Duration::from_secs(3);
                     let mut last_is_playing = false;
                     let mut last_rate = 1.0;
                     let mut consecutive_empty = 0u32;
+                    let mut startup_emits = 0u32;
 
                     loop {
                         if let Some(track) = backend.poll_playback() {
                             consecutive_empty = 0;
                             let current_id = format!("{}_{}", track.artist, track.title);
                             let is_song_changed = current_id != last_track_id && !track.title.is_empty();
+                            let art_changed = track.art_url.is_some() && track.art_url != last_art_url;
                             let status_changed = track.is_playing != last_is_playing || (track.playback_rate - last_rate).abs() > 0.05;
 
                             if let Some(playback_state) = track.to_spotify_playback_state() {
@@ -513,10 +748,14 @@ pub fn run() {
                                 media::set_cached_playback_state(playback_state.clone());
 
                                 // The first transition can happen before the WebView finishes
-                                // registering event listeners. Re-emit a lightweight heartbeat
+                                // registering event listeners. Re-emit during initial startup grace period
                                 // so the renderer can recover even if that initial event was lost.
-                                if is_song_changed || last_playback_emit.elapsed() >= Duration::from_millis(500) {
+                                // When track, art, or play/pause state changes, emit IMMEDIATELY with zero throttling delay.
+                                let is_startup_grace = worker_start.elapsed() < Duration::from_secs(4) && startup_emits < 3;
+                                if is_song_changed || art_changed || status_changed || (is_startup_grace && last_playback_emit.elapsed() >= Duration::from_millis(800)) {
                                     last_track_id = current_id;
+                                    last_art_url = track.art_url.clone();
+                                    startup_emits = startup_emits.saturating_add(1);
                                     let _ = bg_handle.emit("local-playback-change", &playback_state);
                                     last_playback_emit = std::time::Instant::now();
                                 }
@@ -550,7 +789,7 @@ pub fn run() {
                         let sleep_duration = if consecutive_empty > 4 {
                             Duration::from_millis(1000)
                         } else {
-                            Duration::from_millis(150)
+                            Duration::from_millis(600)
                         };
                         std::thread::sleep(sleep_duration);
                     }
@@ -561,6 +800,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_app_version,
+            rebind_global_shortcut,
             config::load_config,
             config::save_config,
             config::reset_config,
@@ -583,12 +823,12 @@ pub fn run() {
             window::copy_to_clipboard,
             window::close_app,
             window::get_is_startup,
+            window::is_taskbar_mode_active,
             window::check_for_updates,
             window::set_taskbar_mode,
             window::move_taskbar_window,
             window::update_taskbar_lyric_bounds,
             window::set_taskbar_dragging,
-            window::set_edge_glow,
             window::set_dynamic_island_mode,
             window::is_dynamic_island_mode,
             window::update_island_bounds,
@@ -626,16 +866,25 @@ pub fn run() {
             integrations::fetch_image_data_url,
             integrations::fetch_track_artwork,
             window::show_main_window,
+            window::set_memory_target_level,
             integrations::open_external,
-            integrations::fetch_spotify_canvas,
+            integrations::fetch_apple_motion_art,
             integrations::search_music_gif,
             video::export_kinetic_video,
             video::save_card_image,
-            audio::set_audio_visualizer_active
+            audio::set_audio_visualizer_active,
+            soloist::start_soloist_daemon,
+            soloist::stop_soloist_daemon,
+            soloist::get_soloist_daemon_status,
+            soloist::activate_soloist_device
         ]);
-    log_to_file("[LyricFlow] Builder configured, now calling builder.run(tauri::generate_context!())...");
-    b.run(tauri::generate_context!())
-        .expect("error while running LyricFlow application");
+    log_to_file("[LyricFlow] Builder configured, now building and running application...");
+    let app = b
+        .build(tauri::generate_context!())
+        .expect("error while building LyricFlow application");
+    app.run(|_app_handle, event| {
+        if let tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit = event {
+            let _ = soloist::stop_soloist_daemon();
+        }
+    });
 }
-
-

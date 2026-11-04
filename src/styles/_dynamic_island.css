@@ -20,6 +20,9 @@ body.mode-dynamic-island {
   background-color: transparent !important;
   overflow: hidden !important;
   user-select: none !important;
+  -webkit-font-smoothing: antialiased !important;
+  -moz-osx-font-smoothing: grayscale !important;
+  text-rendering: optimizeLegibility !important;
 }
 
 body.mode-dynamic-island .fluid-mesh-canvas,
@@ -37,7 +40,14 @@ body.mode-dynamic-island #cinematic-main-stage,
 body.mode-dynamic-island .kinetic-mode-container,
 body.mode-dynamic-island #kinetic-mode-container,
 body.mode-dynamic-island .wallpaper-selector-panel,
-body.mode-dynamic-island #wallpaper-mode-selector-panel {
+body.mode-dynamic-island #wallpaper-mode-selector-panel,
+body.mode-dynamic-island #screen-lyrics,
+body.mode-dynamic-island #ambient-glow,
+body.mode-dynamic-island #fluid-mesh-canvas,
+body.mode-dynamic-island .wallpaper-album-bg,
+body.mode-dynamic-island #hud-header,
+body.mode-dynamic-island .genius-modal,
+body.mode-dynamic-island .lf-modal-overlay {
   display: none !important;
   opacity: 0 !important;
   visibility: hidden !important;
@@ -107,7 +117,6 @@ body.mode-dynamic-island #dynamic-island {
     inset 0 1px 0.5px rgba(255, 255, 255, 0.32),
     inset 0 -0.5px 0.5px rgba(255, 255, 255, 0.08),
     0 12px 28px -4px rgba(0, 0, 0, 0.75),
-    0 0 var(--island-bloom-radius, 0px) rgba(var(--art-color-1-rgb, 56, 189, 248), var(--island-bloom-alpha, 0)),
     0 0 0 1px rgba(0, 0, 0, 0.95);
     
   padding: 3px 10px;
@@ -126,13 +135,28 @@ body.mode-dynamic-island #dynamic-island {
   
   /* Apple Fluid Spring Physics */
   transition:
-    width 0.38s cubic-bezier(0.32, 0.72, 0, 1),
-    height 0.38s cubic-bezier(0.32, 0.72, 0, 1),
-    border-radius 0.38s cubic-bezier(0.32, 0.72, 0, 1),
-    padding 0.35s ease,
-    box-shadow 0.35s cubic-bezier(0.32, 0.72, 0, 1),
-    border-color 0.3s ease,
-    transform 0.08s cubic-bezier(0.25, 1, 0.5, 1);
+    transform 0.18s cubic-bezier(0.25, 1, 0.5, 1),
+    box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+    width 0.24s cubic-bezier(0.16, 1, 0.3, 1),
+    height 0.24s cubic-bezier(0.16, 1, 0.3, 1),
+    border-radius 0.24s cubic-bezier(0.16, 1, 0.3, 1),
+    padding 0.24s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.20s ease;
+}
+
+/* Dynamic bloom isolated on composited pseudo-element */
+#dynamic-island::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: 0 0 var(--island-bloom-radius, 24px) rgba(var(--art-color-1-rgb, 56, 189, 248), 0.65);
+  opacity: var(--island-bloom-alpha, 0);
+  will-change: opacity;
+  transform: translateZ(0);
+  transition: opacity 0.12s ease;
+  z-index: -1;
 }
 
 /* Overflow visible during the sparkle sweep so elevated artwork and particles stay unclipped. */
@@ -147,21 +171,28 @@ body.mode-dynamic-island #dynamic-island {
 
 .island-next-up-preview {
   position: absolute;
-  top: calc(100% + 9px);
+  top: calc(100% + 7px);
   left: 50%;
   z-index: 1100;
   display: flex;
   align-items: center;
-  gap: 8px;
-  max-width: min(390px, calc(100vw - 24px));
-  min-height: 48px;
-  padding: 12px 16px;
-  border: 1px solid rgba(var(--art-color-1-rgb, 148, 163, 184), 0.34);
-  border-radius: 17px;
-  background: linear-gradient(145deg, rgba(38, 40, 49, 0.92), rgba(12, 13, 18, 0.96));
-  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.12);
-  -webkit-backdrop-filter: blur(22px) saturate(1.35);
-  backdrop-filter: blur(22px) saturate(1.35);
+  gap: 7px;
+  width: max-content;
+  max-width: min(320px, calc(100vw - 24px));
+  min-height: 34px;
+  padding: 6px 11px;
+  border: 1px solid rgba(var(--art-color-1-rgb, 148, 163, 184), 0.38);
+  border-radius: 14px;
+  background:
+    radial-gradient(120% 180% at 15% 0%, rgba(var(--art-color-1-rgb, 148, 163, 184), 0.18), transparent 65%),
+    linear-gradient(145deg, rgba(34, 37, 47, 0.72), rgba(12, 14, 20, 0.78));
+  box-shadow:
+    0 10px 26px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.24),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.04),
+    0 0 0 1px rgba(255, 255, 255, 0.04);
+  -webkit-backdrop-filter: blur(26px) saturate(1.65);
+  backdrop-filter: blur(26px) saturate(1.65);
   color: #fff;
   opacity: 0;
   transform: translate(-50%, -5px) scale(0.98);
@@ -176,23 +207,50 @@ body.mode-dynamic-island #dynamic-island {
 }
 
 .island-next-up-label {
-  color: var(--art-color-1, #38bdf8);
-  font-size: 9px;
+  flex: 0 0 auto;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 8px;
   font-weight: 800;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.09em;
+  text-shadow: 0 0 8px rgba(var(--art-color-1-rgb, 56, 189, 248), 0.48);
 }
 
 .island-next-up-title {
+  min-width: 0;
   overflow: hidden;
   color: rgba(255, 255, 255, 0.88);
-  font-size: 11px;
+  font-size: 10px;
+  font-weight: 600;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .island-next-up-countdown {
-  color: rgba(255, 255, 255, 0.56);
-  font-size: 10px;
+  flex: 0 0 auto;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 9px;
   font-variant-numeric: tabular-nums;
+}
+
+.island-next-up-preview[data-kind="vocals"] {
+  border-color: rgba(56, 189, 248, 0.42) !important;
+  background:
+    radial-gradient(120% 180% at 15% 0%, rgba(56, 189, 248, 0.24), transparent 65%),
+    linear-gradient(145deg, rgba(22, 28, 42, 0.94), rgba(10, 13, 20, 0.96)) !important;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.28), 0 0 14px rgba(56, 189, 248, 0.3) !important;
+}
+
+.island-next-up-preview[data-kind="vocals"] #island-next-up-title { display: none; }
+.island-next-up-preview[data-kind="vocals"] .island-next-up-label {
+  color: #38bdf8 !important;
+  text-shadow: 0 0 10px rgba(56, 189, 248, 0.75);
+  font-weight: 800;
+  letter-spacing: 0.1em;
+}
+.island-next-up-preview[data-kind="vocals"] .island-next-up-countdown {
+  color: #ffffff !important;
+  font-weight: 700;
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
 }
 
 /* Stacked Translation Mode (Compact Pill: 44px height for dual lines) */
@@ -208,9 +266,9 @@ body.mode-dynamic-island #dynamic-island.island-mode-stacked {
    - Lyrics zone is hidden completely
    - Paused zone displays just the song name
 ========================================================== */
-body.mode-dynamic-island:not(.is-playing) #dynamic-island:not(:hover),
-body.mode-dynamic-island.app-paused #dynamic-island:not(:hover),
-body.mode-dynamic-island #dynamic-island.island-paused:not(:hover) {
+body.mode-dynamic-island:not(.is-playing) #dynamic-island:not(:hover):not(.is-scrubbing),
+body.mode-dynamic-island.app-paused #dynamic-island:not(:hover):not(.is-scrubbing),
+body.mode-dynamic-island #dynamic-island.island-paused:not(:hover):not(.is-scrubbing) {
   width: var(--island-paused-width, 220px);
 }
 
@@ -219,7 +277,8 @@ body.mode-dynamic-island #dynamic-island.island-paused:not(:hover) {
    - Opens smoothly to 410px × 122px strictly on hover
    - Shows Song Name + Artist Name + 44px Album Art + Scrubber + Controls
 ========================================================== */
-body.mode-dynamic-island #dynamic-island:hover {
+body.mode-dynamic-island #dynamic-island:hover,
+body.mode-dynamic-island #dynamic-island.is-scrubbing {
   width: min(460px, calc(100vw - 20px));
   height: 140px;
   border-radius: 28px;
@@ -233,9 +292,14 @@ body.mode-dynamic-island #dynamic-island:hover {
     inset 0 1.5px 0.5px rgba(255, 255, 255, 0.38),
     inset 0 -0.5px 0.5px rgba(255, 255, 255, 0.10),
     0 20px 48px -4px rgba(0, 0, 0, 0.95),
-    0 0 var(--island-bloom-radius, 0px) rgba(var(--art-color-1-rgb, 56, 189, 248), var(--island-bloom-alpha, 0)),
     0 0 24px rgba(255, 255, 255, 0.06),
     0 0 0 1px rgba(0, 0, 0, 0.95);
+}
+
+/* If mode activation places the island under the stationary pointer, keep it
+   compact until the pointer leaves once so it cannot appear stuck expanded. */
+body.mode-dynamic-island.island-hover-suppressed #dynamic-island {
+  pointer-events: none !important;
 }
 
 /* ==========================================================
@@ -251,7 +315,8 @@ body.mode-dynamic-island #dynamic-island:hover {
   transition: height 0.35s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
-#dynamic-island:hover .island-main-row {
+#dynamic-island:hover .island-main-row,
+#dynamic-island.is-scrubbing .island-main-row {
   height: 44px;
 }
 
@@ -273,7 +338,8 @@ body.mode-dynamic-island #dynamic-island:hover {
     height 0.38s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
-#dynamic-island:hover .island-art-wrapper {
+#dynamic-island:hover .island-art-wrapper,
+#dynamic-island.is-scrubbing .island-art-wrapper {
   width: 44px;
   height: 44px;
 }
@@ -312,6 +378,14 @@ body.mode-dynamic-island #dynamic-island:hover {
     0 4px 14px rgba(0, 0, 0, 0.65);
 }
 
+#dynamic-island.is-scrubbing .island-art-tile {
+  border-radius: 16px;
+  border-color: rgba(255, 255, 255, 0.32);
+  box-shadow:
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.45),
+    0 4px 14px rgba(0, 0, 0, 0.65);
+}
+
 .island-art-img {
   width: 100%;
   height: 100%;
@@ -335,6 +409,40 @@ body.mode-dynamic-island #dynamic-island:hover {
 #island-art-img {
   position: relative;
   z-index: 3;
+}
+
+.island-art-video {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+  pointer-events: none;
+  display: none;
+  opacity: 0;
+}
+
+body.has-animated-art-video #island-art-img,
+body.has-animated-art-video #island-art-img-old {
+  opacity: 1;
+  pointer-events: none;
+}
+
+body.has-animated-art-video .island-art-video {
+  display: none;
+  opacity: 0;
+  z-index: 10 !important;
+}
+
+body.has-animated-art-video .island-art-video.is-playing {
+  display: block !important;
+  opacity: 1;
+}
+
+body.has-animated-art-video .island-art-video.is-playing ~ #island-art-img {
+  opacity: 0;
 }
 
 /* Progressive album art reveal led by small, artwork-colored sparkles. */
@@ -460,16 +568,24 @@ body.mode-dynamic-island #dynamic-island:hover {
   border-radius: 16px;
   background: radial-gradient(circle, var(--ambient-glow-color, rgba(255, 255, 255, 0.25)) 0%, transparent 70%);
   pointer-events: none;
-  filter: blur(var(--island-halo-blur, 6px));
+  --island-halo-blur: 8px;
+  filter: blur(8px);
   opacity: var(--island-halo-opacity, 0.5);
-  transform: scale(var(--island-halo-scale, 1));
-  transition: background 0.4s ease, opacity 0.12s linear, inset 0.35s ease, transform 0.12s cubic-bezier(0.25, 1, 0.5, 1);
+  transform: scale(var(--island-halo-scale, 1)) translateZ(0);
+  will-change: transform, opacity;
+  contain: paint;
+  transition:
+    transform 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+    background 0.4s ease,
+    inset 0.35s ease;
 }
 
-#dynamic-island:hover .island-art-halo {
+#dynamic-island:hover .island-art-halo,
+#dynamic-island.is-scrubbing .island-art-halo {
   border-radius: 16px;
   inset: -6px;
-  filter: blur(var(--island-halo-blur, 9px));
+  filter: blur(8px);
   opacity: var(--island-halo-opacity, 0.65);
 }
 
@@ -534,6 +650,26 @@ body:not(.is-playing) .island-art-halo {
 #dynamic-island.island-instrumental-active .island-wave-visualizer .wave-bar {
   background: var(--art-color-1, #38bdf8) !important;
   box-shadow: 0 0 6px rgba(var(--art-color-1-rgb, 56, 189, 248), 0.55);
+  opacity: 1 !important;
+}
+
+/* Keep the Island's audio indicator visibly active during lyric gaps.
+   The resting watchdog may flatten bars during quiet samples, but the
+   instrumental countdown must not make the visualizer look disabled. */
+#dynamic-island.island-instrumental-active .island-wave-visualizer {
+  opacity: 1 !important;
+  filter: none !important;
+}
+
+.island-wave-visualizer.is-lyric-gap-active {
+  opacity: 1 !important;
+  filter: none !important;
+}
+
+.island-wave-visualizer.is-lyric-gap-active .wave-bar {
+  background: var(--art-color-1, #38bdf8) !important;
+  box-shadow: 0 0 7px rgba(var(--art-color-1-rgb, 56, 189, 248), 0.78) !important;
+  opacity: 1 !important;
 }
 
 /* ==========================================================
@@ -562,7 +698,8 @@ body:not(.is-playing) .island-art-halo {
   z-index: 2;
 }
 
-#dynamic-island:hover .island-compact-label {
+#dynamic-island:hover .island-compact-label,
+#dynamic-island.is-scrubbing .island-compact-label {
   display: none !important;
   opacity: 0;
 }
@@ -579,6 +716,8 @@ body:not(.is-playing) .island-art-halo {
   mask-image: none;
   -webkit-mask-image: none;
   cursor: default !important;
+  contain: layout paint;
+  will-change: transform;
 }
 
 .island-lyric-line {
@@ -592,14 +731,21 @@ body:not(.is-playing) .island-art-halo {
   display: inline-flex;
   align-items: center;
   gap: 0px;
-  will-change: transform;
   transform: translate3d(0, 0, 0);
   backface-visibility: hidden;
+  will-change: transform;
   padding-right: 8px; /* Clear safety margin so trailing characters never collide with boundary */
   /* Removed transform transition so high-framerate JS damping provides zero-latency sync */
   transition: opacity 0.2s ease;
   pointer-events: none;
   -webkit-font-smoothing: antialiased;
+}
+
+/* Idle track details share the compact lyric row. Give both names a real
+   shrinkable width so long titles do not force the artist into a crowded clip. */
+#island-lyric-line:has(.island-idle-text) {
+  width: 100%;
+  min-width: 0;
 }
 
 .island-mode-stacked .island-lyric-line {
@@ -637,7 +783,7 @@ body:not(.is-playing) .island-art-halo {
   margin-right: 0;
   contain: layout;
   transform-origin: center bottom;
-  transition: color 0.14s ease, transform 0.14s cubic-bezier(0.25, 1, 0.5, 1), text-shadow 0.14s ease;
+  transition: color 0.14s ease, transform 0.14s cubic-bezier(0.25, 1, 0.5, 1);
   color: rgba(255, 255, 255, 0.42);
 }
 
@@ -651,19 +797,19 @@ body:not(.is-playing) .island-art-halo {
 }
 
 .island-lyric-line .lyric-word.lyric-word-active {
-  will-change: transform;
   background: linear-gradient(
     90deg,
     #ffffff 0%,
-    #ffffff calc(var(--word-progress, 1) * 100%),
-    rgba(255, 255, 255, 0.45) calc(var(--word-progress, 1) * 100% + 3.5px),
+    #ffffff var(--word-progress-percent, 100%),
+    rgba(255, 255, 255, 0.45) calc(var(--word-progress-percent, 100%) + 3.5px),
     rgba(255, 255, 255, 0.45) 100%
   );
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
   transform: none;
-  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.85));
+  text-shadow: 0 0 6px rgba(255, 255, 255, 0.7);
+  filter: none;
 }
 
 .island-lyric-line .lyric-word.lyric-word-completed,
@@ -676,7 +822,7 @@ body:not(.is-playing) .island-art-halo {
   opacity: 1 !important;
   transform: none !important;
   filter: none !important;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.5), 0 1px 2px rgba(0, 0, 0, 0.25);
 }
 
 .island-lyric-line .lyric-word.lyric-word-upcoming {
@@ -709,6 +855,9 @@ body:not(.is-playing) .island-art-halo {
   font-weight: 500;
   display: inline-flex;
   align-items: center;
+  flex: 1 1 0;
+  width: 100%;
+  min-width: 0;
   gap: 4px;
   white-space: nowrap;
   overflow: hidden;
@@ -719,6 +868,26 @@ body:not(.is-playing) .island-art-halo {
 .island-idle-title {
   color: #ffffff;
   font-weight: 600;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.island-idle-separator {
+  flex: 0 0 auto;
+  color: rgba(255,255,255,.4);
+}
+
+.island-idle-artist,
+.island-idle-text > .island-track-artist {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 38%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .island-no-lyrics-hint {
@@ -811,7 +980,8 @@ body.mode-dynamic-island.is-playing .island-lyric-zone {
   z-index: 2;
 }
 
-#dynamic-island:hover .island-track-meta {
+#dynamic-island:hover .island-track-meta,
+#dynamic-island.is-scrubbing .island-track-meta {
   display: flex !important;
   opacity: 1;
 }
@@ -873,7 +1043,8 @@ body.mode-dynamic-island.is-playing .island-lyric-zone {
   overflow: hidden;
 }
 
-#dynamic-island:hover .island-stage {
+#dynamic-island:hover .island-stage,
+#dynamic-island.is-scrubbing .island-stage {
   display: none !important;
 }
 
@@ -1122,7 +1293,7 @@ body.mode-dynamic-island.is-idle #island-lyric-subline {
   letter-spacing: 0.04em;
   cursor: pointer;
   flex-shrink: 0;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
   user-select: none;
   -webkit-app-region: none !important;
 }
@@ -1221,7 +1392,6 @@ body.mode-dynamic-island.is-idle #island-lyric-subline {
 /* Auto-Marquee Overflow Animation (Never cut off!) */
 .is-overflowing {
   display: inline-block !important;
-  will-change: transform;
   animation: appleMarqueeScroll var(--marquee-dur, 6s) cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite alternate;
 }
 
@@ -1519,7 +1689,7 @@ body.mode-dynamic-island.island-morph-calm #dynamic-island {
     inset 0 1px 0.5px rgba(255, 255, 255, 0.18),
     0 10px 24px -4px rgba(0, 0, 0, 0.65),
     0 0 12px rgba(var(--art-color-1-rgb, 255, 255, 255), 0.08);
-  transition: all 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: border-color 0.45s ease, transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 body.mode-dynamic-island.island-morph-calm .island-wave-visualizer {
@@ -1529,7 +1699,7 @@ body.mode-dynamic-island.island-morph-calm .island-wave-visualizer {
 
 /* State 2: Groove / Verse (Standard balanced state) */
 body.mode-dynamic-island.island-morph-groove #dynamic-island {
-  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: border-color 0.35s ease, transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* State 3: Climax / Bass Drop (> 0.42 Energy or heavy sub-bass) */
@@ -1556,6 +1726,7 @@ body.mode-dynamic-island.island-morph-solo #dynamic-island {
     inset 0 1px 0.5px rgba(255, 255, 255, 0.3),
     0 12px 30px -4px rgba(0, 0, 0, 0.8),
     0 0 20px rgba(var(--art-color-1-rgb, 56, 189, 248), 0.22);
+  transition: border-color 0.35s ease, box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* ==========================================================
@@ -1564,7 +1735,7 @@ body.mode-dynamic-island.island-morph-solo #dynamic-island {
 .island-top-actions {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   flex-shrink: 0;
   position: relative;
   height: 100%;
@@ -1603,6 +1774,9 @@ body.mode-dynamic-island.island-morph-solo #dynamic-island {
 
 /* Audio-Reactive Equalizer */
 .island-wave-visualizer {
+  width: 58px;
+  min-width: 58px;
+  flex: 0 0 58px;
   display: flex;
   align-items: flex-end; /* Bottom-anchored like real equalizer */
   justify-content: center;
@@ -1613,6 +1787,8 @@ body.mode-dynamic-island.island-morph-solo #dynamic-island {
   transition: transform 0.3s ease, opacity 0.3s ease;
   opacity: 1;
   filter: none;
+  contain: strict;
+  transform: translateZ(0);
 }
 
 body.mode-dynamic-island:not(.island-ghost-mode) .island-wave-visualizer {
@@ -1622,6 +1798,21 @@ body.mode-dynamic-island:not(.island-ghost-mode) .island-wave-visualizer {
 
 #dynamic-island:hover .island-wave-visualizer {
   opacity: 0.9;
+}
+
+.island-wave-canvas {
+  width: 56px;
+  height: 18px;
+  display: block;
+  pointer-events: none;
+  contain: strict;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* When canvas is present, hide DOM wave bars to prevent layout & paint costs */
+.island-wave-visualizer:has(.island-wave-canvas) .wave-bar {
+  display: none !important;
 }
 
 .wave-bar {
@@ -1634,7 +1825,6 @@ body.mode-dynamic-island:not(.island-ghost-mode) .island-wave-visualizer {
   transform: scaleY(0.14);
   /* Snappy 25ms ease-out transition reacts in direct lockstep with real audio beats */
   transition: transform 0.025s ease-out, opacity 0.2s ease, border-radius 0.25s cubic-bezier(0.16, 1, 0.3, 1), background 0.25s ease;
-  will-change: transform;
 }
 
 /* Real audio-reactive equalizer resting baseline (no fake CSS canned animations) */
@@ -1658,6 +1848,25 @@ body:not(.is-playing) .island-wave-visualizer.visualizer-style-dots .wave-bar {
   animation: none;
 }
 
+/* Keep a readable audio-status glyph beside paused/metadata-only track names. */
+body.mode-dynamic-island #dynamic-island.island-paused .island-wave-visualizer {
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+body.mode-dynamic-island #dynamic-island.island-paused .island-wave-visualizer .wave-bar {
+  transform: scaleY(.38) !important;
+  opacity: .9 !important;
+  background: var(--art-color-1, #e8edf8) !important;
+  box-shadow: 0 0 5px rgba(var(--art-color-1-rgb, 210, 220, 240), .48) !important;
+}
+
+body.mode-dynamic-island #dynamic-island.island-paused .island-wave-visualizer.visualizer-style-dots .wave-bar {
+  transform: scale(.9) translateY(0) !important;
+  opacity: .9 !important;
+}
+
 #dynamic-island .island-top-actions #island-btn-refetch,
 #dynamic-island .island-top-actions #island-btn-translate,
 #dynamic-island .island-top-actions #island-btn-ghost,
@@ -1668,7 +1877,11 @@ body:not(.is-playing) .island-wave-visualizer.visualizer-style-dots .wave-bar {
 #dynamic-island:hover .island-top-actions #island-btn-refetch,
 #dynamic-island:hover .island-top-actions #island-btn-translate,
 #dynamic-island:hover .island-top-actions #island-btn-ghost,
-#dynamic-island:hover .island-top-actions #island-btn-expand {
+#dynamic-island:hover .island-top-actions #island-btn-expand,
+#dynamic-island.is-scrubbing .island-top-actions #island-btn-refetch,
+#dynamic-island.is-scrubbing .island-top-actions #island-btn-translate,
+#dynamic-island.is-scrubbing .island-top-actions #island-btn-ghost,
+#dynamic-island.is-scrubbing .island-top-actions #island-btn-expand {
   display: flex !important;
 }
 
@@ -1730,7 +1943,8 @@ body:not(.is-playing) .island-wave-visualizer.visualizer-style-dots .wave-bar {
   transition: opacity 0.25s ease 0.08s;
 }
 
-#dynamic-island:hover .island-expanded-controls {
+#dynamic-island:hover .island-expanded-controls,
+#dynamic-island.is-scrubbing .island-expanded-controls {
   display: flex !important;
   opacity: 1;
   pointer-events: auto;
@@ -1743,6 +1957,8 @@ body:not(.is-playing) .island-wave-visualizer.visualizer-style-dots .wave-bar {
   gap: 8px;
   width: 100%;
   margin-top: 2px;
+  padding: 6px 0;
+  cursor: pointer;
 }
 
 .island-scrubber-time {
@@ -1778,6 +1994,18 @@ body:not(.is-playing) .island-wave-visualizer.visualizer-style-dots .wave-bar {
 .island-progress-track:hover,
 .island-progress-track.is-scrubbing {
   height: 6px;
+}
+
+/* 34px extended invisible hit target with 8px horizontal lead so scrubbing never misses */
+.island-progress-track::before {
+  content: "";
+  position: absolute;
+  top: -14px;
+  bottom: -14px;
+  left: -8px;
+  right: -8px;
+  z-index: 5;
+  cursor: pointer;
 }
 
 .island-progress-hover {
@@ -1889,7 +2117,7 @@ body:not(.is-playing) .island-wave-visualizer.visualizer-style-dots .wave-bar {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, color 0.18s ease;
   -webkit-app-region: none !important;
 }
 
@@ -2053,7 +2281,8 @@ body.island-dock-bottom-center #dynamic-island {
     0 -12px 28px -4px rgba(0, 0, 0, 0.75),
     0 0 0 1px rgba(0, 0, 0, 0.95);
 }
-body.island-dock-bottom-center #dynamic-island:hover {
+body.island-dock-bottom-center #dynamic-island:hover,
+body.island-dock-bottom-center #dynamic-island.is-scrubbing {
   box-shadow:
     inset 0 -1.5px 0.5px rgba(255, 255, 255, 0.35),
     inset 0 0.5px 0.5px rgba(255, 255, 255, 0.10),
@@ -2366,7 +2595,7 @@ body.island-dock-bottom-center .island-prompt-modal {
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.18s ease;
+  transition: background 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
@@ -2386,7 +2615,7 @@ body.island-dock-bottom-center .island-prompt-modal {
   font-size: 11px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.18s ease;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
 }
 
 .island-prompt-btn-secondary:hover {
@@ -2406,6 +2635,7 @@ body.island-dock-bottom-center .island-prompt-modal {
   height: 100%;
   pointer-events: none !important;
   z-index: 2500;
+  display: none;
 }
 
 .island-gl-dissolve-canvas {
@@ -2598,7 +2828,8 @@ body.mode-dynamic-island.island-sleeping .island-duet-bridge {
 }
 
 .island-countdown-pill.island-vocal-pill {
-  color: var(--accent-bright, #38bdf8);
+  color: #38bdf8 !important;
+  text-shadow: 0 0 8px rgba(56, 189, 248, 0.6);
 }
 
 /* End-of-track preview lives in its own floating glass card. */
@@ -2704,17 +2935,25 @@ body.mode-dynamic-island.island-glass-mode #dynamic-island {
     inset 0 -1px 1px rgba(0, 0, 0, 0.25),
     inset 0 0 24px -4px rgba(var(--art-color-dominant-rgb, 255, 255, 255), 0.18),
     0 16px 36px -6px rgba(0, 0, 0, 0.55),
-    0 0 var(--island-bloom-radius, 0px) rgba(var(--art-color-1-rgb, 255, 255, 255), var(--island-bloom-alpha, 0)),
+    0 0 var(--island-bloom-radius, 0px) rgba(var(--art-color-1-rgb, 56, 189, 248), var(--island-bloom-alpha, 0)),
     0 0 0 1px rgba(var(--art-color-1-rgb, 255, 255, 255), 0.12),
     0 0 0 1px rgba(255, 255, 255, 0.08) !important;
 }
 
-body.mode-dynamic-island.island-glass-mode #dynamic-island:hover {
+body.mode-dynamic-island.window-blurred #dynamic-island {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+body.mode-dynamic-island.island-glass-mode #dynamic-island:hover,
+body.mode-dynamic-island.island-glass-mode #dynamic-island.is-scrubbing {
   background:
     radial-gradient(130% 120% at 50% -20%, rgba(var(--art-color-dominant-rgb, 255, 255, 255), 0.24) 0%, rgba(var(--art-color-1-rgb, 24, 24, 32), 0.15) 45%, transparent 75%),
     rgba(18, 18, 24, 0.65) !important;
-  backdrop-filter: blur(36px) saturate(200%) !important;
-  -webkit-backdrop-filter: blur(36px) saturate(200%) !important;
+  /* Keep the same blur radius as the resting capsule; changing filter radius
+     on hover forces another large compositing surface during the expansion. */
+  backdrop-filter: blur(28px) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(190%) !important;
   border-color: rgba(255, 255, 255, 0.34) !important;
   box-shadow:
     inset 0 2px 1.2px rgba(255, 255, 255, 0.55),
@@ -2760,8 +2999,8 @@ body.mode-dynamic-island.island-glass-mode .island-bridge,
 body.mode-dynamic-island.island-glass-mode .island-duet-bridge {
   background:
     linear-gradient(180deg, rgba(var(--art-color-1-rgb, 255, 255, 255), 0.10) 0%, rgba(18, 18, 24, 0.44) 100%) !important;
-  backdrop-filter: blur(20px) !important;
-  -webkit-backdrop-filter: blur(20px) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
   border-left: 1px solid rgba(255, 255, 255, 0.18) !important;
   border-right: 1px solid rgba(255, 255, 255, 0.18) !important;
   box-shadow:
@@ -2772,8 +3011,8 @@ body.mode-dynamic-island.island-glass-mode .island-duet-bridge {
 body.mode-dynamic-island.island-glass-mode .island-btn {
   background: rgba(255, 255, 255, 0.16) !important;
   border: 1px solid rgba(255, 255, 255, 0.28) !important;
-  backdrop-filter: blur(14px) !important;
-  -webkit-backdrop-filter: blur(14px) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
   box-shadow:
     inset 0 1px 0.5px rgba(255, 255, 255, 0.45),
     0 2px 8px rgba(0, 0, 0, 0.35) !important;
@@ -2798,8 +3037,8 @@ body.mode-dynamic-island.island-glass-mode .island-btn.island-btn-play {
 body.mode-dynamic-island.island-glass-mode .island-trans-chip {
   background: rgba(255, 255, 255, 0.14) !important;
   border: 1px solid rgba(255, 255, 255, 0.25) !important;
-  backdrop-filter: blur(12px) !important;
-  -webkit-backdrop-filter: blur(12px) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
 body.mode-dynamic-island.island-glass-mode .island-scrubber-track,
@@ -2834,7 +3073,7 @@ body.mode-dynamic-island.island-glass-mode .island-vol-track {
 
 .island-context-card {
   min-width: 220px;
-  background: rgba(18, 18, 22, 0.90);
+  background: rgba(18, 18, 22, 0.94);
   backdrop-filter: blur(28px) saturate(190%);
   -webkit-backdrop-filter: blur(28px) saturate(190%);
   border: 1px solid rgba(255, 255, 255, 0.14);
@@ -2966,7 +3205,7 @@ body.mode-dynamic-island.island-glass-mode .island-vol-track {
   padding: 2.5px 6px;
   border-radius: 5px;
   cursor: pointer;
-  transition: all 0.12s ease;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease, transform 0.12s ease;
   outline: none;
 }
 

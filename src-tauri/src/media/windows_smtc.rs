@@ -1,14 +1,14 @@
-use crate::models::TrackMetadata;
 use super::MediaSessionBackend;
+use crate::models::TrackMetadata;
 use std::sync::Mutex;
 use windows::Media::Control::{
-    GlobalSystemMediaTransportControlsSession,
-    GlobalSystemMediaTransportControlsSessionManager,
+    GlobalSystemMediaTransportControlsSession, GlobalSystemMediaTransportControlsSessionManager,
     GlobalSystemMediaTransportControlsSessionPlaybackStatus,
 };
 use windows::Win32::System::Com::{CoInitializeEx, COINIT_MULTITHREADED};
 
-static CACHED_MANAGER: Mutex<Option<GlobalSystemMediaTransportControlsSessionManager>> = Mutex::new(None);
+static CACHED_MANAGER: Mutex<Option<GlobalSystemMediaTransportControlsSessionManager>> =
+    Mutex::new(None);
 static LAST_SMTC_SESSION_DIAGNOSTIC: Mutex<Option<String>> = Mutex::new(None);
 static CACHED_TRACK: Mutex<Option<TrackMetadata>> = Mutex::new(None);
 // Track the source session separately from the media properties. A transiently
@@ -16,18 +16,57 @@ static CACHED_TRACK: Mutex<Option<TrackMetadata>> = Mutex::new(None);
 // player's metadata.
 static CACHED_TRACK_SESSION: Mutex<Option<String>> = Mutex::new(None);
 static CACHED_THUMBNAIL: Mutex<Option<(String, String)>> = Mutex::new(None);
-static CONSECUTIVE_NO_SESSION_COUNT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
-static CONSECUTIVE_METADATA_MISS_COUNT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+static CACHED_THUMBNAIL_MAP: Mutex<Option<std::collections::HashMap<String, String>>> =
+    Mutex::new(None);
+static CONSECUTIVE_NO_SESSION_COUNT: std::sync::atomic::AtomicU32 =
+    std::sync::atomic::AtomicU32::new(0);
+static CONSECUTIVE_METADATA_MISS_COUNT: std::sync::atomic::AtomicU32 =
+    std::sync::atomic::AtomicU32::new(0);
 static LAST_SMTC_SAMPLE: Mutex<Option<(u64, i64, u64, std::time::Instant)>> = Mutex::new(None);
 
-fn extract_thumbnail(props: &windows::Media::Control::GlobalSystemMediaTransportControlsSessionMediaProperties, title: &str, artist: &str, album: &str) -> Option<String> {
+fn downscale_smtc_image(buf: &[u8], max_width: u32, max_height: u32) -> (Vec<u8>, &'static str) {
+    if let Ok(img) = image::load_from_memory(buf) {
+        if img.width() > max_width || img.height() > max_height {
+            let resized = img.thumbnail(max_width, max_height);
+            let mut out = std::io::Cursor::new(Vec::new());
+            if resized.write_to(&mut out, image::ImageFormat::Jpeg).is_ok() {
+                return (out.into_inner(), "image/jpeg");
+            }
+        }
+    }
+    let mime = if buf.starts_with(&[0x89, 0x50, 0x4E, 0x47]) {
+        "image/png"
+    } else if buf.starts_with(&[0x47, 0x49, 0x46]) {
+        "image/gif"
+    } else if buf.starts_with(&[0x52, 0x49, 0x46, 0x46]) {
+        "image/webp"
+    } else {
+        "image/jpeg"
+    };
+    (buf.to_vec(), mime)
+}
+
+fn extract_thumbnail(
+    props: &windows::Media::Control::GlobalSystemMediaTransportControlsSessionMediaProperties,
+    title: &str,
+    artist: &str,
+    album: &str,
+) -> Option<String> {
     if title.is_empty() {
         return None;
     }
     let key = format!("{}:::{}:::{}", title, artist, album);
+    let short_key = format!("{}:::{}", title, artist);
     if let Ok(lock) = CACHED_THUMBNAIL.lock() {
         if let Some((ref cached_key, ref url)) = *lock {
-            if cached_key == &key {
+            if cached_key == &key || cached_key == &short_key {
+                return Some(url.clone());
+            }
+        }
+    }
+    if let Ok(map_lock) = CACHED_THUMBNAIL_MAP.lock() {
+        if let Some(ref map) = *map_lock {
+            if let Some(url) = map.get(&key).or_else(|| map.get(&short_key)) {
                 return Some(url.clone());
             }
         }
@@ -37,7 +76,7 @@ fn extract_thumbnail(props: &windows::Media::Control::GlobalSystemMediaTransport
     let stream_op = thumb_ref.OpenReadAsync().ok()?;
     let stream = stream_op.get().ok()?;
     let size = stream.Size().ok()? as usize;
-    if size == 0 || size > 10 * 1024 * 1024 {
+    if size == 0 || size > 768 * 1024 {
         return None;
     }
 
@@ -48,21 +87,21 @@ fn extract_thumbnail(props: &windows::Media::Control::GlobalSystemMediaTransport
     let mut buf = vec![0u8; size];
     reader.ReadBytes(&mut buf).ok()?;
 
-    let mime = if buf.starts_with(&[0x89, 0x50, 0x4E, 0x47]) {
-        "image/png"
-    } else if buf.starts_with(&[0x47, 0x49, 0x46]) {
-        "image/gif"
-    } else if buf.starts_with(&[0x52, 0x49, 0x46, 0x46]) {
-        "image/webp"
-    } else {
-        "image/jpeg"
-    };
+    let (final_buf, mime) = downscale_smtc_image(&buf, 300, 300);
 
-    let b64 = crate::models::base64_encode(&buf);
+    let b64 = crate::models::base64_encode(&final_buf);
     let data_url = format!("data:{};base64,{}", mime, b64);
 
     if let Ok(mut lock) = CACHED_THUMBNAIL.lock() {
-        *lock = Some((key, data_url.clone()));
+        *lock = Some((key.clone(), data_url.clone()));
+    }
+    if let Ok(mut map_lock) = CACHED_THUMBNAIL_MAP.lock() {
+        let map = map_lock.get_or_insert_with(std::collections::HashMap::new);
+        if map.len() > 10 {
+            map.clear();
+        }
+        map.insert(key, data_url.clone());
+        map.insert(short_key, data_url.clone());
     }
 
     Some(data_url)
@@ -117,22 +156,8 @@ fn is_browser_or_non_music(app_id: &str) -> bool {
         || trimmed.contains("google.chrome")
         || trimmed.contains("microsoft.edge")
         || trimmed.contains("thebrowsercompany")
-        // Video streaming and conferencing apps that register SMTC
-        || trimmed.contains("netflix")
-        || trimmed.contains("primevideo")
-        || trimmed.contains("hulu")
-        || trimmed.contains("disney")
-        || trimmed.contains("twitch")
-        // Messaging & VoIP apps that register SMTC
-        || trimmed.contains("discord")
-        || trimmed.contains("telegram")
-        || trimmed.contains("slack")
-        || trimmed.contains("teams")
-        || trimmed.contains("zoom")
-        || trimmed.contains("whatsapp")
-        || trimmed.contains("skype")
-        || trimmed.contains("viber")
-        || trimmed.contains("signal")
+        // Video streaming, conferencing, messaging & VoIP apps that register SMTC
+        || is_known_non_music_app(trimmed)
 }
 
 fn is_dedicated_music_app(app_id: &str) -> bool {
@@ -185,8 +210,19 @@ fn is_dedicated_music_app(app_id: &str) -> bool {
 fn is_known_non_music_app(app_id: &str) -> bool {
     let id = app_id.to_lowercase();
     [
-        "netflix", "primevideo", "hulu", "disney", "twitch", "discord",
-        "telegram", "slack", "teams", "zoom", "whatsapp", "skype", "viber",
+        "netflix",
+        "primevideo",
+        "hulu",
+        "disney",
+        "twitch",
+        "discord",
+        "telegram",
+        "slack",
+        "teams",
+        "zoom",
+        "whatsapp",
+        "skype",
+        "viber",
         "signal",
     ]
     .iter()
@@ -198,9 +234,17 @@ fn has_track_title(title: &str) -> bool {
 }
 
 fn session_has_track_metadata(session: &GlobalSystemMediaTransportControlsSession) -> bool {
-    let Ok(operation) = session.TryGetMediaPropertiesAsync() else { return false; };
-    let Ok(properties) = operation.get() else { return false; };
-    let title = properties.Title().ok().map(|value| value.to_string()).unwrap_or_default();
+    let Ok(operation) = session.TryGetMediaPropertiesAsync() else {
+        return false;
+    };
+    let Ok(properties) = operation.get() else {
+        return false;
+    };
+    let title = properties
+        .Title()
+        .ok()
+        .map(|value| value.to_string())
+        .unwrap_or_default();
     // Some valid SMTC providers publish the title before (or without) artist
     // and album. A title is enough to begin playback detection and lyric lookup.
     has_track_title(&title)
@@ -234,9 +278,13 @@ impl WindowsSmtcBackend {
                     *lock = Some(manager.clone());
                     return Some(manager);
                 }
-                Err(error) => log_smtc_session_diagnostic(format!("session manager request failed: {error}")),
+                Err(error) => {
+                    log_smtc_session_diagnostic(format!("session manager request failed: {error}"))
+                }
             },
-            Err(error) => log_smtc_session_diagnostic(format!("session manager initialization failed: {error}")),
+            Err(error) => log_smtc_session_diagnostic(format!(
+                "session manager initialization failed: {error}"
+            )),
         }
         None
     }
@@ -252,15 +300,19 @@ impl WindowsSmtcBackend {
         // actively playing and publishes a title; session enumeration order
         // can otherwise put an unrelated or metadata-incomplete session first.
         if let Ok(session) = manager.GetCurrentSession() {
-            let app_id = session.SourceAppUserModelId()
+            let app_id = session
+                .SourceAppUserModelId()
                 .map(|id| id.to_string().to_lowercase())
                 .unwrap_or_default();
-            let status = session.GetPlaybackInfo().ok()
+            let status = session
+                .GetPlaybackInfo()
+                .ok()
                 .and_then(|info| info.PlaybackStatus().ok());
             let is_playing = status.is_some_and(|value| {
                 value == GlobalSystemMediaTransportControlsSessionPlaybackStatus::Playing
             });
-            if is_playing && is_dedicated_music_app(&app_id) && session_has_track_metadata(&session) {
+            if is_playing && is_dedicated_music_app(&app_id) && session_has_track_metadata(&session)
+            {
                 log_smtc_session_diagnostic(format!("selected current session app_id='{app_id}'"));
                 return Some(session);
             }
@@ -278,17 +330,26 @@ impl WindowsSmtcBackend {
 
                 for i in 0..count {
                     if let Ok(s) = sessions.GetAt(i) {
-                        let app_id = s.SourceAppUserModelId().map(|id| id.to_string().to_lowercase()).unwrap_or_default();
+                        let app_id = s
+                            .SourceAppUserModelId()
+                            .map(|id| id.to_string().to_lowercase())
+                            .unwrap_or_default();
 
-                        let status = s.GetPlaybackInfo().ok().and_then(|inf| inf.PlaybackStatus().ok());
+                        let status = s
+                            .GetPlaybackInfo()
+                            .ok()
+                            .and_then(|inf| inf.PlaybackStatus().ok());
                         session_summary.push(format!("{}:{:?}", app_id, status));
 
                         if let Some(st) = status {
-                            if st == GlobalSystemMediaTransportControlsSessionPlaybackStatus::Playing {
+                            if st
+                                == GlobalSystemMediaTransportControlsSessionPlaybackStatus::Playing
+                            {
                                 if is_dedicated_music_app(&app_id) && playing_music.is_none() {
                                     playing_music = Some(s.clone());
                                 }
-                            } else if st == GlobalSystemMediaTransportControlsSessionPlaybackStatus::Paused
+                            } else if st
+                                == GlobalSystemMediaTransportControlsSessionPlaybackStatus::Paused
                                 && is_dedicated_music_app(&app_id)
                             {
                                 if paused_music.is_none() {
@@ -306,13 +367,23 @@ impl WindowsSmtcBackend {
                 };
 
                 if let Some(s) = playing_music {
-                    let app_id = s.SourceAppUserModelId().map(|id| id.to_string()).unwrap_or_default();
-                    log_smtc_session_diagnostic(format!("{session_diagnostic}; selected known music session app_id='{app_id}'"));
+                    let app_id = s
+                        .SourceAppUserModelId()
+                        .map(|id| id.to_string())
+                        .unwrap_or_default();
+                    log_smtc_session_diagnostic(format!(
+                        "{session_diagnostic}; selected known music session app_id='{app_id}'"
+                    ));
                     return Some(s);
                 }
                 if let Some(s) = paused_music {
-                    let app_id = s.SourceAppUserModelId().map(|id| id.to_string()).unwrap_or_default();
-                    log_smtc_session_diagnostic(format!("{session_diagnostic}; selected paused music session app_id='{app_id}'"));
+                    let app_id = s
+                        .SourceAppUserModelId()
+                        .map(|id| id.to_string())
+                        .unwrap_or_default();
+                    log_smtc_session_diagnostic(format!(
+                        "{session_diagnostic}; selected paused music session app_id='{app_id}'"
+                    ));
                     return Some(s);
                 }
                 log_smtc_session_diagnostic(session_diagnostic);
@@ -330,12 +401,20 @@ impl WindowsSmtcBackend {
         // Last-resort current-session lookup for Windows providers that omit
         // entries from GetSessions but expose the active media properties.
         if let Ok(session) = manager.GetCurrentSession() {
-            let app_id = session.SourceAppUserModelId().map(|id| id.to_string().to_lowercase()).unwrap_or_default();
-            let is_playing = session.GetPlaybackInfo().ok()
+            let app_id = session
+                .SourceAppUserModelId()
+                .map(|id| id.to_string().to_lowercase())
+                .unwrap_or_default();
+            let is_playing = session
+                .GetPlaybackInfo()
+                .ok()
                 .and_then(|info| info.PlaybackStatus().ok())
-                .is_some_and(|status| status == GlobalSystemMediaTransportControlsSessionPlaybackStatus::Playing);
+                .is_some_and(|status| {
+                    status == GlobalSystemMediaTransportControlsSessionPlaybackStatus::Playing
+                });
             if is_dedicated_music_app(&app_id)
-                && (is_playing || session_has_track_metadata(&session)) {
+                && (is_playing || session_has_track_metadata(&session))
+            {
                 return Some(session);
             }
         }
@@ -352,7 +431,9 @@ impl MediaSessionBackend for WindowsSmtcBackend {
                 s
             }
             None => {
-                let count = CONSECUTIVE_NO_SESSION_COUNT.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+                let count = CONSECUTIVE_NO_SESSION_COUNT
+                    .fetch_add(1, std::sync::atomic::Ordering::SeqCst)
+                    + 1;
                 let mut lock = CACHED_TRACK.lock().unwrap_or_else(|p| p.into_inner());
                 // 10-second grace period (40 polls at 250ms): keep track cached with is_playing = false
                 if count <= 40 {
@@ -368,7 +449,8 @@ impl MediaSessionBackend for WindowsSmtcBackend {
             }
         };
 
-        let session_id = session.SourceAppUserModelId()
+        let session_id = session
+            .SourceAppUserModelId()
             .map(|id| id.to_string().to_lowercase())
             .unwrap_or_default();
         let session_changed = if let Ok(mut cached_session) = CACHED_TRACK_SESSION.lock() {
@@ -393,43 +475,90 @@ impl MediaSessionBackend for WindowsSmtcBackend {
 
         // Fetch metadata before using the cached timeline fallback so we can
         // reject position/duration from a previous track in the same app.
-        let (title, artist, album, art_url) = if let Ok(async_op) = session.TryGetMediaPropertiesAsync() {
-            if let Ok(props) = async_op.get() {
-                let t = props.Title().ok().map(|s| s.to_string()).unwrap_or_default();
-                let a = props.Artist().ok().map(|s| s.to_string()).unwrap_or_default();
-                let alb = props.AlbumTitle().ok().map(|s| s.to_string()).unwrap_or_default();
-                let art = extract_thumbnail(&props, &t, &a, &alb);
-                (t, a, alb, art)
+        let (title, artist, album, mut art_url) =
+            if let Ok(async_op) = session.TryGetMediaPropertiesAsync() {
+                if let Ok(props) = async_op.get() {
+                    let t = props
+                        .Title()
+                        .ok()
+                        .map(|s| s.to_string())
+                        .unwrap_or_default();
+                    let a = props
+                        .Artist()
+                        .ok()
+                        .map(|s| s.to_string())
+                        .unwrap_or_default();
+                    let alb = props
+                        .AlbumTitle()
+                        .ok()
+                        .map(|s| s.to_string())
+                        .unwrap_or_default();
+                    let art = extract_thumbnail(&props, &t, &a, &alb);
+                    (t, a, alb, art)
+                } else {
+                    (String::new(), String::new(), String::new(), None)
+                }
             } else {
                 (String::new(), String::new(), String::new(), None)
+            };
+
+        // If a new track was just detected and art is not ready yet, do a quick 35ms retry
+        // to catch Windows SMTC thumbnail streams that finish slightly after title/artist
+        if !title.is_empty() && art_url.is_none() {
+            let is_new_track = CACHED_TRACK
+                .lock()
+                .ok()
+                .and_then(|lock| {
+                    lock.as_ref()
+                        .map(|track| track.title != title || track.artist != artist)
+                })
+                .unwrap_or(true);
+            if is_new_track {
+                std::thread::sleep(std::time::Duration::from_millis(35));
+                if let Ok(async_op) = session.TryGetMediaPropertiesAsync() {
+                    if let Ok(props) = async_op.get() {
+                        art_url = extract_thumbnail(&props, &title, &artist, &album);
+                    }
+                }
             }
-        } else {
-            (String::new(), String::new(), String::new(), None)
-        };
+        }
 
         if !title.is_empty() {
-            let cached_title = CACHED_TRACK.lock().ok()
+            let cached_title = CACHED_TRACK
+                .lock()
+                .ok()
                 .and_then(|lock| lock.as_ref().map(|track| track.title.clone()));
-            if cached_title.as_deref().is_some_and(|cached| cached != title.as_str()) {
+            if cached_title
+                .as_deref()
+                .is_some_and(|cached| cached != title.as_str())
+            {
                 if let Ok(mut sample) = LAST_SMTC_SAMPLE.lock() {
                     *sample = None;
                 }
             }
         }
 
-        let is_playing = info.as_ref()
+        let is_playing = info
+            .as_ref()
             .and_then(|i| i.PlaybackStatus().ok())
             .map(|s| s == GlobalSystemMediaTransportControlsSessionPlaybackStatus::Playing)
             .unwrap_or(false);
 
-        let playback_rate = info.as_ref()
+        let playback_rate = info
+            .as_ref()
             .and_then(|i| i.PlaybackRate().ok())
             .and_then(|r| r.Value().ok())
             .unwrap_or(1.0);
 
         let (position_ms, duration_ms) = if let Some(t) = timeline {
-            let base_pos = t.Position().map(|p| (p.Duration / 10_000).max(0) as u64).unwrap_or(0);
-            let dur = t.EndTime().map(|e| (e.Duration / 10_000).max(0) as u64).unwrap_or(0);
+            let base_pos = t
+                .Position()
+                .map(|p| (p.Duration / 10_000).max(0) as u64)
+                .unwrap_or(0);
+            let dur = t
+                .EndTime()
+                .map(|e| (e.Duration / 10_000).max(0) as u64)
+                .unwrap_or(0);
 
             let pos = if is_playing && playback_rate > 0.0 {
                 if let Ok(last_updated) = t.LastUpdatedTime() {
@@ -449,30 +578,47 @@ impl MediaSessionBackend for WindowsSmtcBackend {
 
                         // If media player already actively advances base_pos on its own with a static LastUpdatedTime,
                         // do not stack bounded_elapsed_ms on top of an already live position!
-                        let effective_elapsed_ms = if let Ok(mut sample_lock) = LAST_SMTC_SAMPLE.lock() {
-                            let (el, is_self_advancing) = if let Some((prev_base, prev_ts, _, prev_instant)) = *sample_lock {
-                                if prev_ts == last_updated.UniversalTime {
-                                    if base_pos > prev_base {
-                                        (0, true)
+                        let effective_elapsed_ms = if let Ok(mut sample_lock) =
+                            LAST_SMTC_SAMPLE.lock()
+                        {
+                            let (el, is_self_advancing) =
+                                if let Some((prev_base, prev_ts, _, prev_instant)) = *sample_lock {
+                                    if prev_ts == last_updated.UniversalTime {
+                                        if base_pos > prev_base {
+                                            (0, true)
+                                        } else {
+                                            let mono_elapsed = (now_instant
+                                                .duration_since(prev_instant)
+                                                .as_millis()
+                                                as u64)
+                                                .min(10_000);
+                                            (bounded_elapsed_ms.max(mono_elapsed), false)
+                                        }
                                     } else {
-                                        let mono_elapsed = (now_instant.duration_since(prev_instant).as_millis() as u64).min(10_000);
-                                        (bounded_elapsed_ms.max(mono_elapsed), false)
+                                        (bounded_elapsed_ms, false)
                                     }
                                 } else {
                                     (bounded_elapsed_ms, false)
-                                }
-                            } else {
-                                (bounded_elapsed_ms, false)
-                            };
+                                };
                             let final_el = if is_self_advancing { 0 } else { el };
-                            *sample_lock = Some((base_pos, last_updated.UniversalTime, base_pos + final_el, now_instant));
+                            *sample_lock = Some((
+                                base_pos,
+                                last_updated.UniversalTime,
+                                base_pos + final_el,
+                                now_instant,
+                            ));
                             final_el
                         } else {
                             bounded_elapsed_ms
                         };
 
-                        let interpolated = base_pos + (effective_elapsed_ms as f64 * playback_rate) as u64;
-                        if dur > 0 { interpolated.min(dur) } else { interpolated }
+                        let interpolated =
+                            base_pos + (effective_elapsed_ms as f64 * playback_rate) as u64;
+                        if dur > 0 {
+                            interpolated.min(dur)
+                        } else {
+                            interpolated
+                        }
                     } else {
                         base_pos
                     }
@@ -490,10 +636,14 @@ impl MediaSessionBackend for WindowsSmtcBackend {
         } else {
             // Keep the last valid timeline sample through a transient SMTC
             // timeline failure, but only while reading the same player.
-            CACHED_TRACK.lock().ok()
-                .and_then(|lock| lock.as_ref()
-                    .filter(|track| track.title == title)
-                    .map(|track| (track.position_ms, track.duration_ms)))
+            CACHED_TRACK
+                .lock()
+                .ok()
+                .and_then(|lock| {
+                    lock.as_ref()
+                        .filter(|track| track.title == title)
+                        .map(|track| (track.position_ms, track.duration_ms))
+                })
                 .unwrap_or((0, 0))
         };
 
@@ -501,7 +651,9 @@ impl MediaSessionBackend for WindowsSmtcBackend {
             // A short grace handles the blank-properties window some players
             // expose during track changes. Expire it so dead sessions do not
             // leave stale metadata visible indefinitely.
-            let miss_count = CONSECUTIVE_METADATA_MISS_COUNT.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+            let miss_count = CONSECUTIVE_METADATA_MISS_COUNT
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst)
+                + 1;
             let mut lock = CACHED_TRACK.lock().unwrap_or_else(|p| p.into_inner());
             if miss_count <= 12 && !session_changed && !session_id.is_empty() {
                 if let Some(ref mut track) = *lock {
@@ -521,10 +673,13 @@ impl MediaSessionBackend for WindowsSmtcBackend {
         // Some sessions omit artwork on ordinary polls. Retain the previous
         // image only when the current metadata still describes that same track.
         let art_url = art_url.or_else(|| {
-            CACHED_TRACK.lock().ok().and_then(|lock| lock.as_ref().and_then(|track| {
-                (track.title == title && track.artist == artist && track.album == album)
-                    .then(|| track.art_url.clone()).flatten()
-            }))
+            CACHED_TRACK.lock().ok().and_then(|lock| {
+                lock.as_ref().and_then(|track| {
+                    (track.title == title && track.artist == artist && track.album == album)
+                        .then(|| track.art_url.clone())
+                        .flatten()
+                })
+            })
         });
 
         let metadata = TrackMetadata {
@@ -544,12 +699,10 @@ impl MediaSessionBackend for WindowsSmtcBackend {
         *lock = Some(metadata.clone());
 
         Some(metadata)
-
     }
 
     fn trigger_control(&self, action: &str, position_ms: u64) {
         match action {
-
             "volume-up" => {
                 #[cfg(target_os = "windows")]
                 {
@@ -621,19 +774,43 @@ impl MediaSessionBackend for WindowsSmtcBackend {
 
         if let Some(session) = Self::get_current_session() {
             match action {
-                "play" => { let _ = session.TryPlayAsync(); },
-                "pause" => { let _ = session.TryPauseAsync(); },
-                "toggle" | "toggle-play-pause" | "play-pause" => { let _ = session.TryTogglePlayPauseAsync(); },
-                "next" => { let _ = session.TrySkipNextAsync(); },
-                "previous" => { let _ = session.TrySkipPreviousAsync(); },
+                "play" => {
+                    let _ = session.TryPlayAsync();
+                }
+                "pause" => {
+                    let _ = session.TryPauseAsync();
+                }
+                "toggle" | "toggle-play-pause" | "play-pause" => {
+                    let _ = session.TryTogglePlayPauseAsync();
+                }
+                "next" => {
+                    let _ = session.TrySkipNextAsync();
+                }
+                "previous" => {
+                    let _ = session.TrySkipPreviousAsync();
+                }
                 "seek" => {
                     let requested_pos = (position_ms as i64) * 10_000;
+                    if let Ok(mut cached) = CACHED_TRACK.lock() {
+                        if let Some(ref mut track) = *cached {
+                            track.position_ms = position_ms;
+                        }
+                    }
+                    if let Ok(mut sample_lock) = LAST_SMTC_SAMPLE.lock() {
+                        *sample_lock = None;
+                    }
                     if let Ok(op) = session.TryChangePlaybackPositionAsync(requested_pos) {
                         std::thread::spawn(move || {
+                            unsafe {
+                                let _ = windows::Win32::System::Com::CoInitializeEx(
+                                    None,
+                                    windows::Win32::System::Com::COINIT_MULTITHREADED,
+                                );
+                            }
                             let _ = op.get();
                         });
                     }
-                },
+                }
                 _ => {}
             }
         }
@@ -641,18 +818,24 @@ impl MediaSessionBackend for WindowsSmtcBackend {
 }
 
 #[cfg(target_os = "windows")]
-fn get_audio_endpoint_volume() -> Result<windows::Win32::Media::Audio::Endpoints::IAudioEndpointVolume, String> {
+fn get_audio_endpoint_volume(
+) -> Result<windows::Win32::Media::Audio::Endpoints::IAudioEndpointVolume, String> {
     unsafe {
-        let _ = windows::Win32::System::Com::CoInitializeEx(None, windows::Win32::System::Com::COINIT_MULTITHREADED);
+        let _ = windows::Win32::System::Com::CoInitializeEx(
+            None,
+            windows::Win32::System::Com::COINIT_MULTITHREADED,
+        );
         use windows::Win32::Media::Audio::*;
         use windows::Win32::System::Com::*;
 
-        let enumerator: IMMDeviceEnumerator = CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)
-            .map_err(|e| e.to_string())?;
-        let device = enumerator.GetDefaultAudioEndpoint(eRender, eMultimedia)
+        let enumerator: IMMDeviceEnumerator =
+            CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL).map_err(|e| e.to_string())?;
+        let device = enumerator
+            .GetDefaultAudioEndpoint(eRender, eMultimedia)
             .or_else(|_| enumerator.GetDefaultAudioEndpoint(eRender, eConsole))
             .map_err(|e| e.to_string())?;
-        device.Activate(CLSCTX_INPROC_SERVER, None)
+        device
+            .Activate(CLSCTX_INPROC_SERVER, None)
             .map_err(|e| e.to_string())
     }
 }
@@ -709,8 +892,21 @@ fn identify_music_app(app_id: &str, exe_path: &str) -> Option<(&'static str, &'s
         (&["aimp"], "aimp", "AIMP"),
         (&["tidal"], "tidal", "TIDAL"),
         (&["deezer"], "deezer", "Deezer"),
-        (&["amazonmusic", "amazon.music"], "amazonmusic", "Amazon Music"),
-        (&["youtubemusic", "youtube-music", "ytmdesktop", "th-ch.youtube-music"], "ytmdesktop", "YouTube Music"),
+        (
+            &["amazonmusic", "amazon.music"],
+            "amazonmusic",
+            "Amazon Music",
+        ),
+        (
+            &[
+                "youtubemusic",
+                "youtube-music",
+                "ytmdesktop",
+                "th-ch.youtube-music",
+            ],
+            "ytmdesktop",
+            "YouTube Music",
+        ),
         (&["cider"], "cider", "Cider"),
         (&["plexamp"], "plexamp", "Plexamp"),
         (&["strawberry"], "strawberry", "Strawberry"),
@@ -721,12 +917,18 @@ fn identify_music_app(app_id: &str, exe_path: &str) -> Option<(&'static str, &'s
         (&["qobuz"], "qobuz", "Qobuz"),
         (&["winamp"], "winamp", "Winamp"),
         (&["vlc"], "vlc", "VLC"),
-        (&["wmplayer", "mediaplayer", "zunemusic", "groove"], "mediaplayer", "Media Player"),
+        (
+            &["wmplayer", "mediaplayer", "zunemusic", "groove"],
+            "mediaplayer",
+            "Media Player",
+        ),
     ];
 
     for (needles, key, display) in candidates {
         for needle in *needles {
-            if (!id.is_empty() && id.contains(needle)) || (!path.is_empty() && path.contains(needle)) {
+            if (!id.is_empty() && id.contains(needle))
+                || (!path.is_empty() && path.contains(needle))
+            {
                 return Some((key, display));
             }
         }
@@ -746,22 +948,28 @@ static CACHED_MUSIC_APP_PID: Mutex<Option<(std::time::Instant, u32, String)>> = 
 #[cfg(target_os = "windows")]
 fn get_music_app_audio_sessions() -> Result<Vec<MusicAppAudioSession>, String> {
     unsafe {
-        let _ = windows::Win32::System::Com::CoInitializeEx(None, windows::Win32::System::Com::COINIT_MULTITHREADED);
+        let _ = windows::Win32::System::Com::CoInitializeEx(
+            None,
+            windows::Win32::System::Com::COINIT_MULTITHREADED,
+        );
+        use windows::core::{Interface, PWSTR};
+        use windows::Win32::Foundation::*;
         use windows::Win32::Media::Audio::*;
         use windows::Win32::System::Com::*;
         use windows::Win32::System::Threading::*;
-        use windows::Win32::Foundation::*;
-        use windows::core::{Interface, PWSTR};
 
-        let enumerator: IMMDeviceEnumerator = CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)
-            .map_err(|e| e.to_string())?;
-        let device = enumerator.GetDefaultAudioEndpoint(eRender, eMultimedia)
+        let enumerator: IMMDeviceEnumerator =
+            CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL).map_err(|e| e.to_string())?;
+        let device = enumerator
+            .GetDefaultAudioEndpoint(eRender, eMultimedia)
             .or_else(|_| enumerator.GetDefaultAudioEndpoint(eRender, eConsole))
             .map_err(|e| e.to_string())?;
 
-        let session_manager: IAudioSessionManager2 = device.Activate(CLSCTX_INPROC_SERVER, None)
+        let session_manager: IAudioSessionManager2 = device
+            .Activate(CLSCTX_INPROC_SERVER, None)
             .map_err(|e| e.to_string())?;
-        let session_enumerator: IAudioSessionEnumerator = session_manager.GetSessionEnumerator()
+        let session_enumerator: IAudioSessionEnumerator = session_manager
+            .GetSessionEnumerator()
             .map_err(|e| e.to_string())?;
 
         let count = session_enumerator.GetCount().map_err(|e| e.to_string())?;
@@ -846,7 +1054,12 @@ fn get_music_app_audio_sessions() -> Result<Vec<MusicAppAudioSession>, String> {
 
             let mut path_buf = [0u16; 512];
             let mut size = path_buf.len() as u32;
-            let path_ok = QueryFullProcessImageNameW(handle, PROCESS_NAME_FORMAT(0), PWSTR(path_buf.as_mut_ptr()), &mut size);
+            let path_ok = QueryFullProcessImageNameW(
+                handle,
+                PROCESS_NAME_FORMAT(0),
+                PWSTR(path_buf.as_mut_ptr()),
+                &mut size,
+            );
             let _ = CloseHandle(handle);
 
             if path_ok.is_err() || size == 0 {
@@ -897,7 +1110,9 @@ fn get_music_app_audio_sessions() -> Result<Vec<MusicAppAudioSession>, String> {
 }
 
 #[cfg(target_os = "windows")]
-pub fn set_music_app_volume(target_percent: f32) -> Result<Option<crate::models::MusicAppVolumeInfo>, String> {
+pub fn set_music_app_volume(
+    target_percent: f32,
+) -> Result<Option<crate::models::MusicAppVolumeInfo>, String> {
     unsafe {
         let sessions = get_music_app_audio_sessions()?;
         if sessions.is_empty() {
@@ -920,7 +1135,9 @@ pub fn set_music_app_volume(target_percent: f32) -> Result<Option<crate::models:
 }
 
 #[cfg(target_os = "windows")]
-pub fn step_music_app_volume(delta_percent: f32) -> Result<Option<crate::models::MusicAppVolumeInfo>, String> {
+pub fn step_music_app_volume(
+    delta_percent: f32,
+) -> Result<Option<crate::models::MusicAppVolumeInfo>, String> {
     unsafe {
         let sessions = get_music_app_audio_sessions()?;
         if sessions.is_empty() {
@@ -960,14 +1177,13 @@ pub fn get_music_app_volume_info() -> Result<Option<crate::models::MusicAppVolum
         let app_name = sessions[0].app_name.clone();
         let mut current_scalar: f32 = 0.5;
         let mut is_muted = false;
-        for s in &sessions {
+        if let Some(s) = sessions.first() {
             if let Ok(v) = s.simple_vol.GetMasterVolume() {
                 current_scalar = v;
             }
             if let Ok(m) = s.simple_vol.GetMute() {
                 is_muted = m.as_bool();
             }
-            break;
         }
         Ok(Some(crate::models::MusicAppVolumeInfo {
             volume_percent: (current_scalar * 100.0).round() as u32,
@@ -987,14 +1203,13 @@ pub fn toggle_music_app_mute() -> Result<Option<crate::models::MusicAppVolumeInf
         let app_name = sessions[0].app_name.clone();
         let mut is_muted = false;
         let mut current_scalar: f32 = 0.5;
-        for s in &sessions {
+        if let Some(s) = sessions.first() {
             if let Ok(m) = s.simple_vol.GetMute() {
                 is_muted = m.as_bool();
             }
             if let Ok(v) = s.simple_vol.GetMasterVolume() {
                 current_scalar = v;
             }
-            break;
         }
         let new_muted = !is_muted;
         for s in &sessions {
@@ -1016,12 +1231,16 @@ mod tests {
     fn test_browser_rejection() {
         // Mozilla Firefox hash-based AUMIDs
         assert!(is_browser_or_non_music("308046B0AF4A39CB"));
-        assert!(is_browser_or_non_music("308046B0AF4A39CB;PrivateBrowsingAUMID"));
+        assert!(is_browser_or_non_music(
+            "308046B0AF4A39CB;PrivateBrowsingAUMID"
+        ));
         assert!(!is_dedicated_music_app("308046B0AF4A39CB"));
 
         // Major browsers
         assert!(is_browser_or_non_music("Google.Chrome.123"));
-        assert!(is_browser_or_non_music("Microsoft.MicrosoftEdge_8wekyb3d8bbwe!App"));
+        assert!(is_browser_or_non_music(
+            "Microsoft.MicrosoftEdge_8wekyb3d8bbwe!App"
+        ));
         assert!(is_browser_or_non_music("brave.exe"));
         assert!(is_browser_or_non_music("opera.exe"));
         assert!(is_browser_or_non_music("TheBrowserCompany.Arc"));
@@ -1029,15 +1248,21 @@ mod tests {
         assert!(is_browser_or_non_music(""));
 
         assert!(!is_dedicated_music_app("Google.Chrome.123"));
-        assert!(!is_dedicated_music_app("Microsoft.MicrosoftEdge_8wekyb3d8bbwe!App"));
+        assert!(!is_dedicated_music_app(
+            "Microsoft.MicrosoftEdge_8wekyb3d8bbwe!App"
+        ));
         assert!(!is_dedicated_music_app("brave.exe"));
     }
 
     #[test]
     fn test_dedicated_music_app_acceptance() {
-        assert!(is_dedicated_music_app("SpotifyAB.SpotifyMusic_zpdnekdrzrea0!Spotify"));
+        assert!(is_dedicated_music_app(
+            "SpotifyAB.SpotifyMusic_zpdnekdrzrea0!Spotify"
+        ));
         assert!(is_dedicated_music_app("spotify.exe"));
-        assert!(is_dedicated_music_app("AppleInc.AppleMusicWin_nzyj5cxqqttg4!App"));
+        assert!(is_dedicated_music_app(
+            "AppleInc.AppleMusicWin_nzyj5cxqqttg4!App"
+        ));
         assert!(is_dedicated_music_app("iTunes.exe"));
         assert!(is_dedicated_music_app("TIDAL.exe"));
         assert!(is_dedicated_music_app("Deezer.exe"));
@@ -1047,7 +1272,9 @@ mod tests {
         assert!(is_dedicated_music_app("cider.exe"));
         assert!(is_dedicated_music_app("vlc.exe"));
 
-        assert!(!is_browser_or_non_music("SpotifyAB.SpotifyMusic_zpdnekdrzrea0!Spotify"));
+        assert!(!is_browser_or_non_music(
+            "SpotifyAB.SpotifyMusic_zpdnekdrzrea0!Spotify"
+        ));
         assert!(is_known_non_music_app("Discord.exe"));
         assert!(is_known_non_music_app("Netflix.exe"));
         assert!(!is_known_non_music_app("Google.Chrome"));
@@ -1058,5 +1285,30 @@ mod tests {
     fn test_smtc_metadata_accepts_title_without_artist_or_album() {
         assert!(has_track_title("Now Playing"));
         assert!(!has_track_title("  "));
+    }
+
+    #[test]
+    fn test_smtc_downscale_image() {
+        // Create a 600x600 synthetic image
+        let img = image::RgbImage::new(600, 600);
+        let mut buf = std::io::Cursor::new(Vec::new());
+        img.write_to(&mut buf, image::ImageFormat::Png).unwrap();
+        let original_bytes = buf.into_inner();
+
+        let (downscaled, mime) = super::downscale_smtc_image(&original_bytes, 300, 300);
+        assert_eq!(mime, "image/jpeg");
+        let decoded = image::load_from_memory(&downscaled).unwrap();
+        assert!(decoded.width() <= 300);
+        assert!(decoded.height() <= 300);
+
+        // Small 100x100 image should not be upscaled
+        let small_img = image::RgbImage::new(100, 100);
+        let mut small_buf = std::io::Cursor::new(Vec::new());
+        small_img.write_to(&mut small_buf, image::ImageFormat::Png).unwrap();
+        let small_bytes = small_buf.into_inner();
+
+        let (small_out, small_mime) = super::downscale_smtc_image(&small_bytes, 300, 300);
+        assert_eq!(small_mime, "image/png");
+        assert_eq!(small_out.len(), small_bytes.len());
     }
 }

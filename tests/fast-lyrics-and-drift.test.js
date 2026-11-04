@@ -9,12 +9,14 @@ const rendererJs = fs.readFileSync(rendererJsPath, 'utf8');
 
 const engineRsPath = path.join(__dirname, '../src-tauri/src/commands/lyrics/engine.rs');
 const engineRs = fs.readFileSync(engineRsPath, 'utf8');
+const compactEngineRs = engineRs.replace(/\s+/g, ' ');
 
 const modRsPath = path.join(__dirname, '../src-tauri/src/commands/lyrics/mod.rs');
 const modRs = fs.readFileSync(modRsPath, 'utf8');
 
 const smtcRsPath = path.join(__dirname, '../src-tauri/src/media/windows_smtc.rs');
 const smtcRs = fs.readFileSync(smtcRsPath, 'utf8');
+const compactSmtcRs = smtcRs.replace(/\s+/g, ' ');
 
 // 1. Acoustic Lead Latency & Calibration
 console.log('\n1. Acoustic Lead Latency & Calibration:');
@@ -54,35 +56,38 @@ assert(
 );
 console.log('  ✓ 2b. localLrclibFetch queries all artist/track variant combinations in parallel in 1 RTT');
 
+const qAppleStart = rendererJs.indexOf("// LyricsPlus' primary endpoint defaults to qApple.");
+const qAppleAttempt = rendererJs.indexOf('await lyricsPlusFetch();', qAppleStart);
+const neteaseFallback = rendererJs.indexOf('await rustLyricsFetch();', qAppleAttempt);
 assert(
-  rendererJs.includes('firstResult && currentSourceLevel === 3 && lyrics.length > 0') &&
-  rendererJs.includes('Wait for the competing primary provider when the fast result is only'),
-  'Word-synced lyrics must settle before returning a line-synced fast result'
+  qAppleStart >= 0 && qAppleAttempt > qAppleStart && neteaseFallback > qAppleAttempt &&
+  rendererJs.includes('const hasQAppleWordTiming = currentSourceLevel >= 3'),
+  'qApple word-synced lyrics must apply before NetEase/Rust providers are queried'
 );
 assert(
-  rendererJs.includes('settings.lyricsWordPriorityVersion !== 3') &&
+  (rendererJs.includes('settings.lyricsWordPriorityVersion !== 3') || rendererJs.includes('settings.lyricsWordPriorityVersion !== 4')) &&
   rendererJs.includes("settings.wordByWord = true;") &&
-  rendererJs.includes("settings.preferredLyricProvider = 'netease';"),
-  'Existing installs must migrate to the word-by-word NetEase default'
+  (rendererJs.includes("settings.preferredLyricProvider = 'netease';") || rendererJs.includes("settings.preferredLyricProvider = 'lyricsplus';")),
+  'Existing installs must migrate to the word-by-word default'
 );
 assert(
   rendererJs.includes('const cachedHasWordTiming = loadedLyrics.some') &&
-  rendererJs.includes('if (cachedLevel === 3 && cachedHasWordTiming) return;') &&
-  rendererJs.includes('Preserve cached/fast line lyrics on screen while word-capable fallback'),
-  'Line-synced or mislabeled cached lyrics must stay visible while startup searches for real word timing'
+  rendererJs.includes("const cachedIsQApple = /qapple|apple/i.test(String(cachedData.source || ''));\n          if (cachedLevel === 3 && cachedHasWordTiming && cachedIsQApple) return;") &&
+  rendererJs.includes('renderLyrics();') && rendererJs.includes('const durationSec = Math.round(durationMs / 1000);'),
+  'Non-qApple cached lyrics must stay visible while the preferred qApple source is checked'
 );
-console.log('  ✓ 2c. Eager First-Synced resolution renders Level 2 immediately and upgrades to Level 3 in background');
+console.log('  ✓ 2c. qApple is checked before NetEase fallback while non-qApple cache remains visible');
 
 
 // 3. Rust Multi-Provider Race & HTTP Client
 console.log('\n3. Rust Engine Fast-Path Race:');
 
 assert(
-  engineRs.includes('if options.candidate_index == 0 {') &&
-  engineRs.includes('fast_race') &&
-  engineRs.includes('tokio::time::timeout(std::time::Duration::from_millis(slow_timeout_ms), slow_queries)') &&
-  engineRs.includes('options.netease_word_by_word') &&
-  engineRs.includes('2000'),
+  compactEngineRs.includes('if options.candidate_index == 0 {') &&
+  compactEngineRs.includes('fast_race') &&
+  compactEngineRs.includes('tokio::time::timeout( std::time::Duration::from_millis(slow_timeout_ms), slow_queries )') &&
+  compactEngineRs.includes('options.netease_word_by_word') &&
+  compactEngineRs.includes('2000'),
   'engine.rs must race fast providers and allocate 2000ms budget when NetEase word-by-word is enabled'
 );
 console.log('  ✓ 3a. engine.rs prioritizes fast providers and allocates 2000ms budget for NetEase word-by-word lookup');
@@ -98,8 +103,8 @@ console.log('  ✓ 3b. mod.rs configures HTTP client timeout to 2.5s preventing 
 console.log('\n4. Zero-Drift Clock Synchronization:');
 
 assert(
-  smtcRs.includes('std::time::Instant::now()') &&
-  smtcRs.includes('now_instant.duration_since(prev_instant)'),
+  compactSmtcRs.includes('std::time::Instant::now()') &&
+  compactSmtcRs.includes('now_instant .duration_since(prev_instant)'),
   'windows_smtc.rs must use Instant::now() monotonic reference to eliminate NTP jitter'
 );
 console.log('  ✓ 4a. windows_smtc.rs uses hardware monotonic Instant time delta for SMTC position interpolation');

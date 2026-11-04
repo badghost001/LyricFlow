@@ -6,9 +6,12 @@ use std::process::Command;
 pub struct KineticVideoExportPayload {
     pub video_base64: Option<String>,
     pub audio_base64: Option<String>,
+    pub audio_extension: Option<String>,
     pub audio_path: Option<String>,
     pub start_time_sec: Option<f64>,
     pub duration_sec: Option<f64>,
+    pub frame_rate: Option<u32>,
+    pub quality: Option<String>,
     pub output_path: String,
 }
 
@@ -16,6 +19,20 @@ pub struct KineticVideoExportPayload {
 pub struct SaveCardImagePayload {
     pub image_base64: String,
     pub filename: String,
+}
+
+fn validate_image_filename(filename: &str) -> Result<&str, String> {
+    let filename = filename.trim();
+    if filename.is_empty()
+        || filename == "."
+        || filename == ".."
+        || filename
+            .chars()
+            .any(|c| matches!(c, '/' | '\\' | ':' | '\0'))
+    {
+        return Err("Image filename must be a single file name".to_string());
+    }
+    Ok(filename)
 }
 
 #[tauri::command]
@@ -34,6 +51,9 @@ pub async fn export_kinetic_video(payload: KineticVideoExportPayload) -> Result<
         if let Some(parent) = output_path.parent() {
             let _ = fs::create_dir_all(parent);
         }
+        let is_gif = output_path.extension()
+            .and_then(|ext| ext.to_str())
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("gif"));
 
         // Temp directory for muxing
         let temp_dir = std::env::temp_dir().join(format!(
@@ -55,7 +75,12 @@ pub async fn export_kinetic_video(payload: KineticVideoExportPayload) -> Result<
 
         let mut has_audio = false;
         let mut audio_src_arg = String::new();
-        let temp_audio = temp_dir.join("input_audio.wav");
+        let audio_extension = payload.audio_extension.as_deref().unwrap_or("wav").to_ascii_lowercase();
+        let safe_audio_extension = match audio_extension.as_str() {
+            "mp3" | "m4a" | "wav" | "flac" | "aac" | "ogg" | "opus" | "mp4" => audio_extension.as_str(),
+            _ => "wav",
+        };
+        let temp_audio = temp_dir.join(format!("input_audio.{}", safe_audio_extension));
 
         if let Some(ref a_b64) = payload.audio_base64 {
             if let Ok(bytes) = crate::models::base64_decode(a_b64) {
@@ -79,6 +104,14 @@ pub async fn export_kinetic_video(payload: KineticVideoExportPayload) -> Result<
             .unwrap_or(false);
 
         if !ffmpeg_exists {
+            if is_gif {
+                let _ = fs::remove_dir_all(&temp_dir);
+                return Err("GIF export requires FFmpeg. Install FFmpeg or choose MP4.".to_string());
+            }
+            if has_audio {
+                let _ = fs::remove_dir_all(&temp_dir);
+                return Err("MP4 export with song audio requires FFmpeg. Install FFmpeg and try again.".to_string());
+            }
             // Fallback: Copy raw video file to output path as webm
             output_path.set_extension("webm");
             let _ = fs::copy(&temp_video, &output_path);
@@ -102,17 +135,28 @@ pub async fn export_kinetic_video(payload: KineticVideoExportPayload) -> Result<
         cmd.arg("-y"); // overwrite
         cmd.arg("-i").arg(&temp_video);
 
+        let frame_rate = payload.frame_rate.unwrap_or(30).clamp(10, 60);
+        let quality = payload.quality.as_deref().unwrap_or("high");
+
         let start_sec = payload.start_time_sec.unwrap_or(0.0);
         let duration_sec = payload.duration_sec.unwrap_or(15.0);
 
-        if has_audio {
+        if is_gif {
+            let gif_fps = frame_rate.min(30);
+            cmd.arg("-filter_complex").arg(format!(
+                "[0:v]fps={},scale=720:-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=128[p];[s1][p]paletteuse=dither=bayer[out]",
+                gif_fps
+            ));
+            cmd.arg("-map").arg("[out]");
+            cmd.arg("-loop").arg("0");
+        } else if has_audio {
             cmd.arg("-ss").arg(format!("{:.3}", start_sec));
             cmd.arg("-t").arg(format!("{:.3}", duration_sec));
             cmd.arg("-i").arg(&audio_src_arg);
 
             cmd.arg("-c:v").arg("libx264");
             cmd.arg("-preset").arg("fast");
-            cmd.arg("-crf").arg("18");
+            cmd.arg("-crf").arg(match quality { "standard" => "23", "maximum" => "15", _ => "18" });
             cmd.arg("-pix_fmt").arg("yuv420p");
             cmd.arg("-c:a").arg("aac");
             cmd.arg("-b:a").arg("192k");
@@ -120,7 +164,7 @@ pub async fn export_kinetic_video(payload: KineticVideoExportPayload) -> Result<
         } else {
             cmd.arg("-c:v").arg("libx264");
             cmd.arg("-preset").arg("fast");
-            cmd.arg("-crf").arg("18");
+            cmd.arg("-crf").arg(match quality { "standard" => "23", "maximum" => "15", _ => "18" });
             cmd.arg("-pix_fmt").arg("yuv420p");
         }
 
@@ -162,13 +206,14 @@ pub async fn export_kinetic_video(payload: KineticVideoExportPayload) -> Result<
 #[tauri::command]
 pub async fn save_card_image(payload: SaveCardImagePayload) -> Result<String, String> {
     tokio::task::spawn_blocking(move || {
+        let filename = validate_image_filename(&payload.filename)?;
         let base_dir = dirs::picture_dir()
             .or_else(dirs::download_dir)
             .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
         let folder = base_dir.join("LyricFlow");
         let _ = fs::create_dir_all(&folder);
 
-        let final_path = folder.join(&payload.filename);
+        let final_path = folder.join(filename);
         let bytes = crate::models::base64_decode(&payload.image_base64)?;
         fs::write(&final_path, &bytes).map_err(|e| format!("Failed to write image file: {}", e))?;
 
@@ -187,4 +232,30 @@ pub async fn save_card_image(payload: SaveCardImagePayload) -> Result<String, St
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_image_filename;
+
+    #[test]
+    fn image_export_filename_must_not_escape_target_folder() {
+        for filename in [
+            "../outside.png",
+            "..\\outside.png",
+            "C:\\outside.png",
+            "\\\\server\\share.png",
+            "folder/image.png",
+            "stream.png:ads",
+        ] {
+            assert!(
+                validate_image_filename(filename).is_err(),
+                "accepted unsafe filename: {filename}"
+            );
+        }
+        assert_eq!(
+            validate_image_filename("cover art.png").unwrap(),
+            "cover art.png"
+        );
+    }
 }

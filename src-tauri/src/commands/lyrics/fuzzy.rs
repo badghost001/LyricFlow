@@ -120,7 +120,10 @@ pub fn compute_similarity_score(search_term: &str, candidate_term: &str) -> f32 
     }
 
     // Substring match
-    if !s_norm.is_empty() && !c_norm.is_empty() && (s_norm.contains(&c_norm) || c_norm.contains(&s_norm)) {
+    if !s_norm.is_empty()
+        && !c_norm.is_empty()
+        && (s_norm.contains(&c_norm) || c_norm.contains(&s_norm))
+    {
         let max_len = c_norm.len().max(s_norm.len()) as f32;
         if max_len > 0.0 {
             let ratio = (c_norm.len().min(s_norm.len()) as f32) / max_len;
@@ -145,6 +148,25 @@ pub fn compute_similarity_score(search_term: &str, candidate_term: &str) -> f32 
     } else {
         final_score.clamp(0.0, 1.0)
     }
+}
+
+/// Validate title and artist independently so a matching artist cannot hide a
+/// different song title (or vice versa) in a combined query score.
+pub fn is_track_metadata_match(
+    expected_title: &str,
+    expected_artist: &str,
+    candidate_title: &str,
+    candidate_artist: &str,
+) -> bool {
+    let title_score = compute_similarity_score(
+        &clean_title(expected_title.to_lowercase().as_str()),
+        &clean_title(candidate_title.to_lowercase().as_str()),
+    );
+    let artist_score = compute_similarity_score(
+        &clean_artist(expected_artist.to_lowercase().as_str()),
+        &clean_artist(candidate_artist.to_lowercase().as_str()),
+    );
+    title_score >= 0.78 && artist_score >= 0.60
 }
 
 /// Checks whether an LRC string contains valid timestamps like [01:23.45]
@@ -174,10 +196,16 @@ mod tests {
 
     #[test]
     fn test_clean_title() {
-        assert_eq!(clean_title("Shape of You (Official Music Video)"), "Shape of You");
+        assert_eq!(
+            clean_title("Shape of You (Official Music Video)"),
+            "Shape of You"
+        );
         assert_eq!(clean_title("God's Plan (feat. Drake)"), "God's Plan");
         assert_eq!(clean_title("In the End [Remastered 2021]"), "In the End");
-        assert_eq!(clean_title("Blinding Lights - Radio Edit"), "Blinding Lights");
+        assert_eq!(
+            clean_title("Blinding Lights - Radio Edit"),
+            "Blinding Lights"
+        );
         assert_eq!(clean_title("RHYNO (from GTAVI: The Album)"), "RHYNO");
     }
 
@@ -193,11 +221,42 @@ mod tests {
         let exact = compute_similarity_score("Someone Like You Adele", "Someone Like You Adele");
         assert_eq!(exact, 1.0);
 
-        let close = compute_similarity_score("Shape of You Ed Sheeran", "Shape of You (Official Video) Ed Sheeran");
+        let close = compute_similarity_score(
+            "Shape of You Ed Sheeran",
+            "Shape of You (Official Video) Ed Sheeran",
+        );
         assert!(close >= 0.75);
 
         let mismatch = compute_similarity_score("Bohemian Rhapsody Queen", "Despacito Luis Fonsi");
         assert!(mismatch < 0.5);
+    }
+
+    #[test]
+    fn test_track_metadata_match_checks_title_and_artist_separately() {
+        assert!(is_track_metadata_match(
+            "Mockingbird",
+            "Eminem",
+            "Mockingbird",
+            "Eminem"
+        ));
+        assert!(!is_track_metadata_match(
+            "Mockingbird",
+            "Eminem",
+            "Without Me",
+            "Eminem"
+        ));
+        assert!(!is_track_metadata_match(
+            "Mockingbird",
+            "Eminem",
+            "Mockingbird",
+            "Drake"
+        ));
+        assert!(is_track_metadata_match(
+            "Shape of You",
+            "Ed Sheeran",
+            "Shape of You (Official Video)",
+            "Ed Sheeran"
+        ));
     }
 
     #[test]

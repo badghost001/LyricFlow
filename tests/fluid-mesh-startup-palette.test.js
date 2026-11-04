@@ -14,6 +14,8 @@ global.window = {
   devicePixelRatio: 1,
   addEventListener: () => {}
 };
+global.requestAnimationFrame = (cb) => setTimeout(cb, 16);
+global.cancelAnimationFrame = (id) => clearTimeout(id);
 global.document = {
   addEventListener: () => {}
 };
@@ -40,6 +42,20 @@ console.log('1. Static Code Analysis:');
 
 const fluidMeshSource = fs.readFileSync(path.join(__dirname, '../src/modules/fluid-mesh.js'), 'utf8');
 const rendererSource = fs.readFileSync(path.join(__dirname, '../src/renderer.js'), 'utf8').replace(/\r\n/g, '\n');
+const layoutStyles = fs.readFileSync(path.join(__dirname, '../src/styles/_layout.css'), 'utf8').replace(/\r\n/g, '\n');
+
+test('1. Pearl theme fluid surface stays translucent so the mesh palette remains visible', () => {
+  const rule = layoutStyles.match(/html\[data-theme="light"\] body\.bg-style-fluid \.app-container\s*\{([\s\S]*?)\n\}/);
+  assert.ok(rule, 'Pearl theme must have a specific fluid surface rule');
+  assert.match(rule[1], /rgba\(248,\s*249,\s*252,\s*0\.18\)/,
+    'Pearl fluid surface must remain translucent enough to preserve the mesh colors');
+  assert.match(rule[1], /backdrop-filter:\s*blur\(24px\)/,
+    'Pearl fluid mode must retain its glass blur while revealing the mesh');
+  assert.doesNotMatch(rule[1], /backdrop-filter:\s*none/,
+    'Disabling backdrop blur removes the Pearl glass treatment');
+  assert.ok(fluidMeshSource.includes('mix(vec3(perceptualLuma), col, 1.2)'),
+    'The fluid shader must gently boost album-palette saturation in a single pass');
+});
 
 test('1a. fluid-mesh.js declares _isFirstPalette flag in constructor', () => {
   assert.ok(fluidMeshSource.includes('this._isFirstPalette = true;'), 'Must initialize _isFirstPalette in constructor');
@@ -75,6 +91,62 @@ test('1f. renderer.js restores cached palette on startup via restoreStartupPalet
 test('1g. renderer.js handleEmptyPlayback preserves dynamic palette when active', () => {
   assert.ok(rendererSource.includes('if (!window.currentDynamicPalette) {\n      fluidMeshGradientInstance.resetToDefault();'), 'Must guard resetToDefault with currentDynamicPalette');
   assert.ok(rendererSource.includes('if (!window.currentDynamicPalette) {\n    document.documentElement.style.removeProperty'), 'Must guard style removal with currentDynamicPalette');
+});
+
+test('1h. Island-to-normal transition restores the retained mesh palette immediately', () => {
+  const transitionStart = rendererSource.indexOf('async function transitionToMode(targetMode)');
+  const transitionEnd = rendererSource.indexOf('let _lastModeToggleTimestamp', transitionStart);
+  const transitionSource = rendererSource.slice(transitionStart, transitionEnd);
+  assert.ok(rendererSource.includes('function restoreCurrentFluidMeshPalette()'),
+    'Renderer must provide a mode-transition palette restore helper');
+  assert.ok(rendererSource.includes('fluidMeshGradientInstance.setPalette(palette, true);'),
+    'Mode transition palette restore must snap the current artwork palette');
+  assert.ok(rendererSource.includes('fluidMeshGradientInstance.defrost?.();'),
+    'Mode transitions must recover a context lost while the Island or another overlay was visible');
+  assert.ok(transitionSource.includes('restoreCurrentFluidMeshPalette();'),
+    'Returning to normal mode must restore the mesh palette after waking it');
+  const islandBranchStart = transitionSource.indexOf("if (targetMode === 'island') {");
+  const wallpaperBranchStart = transitionSource.indexOf("} else if (targetMode === 'wallpaper')", islandBranchStart);
+  const islandBranch = transitionSource.slice(islandBranchStart, wallpaperBranchStart);
+  assert.ok(islandBranch.includes('fluidMeshGradientInstance.stop();'),
+    'Entering Island mode must suspend mesh rendering');
+  assert.ok(!islandBranch.includes('fluidMeshGradientInstance.sleep();'),
+    'Entering Island mode must retain its WebGL context so a quick return preserves the artwork palette');
+});
+
+test('1i. Native Island exit restores the retained mesh palette immediately', () => {
+  const eventStart = rendererSource.indexOf('window.electronAPI.onDynamicIslandModeChanged');
+  const eventEnd = rendererSource.indexOf("if (window.electronAPI && typeof window.electronAPI.onIslandGhostMode", eventStart);
+  const eventSource = rendererSource.slice(eventStart, eventEnd);
+  const islandBranch = eventSource.slice(eventSource.indexOf('if (isDynamicIslandMode) {'), eventSource.indexOf('} else {'));
+  const normalBranch = eventSource.slice(eventSource.indexOf('} else {'));
+  assert.ok(islandBranch.includes('fluidMeshGradientInstance.stop?.();'),
+    'Native Island entry must stop drawing without destroying the WebGL context');
+  assert.ok(!islandBranch.includes('fluidMeshGradientInstance.sleep()'),
+    'Native Island entry must not put the mesh into context-loss sleep');
+  assert.ok(normalBranch.includes('restoreCurrentFluidMeshPalette();'),
+    'The native Island exit callback must use the immediate palette restore path');
+  assert.ok(!normalBranch.includes('setPalette(window.currentDynamicPalette)'),
+    'The native Island exit callback must not leave a settled mesh on its old/default frame');
+});
+
+test('1j. Direct SMTC pause and resume synchronize the fluid mesh playback loop', () => {
+  const pauseStart = rendererSource.indexOf('function handleLocalOrPollPause(');
+  const pauseEnd = rendererSource.indexOf('\nfunction getEffectiveTrackDuration', pauseStart);
+  const pauseSource = rendererSource.slice(pauseStart, pauseEnd);
+  assert.ok(pauseStart >= 0 && pauseEnd > pauseStart, 'handleLocalOrPollPause must exist');
+
+  const smtcStart = rendererSource.indexOf('window.electronAPI.onSmtcPlaybackStatus');
+  const smtcEnd = rendererSource.indexOf('let isTogglingFromTray', smtcStart);
+  const smtcSource = rendererSource.slice(smtcStart, smtcEnd);
+  assert.ok(smtcStart >= 0 && smtcEnd > smtcStart, 'SMTC playback status handler must exist');
+
+  assert.ok(rendererSource.includes('function syncFluidMeshPlaybackState()'),
+    'Renderer must centralize mesh playback state synchronization');
+  assert.ok(pauseSource.includes('syncFluidMeshPlaybackState();'),
+    'The direct pause path must move the mesh into its resting transition');
+  assert.match(smtcSource, /isPlaying\s*=\s*true;[\s\S]*?syncFluidMeshPlaybackState\(\);/,
+    'The direct resume path must restart mesh animation with playback');
 });
 
 // 2. Unit Testing FluidMeshGradient Class
@@ -217,6 +289,139 @@ test('2g. resetToDefault returns to default palette and sets _isFirstPalette = t
   mesh.resetToDefault();
   assert.strictEqual(mesh._isFirstPalette, true, '_isFirstPalette must be reset to true');
   assert.ok(Math.abs(mesh.targetColors[1][1] - (185 / 255)) < 0.01, 'targetColors must be reset to default palette');
+});
+
+test('2h. Fluid mesh settles to a final frame and cancels RAF after playback stops', () => {
+  const originalPerformance = global.performance;
+  const originalRaf = global.requestAnimationFrame;
+  const originalCaf = global.cancelAnimationFrame;
+  const originalWindow = global.window;
+  let clock = 0;
+  let nextId = 1;
+  const queue = new Map();
+  const listeners = new Map();
+  global.window = {
+    innerWidth: 1920,
+    innerHeight: 1080,
+    devicePixelRatio: 1,
+    addEventListener: (name, callback) => listeners.set(name, callback)
+  };
+  global.performance = { now: () => clock };
+  global.requestAnimationFrame = (callback) => {
+    const id = nextId++;
+    queue.set(id, callback);
+    return id;
+  };
+  global.cancelAnimationFrame = (id) => queue.delete(id);
+
+  try {
+    const mesh = new FluidMeshGradient(createMockCanvas());
+    mesh.useWebGL = false;
+    mesh.ctx2d = null;
+    let frames = 0;
+    mesh.render2DFallback = () => { frames++; };
+    mesh.setPlaybackState(true);
+    mesh.start();
+
+    for (let i = 0; i < 8; i++) {
+      const entry = queue.entries().next().value;
+      assert.ok(entry, 'playing mesh should keep scheduling frames');
+      queue.delete(entry[0]);
+      clock += 70;
+      entry[1](clock);
+    }
+
+    mesh.setPlaybackState(false);
+    let safety = 0;
+    while (queue.size && safety++ < 600) {
+      const entry = queue.entries().next().value;
+      queue.delete(entry[0]);
+      clock += 70;
+      entry[1](clock);
+    }
+
+    assert.strictEqual(queue.size, 0, 'resting mesh must cancel its RAF loop');
+    assert.strictEqual(mesh.isRunning(), false, 'resting mesh must report stopped');
+    const settledFrames = frames;
+    clock += 10000;
+    assert.strictEqual(queue.size, 0, 'settled mesh must not schedule identical resting frames');
+    assert.strictEqual(frames, settledFrames, 'settled mesh must not redraw without a state change');
+
+    listeners.get('pointermove')({ clientX: 1800, clientY: 100 });
+    assert.strictEqual(mesh.isRunning(), true, 'supported pointer movement must resume mesh animation');
+    mesh.stop();
+
+    mesh.setPlaybackState(true);
+    assert.strictEqual(mesh.isRunning(), true, 'playback start must resume mesh rendering');
+    mesh.stop();
+  } finally {
+    global.performance = originalPerformance;
+    global.requestAnimationFrame = originalRaf;
+    global.cancelAnimationFrame = originalCaf;
+    global.window = originalWindow;
+  }
+});
+
+test('2i. Fluid mesh retains the album palette across sleep and wake', () => {
+  const mesh = new FluidMeshGradient(createMockCanvas());
+  const albumPalette = [
+    [18, 12, 38],
+    [232, 54, 164],
+    [84, 52, 204],
+    [34, 144, 220],
+    [248, 128, 196]
+  ];
+  mesh.setPalette(albumPalette, true);
+  mesh.sleep();
+  mesh.wake();
+
+  assert.strictEqual(mesh.isSleeping, false, 'normal-mode wake must leave mesh sleep state');
+  assert.ok(Math.abs(mesh.currentColors[1][0] - (232 / 255)) < 0.001,
+    'wake must preserve the active album palette rather than show the default palette');
+  assert.deepStrictEqual(mesh.currentColors, mesh.targetColors,
+    'restored frame must retain the exact current album palette');
+  mesh.stop();
+});
+
+test('2j. WebGL palette gamma conversion happens once per frame outside the fragment shader', () => {
+  assert.match(fluidMeshSource, /vec3 c0_lin = u_c0_linear;/,
+    'Fragment shader must receive pre-linearized base color');
+  assert.match(fluidMeshSource, /vec3 c4_lin = u_c4;/,
+    'Fragment shader must receive pre-linearized accent color');
+  assert.doesNotMatch(fluidMeshSource, /pow\(u_c[0-4],\s*vec3\(2\.2\)\)/,
+    'Fragment shader must not repeat uniform palette gamma conversion for every pixel');
+
+  const mesh = new FluidMeshGradient(createMockCanvas());
+  const sentColors = new Map();
+  mesh.gl = {
+    useProgram: () => {},
+    uniform2f: () => {},
+    uniform1f: () => {},
+    uniform3fv: (uniform, color) => sentColors.set(uniform, Array.from(color)),
+    drawArrays: () => {}
+  };
+  mesh.useWebGL = true;
+  mesh.program = {};
+  mesh.uniforms = {
+    u_resolution: 'resolution', u_time: 'time', u_intensity: 'intensity', u_mouse: 'mouse', u_c0Linear: 'c0Linear',
+    u_c0: 'c0', u_c1: 'c1', u_c2: 'c2', u_c3: 'c3', u_c4: 'c4'
+  };
+  mesh.currentColors = [
+    [0.5, 0.25, 0.75], [0.2, 0.4, 0.6], [0.9, 0.3, 0.1],
+    [0.8, 0.7, 0.2], [0.1, 0.5, 0.9]
+  ];
+
+  mesh.renderWebGL();
+
+  const actual = sentColors.get('c1');
+  const expected = mesh.currentColors[1].map(channel => Math.fround(Math.pow(channel, 2.2)));
+  assert.deepStrictEqual(actual, expected,
+    'renderWebGL must send the current sRGB palette converted to linear RGB');
+  assert.deepStrictEqual(sentColors.get('c0'), mesh.currentColors[0],
+    'The base sRGB color must remain available for the vignette blend');
+  assert.deepStrictEqual(sentColors.get('c0Linear'), mesh.currentColors[0].map(channel => Math.fround(Math.pow(channel, 2.2))),
+    'The base color linearized for palette mixing must be sent separately');
+  mesh.stop();
 });
 
 // 3. Functional Simulation of Startup Palette Restoration
@@ -388,8 +593,8 @@ test('4d. get_local_playback command has immediate fallback when in-memory cache
 
 test('4e. onLocalPlaybackChange triggers immediate track dispatch on startup or rate-limit', () => {
   assert.ok(
-    rendererSource.includes('const isSongChanged = !curTitle ||'),
-    'onLocalPlaybackChange must trigger when curTitle is empty'
+    rendererSource.includes('const isSongChanged = !currentTitle ||') || rendererSource.includes('const isSongChanged = !curTitle ||'),
+    'onLocalPlaybackChange must trigger when currentTitle is empty'
   );
 });
 

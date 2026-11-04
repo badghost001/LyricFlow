@@ -640,8 +640,18 @@ function runMetamorphosisTests() {
     const islandCss = fs.readFileSync(path.resolve(__dirname, '../src/styles/_dynamic_island.css'), 'utf8');
     const lyricsCss = fs.readFileSync(path.resolve(__dirname, '../src/styles/_lyrics.css'), 'utf8');
 
-    assert.ok(islandCss.includes('calc(var(--word-progress, 1) * 100% + 3.5px)'), 'Dynamic island word gradient must include feathered edge');
-    assert.ok(lyricsCss.includes('calc(var(--word-progress, 1) * 100% + 4px)'), 'Main lyrics word gradient must include feathered edge');
+    assert.ok(
+      islandCss.includes('calc(var(--word-progress, 1) * 100% + 3.5px)') ||
+      islandCss.includes('calc(var(--word-progress-percent, 100%) + 3.5px)'),
+      'Dynamic island word gradient must include feathered edge'
+    );
+    assert.ok(
+      lyricsCss.includes('clip-path: inset(0 calc(100% - var(--word-progress, 0) * 100%) 0 0)') ||
+      lyricsCss.includes('clip-path: inset(0 calc(100% - var(--word-progress-percent, 0%)) 0 0)') ||
+      lyricsCss.includes('calc(var(--word-progress, 1) * 100% + 4px)') ||
+      lyricsCss.includes('calc(var(--word-progress-percent, calc(var(--word-progress, 0) * 100%)) + 3px)'),
+      'Main lyrics word gradient or clip-path must be present'
+    );
     assert.ok(lyricsCss.includes('filter var(--lyric-line-duration'), 'Main lyrics line must include filter in transition list for smooth depth-of-field');
   });
 

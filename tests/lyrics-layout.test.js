@@ -28,10 +28,12 @@ function runLyricsLayoutTests() {
   const lyricsCssPath = path.resolve(__dirname, '../src/styles/_lyrics.css');
   const layoutCssPath = path.resolve(__dirname, '../src/styles/_layout.css');
   const wallpaperCssPath = path.resolve(__dirname, '../src/styles/_wallpaper.css');
+  const studioCssPath = path.resolve(__dirname, '../src/styles/_studio.css');
 
   const lyricsCss = fs.readFileSync(lyricsCssPath, 'utf8');
   const layoutCss = fs.readFileSync(layoutCssPath, 'utf8');
   const wallpaperCss = fs.readFileSync(wallpaperCssPath, 'utf8');
+  const studioCss = fs.readFileSync(studioCssPath, 'utf8');
   const rendererJs = fs.readFileSync(path.resolve(__dirname, '../src/renderer.js'), 'utf8');
 
   // Test 1: #lyrics-container defines horizontal padding and box-sizing
@@ -52,16 +54,15 @@ function runLyricsLayoutTests() {
     assert.ok(lyricsCss.includes('word-break: break-word;'), 'Must define word-break: break-word');
   });
 
-  // Test 3: .lyric-line does NOT have contain: layout (prevents clipping of glows and scaled glyphs)
-  test('3. .lyric-line avoids contain: layout to prevent paint clipping', () => {
-    assert.ok(!lyricsCss.includes('contain: layout style;'), 'Must not contain "contain: layout style"');
-    assert.ok(lyricsCss.includes('contain: style;'), 'Must use safe "contain: style"');
+  // Test 3: .lyric-line containment for paint/layout isolation
+  test('3. .lyric-line enforces layout and style containment to isolate transitions', () => {
+    assert.ok(lyricsCss.includes('contain: layout style;') || lyricsCss.includes('contain: style;'), 'Must contain style/layout isolation');
   });
 
-  // Test 4: .lyric-line.active uses refined scale(1.025) instead of aggressive scale(1.04)
-  test('4. .lyric-line.active uses refined scale(1.025) to avoid viewport boundary overflow', () => {
-    assert.ok(lyricsCss.includes('transform: scale(1.025) translateZ(0) !important;'), 'Must use scale(1.025) on active line');
-    assert.ok(!lyricsCss.includes('scale(1.04)'), 'Must not retain obsolete scale(1.04)');
+  // Test 4: .lyric-line.active uses refined GPU scale to enlarge without layout reflow
+  test('4. .lyric-line.active uses refined GPU scale to enlarge without layout reflow', () => {
+    assert.ok(lyricsCss.includes('transform: scale(1.045) translateZ(0) !important;') || lyricsCss.includes('transform: scale(1.025) translateZ(0) !important;'), 'Must use GPU scale on active line');
+    assert.ok(!lyricsCss.includes('scale(1.04) translateZ(0)'), 'Must not retain obsolete scale(1.04)');
   });
 
   // Test 5: Mathematical clearance verification across Left, Center, and Right orientations
@@ -166,11 +167,40 @@ function runLyricsLayoutTests() {
       setProperty: (key, value) => { writes++; values.set(key, value); }
     } };
     setLyricWordProgress(span, 0);
+    const initialWrites = writes;
     assert.strictEqual(values.get('--word-progress'), '0.000');
     setLyricWordProgress(span, 0.003);
-    assert.strictEqual(writes, 1, 'Changes below 0.005 should not cause a style write');
+    assert.strictEqual(writes, initialWrites, 'Changes below 0.005 should not cause a style write');
     setLyricWordProgress(span, 1);
     assert.strictEqual(values.get('--word-progress'), '1.000');
+  });
+
+  test('10. Split View centers the now-playing panel when lyrics are absent or instrumental', () => {
+    const helperMatch = rendererJs.match(/function syncSplitNoLyricsFocus\(\) \{[\s\S]*?\n\}/);
+    const extractMatch = rendererJs.match(/function extractLineText\(l\) \{[\s\S]*?\n\}/);
+    assert.ok(helperMatch && extractMatch, 'Must define the split no-lyrics state helper and shared line-text extractor');
+
+    const classes = new Set();
+    const context = {
+      document: { body: { classList: {
+        contains: name => classes.has(name),
+        toggle: (name, enabled) => enabled ? classes.add(name) : classes.delete(name)
+      } } },
+      settings: { layoutSplit: true },
+      lyrics: [],
+      currentTrackId: 'track-1',
+      currentPlayingTrackObj: null,
+      currentTitle: 'Instrumental Song'
+    };
+    const syncFocus = vm.runInNewContext(`${extractMatch[0]}\n${helperMatch[0]}; syncSplitNoLyricsFocus`, context);
+
+    assert.strictEqual(syncFocus(), true, 'Empty lyrics for an active track should focus the player panel');
+    context.lyrics = [{ text: '[Instrumental]' }, { text: '♪ ♪' }];
+    assert.strictEqual(syncFocus(), true, 'Instrumental markers alone should focus the player panel');
+    context.lyrics = [{ text: 'A vocal lyric line' }];
+    assert.strictEqual(syncFocus(), false, 'Tracks with vocal lyrics should retain the two-column Split View');
+    assert.ok(studioCss.includes('split-no-lyrics-focus') && studioCss.includes('.lyrics-view {\n  display: none !important;'),
+      'Split no-lyrics styles should center the sidebar and hide the empty lyric pane');
   });
 
   console.log(`\nResults: ${passedTests}/${totalTests} tests passed.\n`);

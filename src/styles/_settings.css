@@ -225,6 +225,13 @@
   transition: border-color 0.25s, box-shadow 0.25s;
 }
 
+/* Keep the active setting card above neighboring cards while its native
+   WebView2 select popup is open. */
+.settings-group:has(.liquid-select-wrapper:focus-within) {
+  position: relative;
+  z-index: 30;
+}
+
 .settings-group:hover {
   border-color: rgba(255, 255, 255, 0.12);
   box-shadow:
@@ -604,6 +611,38 @@
   color: rgba(255, 255, 255, 0.85);
 }
 
+.lyrics-diagnostics {
+  display: grid;
+  gap: 7px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255,255,255,.09);
+  border-radius: 10px;
+  background: rgba(0,0,0,.12);
+}
+.lyrics-diagnostics > div { display:flex; justify-content:space-between; gap:12px; font-size:11px; }
+.lyrics-diagnostics span { color: var(--text-secondary, rgba(255,255,255,.58)); flex:0 0 auto; }
+.lyrics-diagnostics strong { color: var(--text-primary, rgba(255,255,255,.92)); font-weight:600; text-align:right; overflow-wrap:anywhere; }
+.shortcut-editor-hint { margin:0 0 8px; font-size:11px; color:var(--text-secondary, rgba(255,255,255,.62)); }
+.shortcut-change-btn { flex:0 0 auto; border:1px solid rgba(255,255,255,.14); border-radius:7px; padding:4px 8px; color:var(--text-primary, #fff); background:rgba(255,255,255,.07); font-family:inherit; font-size:10px; font-weight:600; cursor:pointer; }
+.shortcut-change-btn:hover,.shortcut-change-btn.is-recording { border-color:var(--accent-primary,#1DB954); background:rgba(29,185,84,.15); }
+
+body.lf-reduced-motion *,
+body.lf-reduced-motion *::before,
+body.lf-reduced-motion *::after {
+  scroll-behavior: auto !important;
+  animation-duration: .001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: .001ms !important;
+}
+body.lf-reduced-art-motion .album-art-sparkle-old,
+body.lf-reduced-art-motion .album-art-sparkle-wave,
+body.lf-reduced-art-motion .island-art-transition-sweep { display:none !important; }
+body.lf-reduced-dust-motion .island-vaporizing { animation:none !important; }
+body.lf-reduced-visualizer-motion .wave-bar,
+body.lf-reduced-visualizer-motion .player-vis-bar,
+body.lf-reduced-visualizer-motion .studio-vis-bar,
+body.lf-reduced-visualizer-motion .solo-bar { transition:none !important; }
+
 [data-theme="light"] .shortcut-row-label {
   color: rgba(0, 0, 0, 0.8);
 }
@@ -751,6 +790,10 @@
   transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+.settings-advanced-dropdown[open] {
+  overflow: visible !important;
+}
+
 .onboarding-skip-button {
   position: absolute;
   top: 20px;
@@ -770,7 +813,41 @@
   background: rgba(255, 255, 255, 0.13);
 }
 
+.custom-animated-art-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 8px 0 2px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.custom-animated-art-copy { display: grid; flex: 1 1 auto; gap: 3px; min-width: 220px; }
+.custom-animated-art-copy strong { color: var(--text-primary, #f5f6fb); font-size: 11px; font-weight: 650; overflow-wrap: break-word; word-break: normal; }
+.custom-animated-art-copy small { color: var(--text-secondary, rgba(255,255,255,.58)); font-size: 10px; line-height: 1.4; }
+.custom-animated-art-row .file-picker-row { flex: 0 0 auto; width: auto; gap: 6px; }
+.custom-animated-art-row .file-picker-btn,
+.custom-animated-art-row .file-picker-clear { flex: 0 0 auto; padding: 7px 10px; font-size: 10px; white-space: nowrap; }
+
+[data-theme="light"] .custom-animated-art-row {
+  border-color: rgba(0, 0, 0, .1);
+  background: rgba(255, 255, 255, .52);
+}
+
+@media (max-width: 500px) {
+  .custom-animated-art-row { align-items: stretch; flex-direction: column; }
+  .custom-animated-art-copy { min-width: 0; width: 100%; }
+  .custom-animated-art-row .file-picker-row { width: 100%; }
+  .custom-animated-art-row .file-picker-btn { flex: 1 1 auto; }
+}
+
 .settings-advanced-dropdown[open] {
+  position: relative;
+  z-index: 20;
+  overflow: visible;
   background: rgba(255, 255, 255, 0.04);
   border-color: rgba(255, 255, 255, 0.14);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
@@ -821,23 +898,32 @@
 /* Liquid Select Dropdown Wrapper */
 .liquid-select-wrapper {
   position: relative;
+  z-index: 1;
   width: 100%;
   display: flex;
   align-items: center;
+  min-width: 0;
+}
+
+.liquid-select-wrapper:focus-within {
+  z-index: 40;
 }
 
 /* Liquid Select Dropdown & Advanced Dropdown Styling */
 .advanced-dropdown,
 .liquid-select {
   width: 100%;
+  height: 38px;
+  line-height: 1.4;
+  -webkit-app-region: no-drag !important;
+  pointer-events: auto !important;
   appearance: none;
   -webkit-appearance: none;
   background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 9px;
   color: #ffffff;
+  color-scheme: dark;
   font-family: inherit;
   font-size: 12.5px;
   font-weight: 500;
@@ -885,7 +971,12 @@
 
 .liquid-select-wrapper .select-chevron {
   position: absolute;
+  top: 50%;
   right: 12px;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   pointer-events: none;
   color: rgba(255, 255, 255, 0.45);
   transition: color 0.2s ease;
@@ -920,6 +1011,7 @@
 
 [data-theme="light"] .advanced-dropdown,
 [data-theme="light"] .liquid-select {
+  color-scheme: light;
   background: rgba(0, 0, 0, 0.035);
   border-color: rgba(0, 0, 0, 0.12);
   color: #111111;
@@ -942,3 +1034,17 @@
 [data-theme="light"] .liquid-select-wrapper .select-chevron {
   color: rgba(0, 0, 0, 0.45);
 }
+.setting-performance-note {
+  display: block;
+  margin: 2px 0 8px;
+  padding: 0 2px;
+  color: var(--text-muted, rgba(255, 255, 255, 0.56));
+  font-size: 11px;
+  line-height: 1.4;
+}
+.setting-performance-note strong {
+  color: var(--accent-primary, #1DB954);
+  font-weight: 650;
+}
+.setting-motion-toggle { padding-left: 12px; }
+.setting-motion-toggle .setting-performance-note { margin: 0 0 8px 12px; }

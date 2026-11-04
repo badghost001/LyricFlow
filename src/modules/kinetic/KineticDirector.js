@@ -456,9 +456,7 @@
         : { concept: null, strength: 'none', matchedPhrase: null, matchedKeyword: null, tonalTint: null, emphasizedWord: null, emphasizedWordIndex: -1 };
 
       if (hasTimedWords) {
-        const wordChunks = options.isCinematic
-          ? (line.words.length > 12 ? chunkIntoCinematicPhrases(line.words) : [line.words])
-          : chunkIntoPhrases(line.words);
+        const wordChunks = chunkIntoPhrases(line.words);
         for (let c = 0; c < wordChunks.length; c++) {
           let cWords = wordChunks[c];
           if (options.isCinematic) {
@@ -481,9 +479,7 @@
 
           const cText = cWords.map(w => w.text).join(' ');
           const isClimax = (isClimaxLine && c === wordChunks.length - 1) || cText.includes('?');
-          const classification = (options.isCinematic && cWords.length >= 2)
-            ? { style: 'styleA', primaryText: cText.toLowerCase(), secondaryText: '' }
-            : classifyPhrase(cText, cWords, isClimax);
+          const classification = classifyPhrase(cText, cWords, isClimax);
 
           const chunkAnalysis = ConceptEngine
             ? ConceptEngine.analyzeLyric(cText, cWords, {

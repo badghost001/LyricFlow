@@ -30,6 +30,7 @@ function runWindowRestoreTests() {
   const tauriConfPath = path.resolve(__dirname, '../src-tauri/tauri.conf.json');
   const tauriBridgePath = path.resolve(__dirname, '../src/tauri-bridge.js');
   const rendererPath = path.resolve(__dirname, '../src/renderer.js');
+  const resetCssPath = path.resolve(__dirname, '../src/styles/_reset.css');
 
   const windowRs = fs.readFileSync(windowRsPath, 'utf8');
   const libRs = fs.readFileSync(libRsPath, 'utf8');
@@ -37,6 +38,20 @@ function runWindowRestoreTests() {
   const tauriConf = fs.readFileSync(tauriConfPath, 'utf8');
   const tauriBridge = fs.readFileSync(tauriBridgePath, 'utf8');
   const renderer = fs.readFileSync(rendererPath, 'utf8');
+  const resetCss = fs.readFileSync(resetCssPath, 'utf8');
+
+  test('0. Standard transparent window clips background layers to its rounded corners', () => {
+    assert.match(
+      resetCss,
+      /body:not\(\.wallpaper-mode\):not\(\.mode-dynamic-island\):not\(\.taskbar-mode\)\s*\{[^}]*border-radius:\s*16px;[^}]*clip-path:\s*inset\(0 round 16px\);/s,
+      'Standard window needs a root clip matching the app container radius'
+    );
+    assert.match(
+      resetCss,
+      /body\.wallpaper-mode,[\s\S]*?body\.mode-dynamic-island,[\s\S]*?body\.taskbar-mode\s*\{[^}]*clip-path:\s*none;/,
+      'Wallpaper, Island, and Taskbar modes must retain their own window silhouettes'
+    );
+  });
 
   // Test 1: Window snapshot in window.rs guards against saving diminished/tiny dimensions
   test('1. set_dynamic_island_mode guards against saving tiny/island dimensions', () => {
@@ -190,6 +205,36 @@ function runWindowRestoreTests() {
       renderer.includes('while (Date.now() - waitStart < 2500)') &&
       renderer.includes('lyrics && lyrics.length > 0'),
       'Must await lyrics population before dismissing loading screen'
+    );
+  });
+
+  // Test 12: window.rs blocks saving bounds during Island, Wallpaper, or Taskbar modes and rejects tiny bounds
+  test('12. window.rs blocks saving bounds during Island, Wallpaper, or Taskbar modes and rejects tiny bounds', () => {
+    assert.ok(
+      windowRs.includes('DYNAMIC_ISLAND_ACTIVE.load(Ordering::SeqCst)'),
+      'queue_save_window_bounds must check DYNAMIC_ISLAND_ACTIVE'
+    );
+    assert.ok(
+      windowRs.includes('if width >= 600 && height >= 420'),
+      'flush_save_window_bounds must reject bounds smaller than standard desktop minimum'
+    );
+    assert.ok(
+      windowRs.includes('cancel_pending_save_window_bounds()'),
+      'set_dynamic_island_mode must cancel any pending save before resizing to island'
+    );
+  });
+
+  // Test 13: lib.rs startup ignores island-dimensioned bounds and clamps top bezel positioning
+  test('13. lib.rs startup ignores island-dimensioned bounds and clamps top bezel positioning', () => {
+    assert.ok(
+      libRs.includes('let is_island_bounds =') &&
+      libRs.includes('(380.0 * scale) as u32') &&
+      libRs.includes('(620.0 * scale) as u32'),
+      'lib.rs must check if restored bounds match island dimensions'
+    );
+    assert.ok(
+      libRs.includes('let min_safe_top = m_pos.y + (36.0 * scale) as i32;'),
+      'lib.rs must enforce safe top margin against top screen bezel'
     );
   });
 

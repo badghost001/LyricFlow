@@ -7,7 +7,7 @@ pub enum SyncType {
     #[serde(rename = "LINE_SYNCED")]
     LineSynced, // Level 2: [mm:ss.xx] standard LRC
     #[serde(rename = "UNSYNCED")]
-    PlainText,  // Level 1: Unsynced lines
+    PlainText, // Level 1: Unsynced lines
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -28,6 +28,8 @@ pub struct LyricLineParsed {
     pub words: Vec<WordTiming>,
     #[serde(rename = "subText", skip_serializing_if = "Option::is_none")]
     pub sub_text: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub singer: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -66,6 +68,8 @@ pub struct LyricsSearchOptions {
     pub candidate_index: usize,
     #[serde(rename = "neteaseWordByWord", default = "default_true")]
     pub netease_word_by_word: bool,
+    #[serde(rename = "wordSyncUpgrade", default)]
+    pub word_sync_upgrade: bool,
 }
 
 fn default_true() -> bool {

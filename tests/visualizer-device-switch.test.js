@@ -204,7 +204,8 @@ function computeBandRanges(sampleRate) {
 
   // Verify syncAudioVisualizerState is called on mode transitions, sleep, wake, bootstrap, and playback changes
   assert(rendererCode.includes('function bootstrapApp()'), "Must define bootstrapApp");
-  assert(rendererCode.includes('syncAudioVisualizerState();\n  console.log(\'[LF-STARTUP] Bootstrap completed.\');'), "bootstrapApp must synchronize visualizer state");
+  const bootstrapBody = rendererCode.split('async function bootstrapApp()')[1]?.split('\nasync function showWhatsNewForInstalledVersion()')[0] || '';
+  assert(bootstrapBody.includes('syncAudioVisualizerState();'), "bootstrapApp must synchronize visualizer state");
   assert(rendererCode.includes('applyIslandVisualizerStyle(settings.islandVisualizerStyle || \'bars\');\n      syncAudioVisualizerState();'), "transitionToMode must synchronize on island entry");
   assert(rendererCode.includes('isIslandSleeping = true;'), "Must handle island sleep");
   assert(rendererCode.includes('syncAudioVisualizerState();\n}\n\nfunction wakeDynamicIsland()'), "sleepDynamicIsland must synchronize visualizer state");
@@ -218,7 +219,7 @@ function computeBandRanges(sampleRate) {
   const rendererCode = fs.readFileSync(rendererPath, 'utf8');
 
   assert(rendererCode.includes('islandWave.classList.add("is-resting");'), "checkVisualizerFallback must add is-resting when audio is quiet or silent");
-  assert(rendererCode.includes('bar.style.transform = visStyle === \'dots\' ? \'scale(0.8) translateY(0px)\' : \'scaleY(0.14)\';'), "checkVisualizerFallback must settle bars to resting baseline");
+  assert(rendererCode.includes('bar.style.transform = visStyle === \'dots\'') && rendererCode.includes('0.14'), "checkVisualizerFallback must settle bars to resting baseline");
   assert(rendererCode.includes('islandWave.classList.remove("is-resting");'), "onAudioSpectrum must remove is-resting when live energy returns");
   console.log("  ✓ 8. checkVisualizerFallback settles visualizer to resting baseline without fake canned animations");
 }

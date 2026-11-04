@@ -69,8 +69,21 @@
     const logQueue = [];
     let isDrainingLogs = false;
     let logDrainTimer = null;
+    let lastQueuedMsg = null;
+    let repeatCount = 0;
 
     function queueLog(msg) {
+      if (typeof msg !== 'string') return;
+      if (msg.includes("Couldn't find callback id") || msg.includes("log_debug") || msg.includes("[Tauri Bridge] invoke('log_debug')")) return;
+      if (msg === lastQueuedMsg) {
+        repeatCount++;
+        return;
+      }
+      if (repeatCount > 0) {
+        logQueue.push(`[LOG DEDUP] (Previous message repeated ${repeatCount} times)`);
+        repeatCount = 0;
+      }
+      lastQueuedMsg = msg;
       if (logQueue.length >= 100) logQueue.shift();
       logQueue.push(msg);
       if (!logDrainTimer) {
@@ -107,19 +120,29 @@
       queueLog('[INFO] ' + args.map(safeFormatArg).join(' '));
     };
     console.warn = function (...args) {
+      const msg = args.map(safeFormatArg).join(' ');
+      // Filter benign Tauri internal warnings about stale callback IDs after window reloads or transient unlistens
+      if (typeof msg === 'string' && msg.includes("Couldn't find callback id")) {
+        return;
+      }
       origWarn.apply(console, args);
-      queueLog('[WARN] ' + args.map(safeFormatArg).join(' '));
+      queueLog('[WARN] ' + msg);
     };
     console.error = function (...args) {
+      const msg = args.map(safeFormatArg).join(' ');
+      if (typeof msg === 'string' && msg.includes("Couldn't find callback id")) return;
       origError.apply(console, args);
-      queueLog('[ERROR] ' + args.map(safeFormatArg).join(' '));
+      queueLog('[ERROR] ' + msg);
     };
     window.addEventListener('error', function (e) {
-      const errDetail = e && e.error ? safeFormatArg(e.error) : ((e ? e.message : 'Unknown') + ' at ' + (e ? e.filename : '') + ':' + (e ? e.lineno : ''));
+      const loc = (e && (e.filename || e.lineno)) ? ` [Source: ${e.filename || 'inline'}:${e.lineno || '?'}:${e.colno || '?'}]` : '';
+      const errDetail = (e && e.error ? safeFormatArg(e.error) : (e ? e.message : 'Unknown')) + loc;
+      if (typeof errDetail === 'string' && errDetail.includes("Couldn't find callback id")) return;
       queueLog('[UNCAUGHT ERROR] ' + errDetail);
     });
     window.addEventListener('unhandledrejection', function (e) {
       const reason = e && e.reason ? (e.reason.stack || e.reason.message || safeFormatArg(e.reason)) : 'Unknown rejection';
+      if (typeof reason === 'string' && reason.includes("Couldn't find callback id")) return;
       queueLog('[UNHANDLED PROMISE REJECTION] ' + reason);
     });
   } catch (_) {}
@@ -135,18 +158,30 @@
     }
   }
 
+  const eventCallbacks = new Map();
   const listeners = new Map();
 
   function safeListen(event, callback) {
+    if (typeof callback !== 'function') return;
     try {
+      if (!eventCallbacks.has(event)) {
+        eventCallbacks.set(event, new Set());
+      }
+      eventCallbacks.get(event).add(callback);
+
       const ev = getEvent();
       if (!ev || typeof ev.listen !== 'function') {
         // Retry shortly in case Tauri global event API is still initializing
         setTimeout(() => {
           const retryEv = getEvent();
-          if (retryEv && typeof retryEv.listen === 'function') {
+          if (retryEv && typeof retryEv.listen === 'function' && !listeners.has(event)) {
             retryEv.listen(event, (e) => {
-              try { callback(e ? e.payload : null); } catch (cbErr) { console.error(`[Tauri Bridge] callback error for '${event}':`, cbErr); }
+              const cbs = eventCallbacks.get(event);
+              if (cbs) {
+                cbs.forEach((cb) => {
+                  try { cb(e ? e.payload : null); } catch (cbErr) { console.error(`[Tauri Bridge] callback error for '${event}':`, cbErr); }
+                });
+              }
             }).then((unlisten) => {
               listeners.set(event, unlisten);
             }).catch((e) => console.warn(`[Tauri Bridge] retry listen failed for '${event}':`, e));
@@ -155,22 +190,38 @@
         return;
       }
 
-      if (listeners.has(event)) {
-        try { listeners.get(event)(); } catch (_) {}
-        listeners.delete(event);
+      if (!listeners.has(event)) {
+        ev.listen(event, (e) => {
+          const cbs = eventCallbacks.get(event);
+          if (cbs) {
+            cbs.forEach((cb) => {
+              try {
+                cb(e ? e.payload : null);
+              } catch (cbErr) {
+                console.error(`[Tauri Bridge] Error in callback for event '${event}':`, cbErr);
+              }
+            });
+          }
+        }).then((unlisten) => {
+          listeners.set(event, unlisten);
+        }).catch((listenErr) => {
+          console.warn(`[Tauri Bridge] Failed to listen to '${event}':`, listenErr);
+        });
       }
-
-      ev.listen(event, (e) => {
-        try {
-          callback(e ? e.payload : null);
-        } catch (cbErr) {
-          console.error(`[Tauri Bridge] Error in callback for event '${event}':`, cbErr);
+      return () => {
+        const cbs = eventCallbacks.get(event);
+        if (cbs) {
+          cbs.delete(callback);
+          if (cbs.size === 0) {
+            eventCallbacks.delete(event);
+            const unlisten = listeners.get(event);
+            if (typeof unlisten === 'function') {
+              try { unlisten(); } catch (_) {}
+            }
+            listeners.delete(event);
+          }
         }
-      }).then((unlisten) => {
-        listeners.set(event, unlisten);
-      }).catch((listenErr) => {
-        console.warn(`[Tauri Bridge] Failed to listen to '${event}':`, listenErr);
-      });
+      };
     } catch (err) {
       console.warn(`[Tauri Bridge] safeListen exception for '${event}':`, err);
     }
@@ -179,13 +230,13 @@
   window.electronAPI = {
     invoke: (cmd, args = {}) => safeInvoke(cmd, args, null),
     getIsStartup: () => safeInvoke('get_is_startup', {}, false),
+    isTaskbarModeActive: () => safeInvoke('is_taskbar_mode_active', {}, false),
     loadConfig: () => safeInvoke('load_config', {}, null),
     saveConfig: (config) => safeInvoke('save_config', { config }, true),
     resetConfig: () => safeInvoke('reset_config', {}, null),
     setClickThrough: (ignore) => safeInvoke('set_click_through', { ignore }, null),
     syncTaskbarLayout: (layout) => safeEmit('sync-taskbar-layout', layout),
     setAlwaysOnTop: (alwaysOnTop) => safeInvoke('set_always_on_top', { alwaysOnTop, always_on_top: alwaysOnTop }, null),
-    setEdgeGlow: (enabled, color) => safeInvoke('set_edge_glow', { enabled, color }, null),
     refreshToken: () => safeInvoke('refresh_token', {}, null),
     startOAuthServer: (clientId, codeVerifier, codeChallenge) =>
       safeInvoke('start_oauth_server', {
@@ -255,7 +306,7 @@
     readFileDataUrl: (path) => safeInvoke('read_file_data_url', { path }, null),
     fetchImageDataUrl: (url) => safeInvoke('fetch_image_data_url', { url }, null),
     fetchTrackArtwork: (track, artist, album = null) => safeInvoke('fetch_track_artwork', { track, artist, album }, null),
-    fetchSpotifyCanvas: (trackId, token) => safeInvoke('fetch_spotify_canvas', { trackId, track_id: trackId, token }, null),
+    fetchAppleMotionArt: (artist, title, album = null) => safeInvoke('fetch_apple_motion_art', { artist, title, album }, null),
     searchMusicGif: (trackName, artistName) =>
       safeInvoke('search_music_gif', { trackName, track_name: trackName, artistName, artist_name: artistName }, null),
     setFullscreenLyrics: (enabled) => safeInvoke('set_fullscreen_lyrics', { enabled }, null),
@@ -313,6 +364,7 @@
     onToggleTaskbarModeShortcut: (cb) => safeListen('toggle-taskbar-mode-shortcut', () => cb()),
     onWindowRestored: (cb) => safeListen('window-restored', () => cb()),
     onForceNormalMode: (cb) => safeListen('force-normal-mode', () => cb()),
+    onWindowFocusChanged: (cb) => safeListen('window-focus-changed', (payload) => cb(payload)),
     onWallpaperModeState: (cb) => safeListen('set-wallpaper-mode-state', (payload) => cb(payload)),
     onWallpaperFocusChanged: (cb) => safeListen('wallpaper-focus-changed', (payload) => cb(payload)),
     onWallpaperEditStarted: (cb) => safeListen('wallpaper-edit-started', () => cb()),
@@ -356,6 +408,7 @@
     onIslandGhostMode: (cb) => safeListen('island-ghost-mode', (payload) => cb(payload)),
     toggleDynamicIslandGhost: () => safeInvoke('cmd_toggle_dynamic_island_ghost', {}, null),
     setAudioVisualizerActive: (active) => safeInvoke('set_audio_visualizer_active', { active }, null),
+    setMemoryTargetLevel: (level) => safeInvoke('set_memory_target_level', { level }, null),
     exportKineticVideo: (payload) => safeInvoke('export_kinetic_video', { payload }, null),
     saveCardImage: (payload) => safeInvoke('save_card_image', { payload }, null),
   };
@@ -368,12 +421,15 @@
       safeEmit('tb-save-offset', x);
       safeEmit('tb-offset-saved', x);
     },
-    openApp: () => safeInvoke('set_taskbar_mode', { enabled: false }),
+    openApp: () => safeInvoke('set_taskbar_mode', { enabled: false, fromTray: true }),
     togglePlayPause: () => safeInvoke('trigger_playback_control', { action: 'play-pause', positionMs: 0, position_ms: 0 }, false),
+    nextTrack: () => safeInvoke('trigger_playback_control', { action: 'next', positionMs: 0, position_ms: 0 }, false),
+    prevTrack: () => safeInvoke('trigger_playback_control', { action: 'previous', positionMs: 0, position_ms: 0 }, false),
     onUpdateLyric: (cb) => safeListen('update-taskbar-lyric', (data) => cb(data)),
     onSyncConfig: (cb) => safeListen('sync-taskbar-config', (cfg) => cb(cfg)),
     updateLyricBounds: (rect) => safeInvoke('update_taskbar_lyric_bounds', { rect }),
     setDragging: (dragging) => safeInvoke('set_taskbar_dragging', { dragging }),
+    taskbarReady: () => safeEmit('taskbar-mode-ready', {}),
   };
 
   // Edge Glow window bridge polyfill

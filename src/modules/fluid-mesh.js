@@ -26,6 +26,7 @@ class FluidMeshGradient {
 
     // Current interpolated colors (for smooth cross-fade between tracks)
     this.currentColors = JSON.parse(JSON.stringify(this.defaultPalette));
+    this._linearColors = this.currentColors.map(() => new Float32Array(3));
     this.targetColors = JSON.parse(JSON.stringify(this.defaultPalette));
     this._isFirstPalette = true;
 
@@ -35,6 +36,11 @@ class FluidMeshGradient {
     this.currentSpeed = 1.0;
     this.intensity = 1.0;
     this.isPlaying = false;
+    this.isSleeping = false;
+    this._settledFrames = 0;
+    this._settleTimerId = null;
+    this.isContextLost = false;
+    this._isSettled = true;
     this.bpmFactor = 1.0;
 
     // Interactive mouse displacement
@@ -43,8 +49,8 @@ class FluidMeshGradient {
 
     // Frame-rate governor: unthrottled native compositor cadence during playback, 15 FPS when paused
     this._lastRenderTime = 0;
-    this._targetFps = 0;
-    this._minFrameInterval = 0; // Native compositor cadence when playing
+    this._targetFps = 45;
+    this._minFrameInterval = 1000 / this._targetFps;
 
     this.init();
   }
@@ -75,6 +81,25 @@ class FluidMeshGradient {
       this.ctx2d = this.canvas.getContext('2d');
     }
 
+    if (this.canvas && typeof this.canvas.addEventListener === 'function') {
+      this.canvas.addEventListener('webglcontextlost', (e) => {
+        if (e && typeof e.preventDefault === 'function') e.preventDefault();
+        this.isContextLost = true;
+        this.stop();
+      }, false);
+
+      this.canvas.addEventListener('webglcontextrestored', () => {
+        this.isContextLost = false;
+        if (this.initShaders()) {
+          this.useWebGL = true;
+          this.renderWebGL();
+          if (this.isPlaying) {
+            this.start();
+          }
+        }
+      }, false);
+    }
+
     this.handleResize();
     if (typeof window !== 'undefined') {
       window.addEventListener('resize', () => this.handleResize(), { passive: true });
@@ -89,7 +114,7 @@ class FluidMeshGradient {
             this.stop();
           }
         } else if (document.visibilityState === 'visible') {
-          if (this._wasRunningBeforeHide) {
+          if (this._wasRunningBeforeHide && (this.isPlaying || !this.isSettled())) {
             this._wasRunningBeforeHide = false;
             this.start();
           }
@@ -102,6 +127,12 @@ class FluidMeshGradient {
       window.addEventListener('pointermove', (e) => {
         this.targetMouse[0] = Math.max(0, Math.min(1, e.clientX / (window.innerWidth || 1)));
         this.targetMouse[1] = Math.max(0, Math.min(1, 1.0 - (e.clientY / (window.innerHeight || 1))));
+        this._settledFrames = 0;
+        this._settledPlaybackFrames = 0;
+        this._isSettled = false;
+        if (!this.running && !this.isSleeping) {
+          this.start();
+        }
       }, { passive: true });
     }
   }
@@ -125,6 +156,7 @@ class FluidMeshGradient {
       uniform vec2 u_resolution;
       uniform float u_time;
       uniform vec3 u_c0;
+      uniform vec3 u_c0_linear;
       uniform vec3 u_c1;
       uniform vec3 u_c2;
       uniform vec3 u_c3;
@@ -212,11 +244,11 @@ class FluidMeshGradient {
         float totalW = w1 + w2 + w3 + w4 + 0.001;
 
         // Perceptual gamma-corrected linear color blending prevents muddy grey fringes
-        vec3 c1_lin = pow(u_c1, vec3(2.2));
-        vec3 c2_lin = pow(u_c2, vec3(2.2));
-        vec3 c3_lin = pow(u_c3, vec3(2.2));
-        vec3 c4_lin = pow(u_c4, vec3(2.2));
-        vec3 c0_lin = pow(u_c0, vec3(2.2));
+        vec3 c1_lin = u_c1;
+        vec3 c2_lin = u_c2;
+        vec3 c3_lin = u_c3;
+        vec3 c4_lin = u_c4;
+        vec3 c0_lin = u_c0_linear;
 
         vec3 fluidCol_lin = (c1_lin * w1 + c2_lin * w2 + c3_lin * w3 + c4_lin * w4) / totalW;
 
@@ -241,6 +273,8 @@ class FluidMeshGradient {
         float dither = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);
         col += (dither - 0.5) * (1.0 / 255.0);
 
+        float perceptualLuma = dot(col, vec3(0.299, 0.587, 0.114));
+        col = mix(vec3(perceptualLuma), col, 1.2);
         col *= u_intensity;
         gl_FragColor = vec4(col, 0.98);
       }
@@ -296,6 +330,7 @@ class FluidMeshGradient {
       u_resolution: gl.getUniformLocation(program, 'u_resolution'),
       u_time: gl.getUniformLocation(program, 'u_time'),
       u_c0: gl.getUniformLocation(program, 'u_c0'),
+      u_c0Linear: gl.getUniformLocation(program, 'u_c0_linear'),
       u_c1: gl.getUniformLocation(program, 'u_c1'),
       u_c2: gl.getUniformLocation(program, 'u_c2'),
       u_c3: gl.getUniformLocation(program, 'u_c3'),
@@ -309,12 +344,13 @@ class FluidMeshGradient {
 
   handleResize() {
     if (!this.canvas) return;
-    const dpr = Math.min(window.devicePixelRatio || 1, 1.25);
+    const win = typeof window !== 'undefined' ? window : null;
+    const dpr = Math.min((win && win.devicePixelRatio) || 1, 1.25);
     // Render at optimized resolution: bilinear upscaling and CSS filter provide silky smooth fluid gradient.
     // Clamping to max 540x320 eliminates GPU fill-rate spikes on 4K/high-DPI displays.
     const scale = Math.min(0.35 * dpr, 0.40);
-    this.width = Math.min(540, Math.max(280, Math.floor(window.innerWidth * scale)));
-    this.height = Math.min(320, Math.max(180, Math.floor(window.innerHeight * scale)));
+    this.width = Math.min(540, Math.max(280, Math.floor(((win && win.innerWidth) || 800) * scale)));
+    this.height = Math.min(320, Math.max(180, Math.floor(((win && win.innerHeight) || 600) * scale)));
 
     if (this.canvas.width !== this.width || this.canvas.height !== this.height) {
       this.canvas.width = this.width;
@@ -377,6 +413,13 @@ class FluidMeshGradient {
       this.currentColors = JSON.parse(JSON.stringify(this.targetColors));
       this._isFirstPalette = false;
     }
+
+    this._settledFrames = 0;
+    this._settledPlaybackFrames = 0;
+
+    if (this.isPlaying || !this.isSettled()) {
+      this.start();
+    }
   }
 
   resetToDefault() {
@@ -388,8 +431,8 @@ class FluidMeshGradient {
     this.isPlaying = Boolean(isPlaying);
 
     // Dynamic frame-rate target: native compositor cadence (unthrottled) when playing, 15 FPS when paused
-    this._targetFps = this.isPlaying ? 0 : 15;
-    this._minFrameInterval = this.isPlaying ? 0 : 64;
+    this._targetFps = this.isPlaying ? 45 : 15;
+    this._minFrameInterval = 1000 / this._targetFps;
 
     // BPM speed factor
     if (bpmProfile === 'high') {
@@ -401,7 +444,19 @@ class FluidMeshGradient {
     }
 
     // When paused, slow down to gentle meditative breathing (0.22x)
-    this.targetSpeed = this.isPlaying ? (1.0 * this.bpmFactor * speedSlider) : 0.22;
+    this.targetSpeed = this.isPlaying ? (1.0 * this.bpmFactor * speedSlider) : 0;
+    if (typeof shouldRunFluidMesh === 'function' && !shouldRunFluidMesh()) {
+      this.stop();
+      return;
+    }
+    if (this.isPlaying) {
+      this._settledFrames = 0;
+      this._settledPlaybackFrames = 0;
+      this._isSettled = false;
+      if (!this.running && !this.isSleeping) {
+        this.start();
+      }
+    }
   }
 
   setIntensity(val) {
@@ -409,20 +464,49 @@ class FluidMeshGradient {
   }
 
   start() {
+    if (typeof shouldRunFluidMesh === 'function' && !shouldRunFluidMesh()) {
+      this.stop();
+      return;
+    }
+    if (this.canvas && (this.canvas.offsetWidth === 0 || this.canvas.offsetHeight === 0 || (typeof window !== 'undefined' && window.getComputedStyle && window.getComputedStyle(this.canvas).display === 'none'))) {
+      this.stop();
+      return;
+    }
     this.handleResize();
-    if (this.running) return;
-    this.running = true;
-    this.lastTime = performance.now();
-    this._lastRenderTime = 0;
-    this.loop();
-  }
-
-  stop() {
-    this.running = false;
     if (this.animId) {
       cancelAnimationFrame(this.animId);
       this.animId = null;
     }
+    if (this._settleTimerId) {
+      clearTimeout(this._settleTimerId);
+      this._settleTimerId = null;
+    }
+    this.running = true;
+    this.lastTime = performance.now();
+    this._lastRenderTime = 0;
+    this._settledFrames = 0;
+    this._settledPlaybackFrames = 0;
+    this._isSettled = false;
+    this.animId = requestAnimationFrame(() => this.loop());
+  }
+
+  stop() {
+    this.running = false;
+    if (this._throttleTimer) {
+      clearTimeout(this._throttleTimer);
+      this._throttleTimer = null;
+    }
+    if (this.animId) {
+      cancelAnimationFrame(this.animId);
+      this.animId = null;
+    }
+    if (!this.isPlaying && this.currentSpeed === 0) {
+      this._isSettled = true;
+    }
+  }
+
+  isSettled() {
+    return !this.running && (this._isSettled || (!this.isPlaying && this.currentSpeed === 0));
   }
 
   isRunning() {
@@ -431,11 +515,20 @@ class FluidMeshGradient {
 
   loop() {
     if (!this.running) return;
+    if (typeof shouldRunFluidMesh === 'function' && !shouldRunFluidMesh()) {
+      this.stop();
+      return;
+    }
+    const isWallpaper = typeof document !== 'undefined' && Boolean(document.body && document.body.classList.contains('wallpaper-mode'));
+    if (typeof document !== 'undefined' && (document.visibilityState === 'hidden' || (!isWallpaper && document.body && document.body.classList.contains('window-blurred')))) {
+      this.stop();
+      return;
+    }
 
     const now = performance.now();
 
     // Frame-rate throttling: skip rendering only when paused/inactive and below minimum frame interval
-    if (!this.isPlaying && this._minFrameInterval > 0) {
+    if (this._minFrameInterval > 0) {
       const elapsedSinceLastRender = now - this._lastRenderTime;
       if (elapsedSinceLastRender < this._minFrameInterval) {
         this.animId = requestAnimationFrame(() => this.loop());
@@ -462,18 +555,109 @@ class FluidMeshGradient {
     this.currentMouse[0] += (this.targetMouse[0] - this.currentMouse[0]) * 0.04;
     this.currentMouse[1] += (this.targetMouse[1] - this.currentMouse[1]) * 0.04;
 
+    let maxColorDiff = 0;
+    for (let i = 0; i < 5; i++) {
+      for (let ch = 0; ch < 3; ch++) {
+        const diff = Math.abs(this.targetColors[i][ch] - this.currentColors[i][ch]);
+        if (diff > maxColorDiff) maxColorDiff = diff;
+      }
+    }
+
     if (this.useWebGL) {
       this.renderWebGL();
     } else {
       this.render2DFallback();
     }
 
+    const mouseSettled = Math.abs(this.targetMouse[0] - this.currentMouse[0]) < 0.005 && Math.abs(this.targetMouse[1] - this.currentMouse[1]) < 0.005;
+    const colorsSettled = maxColorDiff < 0.005;
+    const speedSettled = Math.abs(this.currentSpeed - this.targetSpeed) < 0.05;
+
+    if (!this.isPlaying) {
+      if (colorsSettled && speedSettled && mouseSettled) {
+        this._settledFrames = (this._settledFrames || 0) + 1;
+        if (this._settledFrames >= 10) {
+          this._isSettled = true;
+          this.stop();
+          return;
+        }
+      } else {
+        this._settledFrames = 0;
+      }
+    } else {
+      // During active playback: allow mesh to settle after colors converge and steady motion completes
+      if (colorsSettled && speedSettled && mouseSettled) {
+        this._settledPlaybackFrames = (this._settledPlaybackFrames || 0) + 1;
+        // After 60 frames (~1.5-2 seconds) of converged steady colors, settle to relieve GPU
+        if (this._settledPlaybackFrames >= 60) {
+          this._isSettled = true;
+          this.stop();
+          return;
+        }
+      } else {
+        this._settledPlaybackFrames = 0;
+      }
+    }
+
     this.animId = requestAnimationFrame(() => this.loop());
   }
 
+  sleep() {
+    if (this.isSleeping) return;
+    this.isSleeping = true;
+    this.stop();
+    if (this.gl && typeof this.gl.getExtension === 'function') {
+      const ext = this.gl.getExtension('WEBGL_lose_context');
+      if (ext && typeof ext.loseContext === 'function') {
+        ext.loseContext();
+      }
+    }
+  }
+
+  wake() {
+    this.isSleeping = false;
+    if (this.gl && typeof this.gl.getExtension === 'function') {
+      const isLost = typeof this.gl.isContextLost === 'function' ? this.gl.isContextLost() : true;
+      if (isLost || this.isContextLost) {
+        const ext = this.gl.getExtension('WEBGL_lose_context');
+        if (ext && typeof ext.restoreContext === 'function') {
+          ext.restoreContext();
+        }
+      }
+    }
+    this.currentColors = JSON.parse(JSON.stringify(this.targetColors));
+  }
+
+  defrost() {
+    if (this.isSleeping) {
+      this.wake();
+    }
+    const isLost = Boolean(this.gl && typeof this.gl.isContextLost === 'function' && this.gl.isContextLost());
+    if (isLost) {
+      if (typeof this.gl.getExtension === 'function') {
+        const ext = this.gl.getExtension('WEBGL_lose_context');
+        if (ext && typeof ext.restoreContext === 'function') {
+          ext.restoreContext();
+        }
+      }
+      return;
+    }
+    this.isContextLost = false;
+    this.wake();
+    if (this.useWebGL) {
+      this.renderWebGL();
+    } else {
+      this.render2DFallback();
+    }
+    if (this.isPlaying && !this.running) {
+      this.start();
+    }
+  }
+
   renderWebGL() {
+    if (this.isSleeping || this.isContextLost) return;
     const gl = this.gl;
-    if (!gl) return;
+    if (!gl || typeof gl.uniform2f !== 'function') return;
 
     gl.useProgram(this.program);
     gl.uniform2f(this.uniforms.u_resolution, this.width, this.height);
@@ -481,11 +665,22 @@ class FluidMeshGradient {
     gl.uniform1f(this.uniforms.u_intensity, this.intensity);
     gl.uniform2f(this.uniforms.u_mouse, this.currentMouse[0], this.currentMouse[1]);
 
+    for (let i = 0; i < this.currentColors.length; i++) {
+      const srgb = this.currentColors[i];
+      const linear = this._linearColors[i];
+      linear[0] = Math.pow(srgb[0], 2.2);
+      linear[1] = Math.pow(srgb[1], 2.2);
+      linear[2] = Math.pow(srgb[2], 2.2);
+    }
+
+    // Keep c0 in sRGB for the vignette blend; the palette colors used for
+    // linear-light mixing are precomputed once per draw instead of per pixel.
     gl.uniform3fv(this.uniforms.u_c0, this.currentColors[0]);
-    gl.uniform3fv(this.uniforms.u_c1, this.currentColors[1]);
-    gl.uniform3fv(this.uniforms.u_c2, this.currentColors[2]);
-    gl.uniform3fv(this.uniforms.u_c3, this.currentColors[3]);
-    gl.uniform3fv(this.uniforms.u_c4, this.currentColors[4]);
+    gl.uniform3fv(this.uniforms.u_c0Linear, this._linearColors[0]);
+    gl.uniform3fv(this.uniforms.u_c1, this._linearColors[1]);
+    gl.uniform3fv(this.uniforms.u_c2, this._linearColors[2]);
+    gl.uniform3fv(this.uniforms.u_c3, this._linearColors[3]);
+    gl.uniform3fv(this.uniforms.u_c4, this._linearColors[4]);
 
     gl.drawArrays(gl.TRIANGLES, 0, 6);
   }
@@ -525,10 +720,12 @@ class FluidMeshGradient {
       grad.addColorStop(0.5, `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 0.3)`);
       grad.addColorStop(1, `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 0)`);
 
-      ctx.fillStyle = grad;
-      ctx.beginPath();
-      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-      ctx.fill();
+      if (typeof ctx.beginPath === 'function') {
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        if (typeof ctx.arc === 'function') ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+        if (typeof ctx.fill === 'function') ctx.fill();
+      }
     }
     ctx.restore();
   }

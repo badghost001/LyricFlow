@@ -82,10 +82,7 @@ class IslandGLDissolve {
     this.animFrameId = null;
     this.activeTarget = null;
     this.activeOnComplete = null;
-
-    if (typeof document !== 'undefined') {
-      this._ensureCanvas();
-    }
+    this._watchdogTimer = null;
   }
 
   _ensureCanvas() {
@@ -96,15 +93,23 @@ class IslandGLDissolve {
       this.canvas.id = this.canvasId;
       this.canvas.className = "island-gl-dissolve-canvas";
       this.canvas.style.cssText = "position:fixed;pointer-events:none;z-index:999999;display:none;";
-      const container = document.querySelector(".app-container") || document.body;
-      container.appendChild(this.canvas);
+      const container = (typeof document.querySelector === 'function' ? document.querySelector(".app-container") : null) || document.body;
+      if (container && typeof container.appendChild === 'function') {
+        container.appendChild(this.canvas);
+      }
     }
-    this._initGL();
   }
 
   _initGL() {
     if (!this.canvas) return false;
-    if (this.gl && this.program) return true;
+    if (this.gl) {
+      if (typeof this.gl.isContextLost === 'function' && this.gl.isContextLost()) {
+        this.gl = null;
+        this.program = null;
+      } else if ((!this.gl.isContextLost || !this.gl.isContextLost()) && this.program) {
+        return true;
+      }
+    }
 
     try {
       this.gl = this.canvas.getContext("webgl", {
@@ -294,25 +299,38 @@ class IslandGLDissolve {
    * @param {Function} onComplete Callback after animation terminates
    * @param {Object} options Configuration options (duration, ambientColor)
    */
+  dissolve(targetElement, onComplete = null, options = {}) {
+    return this.disintegrate(targetElement, onComplete, options);
+  }
+
   disintegrate(targetElement, onComplete = null, options = {}) {
     if (!targetElement) {
       if (onComplete) onComplete();
-      return;
+      return false;
     }
 
-    const rect = targetElement.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0 || targetElement.style.display === 'none') {
-      targetElement.style.display = 'none';
+    const rect = (typeof targetElement.getBoundingClientRect === 'function')
+      ? targetElement.getBoundingClientRect()
+      : { width: 0, height: 0, left: 0, top: 0 };
+
+    if (!rect || rect.width <= 0 || rect.height <= 0 || (targetElement.style && targetElement.style.display === 'none')) {
+      if (targetElement.style) targetElement.style.display = 'none';
       if (onComplete) onComplete();
-      return;
+      return false;
     }
 
     this._ensureCanvas();
-    if (!this.gl || !this._initGL()) {
-      // Fallback: If WebGL is not available, execute standard DOM hide
-      targetElement.style.display = 'none';
+    if (!this.gl && !this._initGL()) {
+      if (typeof window !== 'undefined' && window.caEmitterLayer && typeof window.caEmitterLayer.vaporize === 'function') {
+        window.caEmitterLayer.vaporize(targetElement, onComplete);
+        return false;
+      }
+      if (typeof this._fallbackToEmitter === 'function') {
+        this._fallbackToEmitter(targetElement, onComplete, options);
+      }
+      if (targetElement.style) targetElement.style.display = 'none';
       if (onComplete) onComplete();
-      return;
+      return false;
     }
 
     // Stop any existing animation
@@ -320,9 +338,9 @@ class IslandGLDissolve {
 
     const snapshotCanvas = this._captureElement(targetElement);
     if (!snapshotCanvas) {
-      targetElement.style.display = 'none';
+      if (targetElement.style) targetElement.style.display = 'none';
       if (onComplete) onComplete();
-      return;
+      return false;
     }
 
     const gl = this.gl;
@@ -395,9 +413,14 @@ class IslandGLDissolve {
 
       if (progress < 1.0) {
         this.animFrameId = raf(step);
+        return true;
       } else {
         this.animating = false;
         this.animFrameId = null;
+        if (this._watchdogTimer) {
+          clearTimeout(this._watchdogTimer);
+          this._watchdogTimer = null;
+        }
         if (this.canvas) this.canvas.style.display = "none";
         if (this.activeTarget) {
           this.activeTarget.style.display = "none";
@@ -410,13 +433,42 @@ class IslandGLDissolve {
       }
     };
 
+    if (this._watchdogTimer) {
+      clearTimeout(this._watchdogTimer);
+      this._watchdogTimer = null;
+    }
+    this._watchdogTimer = setTimeout(() => {
+      this._watchdogTimer = null;
+      if (this.animating) {
+        this.animating = false;
+        if (this.animFrameId) {
+          caf(this.animFrameId);
+          this.animFrameId = null;
+        }
+        if (this.canvas) this.canvas.style.display = 'none';
+        if (this.activeTarget) {
+          this.activeTarget.style.opacity = '';
+          this.activeTarget.style.display = 'none';
+        }
+        const done = this.activeOnComplete;
+        this.activeTarget = null;
+        this.activeOnComplete = null;
+        if (done) done();
+      }
+    }, duration + 100);
+
     this.animFrameId = raf(step);
+    return true;
   }
 
   /**
    * Stop active disintegration immediately (e.g. on user wake / song play)
    */
   stop() {
+    if (this._watchdogTimer) {
+      clearTimeout(this._watchdogTimer);
+      this._watchdogTimer = null;
+    }
     this.animating = false;
     const caf = (typeof cancelAnimationFrame !== 'undefined') ? cancelAnimationFrame : (id) => clearTimeout(id);
     if (this.animFrameId) {

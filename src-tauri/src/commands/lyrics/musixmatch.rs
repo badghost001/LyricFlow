@@ -1,4 +1,7 @@
-use super::fuzzy::{clean_artist, clean_title, compute_similarity_score, has_lrc_timestamps};
+use super::fuzzy::{
+    clean_artist, clean_title, compute_similarity_score, has_lrc_timestamps,
+    is_track_metadata_match,
+};
 use super::models::{LyricLineParsed, LyricsCandidate, SyncType, WordTiming};
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::Client;
@@ -38,10 +41,7 @@ pub async fn search_musixmatch(
         "authority",
         HeaderValue::from_static("apic-desktop.musixmatch.com"),
     );
-    headers.insert(
-        "cookie",
-        HeaderValue::from_static("AWSELBCORS=0; AWSELB=0"),
-    );
+    headers.insert("cookie", HeaderValue::from_static("AWSELBCORS=0; AWSELB=0"));
     headers.insert(
         "User-Agent",
         HeaderValue::from_static("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"),
@@ -74,7 +74,10 @@ pub async fn search_musixmatch(
 
     let score = compute_similarity_score(&search_query, &matched_query);
     // Reject if score is too low or if dummy data
-    if score < 0.65 || matched_title.to_lowercase() == "nokia" && !clean_t.to_lowercase().contains("nokia") {
+    if score < 0.65
+        || !is_track_metadata_match(&clean_t, &clean_a, matched_title, matched_artist)
+        || matched_title.to_lowercase() == "nokia" && !clean_t.to_lowercase().contains("nokia")
+    {
         return None;
     }
 
@@ -86,7 +89,9 @@ pub async fn search_musixmatch(
     // 1. Try RichSync (Word-by-Word synced)
     let richsync_call = &macro_calls["track.richsync.get"];
     if richsync_call["message"]["header"]["status_code"].as_i64() == Some(200) {
-        if let Some(rich_body_str) = richsync_call["message"]["body"]["richsync"]["richsync_body"].as_str() {
+        if let Some(rich_body_str) =
+            richsync_call["message"]["body"]["richsync"]["richsync_body"].as_str()
+        {
             if let Ok(rich_json) = serde_json::from_str::<Value>(rich_body_str) {
                 if let Some((enhanced_lrc, parsed_lines)) = parse_richsync_json(&rich_json) {
                     if !parsed_lines.is_empty() {
@@ -159,7 +164,9 @@ pub async fn search_musixmatch(
 async fn get_or_fetch_token(client: &Client, custom_token: Option<&str>) -> Option<String> {
     if let Some(tok) = custom_token {
         let trimmed = tok.trim();
-        if !trimmed.is_empty() && trimmed != "00000000000000000000000000000000000000000000000000000000" {
+        if !trimmed.is_empty()
+            && trimmed != "00000000000000000000000000000000000000000000000000000000"
+        {
             return Some(trimmed.to_string());
         }
     }
@@ -190,10 +197,7 @@ async fn get_or_fetch_token(client: &Client, custom_token: Option<&str>) -> Opti
         "authority",
         HeaderValue::from_static("apic-desktop.musixmatch.com"),
     );
-    headers.insert(
-        "cookie",
-        HeaderValue::from_static("AWSELBCORS=0; AWSELB=0"),
-    );
+    headers.insert("cookie", HeaderValue::from_static("AWSELBCORS=0; AWSELB=0"));
     headers.insert(
         "User-Agent",
         HeaderValue::from_static("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"),
@@ -259,6 +263,7 @@ fn parse_richsync_json(json: &Value) -> Option<(String, Vec<LyricLineParsed>)> {
                 text: full_text,
                 words,
                 sub_text: None,
+                singer: None,
             });
         }
     }

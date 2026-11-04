@@ -114,13 +114,13 @@ function runDynamicIslandSyllableTests() {
       this._innerHTML = html;
       // Simple parser for unit test mock
       const spans = [];
-      const spanRegex = /<span class="([^"]*)"(?: data-word-idx="(\d+)")?>([^<]*)<\/span>/g;
+      const spanRegex = /<span class="([^"]*)"[^>]*>([^<]*)<\/span>/g;
       let match;
       while ((match = spanRegex.exec(html)) !== null) {
         const span = new MockElement('span');
         span.className = match[1];
         if (match[2] !== undefined) span.dataset.wordIdx = match[2];
-        span.textContent = match[3];
+        span.textContent = match[2];
         spans.push(span);
       }
       this.children = spans;
@@ -194,7 +194,7 @@ function runDynamicIslandSyllableTests() {
       'Must insert .island-word-space between separate words'
     );
     assert.ok(
-      html.startsWith('<span class="lyric-word" data-word-idx="0">Hello</span><span class="island-word-space"> </span><span class="lyric-word" data-word-idx="1">world</span>')
+      html.startsWith('<span class="lyric-word" data-word-idx="0" data-word-text="Hello">Hello</span><span class="island-word-space"> </span><span class="lyric-word" data-word-idx="1" data-word-text="world">world</span>')
     );
   });
 

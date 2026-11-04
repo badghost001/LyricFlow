@@ -16,6 +16,21 @@ html, body {
   width: 100vw;
 }
 
+/* The WebView is a transparent, undecorated native window. Clip viewport-sized
+   background canvases and images to the same radius as the standard window. */
+body:not(.wallpaper-mode):not(.mode-dynamic-island):not(.taskbar-mode) {
+  border-radius: 16px;
+  clip-path: inset(0 round 16px);
+}
+
+/* These surfaces own their shape and must keep their full native bounds. */
+body.wallpaper-mode,
+body.mode-dynamic-island,
+body.taskbar-mode {
+  border-radius: 0;
+  clip-path: none;
+}
+
 /* Global themed scrollbar */
 ::-webkit-scrollbar {
   width: 5px;

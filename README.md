@@ -1,239 +1,172 @@
-# LyricFlow
+<p align="center">
+  <img src="assets/icon.png" alt="LyricFlow Icon" width="128" height="128" />
+</p>
 
-LyricFlow is a desktop companion for live music playback. It finds synchronized lyrics, follows the song timeline, and presents lyrics and playback information in a floating window, Dynamic Island, taskbar dock, or desktop view.
+<h1 align="center">LyricFlow</h1>
 
-> **Current project version:** 1.44.3. For the newest installers, use [GitHub Releases](https://github.com/badghost001/LyricFlow/releases/latest).
+<p align="center">
+  <strong>Next-Generation Live Desktop Lyrics & Music Companion with Syllable & Word-by-Word Synchronization</strong>
+</p>
 
-LyricFlow does not play or stream music. It reads playback information from a supported player or Windows media session and retrieves lyrics and artwork over the internet.
+<p align="center">
+  <a href="https://github.com/badghost001/LyricFlow/releases/latest"><img src="https://img.shields.io/badge/release-v1.50.0-1ed760.svg?style=flat-square" alt="Latest Release" /></a>
+  <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue.svg?style=flat-square" alt="Supported Platforms" />
+  <img src="https://img.shields.io/badge/sync-Word--by--Word%20%26%20Syllables-f59e0b.svg?style=flat-square" alt="Sync Fidelity" />
+  <img src="https://img.shields.io/badge/architecture-Rust%20(Tauri%20v2)%20%2B%20Web-6366f1.svg?style=flat-square" alt="Architecture" />
+  <img src="https://img.shields.io/badge/license-Proprietary-gray.svg?style=flat-square" alt="License" />
+</p>
 
-## What LyricFlow offers
+<p align="center">
+  <img src="docs/screenshots/split-view.gif" alt="LyricFlow Studio Split View with Live Word-by-Word Lyrics" width="85%" />
+</p>
 
-### Lyrics and synchronization
+---
 
-- Automatically searches multiple lyric sources, including NetEase, LRCLIB, Musixmatch, and Spotify lyric data when available.
-- Prefers word or syllable timed lyrics when a matching candidate is available, with line-synchronized and plain-text fallbacks.
-- Lets you search, refresh, and cycle through alternate lyric candidates. Available candidates and timing vary by song and provider.
-- Supports translations, bilingual display, and a separate translation capsule in Dynamic Island mode.
-- Displays lyric annotations and song facts when those services return matching data.
-- Handles duet and backing-vocal lines, instrumental sections, and provider-supplied lyric metadata where available.
+## What's New in v1.50.0
 
-### Playback and music information
+LyricFlow **v1.50.0** introduces a ground-up redesign of the core desktop experience, major performance breakthroughs, and next-generation lyrics synchronization:
 
-- Reads compatible Windows playback sessions through Windows System Media Transport Controls (SMTC); Spotify sign-in is optional for local session detection.
-- Offers optional Spotify account integration for Spotify-specific metadata and playback features.
-- Displays track title, artist, album artwork, playback position, and duration when the player supplies them.
-- Provides playback controls and global keyboard shortcuts. Shortcuts can be changed in Settings.
-- Extracts album-art colors for themes, visualizers, and background effects.
-- Includes audio-reactive visualizers, album-art transitions, and an optional Discord Rich Presence integration.
+* 🎨 **Redesigned Studio Split View**: Left-hand side displays responsive album artwork with Apple Motion Art, ambient background glow, song details, and audio visualizer; right-hand side delivers ultra-smooth, word-by-word synchronized lyrics scrolling.
+* 📌 **Windows Taskbar Mode**: Seamlessly docks a minimal frosted glass lyric ribbon directly onto the Windows taskbar, featuring live word-by-word progress, scrubber seeking, and quick playback controls without taking up screen real estate.
+* 🎬 **Cinematic & Kinetic Modes**: Dynamic typography choreography and audio-reactive generative visualizers transform every track into an immersive music-video experience.
+* ⚡ **Redeveloped Word-by-Word Engine**: Rebuilt from scratch with sub-millisecond cadence interpolation, intelligent playhead drift correction, and automated timing normalization.
+* 🍏 **Reliable qApple Integration**: Priority high-fidelity word-by-word lyrics from Apple Music with automated multi-mirror failover and cache resilience.
+* 🪄 **Animated Artworks (Apple Motion Art)**: Hardware-accelerated decoding and smooth playback of official animated album artworks for supported releases.
+* 🚀 **Massive Performance Optimizations**: 3-Phase CPU reduction, GPU compositor layer containment, background defrost throttling, and sub-16ms layout frame rates.
+* 💡 **Genius Annotations & Fact Cards**: Contextual in-line annotations and crowdsourced lyrical interpretations right beside active lyric lines.
 
-Player integration depends on whether the player publishes a usable system media session. Browser playback may expose less reliable timeline information than a desktop music app.
+---
 
-### Display modes
+## Display Modes
 
-- **Standard overlay:** floating lyrics and compact playback controls.
-- **Dynamic Island:** a compact capsule with artwork, live lyrics, playback controls, visualizer, translation, and next-track previews.
-- **Taskbar mode:** a compact lyric display docked to the Windows taskbar.
-- **Wallpaper mode:** lyrics and artwork presented across the desktop, with configurable layout and visual effects.
-- **Cinematic and Kinetic modes:** larger lyric-focused presentations with animated typography and effects.
+LyricFlow adapts to your desktop workflow with five dedicated display modes:
 
-Modes can be switched from the app, Settings, or configured shortcuts. Some modes and integrations are platform-specific.
+| Mode | Preview | Description |
+| :--- | :--- | :--- |
+| **Studio Split View** *(Redesigned Main UI)* | ![Studio Split View](docs/screenshots/main-window.png) | Elegant dual-pane layout featuring adaptive tall album artwork, dynamic track metadata, and real-time word-by-word lyrics. |
+| **Taskbar Mode** | ![Taskbar Mode](docs/screenshots/taskbar-mode.gif) | Ultra-compact glass ribbon anchored directly above the Windows taskbar with live syllable progress and media controls. |
+| **Dynamic Island** | ![Dynamic Island](docs/screenshots/dynamic-island.gif) | Floating Apple-style interactive pill capsule with audio-reactive visualizers, gesture scrubbing, and next-up previews. |
+| **Cinematic Mode** | ![Cinematic Mode](docs/screenshots/kinetic-lyrics.gif) | Fullscreen kinetic typography presentation with procedural visual motifs and fluid color choreography. |
+| **Wallpaper Mode** | ![Wallpaper Mode](docs/screenshots/wallpaper-mode.png) | Ambient full-screen desktop backdrop with reactive fluid mesh color gradients and smooth lyrics overlay. |
 
-### Appearance and sharing
+---
 
-- Dark Glass, OLED Black, and Pearl Light appearance themes.
-- Album-art color mesh, custom backgrounds, blur, accent colors, typography, and layout controls.
-- Reduced-motion settings for supported animations and effects.
-- Lyric Share Card editor with layout, theme, text, artwork, and export customization.
-- Kinetic lyric video export options where supported by the selected design and local media tools.
-- Track-sharing actions for supported music services when a direct track link can be resolved.
+## Core Capabilities
 
-## Screenshots
+### 🎤 Synchronized Lyrics & Intelligence
+* **Multi-Tier Waterfall**: Seamlessly aggregates and arbitrates across **qApple (Apple Music Word-by-Word)**, **NetEase (Enhanced Word-by-Word & Line-Sync)**, **LRCLIB**, **Musixmatch**, and **Spotify**.
+* **Syllable-Level Accuracy**: Highlights each word and syllable in real time along with the artist's vocal delivery.
+* **Duet & Backing Vocal Separation**: Automatic vocal role detection distinguishing primary and guest singers, backing vocals, and vocal harmonies.
+* **Real-Time Bilingual Translation**: Toggle inline translations or display them inside the dedicated Dynamic Island translation capsule.
+* **Instant Candidate Cycling**: Quickly search, reload, or cycle between alternative lyric candidates and sources.
 
-### Main window
+### 🎧 Media Integration & Ambient Experience
+* **Windows SMTC Detection**: Works out-of-the-box with Windows System Media Transport Controls (Spotify, Apple Music, Tidal, Amazon Music, Chrome, Edge, Brave, YouTube).
+* **Optional Spotify Connect**: Direct account linking for advanced track identification, Spotify Canvas, and playback synchronization.
+* **Animated Artworks**: Supports official animated cover art with fluid looping and low-power hardware acceleration.
+* **Ambient Color Mesh**: Algorithmic color extraction builds matching dynamic gradient themes for every track.
+* **Share Card Studio**: Design and export customizable lyric quote cards and animated kinetic clips.
 
-![LyricFlow main window with synchronized lyrics and playback controls](docs/screenshots/main-window.png)
+---
 
-### Display modes
+## Getting Started
 
-| Dynamic Island | Taskbar mode |
-| --- | --- |
-| ![Dynamic Island lyrics](docs/screenshots/dynamic-island.png) | ![Taskbar lyrics](docs/screenshots/taskbar-mode.png) |
+### 1. Download Installer (Recommended)
+Download the latest standalone setup for your operating system from [GitHub Releases](https://github.com/badghost001/LyricFlow/releases/latest):
+* **Windows:** `LyricFlow-Setup-1.50.0.exe` (NSIS Installer) or portable binary.
+* **macOS:** Universal `.dmg` (Apple Silicon & Intel).
+* **Linux:** `.AppImage` or `.deb` package.
 
-![Wallpaper mode showing synchronized lyrics over the desktop](docs/screenshots/wallpaper-mode.png)
-
-### Settings
-
-![LyricFlow appearance settings](docs/screenshots/settings.png)
-
-### Kinetic lyrics
-
-![Animated kinetic lyric presentation](docs/screenshots/kinetic-lyrics.gif)
-
-## System requirements
-
-### Using LyricFlow
-
-- **Windows:** Windows 10 or 11, 64-bit. The Windows app uses the Microsoft Edge WebView2 runtime, which is included with most current Windows installations.
-- **macOS and Linux:** release packages may be provided through GitHub Releases. Feature availability differs by platform; Windows-specific SMTC, taskbar, and wallpaper integrations are not available everywhere.
-- **Network:** required for lyric lookup, artwork lookup, translation, updates, and online integrations. Previously loaded local settings remain on the device.
-- **Music source:** a player that publishes track metadata and a playback timeline gives the best synchronization. Spotify login is optional for Windows SMTC playback detection.
-
-No dedicated GPU is required. Visual effects depend on the graphics capabilities of the system and can be reduced in Settings.
-
-### Building from source
-
-- Node.js 20 or newer and npm.
-- Rust stable toolchain.
-- **Windows:** MSVC C++ build tools and the WebView2 runtime.
-- **Linux:** Tauri's Linux prerequisites, including WebKitGTK 4.1 development libraries, AppIndicator, librsvg, and `patchelf`.
-- **macOS:** Xcode Command Line Tools; universal builds also require the Apple Silicon and Intel Rust targets.
-
-See the official [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) for platform setup details.
-
-## Installation
-
-### 1. GitHub release installers
-
-Open [LyricFlow Releases](https://github.com/badghost001/LyricFlow/releases/latest), download the package for your operating system, then follow that platform's installer prompts. Release assets are produced for Windows, macOS, and Linux; the available file types depend on the release. Windows builds use an NSIS setup installer.
-
-### 2. Winget (Windows)
-
-The repository includes a Winget manifest for `badghost.LyricFlow`. If that manifest version is available in your configured Winget source, install it with:
-
-```powershell
-winget install --id badghost.LyricFlow --exact
-```
-
-The manifest currently checked into this repository is version **1.40.5**, which may lag behind the latest release and may not yet be present in the public Winget source. Check package availability and the version Winget will install with:
-
-```powershell
-winget show --id badghost.LyricFlow --exact
-```
-
-Use the GitHub release installer or the PowerShell installer below when you need the newest version.
-
-### 3. PowerShell installer (Windows)
-
-The repository's `install.ps1` downloads the latest Windows x64 setup installer from GitHub Releases and runs it. To run it directly from the repository:
-
+### 2. Fast Install via PowerShell (Windows)
+Install or update directly from PowerShell:
 ```powershell
 irm https://raw.githubusercontent.com/badghost001/LyricFlow/main/install.ps1 | iex
 ```
 
-For an interactive installer, download the script and pass `-Interactive`:
-
+### 3. Winget (Windows Package Manager)
 ```powershell
-Invoke-WebRequest https://raw.githubusercontent.com/badghost001/LyricFlow/main/install.ps1 -OutFile install.ps1
-./install.ps1 -Interactive
+winget install --id badghost.LyricFlow --exact
 ```
 
-The script also accepts `-NoLaunch` to finish installation without launching LyricFlow. Re-running the installer updates an existing installation.
+---
 
-### 4. Build and run from source
+## Keyboard Shortcuts
 
-```powershell
+| Shortcut | Action |
+| :--- | :--- |
+| `Ctrl + Shift + C` | Toggle Cinematic / Fullscreen Mode |
+| `Ctrl + Shift + B` | Toggle Windows Taskbar Mode |
+| `Ctrl + Shift + D` | Toggle Dynamic Island Capsule |
+| `Ctrl + Shift + W` | Toggle Desktop Wallpaper Mode |
+| `Ctrl + Shift + S` | Open Lyric Share Card Studio |
+| `Ctrl + Alt + Space` | Play / Pause Playback |
+| `Ctrl + Alt + Left` / `Right` | Previous / Next Track |
+| `Ctrl + Alt + C` | Copy Currently Active Lyric Line |
+
+*Shortcuts and key combinations can be customized inside Settings.*
+
+---
+
+## System Architecture
+
+```mermaid
+flowchart TD
+    Player["Music Player (Desktop or Browser)"] --> SMTC["System Media Transport (SMTC)"]
+    Player -.-> SpotifyAPI["Spotify Web API (Optional)"]
+    
+    SMTC --> Engine["Track Arbitration & Sync Engine"]
+    SpotifyAPI --> Engine
+    
+    Engine --> ProviderRouter{"Lyric Waterfall Router"}
+    ProviderRouter -->|Priority 1| qApple["qApple (Word-by-Word TTML)"]
+    ProviderRouter -->|Priority 2| NetEase["NetEase (Word-Sync / Line)"]
+    ProviderRouter -->|Priority 3| LRCLIB["LRCLIB (Time-Synced LRC)"]
+    ProviderRouter -->|Priority 4| Musixmatch["Musixmatch / Spotify"]
+    
+    qApple --> Normalizer["Lyric Normalization & Drift Compensation"]
+    NetEase --> Normalizer
+    LRCLIB --> Normalizer
+    Musixmatch --> Normalizer
+    
+    Normalizer --> RenderEngine["High-Performance Render Engine (60 FPS)"]
+    RenderEngine --> SplitView["Studio Split View"]
+    RenderEngine --> Taskbar["Taskbar Dock"]
+    RenderEngine --> Island["Dynamic Island"]
+    RenderEngine --> Cinematic["Cinematic Typography"]
+    RenderEngine --> Wallpaper["Ambient Wallpaper"]
+```
+
+---
+
+## Building from Source
+
+### Prerequisites
+* **Node.js**: 20+ and npm
+* **Rust**: Stable toolchain (`rustup`)
+* **Platform Dependencies**:
+  * Windows: Visual Studio C++ Build Tools & WebView2
+  * macOS: Xcode Command Line Tools
+  * Linux: WebKitGTK 4.1, AppIndicator, librsvg
+
+### Build Instructions
+```bash
+# Clone the repository
 git clone https://github.com/badghost001/LyricFlow.git
 cd LyricFlow
+
+# Install dependencies
 npm install
+
+# Run in development mode
 npm run tauri:dev
-```
 
-Build a distributable Tauri package with:
-
-```powershell
+# Build distributable release package
 npm run tauri:build
 ```
 
-The repository also retains an Electron compatibility shell:
-
-```powershell
-npm start
-npm run build:win
-```
-
-Tauri is the primary application and release path. Electron scripts are retained for compatibility and Windows packaging workflows.
-
-### Updating
-
-The Tauri app checks the configured GitHub release endpoint for signed over-the-air updates. You can also install a newer release manually using its platform installer. The PowerShell installer is another Windows update path.
-
-## Workflow
-
-```mermaid
-flowchart LR
-    A[Music player] --> B{Playback source}
-    B -->|Windows media session| C[SMTC metadata and timeline]
-    B -->|Optional Spotify account| D[Spotify metadata and playback data]
-    C --> E[Track matching]
-    D --> E
-    E --> F[Lyric candidate search]
-    F --> G{Best available timing}
-    G -->|Word or syllable timed| H[Word-by-word highlighting]
-    G -->|Line timed| I[Line synchronization]
-    G -->|Plain text fallback| J[Static lyrics]
-    H --> K[LyricFlow renderer]
-    I --> K
-    J --> K
-    K --> L[Overlay / Dynamic Island]
-    K --> M[Taskbar mode]
-    K --> N[Wallpaper / Cinematic / Kinetic]
-    O[Artwork and user settings] --> K
-    P[Optional translation and annotations] --> K
-```
-
-## Keyboard shortcuts
-
-Default global shortcuts on Windows include:
-
-| Shortcut | Action |
-| --- | --- |
-| `Ctrl+Shift+C` | Toggle Cinematic mode |
-| `Ctrl+Shift+S` | Open Share Card Studio |
-| `Ctrl+Shift+D` | Toggle Dynamic Island |
-| `Ctrl+Shift+K` | Toggle Kinetic mode |
-| `Ctrl+Shift+W` | Toggle Wallpaper mode |
-| `Ctrl+Shift+B` | Toggle Taskbar mode |
-| `Ctrl+Alt+C` | Copy the active lyric |
-| `Ctrl+Alt+Space` | Play or pause |
-| `Ctrl+Alt+Left` / `Ctrl+Alt+Right` | Previous / next track |
-
-Additional actions and shortcut editing are available in Settings. Shortcuts can conflict with other applications or system hotkeys.
-
-## Development and checks
-
-Run the JavaScript test suite:
-
-```powershell
-npm test
-```
-
-Run the Rust library tests:
-
-```powershell
-cargo test --manifest-path src-tauri/Cargo.toml --lib
-```
-
-GitHub Actions builds release packages for Windows, Linux, and macOS when configured release branches or tags are pushed.
-
-## Repository layout
-
-- `src/` — application interface, renderer, styles, and JavaScript modules.
-- `src-tauri/` — Tauri application, Rust commands, lyric providers, and media integrations.
-- `tests/` — JavaScript tests and rendering checks.
-- `docs/screenshots/` — README screenshots and animated demonstration.
-- `winget-manifests/` — Winget package manifests.
-- `install.ps1` — Windows release installer and updater script.
-- `.github/workflows/` — CI and cross-platform release builds.
-- `main.js`, `preload*.js` — Electron compatibility shell.
-
-## Troubleshooting
-
-- **No playback detected:** start playback in a desktop player that publishes a Windows media session. Some browser and player sessions omit track position or metadata.
-- **Lyrics do not appear or are not word-synced:** try another lyric candidate or refetch. Provider matching and word timing are not available for every track.
-- **Translation or artwork is missing:** check network access; these services require an internet connection and may not have data for every song.
-- **Tauri does not launch:** check the platform prerequisites and runtime requirements above.
-- **A Winget version looks old:** compare it with GitHub Releases; the checked-in manifest can be updated separately from the app release.
+---
 
 ## License
 
-LyricFlow is distributed under the proprietary terms in [LICENSE](LICENSE). Do not redistribute or modify the software outside the permissions granted by that license.
+Copyright © 2026 badghost. All rights reserved.
+Proprietary software distributed for personal entertainment and non-commercial use.

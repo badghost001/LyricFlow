@@ -3,23 +3,6 @@
   <head>
     <meta charset="UTF-8" />
     <script src="tauri-bridge.js"></script>
-    <link rel="stylesheet" href="styles/_variables.css" />
-    <link rel="stylesheet" href="styles/_reset.css" />
-    <link rel="stylesheet" href="styles/_ambient.css" />
-    <link rel="stylesheet" href="styles/_layout.css" />
-    <link rel="stylesheet" href="styles/_hud.css" />
-    <link rel="stylesheet" href="styles/_login.css" />
-    <link rel="stylesheet" href="styles/_lyrics.css" />
-    <link rel="stylesheet" href="styles/_playback.css" />
-    <link rel="stylesheet" href="styles/_settings.css" />
-    <link rel="stylesheet" href="styles/_news.css" />
-    <link rel="stylesheet" href="styles/_taskbar.css" />
-    <link rel="stylesheet" href="styles/_wallpaper.css" />
-    <link rel="stylesheet" href="styles/_components.css" />
-    <link rel="stylesheet" href="styles/_dynamic_island.css" />
-    <link rel="stylesheet" href="styles/_share_modal.css" />
-    <link rel="stylesheet" href="styles/_kinetic.css" />
-    <link rel="stylesheet" href="styles/_studio.css" />
     <link rel="stylesheet" href="styles.css" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'self' ipc: http://ipc.localhost https://ipc.localhost https://tauri.localhost http://tauri.localhost tauri:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https:; font-src 'self' https: data:; img-src 'self' data: blob: file: lyricflow-media: http: https:; media-src 'self' blob: file: data: lyricflow-media: http: https:; connect-src 'self' ipc: http://ipc.localhost https://ipc.localhost https://tauri.localhost http://tauri.localhost tauri: http: https:;" />
@@ -46,7 +29,6 @@
     <script src="modules/kinetic/CinematicScene.js" defer></script>
     <script src="modules/kinetic/KineticDirector.js" defer></script>
     <script src="modules/kinetic/KineticCanvasRenderer.js" defer></script>
-    <script src="modules/share-card.js" defer></script>
     <script src="modules/news.js" defer></script>
     <script src="modules/fluid-mesh.js" defer></script>
     <script src="services/lyrics/models.js" defer></script>
@@ -58,17 +40,27 @@
     <script src="lastfm.js" defer></script>
     <script src="modules/ca-emitter.js" defer></script>
     <script src="modules/island-gl-dissolve.js" defer></script>
-    <script src="modules/flow-game.js" defer></script>
+    <script src="modules/apple-motion-art.js" defer></script>
+    <script src="modules/playback-dj-engine.js" defer></script>
+    <script src="modules/soloist-provider.js" defer></script>
     <script src="renderer.js" defer></script>
   </head>
   <body oncontextmenu="return false;">
+    <!-- Font Preload Sentinel for HTML5 Canvas Cinematic Mode (Fraunces & Bodoni Moda) -->
+    <div id="font-preload-sentinel" style="position: absolute; left: -9999px; top: -9999px; opacity: 0.01; pointer-events: none; z-index: -1;" aria-hidden="true">
+      <span style="font-family: 'Fraunces', Georgia, serif; font-weight: 400;">Fraunces Regular</span>
+      <span style="font-family: 'Fraunces', Georgia, serif; font-weight: 700;">Fraunces Bold</span>
+      <span style="font-family: 'Bodoni Moda', Georgia, serif; font-weight: 400;">Bodoni Moda Regular</span>
+      <span style="font-family: 'Bodoni Moda', Georgia, serif; font-weight: 700;">Bodoni Moda Bold</span>
+      <span style="font-family: 'Playfair Display', Georgia, serif; font-weight: 700;">Playfair Display Bold</span>
+    </div>
     <!-- Custom Video/Image Background -->
-    <video id="custom-bg-video" loop muted autoplay playsinline style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; z-index: 0; opacity: 1; pointer-events: none;"></video>
+    <video id="custom-bg-video" loop muted playsinline preload="none" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; z-index: 0; opacity: 1; pointer-events: none;"></video>
     <img id="custom-bg-img" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; z-index: 0; opacity: 1; pointer-events: none;" />
 
     <!-- Wallpaper Album Background -->
     <img id="wallpaper-album-bg" class="wallpaper-album-bg" src="" />
-    <video id="wallpaper-album-bg-video" class="wallpaper-album-bg" loop muted autoplay playsinline style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; z-index: 0; opacity: 0; pointer-events: none; transition: opacity 0.5s ease;"></video>
+    <video id="wallpaper-album-bg-video" class="wallpaper-album-bg" loop muted playsinline preload="none" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; z-index: 0; opacity: 0; pointer-events: none; transition: opacity 0.5s ease;"></video>
 
     <!-- Apple Music Fluid Mesh Gradient (Liquid WebGL Canvas) -->
     <canvas id="fluid-mesh-canvas" class="fluid-mesh-canvas"></canvas>
@@ -134,7 +126,7 @@
           </select>
         </div>
         <div class="kinetic-divider"></div>
-        <button id="btn-kinetic-share" class="kinetic-btn kinetic-btn-share" title="Share Lyric Card (Coming Soon)">
+        <button id="btn-kinetic-share" class="kinetic-btn kinetic-btn-share" title="Share Lyric Card (Coming in Next Update)" style="display: none;">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
             <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
@@ -200,6 +192,11 @@
               <line x1="10" y1="3" x2="10" y2="21"/>
             </svg>
           </button>
+          <button id="btn-split-tall-art" title="Use Tall Artwork in Split View" class="hud-btn" aria-label="Use Tall Artwork in Split View" aria-pressed="false">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="6" y="2.5" width="12" height="19" rx="2"/><path d="M10 18.5h4"/>
+            </svg>
+          </button>
 
           <div class="hud-controls-divider"></div>
           <button id="btn-minimize" title="Minimize Application" class="hud-btn">
@@ -212,7 +209,7 @@
       </header>
 
       <!-- Apple Core Animation Particle Engine Canvas (CAEmitterLayer) -->
-      <canvas id="island-ca-emitter-canvas" class="island-ca-emitter-canvas"></canvas>
+      <canvas id="island-ca-emitter-canvas" class="island-ca-emitter-canvas" style="display: none;"></canvas>
       <canvas id="island-gl-dissolve-canvas" class="island-gl-dissolve-canvas"></canvas>
 
       <!-- Dynamic Island Mini Capsule View (Active when body has .mode-dynamic-island) -->
@@ -223,6 +220,7 @@
           <div class="island-art-wrapper" id="island-art-wrapper">
             <div class="island-art-tile" id="island-art-tile" data-component="island-album-art">
               <img id="island-art-img-old" class="island-art-img island-art-img-old" src="" alt="" style="display: none;" />
+              <video id="island-art-video" class="island-art-video" loop muted playsinline preload="none" style="display: none;" aria-hidden="true"></video>
               <img id="island-art-img" class="island-art-img" src="" alt="Album Art" />
             </div>
             <!-- A small, artwork-colored sparkle cluster leads the art reveal. -->
@@ -276,17 +274,18 @@
             <!-- Apple Music-Style Audio Quality Micro-Badge -->
             <span id="island-quality-badge" class="island-quality-badge" style="display: none;">LOSSLESS</span>
             <div class="island-wave-visualizer" id="island-wave">
-              <span class="wave-bar bar-1"></span>
-              <span class="wave-bar bar-2"></span>
-              <span class="wave-bar bar-3"></span>
-              <span class="wave-bar bar-4"></span>
+              <canvas id="island-wave-canvas" class="island-wave-canvas" width="56" height="18"></canvas>
+              <span class="wave-bar bar-1" style="display: none;"></span>
+              <span class="wave-bar bar-2" style="display: none;"></span>
+              <span class="wave-bar bar-3" style="display: none;"></span>
+              <span class="wave-bar bar-4" style="display: none;"></span>
             </div>
             <button id="island-btn-refetch" class="island-btn island-btn-refetch" title="Refetch / Alternative Lyrics (Ctrl+R)">
               <svg class="reload-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
               </svg>
             </button>
-            <button id="island-btn-translate" class="island-btn island-btn-translate" title="Toggle Island Translation (Ctrl+Shift+T)">
+            <button id="island-btn-translate" class="island-btn island-btn-translate" title="Toggle Island Translation (Ctrl+Shift+T)" style="display: none !important;">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 8 6 0"/><path d="m4 14 6 0 2-4-2-4"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/></svg>
             </button>
             <button id="island-btn-ghost" class="island-btn island-btn-ghost" title="Ghost Mode: Hover & press ` or Ctrl+Shift+G to click behind island">
@@ -338,7 +337,7 @@
         <!-- Micro-HUD Overlay (Volume & Seek Gestures) -->
         <div id="island-hud-overlay" class="island-hud-overlay" style="display: none;">
           <div class="island-hud-pill">
-            <span class="island-hud-icon" id="island-hud-icon">🔊</span>
+            <span class="island-hud-icon" id="island-hud-icon" aria-hidden="true"></span>
             <span class="island-hud-text" id="island-hud-text">65%</span>
             <div class="island-hud-bar-bg" id="island-hud-bar-bg">
               <div class="island-hud-bar-fill" id="island-hud-bar-fill" style="width: 65%;"></div>
@@ -374,12 +373,12 @@
               </div>
             </div>
             <button class="island-context-item" id="island-ctx-translate" role="menuitem" title="Cycle Island Translation (Ctrl+Shift+T)">
-              <span class="ctx-icon">🌐</span>
+              <span class="ctx-icon"></span>
               <span class="ctx-label">Cycle Translation</span>
               <span class="ctx-shortcut">Ctrl+Shift+T</span>
             </button>
             <button class="island-context-item" id="island-ctx-ghost" role="menuitem" title="Toggle Ghost Click-Through Mode (Ctrl+Shift+G or `)">
-              <span class="ctx-icon">👻</span>
+              <span class="ctx-icon"></span>
               <span class="ctx-label">Toggle Ghost Mode</span>
               <span class="ctx-shortcut">` / Ctrl+G</span>
             </button>
@@ -437,14 +436,19 @@
 
       <!-- 0. STARTUP LOADING SCREEN -->
       <section class="app-screen active" id="screen-loading">
+        <div class="loading-aurora-glow"></div>
         <div class="loading-card">
           <div class="loading-logo-wrapper">
             <div class="loading-pulse-ring"></div>
-            <img src="assets/icon.png" alt="LyricFlow Logo" class="loading-logo-img" width="46" height="46" style="position: relative; z-index: 1; object-fit: contain; filter: drop-shadow(0 4px 14px rgba(var(--accent-primary-rgb, 29, 185, 84), 0.45));" />
+            <div class="loading-pulse-ring-outer"></div>
+            <img src="assets/icon.png" alt="LyricFlow Logo" class="loading-logo-img" width="48" height="48" />
           </div>
-          <div style="display: flex; flex-direction: column; gap: 6px;">
-            <span style="font-size: 19px; font-weight: 700; letter-spacing: -0.02em; background: linear-gradient(135deg, #ffffff 0%, var(--accent-soft, #a7f3d0) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">LyricFlow</span>
-            <span id="loading-status-text" style="font-size: 12.5px; color: rgba(255, 255, 255, 0.65); min-height: 18px; transition: opacity 0.2s;">Starting up...</span>
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; width: 100%;">
+            <span style="font-size: 20px; font-weight: 700; letter-spacing: -0.02em; background: linear-gradient(135deg, #ffffff 0%, var(--accent-soft, #a7f3d0) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">LyricFlow</span>
+            <div class="loading-status-pill">
+              <span class="loading-status-dot"></span>
+              <span id="loading-status-text">Starting up...</span>
+            </div>
           </div>
           <div class="loading-progress-track">
             <div id="loading-progress-bar" class="loading-progress-bar"></div>
@@ -498,9 +502,9 @@
       </section>
 
       <!-- 1B. ONBOARDING WIZARD SCREEN -->
-      <section class="app-screen" id="screen-onboarding" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 99999; background: linear-gradient(145deg, #0a0a0f 0%, #12121a 100%);">
+      <section class="app-screen" id="screen-onboarding" aria-labelledby="ob-title" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 99999; background: linear-gradient(145deg, #0a0a0f 0%, #12121a 100%);">
         <button id="btn-skip-onboarding" type="button" class="onboarding-skip-button">Skip setup</button>
-        <div style="max-width: 640px; width: 100%; margin: 0 auto; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; padding: 24px; box-sizing: border-box; position: relative;">
+        <div class="onboarding-shell">
           
           <!-- Onboarding Progress Indicator -->
           <div class="onboarding-steps-indicator" id="ob-steps-indicator" style="margin-bottom: 24px;">
@@ -512,22 +516,32 @@
 
           <!-- PAGE 1: MODE SELECTION -->
           <div id="ob-page-1" style="width: 100%; display: flex; flex-direction: column; align-items: center; transition: opacity 0.3s;">
-            <h1 style="font-size: 32px; margin-bottom: 8px; font-weight: 800; background: linear-gradient(to right, #1DB954, #1ed760); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Welcome to LyricFlow</h1>
-            <p style="color: rgba(255,255,255,0.7); font-size: 15px; margin-bottom: 24px;">How would you like to experience your lyrics?</p>
+            <h1 id="ob-title" class="onboarding-title">Welcome to LyricFlow</h1>
+            <p class="onboarding-intro">Choose how lyrics should appear. You can change this any time in Display Modes.</p>
             
-            <div style="display: flex; gap: 14px; width: 100%; justify-content: center;">
+            <div class="onboarding-mode-grid" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; width: 100%; max-width: 520px; justify-content: center;">
               <!-- Card 1: Standard Overlay -->
-              <div class="onboarding-card selected" id="ob-card-standard" style="flex: 1 1 0; min-height: 220px; max-width: 195px; width: 100%; background: rgba(255,255,255,0.05); border: 2px solid #1DB954; border-radius: 14px; padding: 18px 14px; cursor: pointer; transition: all 0.25s ease; display: flex; flex-direction: column; align-items: center; justify-content: space-between; box-sizing: border-box;">
+              <div class="onboarding-card selected" id="ob-card-standard" role="button" tabindex="0" aria-pressed="true" style="min-height: 190px; width: 100%; background: rgba(255,255,255,0.05); border: 2px solid #1DB954; border-radius: 14px; padding: 18px 14px; cursor: pointer; transition: all 0.25s ease; display: flex; flex-direction: column; align-items: center; justify-content: space-between; box-sizing: border-box;">
+                <div class="onboarding-mode-preview-frame" data-mode="standard">
+                  <img class="onboarding-mode-preview" src="assets/onboarding/demos/standard-overlay.jpg" width="640" height="360" alt="Standard Overlay showing album art, synced lyrics, and playback controls" loading="lazy" decoding="async" />
+                  <video class="onboarding-mode-preview-video" preload="none" data-preview-src="assets/onboarding/demos/standard-overlay.mp4" muted playsinline aria-hidden="true" tabindex="-1"></video>
+                  <span class="onboarding-preview-hint" aria-hidden="true">Select to preview</span>
+                </div>
                 <div style="height: 42px; display: flex; align-items: center; justify-content: center;">
                   <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#1DB954" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><rect x="8" y="10" width="8" height="6" rx="1" ry="1"/></svg>
                 </div>
                 <h3 style="margin: 8px 0 4px 0; font-size: 15px; font-weight: 700; height: 22px; display: flex; align-items: center; justify-content: center;">Standard Overlay</h3>
                 <p style="font-size: 11.5px; color: rgba(255,255,255,0.6); line-height: 1.35; margin: 0; flex-grow: 1; display: flex; align-items: center; justify-content: center; text-align: center; height: 50px;">Floating glassmorphic window you can move and resize anywhere.</p>
-                <div class="ob-card-badge" id="ob-badge-standard" style="margin-top: 10px; width: 100%; height: 30px; border-radius: 15px; background: #1DB954; color: #000; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">✓ Selected</div>
+                <div class="ob-card-badge" id="ob-badge-standard" style="margin-top: 10px; width: 100%; height: 30px; border-radius: 15px; background: #1DB954; color: #000; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">Selected</div>
               </div>
               
               <!-- Card 2: Taskbar Mode -->
-              <div class="onboarding-card" id="ob-card-taskbar" style="flex: 1 1 0; min-height: 220px; max-width: 195px; width: 100%; background: rgba(255,255,255,0.05); border: 2px solid rgba(255,255,255,0.1); border-radius: 14px; padding: 18px 14px; cursor: pointer; transition: all 0.25s ease; display: flex; flex-direction: column; align-items: center; justify-content: space-between; box-sizing: border-box;">
+              <div class="onboarding-card" id="ob-card-taskbar" role="button" tabindex="0" aria-pressed="false" style="min-height: 190px; width: 100%; background: rgba(255,255,255,0.05); border: 2px solid rgba(255,255,255,0.1); border-radius: 14px; padding: 18px 14px; cursor: pointer; transition: all 0.25s ease; display: flex; flex-direction: column; align-items: center; justify-content: space-between; box-sizing: border-box;">
+                <div class="onboarding-mode-preview-frame" data-mode="taskbar">
+                  <img class="onboarding-mode-preview" src="assets/onboarding/demos/taskbar-mode.jpg" width="640" height="360" alt="Taskbar Mode showing lyrics in a narrow desktop strip" loading="lazy" decoding="async" />
+                  <video class="onboarding-mode-preview-video" preload="none" data-preview-src="assets/onboarding/demos/taskbar-mode.mp4" muted playsinline aria-hidden="true" tabindex="-1"></video>
+                  <span class="onboarding-preview-hint" aria-hidden="true">Select to preview</span>
+                </div>
                 <div style="height: 42px; display: flex; align-items: center; justify-content: center;">
                   <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#1DB954" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="18" rx="2" ry="2"/><line x1="2" y1="19" x2="22" y2="19"/></svg>
                 </div>
@@ -537,13 +551,33 @@
               </div>
 
               <!-- Card 3: Wallpaper Mode -->
-              <div class="onboarding-card" id="ob-card-wallpaper" style="flex: 1 1 0; min-height: 220px; max-width: 195px; width: 100%; background: rgba(255,255,255,0.05); border: 2px solid rgba(255,255,255,0.1); border-radius: 14px; padding: 18px 14px; cursor: pointer; transition: all 0.25s ease; display: flex; flex-direction: column; align-items: center; justify-content: space-between; box-sizing: border-box;">
+              <div class="onboarding-card" id="ob-card-wallpaper" role="button" tabindex="0" aria-pressed="false" style="min-height: 190px; width: 100%; background: rgba(255,255,255,0.05); border: 2px solid rgba(255,255,255,0.1); border-radius: 14px; padding: 18px 14px; cursor: pointer; transition: all 0.25s ease; display: flex; flex-direction: column; align-items: center; justify-content: space-between; box-sizing: border-box;">
+                <div class="onboarding-mode-preview-frame" data-mode="wallpaper">
+                  <img class="onboarding-mode-preview" src="assets/onboarding/demos/wallpaper-mode.jpg" width="640" height="360" alt="Wallpaper Mode showing desktop lyrics and artwork" loading="lazy" decoding="async" />
+                  <video class="onboarding-mode-preview-video" preload="none" data-preview-src="assets/onboarding/demos/wallpaper-mode.mp4" muted playsinline aria-hidden="true" tabindex="-1"></video>
+                  <span class="onboarding-preview-hint" aria-hidden="true">Select to preview</span>
+                </div>
                 <div style="height: 42px; display: flex; align-items: center; justify-content: center;">
                   <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#1DB954" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
                 </div>
                 <h3 style="margin: 8px 0 4px 0; font-size: 15px; font-weight: 700; height: 22px; display: flex; align-items: center; justify-content: center;">Wallpaper Mode</h3>
                 <p style="font-size: 11.5px; color: rgba(255,255,255,0.6); line-height: 1.35; margin: 0; flex-grow: 1; display: flex; align-items: center; justify-content: center; text-align: center; height: 50px;">Full-screen cinematic lyrics projected on your desktop background.</p>
                 <div class="ob-card-badge" id="ob-badge-wallpaper" style="margin-top: 10px; width: 100%; height: 30px; border-radius: 15px; background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.8); font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">Select</div>
+              </div>
+
+              <!-- Card 4: Dynamic Island -->
+              <div class="onboarding-card" id="ob-card-island" role="button" tabindex="0" aria-pressed="false" style="min-height: 190px; width: 100%; background: rgba(255,255,255,0.05); border: 2px solid rgba(255,255,255,0.1); border-radius: 14px; padding: 18px 14px; cursor: pointer; transition: all 0.25s ease; display: flex; flex-direction: column; align-items: center; justify-content: space-between; box-sizing: border-box;">
+                <div class="onboarding-mode-preview-frame" data-mode="island">
+                  <img class="onboarding-mode-preview" src="assets/onboarding/demos/dynamic-island.jpg" width="640" height="360" alt="Dynamic Island showing a compact floating lyric pill" loading="lazy" decoding="async" />
+                  <video class="onboarding-mode-preview-video" preload="none" data-preview-src="assets/onboarding/demos/dynamic-island.mp4" muted playsinline aria-hidden="true" tabindex="-1"></video>
+                  <span class="onboarding-preview-hint" aria-hidden="true">Select to preview</span>
+                </div>
+                <div style="height: 42px; display: flex; align-items: center; justify-content: center;">
+                  <svg width="42" height="38" viewBox="0 0 42 38" fill="none" stroke="#1DB954" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="38" height="25" rx="12.5"/><path d="M10 17h4l2-4 3 9 3-6 2 3h8"/></svg>
+                </div>
+                <h3 style="margin: 8px 0 4px 0; font-size: 15px; font-weight: 700; min-height: 22px; display: flex; align-items: center; justify-content: center;">Dynamic Island</h3>
+                <p style="font-size: 11.5px; color: rgba(255,255,255,0.6); line-height: 1.35; margin: 0; flex-grow: 1; display: flex; align-items: center; justify-content: center; text-align: center; min-height: 50px;">A compact floating music pill with live lyrics and controls.</p>
+                <div class="ob-card-badge" id="ob-badge-island" style="margin-top: 10px; width: 100%; height: 30px; border-radius: 15px; background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.8); font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">Select</div>
               </div>
             </div>
 
@@ -561,7 +595,7 @@
               </div>
             </div>
             
-            <div style="display: flex; justify-content: center; width: 100%; margin-top: 26px;">
+            <div class="onboarding-actions" style="display: flex; justify-content: center; width: 100%; margin-top: 26px;">
               <button id="btn-next-onboarding-1" class="btn-primary" style="height: 44px; padding: 0 36px; min-width: 220px; font-size: 15px; border-radius: 22px; cursor: pointer; font-weight: 700; display: inline-flex; align-items: center; justify-content: center;">Next: Customize Look →</button>
             </div>
           </div>
@@ -615,7 +649,7 @@
 
             </div>
 
-            <div style="display: flex; gap: 14px; justify-content: center; align-items: center; margin-top: 24px;">
+            <div class="onboarding-actions" style="display: flex; gap: 14px; justify-content: center; align-items: center; margin-top: 24px;">
               <button id="btn-back-onboarding-2" style="height: 44px; padding: 0 28px; min-width: 140px; font-size: 14px; border-radius: 22px; background: rgba(255,255,255,0.08); color: white; border: 1px solid rgba(255,255,255,0.15); cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; transition: all 0.2s;">← Back</button>
               <button id="btn-next-onboarding-2" class="btn-primary" style="height: 44px; padding: 0 32px; min-width: 200px; font-size: 14px; border-radius: 22px; cursor: pointer; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; transition: all 0.2s;">Next: Audio Source →</button>
             </div>
@@ -626,7 +660,7 @@
             <h1 style="font-size: 32px; margin-bottom: 8px; font-weight: 800; background: linear-gradient(to right, #1DB954, #1ed760); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Connect to Music</h1>
             <p style="color: rgba(255,255,255,0.7); font-size: 15px; margin-bottom: 24px;">Choose how LyricFlow detects what you're playing.</p>
 
-            <div style="display: flex; gap: 16px; width: 100%; max-width: 540px; margin-bottom: 24px; justify-content: center;">
+            <div class="onboarding-source-grid" style="display: flex; gap: 16px; width: 100%; max-width: 540px; margin-bottom: 24px; justify-content: center;">
               
               <!-- Option A: Spotify Login -->
               <div class="onboarding-card" id="ob-card-connect-spotify" style="flex: 1 1 0; min-height: 220px; max-width: 250px; width: 100%; background: rgba(255,255,255,0.05); border: 2px solid rgba(255,255,255,0.1); border-radius: 14px; padding: 20px; cursor: pointer; transition: all 0.25s ease; display: flex; flex-direction: column; align-items: center; justify-content: space-between; box-sizing: border-box;">
@@ -655,7 +689,7 @@
 
             </div>
 
-            <div style="display: flex; gap: 14px; justify-content: center; align-items: center; margin-top: 24px;">
+            <div class="onboarding-actions" style="display: flex; gap: 14px; justify-content: center; align-items: center; margin-top: 24px;">
               <button id="btn-back-onboarding-3" style="height: 44px; padding: 0 28px; min-width: 140px; font-size: 14px; border-radius: 22px; background: rgba(255,255,255,0.08); color: white; border: 1px solid rgba(255,255,255,0.15); cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; transition: all 0.2s;">← Back</button>
               <button id="btn-next-onboarding-3" class="btn-primary" style="height: 44px; padding: 0 32px; min-width: 220px; font-size: 14px; border-radius: 22px; cursor: pointer; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; transition: all 0.2s;">Next: Pro Tips & Controls →</button>
             </div>
@@ -666,10 +700,10 @@
             <h1 style="font-size: 30px; margin-bottom: 8px; font-weight: 800; background: linear-gradient(to right, #1DB954, #1ed760); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Pro Tips & Controls</h1>
             <p style="color: rgba(255,255,255,0.7); font-size: 14.5px; margin-bottom: 20px;">Essential tricks to get the most out of your lyrics.</p>
 
-            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; width: 100%; max-width: 560px; margin-bottom: 22px;">
+            <div class="onboarding-tips-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; width: 100%; max-width: 560px; margin-bottom: 22px;">
               <!-- Tip 1: Moving Window -->
               <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 14px; text-align: left; display: flex; gap: 12px; align-items: flex-start;">
-                <div style="font-size: 24px; line-height: 1;">🖐️</div>
+                <div style="font-size: 24px; line-height: 1;"></div>
                 <div>
                   <h4 style="margin: 0 0 4px 0; font-size: 13.5px; font-weight: 700; color: #fff;">Moving the Window</h4>
                   <p style="margin: 0; font-size: 11.5px; color: rgba(255,255,255,0.65); line-height: 1.4;">Drag from the <b>top-left grip handle</b> (the <i>LyricFlow</i> logo) to position the window anywhere on your screen.</p>
@@ -679,16 +713,16 @@
 
               <!-- Tip 3: Copy & Share -->
               <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 14px; text-align: left; display: flex; gap: 12px; align-items: flex-start;">
-                <div style="font-size: 24px; line-height: 1;">📋</div>
+                <div style="font-size: 24px; line-height: 1;"></div>
                 <div>
                   <h4 style="margin: 0 0 4px 0; font-size: 13.5px; font-weight: 700; color: #fff;">Copy & Share</h4>
-                  <p style="margin: 0; font-size: 11.5px; color: rgba(255,255,255,0.65); line-height: 1.4;">Double-click or press <kbd style="background:rgba(255,255,255,0.12);padding:1px 5px;border-radius:4px;font-size:10px;color:#1DB954;">Ctrl+Shift+C</kbd> to copy lyrics. Press <kbd style="background:rgba(255,255,255,0.12);padding:1px 5px;border-radius:4px;font-size:10px;color:#1DB954;">Ctrl+Shift+S</kbd> to share a card.</p>
+                  <p style="margin: 0; font-size: 11.5px; color: rgba(255,255,255,0.65); line-height: 1.4;">Double-click or press <kbd style="background:rgba(255,255,255,0.12);padding:1px 5px;border-radius:4px;font-size:10px;color:#1DB954;">Ctrl+Shift+C</kbd> to copy active lyrics to your clipboard.</p>
                 </div>
               </div>
 
               <!-- Tip 4: Taskbar & Desktop Docking -->
               <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 14px; text-align: left; display: flex; gap: 12px; align-items: flex-start;">
-                <div style="font-size: 24px; line-height: 1;">📌</div>
+                <div style="font-size: 24px; line-height: 1;"></div>
                 <div>
                   <h4 style="margin: 0 0 4px 0; font-size: 13.5px; font-weight: 700; color: #fff;">Modes & Tray Control</h4>
                   <p style="margin: 0; font-size: 11.5px; color: rgba(255,255,255,0.65); line-height: 1.4;">Switch between Floating Overlay, Taskbar Dock, and Desktop Wallpaper from Settings or the system tray icon.</p>
@@ -696,9 +730,9 @@
               </div>
             </div>
 
-            <div style="display: flex; gap: 14px; justify-content: center; align-items: center; margin-top: 6px;">
+            <div class="onboarding-actions" style="display: flex; gap: 14px; justify-content: center; align-items: center; margin-top: 6px;">
               <button id="btn-back-onboarding-4" style="height: 44px; padding: 0 28px; min-width: 140px; font-size: 14px; border-radius: 22px; background: rgba(255,255,255,0.08); color: white; border: 1px solid rgba(255,255,255,0.15); cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; transition: all 0.2s;">← Back</button>
-              <button id="btn-finish-onboarding-final" class="btn-primary" style="height: 44px; padding: 0 36px; min-width: 220px; font-size: 15px; border-radius: 22px; cursor: pointer; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; transition: all 0.2s;">🚀 Start Listening</button>
+              <button id="btn-finish-onboarding-final" class="btn-primary" style="height: 44px; padding: 0 36px; min-width: 220px; font-size: 15px; border-radius: 22px; cursor: pointer; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; transition: all 0.2s;">Start Listening</button>
             </div>
           </div>
           
@@ -712,13 +746,14 @@
         <div id="search-overlay" style="display: none; position: absolute; top: 16px; left: 50%; transform: translateX(-50%); width: 80%; max-width: 400px; background: rgba(18, 18, 18, 0.9); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; z-index: 50; padding: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
           <input type="text" id="input-search-lyrics" placeholder="Search lyrics... (Enter to jump)" style="width: 100%; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 8px 12px; border-radius: 6px; font-family: inherit; font-size: 14px; outline: none;" />
           <div id="search-results-info" style="font-size: 11px; color: rgba(255,255,255,0.5); margin-top: 8px; text-align: right;">0 matches</div>
+          <div id="lyrics-search-results" class="lyrics-search-results" hidden></div>
         </div>
 
         <!-- Wallpaper Style 2 Album Art & Info -->
         <div class="wallpaper-now-playing">
           <div class="wallpaper-art-shell">
             <img src="" id="wallpaper-style-art" class="wallpaper-style-art" />
-            <video id="wallpaper-style-art-video" class="wallpaper-style-art" loop muted autoplay playsinline style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; pointer-events: none;"></video>
+            <video id="wallpaper-style-art-video" class="wallpaper-style-art" loop muted playsinline preload="none" style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; pointer-events: none;"></video>
             <div class="wallpaper-art-fallback" id="wallpaper-art-fallback">
               <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
             </div>
@@ -731,10 +766,11 @@
 
         <!-- Apple Music Studio Sidebar (Split-View Mode) -->
         <aside class="studio-sidebar" id="studio-sidebar">
+          <video id="studio-tall-bg-video" class="studio-tall-bg-video" loop muted playsinline preload="none" style="display: none;" aria-hidden="true"></video>
           <div class="studio-art-container">
             <div class="studio-art-wrapper" id="studio-art-wrapper">
               <img src="" id="studio-art-img" class="studio-art-img" alt="Album Artwork" style="display: none;" />
-              <video id="studio-art-video" class="studio-art-video" loop muted autoplay playsinline style="display: none;"></video>
+              <video id="studio-art-video" class="studio-art-video" loop muted playsinline preload="none" style="display: none;"></video>
               <div class="studio-art-fallback" id="studio-art-fallback">
                 <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
               </div>
@@ -755,12 +791,6 @@
           </div>
 
           <div class="studio-badges-row" id="studio-badges-row" style="display: none;">
-            <span class="studio-badge studio-badge-live" id="studio-badge-live" style="display: none;" title="Live Audio Spectrum">
-              <span class="studio-vis-bar bar-1"></span>
-              <span class="studio-vis-bar bar-2"></span>
-              <span class="studio-vis-bar bar-3"></span>
-              <span class="studio-vis-bar bar-4"></span>
-            </span>
             <span class="studio-badge studio-badge-provider" id="studio-badge-provider" style="display: none;">
               <span class="studio-badge-dot"></span>
               <span id="studio-badge-text">Synced</span>
@@ -773,6 +803,12 @@
         <div class="lyrics-view" id="lyrics-viewport">
           <div class="cinematic-main-stage" id="cinematic-main-stage">
             <div class="cinematic-top-actions">
+              <div id="cinematic-track-badge" class="cinematic-track-badge" title="Click for Song & Artist Insights">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+                <span id="cinematic-badge-title" class="cinematic-badge-title">LyricFlow</span>
+                <span class="cinematic-badge-sep">•</span>
+                <span id="cinematic-badge-artist" class="cinematic-badge-artist">Artist</span>
+              </div>
               <button id="btn-cinematic-set-wallpaper" class="cinematic-wallpaper-btn" title="Set as Desktop Wallpaper (Ctrl+Shift+W)">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                   <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
@@ -793,13 +829,6 @@
 
           <!-- Instrumental Solo & Break Visualizer Stage (Option C) -->
           <div class="instrumental-solo-stage" id="instrumental-solo-stage" style="display: none;">
-            <div class="solo-visualizer-wave">
-              <span class="solo-bar bar-1"></span>
-              <span class="solo-bar bar-2"></span>
-              <span class="solo-bar bar-3"></span>
-              <span class="solo-bar bar-4"></span>
-              <span class="solo-bar bar-5"></span>
-            </div>
             <div class="solo-meta">
               <span class="solo-badge">✦ INSTRUMENTAL</span>
               <span class="solo-countdown" id="solo-countdown">Solo break</span>
@@ -840,10 +869,11 @@
 
         <!-- Mini Music Status Widget (Bottom Bar) -->
         <footer class="playback-widget" id="playback-widget">
+          <div class="widget-track-panel">
           <div class="widget-art-container">
 
             <img src="" alt="Album Art" id="widget-album-art" class="widget-album-art" style="display: none;" />
-            <video id="widget-album-art-video" class="widget-album-art" loop muted autoplay playsinline style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; pointer-events: none;"></video>
+            <video id="widget-album-art-video" class="widget-album-art" loop muted playsinline preload="none" style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; pointer-events: none;"></video>
             <div class="art-fallback" id="widget-art-fallback">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
             </div>
@@ -853,12 +883,6 @@
               <div class="track-header-row">
                 <div class="track-name-wrapper" id="widget-track-name-wrapper">
                   <span id="widget-track-name" class="track-name">Not Playing</span>
-                </div>
-                <div class="player-live-visualizer" id="player-live-visualizer" title="Live Audio Visualizer" style="display: none;">
-                  <span class="player-vis-bar bar-1"></span>
-                  <span class="player-vis-bar bar-2"></span>
-                  <span class="player-vis-bar bar-3"></span>
-                  <span class="player-vis-bar bar-4"></span>
                 </div>
                 <button id="btn-hide-lyrics" class="btn-hide-lyrics" title="Hide lyrics for this song" style="display: none;">
                   <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
@@ -881,6 +905,7 @@
               </div>
             </div>
           </div>
+          </div>
           <div class="widget-controls">
             <button id="btn-love-track" class="widget-ctrl-btn" title="Love on Last.fm" style="display: none;">
               <svg id="svg-love-unfilled" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
@@ -893,8 +918,14 @@
             <button id="btn-reload-lyrics" class="widget-ctrl-btn" title="Find Alternative Lyrics / Reload (Ctrl+R)">
               <svg class="reload-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
             </button>
-            <button id="btn-restore-lyrics" class="widget-ctrl-btn" title="Restore lyrics saved before the last refetch" aria-label="Restore previous lyrics" style="display: none;">↶</button>
-            <button id="btn-share-lyric" class="widget-ctrl-btn" title="Share Lyric Card (Coming Soon)">
+            <button id="btn-restore-lyrics" class="widget-ctrl-btn" title="Restore lyrics saved before the last refetch" aria-label="Restore previous lyrics" style="display: none;">
+              <svg class="restore-lyrics-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                <path d="M3 11a9 9 0 1 1 2.64 6.36" />
+                <path d="M3 4v7h7" />
+                <path d="M12 7v5l3 2" />
+              </svg>
+            </button>
+            <button id="btn-share-lyric" class="widget-ctrl-btn" title="Share song link or lyric card" aria-label="Share song or lyric" aria-haspopup="dialog" aria-expanded="false" aria-controls="share-options-modal">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
             </button>
             <button id="btn-prev" class="widget-ctrl-btn" title="Previous Track">
@@ -981,6 +1012,10 @@
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
             Lyrics &amp; Sync
           </button>
+          <button type="button" class="settings-tab" data-tab="dj">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="4"/></svg>
+            Playback &amp; DJ
+          </button>
           <button type="button" class="settings-tab" data-tab="modes">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
             Display Modes
@@ -999,9 +1034,9 @@
               <div class="setting-row">
                 <label>Appearance Theme</label>
                 <div class="liquid-glass-bar" data-target="select-theme">
-                  <button type="button" class="liquid-bar-segment active" data-val="dark">🌙 Dark Glass</button>
+                  <button type="button" class="liquid-bar-segment active" data-val="dark"> Dark Glass</button>
                   <button type="button" class="liquid-bar-segment" data-val="oled">⬛ OLED Black</button>
-                  <button type="button" class="liquid-bar-segment" data-val="light">☀️ Pearl Light</button>
+                  <button type="button" class="liquid-bar-segment" data-val="light"> Pearl Light</button>
                 </div>
                 <select id="select-theme" style="display: none;">
                   <option value="dark" selected>dark</option>
@@ -1013,8 +1048,8 @@
               <div class="setting-row">
                 <label>Lyrics View Mode</label>
                 <div class="liquid-glass-bar" id="bar-cinematic-mode">
-                  <button type="button" class="liquid-bar-segment active" id="btn-mode-cinematic" data-val="cinematic">🎬 Cinematic Stage (Horizontal)</button>
-                  <button type="button" class="liquid-bar-segment" id="btn-mode-classic" data-val="classic">📜 Classic Scrolling</button>
+                  <button type="button" class="liquid-bar-segment active" id="btn-mode-cinematic" data-val="cinematic"> Cinematic Stage (Horizontal)</button>
+                  <button type="button" class="liquid-bar-segment" id="btn-mode-classic" data-val="classic"> Classic Scrolling</button>
                 </div>
               </div>
 
@@ -1078,9 +1113,9 @@
               <div class="setting-row">
                 <label>Text Align</label>
                 <div class="liquid-glass-bar" data-target="select-align">
-                  <button type="button" class="liquid-bar-segment" data-val="left">⬅ Left</button>
-                  <button type="button" class="liquid-bar-segment active" data-val="center">⬌ Center</button>
-                  <button type="button" class="liquid-bar-segment" data-val="right">➡ Right</button>
+                  <button type="button" class="liquid-bar-segment" data-val="left">Left</button>
+                  <button type="button" class="liquid-bar-segment active" data-val="center">Center</button>
+                  <button type="button" class="liquid-bar-segment" data-val="right">Right</button>
                 </div>
                 <select id="select-align" style="display: none;">
                   <option value="left">Left</option>
@@ -1103,9 +1138,9 @@
               <div class="setting-row">
                 <label>Ambient Background Style</label>
                 <div class="liquid-glass-bar" data-target="select-bg-style">
-                  <button type="button" class="liquid-bar-segment active" data-val="fluid">🌊 Fluid Mesh</button>
-                  <button type="button" class="liquid-bar-segment" data-val="ambient">✨ Ambient Glow</button>
-                  <button type="button" class="liquid-bar-segment" data-val="minimal">🔲 Minimal</button>
+                  <button type="button" class="liquid-bar-segment active" data-val="fluid"> Fluid Mesh</button>
+                  <button type="button" class="liquid-bar-segment" data-val="ambient"> Ambient Glow</button>
+                  <button type="button" class="liquid-bar-segment" data-val="minimal"> Minimal</button>
                 </div>
                 <select id="select-bg-style" style="display: none;">
                   <option value="fluid" selected>Apple Music Fluid Mesh</option>
@@ -1113,6 +1148,7 @@
                   <option value="minimal">Minimal / Transparent</option>
                 </select>
               </div>
+              <small class="setting-performance-note"><strong>Resource use:</strong> Fluid Mesh runs a GPU shader while active and can raise CPU/GPU use and RAM/graphics memory. Ambient Glow and Minimal are lighter.</small>
 
               <div class="setting-row" id="setting-fluid-speed-row">
                 <label for="slider-fluid-speed">Mesh Swirl Speed</label>
@@ -1121,6 +1157,7 @@
                   <span class="liquid-slider-val" id="val-fluid-speed">1.0x</span>
                 </div>
               </div>
+              <small class="setting-performance-note"><strong>Resource use:</strong> Higher mesh speed can increase CPU/GPU work; the rendered surface uses RAM/graphics memory.</small>
 
               <div class="setting-row">
                 <label for="slider-bg-opacity">Overlay Opacity</label>
@@ -1147,9 +1184,10 @@
                 </div>
                 <div id="label-bg-filename" class="file-picker-name">None selected</div>
               </div>
+              <small class="setting-performance-note"><strong>Resource use:</strong> Video backgrounds use ongoing CPU/GPU decoding and buffered frames in RAM while visible. A still image is lighter.</small>
 
               <div class="setting-row" style="margin-top: 4px;">
-                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Enable animated looping album art (Spotify Canvas video loops, dynamic aesthetic GIFs, or custom local GIFs)">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; cursor: pointer;" title="Enable animated album artwork or use a custom local animation">
                   <span>Animated &amp; GIF Album Art</span>
                   <div class="toggle-switch">
                     <input type="checkbox" id="check-animated-album-art" checked />
@@ -1157,12 +1195,31 @@
                   </div>
                 </label>
               </div>
+              <small class="setting-performance-note"><strong>Resource use:</strong> Animated covers decode video or GIF frames and retain frame buffers in RAM/graphics memory while visible.</small>
 
-              <!-- Hidden inputs for file pickers & custom art -->
+              <div class="setting-row" style="margin-top: 4px;">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; cursor: pointer;" title="Automatically pause motion artwork video loops when unplugged and battery is <= 20% to save laptop battery">
+                  <span>Auto-Pause on Battery Saver (≤20%)</span>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-motion-battery-saver" checked />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+              </div>
+
+              <div class="custom-animated-art-row">
+                <div class="custom-animated-art-copy">
+                  <strong id="label-custom-art-gif-filename">Automatic Motion Artwork</strong>
+                  <small>Choose a GIF, MP4, or WebM loop to use as the artwork animation.</small>
+                </div>
+                <div class="file-picker-row">
+                  <button id="btn-pick-custom-art-gif" type="button" class="file-picker-btn">Choose animation</button>
+                  <button id="btn-clear-custom-art-gif" type="button" class="file-picker-clear" style="display: none;">Clear</button>
+                </div>
+              </div>
+
+              <!-- Hidden fallback file input for browser builds -->
               <input type="file" id="input-custom-art-gif-file" accept="image/gif,video/mp4,video/webm" style="display: none;" />
-              <button id="btn-pick-custom-art-gif" style="display: none;"></button>
-              <button id="btn-clear-custom-art-gif" style="display: none;"></button>
-              <div id="label-custom-art-gif-filename" style="display: none;"></div>
             </div>
           </div>
 
@@ -1182,6 +1239,16 @@
               </div>
 
               <div class="setting-row">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Distinguish multiple artists with left/right duet layout, singer pill badges, and unique vocal color tints">
+                  <span>Multi-Artist Duet Separation</span>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-duet-separation" checked />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+              </div>
+
+              <div class="setting-row">
                 <label for="select-translate">Auto-Translate Lyrics</label>
                 <div class="liquid-select-wrapper">
                   <select id="select-translate" class="liquid-select advanced-dropdown">
@@ -1192,6 +1259,7 @@
                       <option value="en" selected>English (en)</option>
                       <option value="es">Spanish (es)</option>
                       <option value="hi">Hindi (Devanagari)</option>
+                      <option value="pa">Punjabi (Gurmukhi)</option>
                     </optgroup>
                     <optgroup label="East Asian Languages">
                       <option value="ja">Japanese (ja)</option>
@@ -1200,6 +1268,19 @@
                   </select>
                   <svg class="select-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="6 9 12 15 18 9"/></svg>
                 </div>
+              </div>
+
+              <div class="setting-row" style="margin-top: 4px;">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Experimental: translates Romanized Hindi / Hinglish and Punjabi songs into English (does not work with complicated lyrics or on all tracks)">
+                  <div>
+                    <span>Translate Hinglish &amp; Punjabi</span>
+                    <span style="display: block; font-size: 10.5px; color: rgba(255,255,255,0.45); margin-top: 2px;">Note: Does not work with complicated lyrics or all tracks</span>
+                  </div>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-translate-hinglish" />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
               </div>
 
               <div class="setting-row">
@@ -1246,7 +1327,8 @@
                       <div class="liquid-select-wrapper">
                         <select id="select-preferred-provider" class="liquid-select advanced-dropdown">
                           <optgroup label="Word-by-Word Karaoke Priority (Recommended)">
-                            <option value="netease" selected>★ Word-by-Word (NetEase YRC) &gt; Line-Sync (LRCLIB)</option>
+                            <option value="lyricsplus" selected>★ Word-by-Word (LyricsPlus / Apple Music) &gt; Line-Sync</option>
+                            <option value="netease">Word-by-Word (NetEase YRC) &gt; Line-Sync (LRCLIB)</option>
                           </optgroup>
                           <optgroup label="Line-Sync Priority">
                             <option value="lrclib">LRCLIB Line-Sync &gt; Word-by-Word</option>
@@ -1360,6 +1442,128 @@
             </div>
           </div>
 
+          <!-- TAB: PLAYBACK & DJ -->
+          <div class="settings-tab-content" data-tab="dj">
+            <div class="settings-group">
+              <h4>Lyric-Aware Transitions</h4>
+              <div class="setting-row">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Automatically trigger a seamless transition to the next track when the final vocal line ends">
+                  <div>
+                    <div style="font-weight: 550;">Lyric-Aware Auto-Transitions</div>
+                    <div style="font-size: 11px; opacity: 0.65; margin-top: 2px;">Skip drawn-out or silent outros when singing ends</div>
+                  </div>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-dj-transitions" />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+              </div>
+
+              <div class="setting-row">
+                <label for="input-dj-grace" title="Time to wait after the last vocal line before starting transition fader">Post-Vocal Grace Period (s)</label>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                  <input type="number" id="input-dj-grace" value="2.5" min="0" max="15" step="0.5" style="width: 86px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); color: white; border-radius: 8px; padding: 6px 10px; font-family: var(--font-mono, monospace); font-size: 12px; outline: none;" />
+                </div>
+              </div>
+
+              <div class="setting-row" style="margin-top: 4px;">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Do not skip energetic guitar/synth solos or beat drops after the last lyric">
+                  <div>
+                    <div style="font-weight: 550;">Preserve Instrumental Solos &amp; Drops</div>
+                    <div style="font-size: 11px; opacity: 0.65; margin-top: 2px;">WASAPI live spectrum analyzer protects energetic solos</div>
+                  </div>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-dj-preserve-solos" checked />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+              </div>
+
+              <div class="setting-row">
+                <label for="input-dj-fade-duration" title="Equal-loudness volume fade-out duration before track skip">Volume Ducking Fade (s)</label>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                  <input type="number" id="input-dj-fade-duration" value="3.5" min="1" max="10" step="0.5" style="width: 86px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); color: white; border-radius: 8px; padding: 6px 10px; font-family: var(--font-mono, monospace); font-size: 12px; outline: none;" />
+                </div>
+              </div>
+            </div>
+
+            <div class="settings-group" style="margin-top: 14px;">
+              <h4>Smart DJ Queueing &amp; Synergy</h4>
+              <div class="setting-row">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Auto-enqueue similar high-energy tracks via Last.fm and Spotify Top Tracks">
+                  <div>
+                    <div style="font-weight: 550;">Smart DJ Dynamic Queueing</div>
+                    <div style="font-size: 11px; opacity: 0.65; margin-top: 2px;">Keeps the mix flowing with similar vibe &amp; BPM</div>
+                  </div>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-dj-smart-queue" />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+              </div>
+
+              <div style="margin-top: 10px; padding: 12px 14px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; font-size: 11.5px; line-height: 1.5; color: rgba(255,255,255,0.72);">
+                <span style="color: var(--accent-primary, #1db954); font-weight: 600;">✦ Pro-Tip for Spotify Crossfade:</span>
+                For true continuous blending, enable Spotify's native crossfade (Settings &rarr; Playback &rarr; Crossfade songs, set to 6–12s). LyricFlow's lyric transitions and Spotify's local engine will work in harmony.
+              </div>
+            </div>
+
+            <div class="settings-group" style="margin-top: 14px;">
+              <div style="display: flex; align-items: center; justify-content: space-between;">
+                <h4>Spotify Soloist (Local WebSocket API)</h4>
+                <span id="soloist-status-pill" style="font-size: 11px; padding: 2px 8px; border-radius: 12px; background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.6);">○ Disconnected</span>
+              </div>
+              <div class="setting-row">
+                <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Directly connect to Spotify Soloist on localhost for sub-millisecond real-time playhead events and 80-track local queue">
+                  <div>
+                    <div style="font-weight: 550;">Connect to Spotify Soloist</div>
+                    <div style="font-size: 11px; opacity: 0.65; margin-top: 2px;">Sub-millisecond push events &amp; lossless audio (24-bit/44.1kHz)</div>
+                  </div>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="check-soloist-enabled" />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+              </div>
+
+              <!-- Soloist API Key & Daemon Management -->
+              <div class="setting-row" style="flex-direction: column; align-items: stretch; gap: 4px; margin-top: 8px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <label for="input-soloist-api-key" style="font-size: 11.5px; opacity: 0.85;">Soloist Developer API Key</label>
+                  <span id="soloist-daemon-status-text" style="font-size: 11px; opacity: 0.65;">Daemon: Stopped</span>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                  <input type="password" id="input-soloist-api-key" placeholder="spak_..." style="flex: 1; box-sizing: border-box; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); color: white; border-radius: 8px; padding: 6px 10px; font-family: var(--font-mono, monospace); font-size: 12px; outline: none;" />
+                  <button id="btn-soloist-toggle-key" class="btn-secondary" style="padding: 6px 10px; font-size: 12px; border-radius: 8px;" title="Show/Hide API Key"></button>
+                </div>
+              </div>
+
+              <div class="setting-row" style="gap: 8px; margin-top: 10px;">
+                <button id="btn-soloist-daemon" class="btn-primary" style="flex: 1; padding: 7px 12px; font-size: 12px; border-radius: 8px; white-space: nowrap;">Start Soloist Daemon</button>
+                <button id="btn-soloist-activate" class="btn-secondary" style="padding: 7px 12px; font-size: 12px; border-radius: 8px; white-space: nowrap;" title="Switch Spotify playback to LyricFlow Connect device">Switch Audio to LyricFlow</button>
+              </div>
+
+              <div class="setting-row" style="gap: 12px; margin-top: 8px;">
+                <div style="flex: 1;">
+                  <label for="input-soloist-host" style="font-size: 11.5px; opacity: 0.85;">Host / IP</label>
+                  <input type="text" id="input-soloist-host" value="127.0.0.1" style="width: 100%; box-sizing: border-box; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); color: white; border-radius: 8px; padding: 6px 10px; font-family: var(--font-mono, monospace); font-size: 12px; outline: none; margin-top: 4px;" />
+                </div>
+                <div style="width: 90px;">
+                  <label for="input-soloist-port" style="font-size: 11.5px; opacity: 0.85;">Port</label>
+                  <input type="number" id="input-soloist-port" value="4488" min="1" max="65535" style="width: 100%; box-sizing: border-box; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); color: white; border-radius: 8px; padding: 6px 10px; font-family: var(--font-mono, monospace); font-size: 12px; outline: none; margin-top: 4px;" />
+                </div>
+                <div style="align-self: flex-end; padding-bottom: 1px;">
+                  <button id="btn-soloist-connect" class="btn-secondary" style="padding: 7px 14px; font-size: 12px; border-radius: 8px; white-space: nowrap;">Connect</button>
+                </div>
+              </div>
+
+              <div id="soloist-guide-box" style="margin-top: 10px; padding: 10px 12px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 8px; font-size: 11px; line-height: 1.45; color: rgba(255,255,255,0.65);">
+                <span style="color: #ffffff; font-weight: 550;">Soloist Local Background Engine:</span><br/>
+                Runs securely on <code style="padding: 1px 4px; background: rgba(0,0,0,0.3); border-radius: 4px; font-family: var(--font-mono, monospace); color: var(--accent-primary, #1db954);">127.0.0.1:4488</code>. Once started, select <strong>"LyricFlow"</strong> from the Spotify Connect devices menu on your phone or desktop app to stream lossless audio with zero-latency lyrics.
+              </div>
+            </div>
+          </div>
+
           <!-- TAB 3: DISPLAY MODES -->
           <div class="settings-tab-content" data-tab="modes">
             <div class="settings-group">
@@ -1373,6 +1577,7 @@
                   </div>
                 </label>
               </div>
+              <small class="setting-performance-note"><strong>Resource use:</strong> The Island adds a separate composited surface; visualizers, motion art, and glass effects can add CPU/GPU work and RAM/graphics memory while active.</small>
 
               <div class="setting-row">
                 <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;" title="Toggle translucent frosted Liquid Glass material for Dynamic Island and its sub-capsules">
@@ -1384,10 +1589,10 @@
                 </label>
               </div>
 
-              <div class="setting-row">
+              <div class="setting-row" id="island-dock-position-row">
                 <label for="select-island-position">Dock Position</label>
-                <div class="liquid-select-wrapper" data-val="free">
-                  <select id="select-island-position" class="liquid-select advanced-dropdown">
+                <div class="liquid-select-wrapper" id="island-dock-position-control">
+                  <select id="select-island-position" class="liquid-select advanced-dropdown" aria-label="Dynamic Island dock position">
                     <optgroup label="Screen Edges (Fixed)">
                       <option value="top-left">↖ Top Left</option>
                       <option value="top-center" selected>⬆ Top Center</option>
@@ -1395,7 +1600,7 @@
                       <option value="bottom-center">⬇ Bottom Center</option>
                     </optgroup>
                     <optgroup label="Floating / Custom">
-                      <option value="free">free</option>
+                      <option value="free">Free floating</option>
                     </optgroup>
                   </select>
                   <svg class="select-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="6 9 12 15 18 9"/></svg>
@@ -1419,8 +1624,8 @@
               <div class="setting-row">
                 <label>Visualizer Style</label>
                 <div class="liquid-glass-bar" data-target="select-island-visualizer-style">
-                  <button type="button" class="liquid-bar-segment active" data-val="bars">📊 EQ Bars</button>
-                  <button type="button" class="liquid-bar-segment" data-val="dots">🫧 Jelly Dots</button>
+                  <button type="button" class="liquid-bar-segment active" data-val="bars"> EQ Bars</button>
+                  <button type="button" class="liquid-bar-segment" data-val="dots"> Jelly Dots</button>
                   <button type="button" class="liquid-bar-segment" data-val="wave">〰 Waveform</button>
                 </div>
                 <select id="select-island-visualizer-style" style="display: none;">
@@ -1429,22 +1634,7 @@
                   <option value="wave">wave</option>
                 </select>
               </div>
-
-              <div class="setting-row">
-                <label>Island Translation Mode</label>
-                <div class="liquid-glass-bar" data-target="select-island-translation">
-                  <button type="button" class="liquid-bar-segment active" data-val="bilingual">Inline</button>
-                  <button type="button" class="liquid-bar-segment" data-val="stacked">Dual-Line</button>
-                  <button type="button" class="liquid-bar-segment" data-val="hover-only">Hover Reveal</button>
-                  <button type="button" class="liquid-bar-segment" data-val="none">None</button>
-                </div>
-                <select id="select-island-translation" style="display: none;">
-                  <option value="bilingual" selected>bilingual</option>
-                  <option value="stacked">stacked</option>
-                  <option value="hover-only">hover-only</option>
-                  <option value="none">none</option>
-                </select>
-              </div>
+              <small class="setting-performance-note"><strong>Resource use:</strong> Live audio visualization adds CPU/GPU updates and a small RAM buffer during playback.</small>
 
               <div class="setting-row">
                 <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;">
@@ -1485,11 +1675,12 @@
                   </div>
                 </label>
               </div>
+              <small class="setting-performance-note"><strong>Resource use:</strong> Audio-reactive bloom adds CPU/GPU compositing and temporary RAM/graphics memory during playback.</small>
 
               <div class="setting-row" style="margin-top: 6px; background: rgba(255, 255, 255, 0.035); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px; padding: 10px 14px; display: flex; flex-direction: column; gap: 4px;">
                 <div style="display: flex; align-items: center; justify-content: space-between;">
                   <span style="font-size: 12px; font-weight: 600; color: #ffffff; display: flex; align-items: center; gap: 6px;">
-                    <span>👻</span> Ghost Passthrough (Click Behind Island)
+                    <span></span> Ghost Passthrough (Click Behind Island)
                   </span>
                   <div style="display: flex; gap: 4px;">
                     <kbd class="kbd-badge system" style="font-size: 10px; padding: 1px 5px;">`</kbd>
@@ -1517,6 +1708,17 @@
                     <span class="toggle-slider"></span>
                   </div>
                 </label>
+              </div>
+              <div class="setting-row" id="setting-taskbar-style-row">
+                <label>Presentation Style</label>
+                <div class="liquid-glass-bar" data-target="select-taskbar-style">
+                  <button type="button" class="liquid-bar-segment active" data-val="minimal">Minimal</button>
+                  <button type="button" class="liquid-bar-segment" data-val="glass">Glass</button>
+                </div>
+                <select id="select-taskbar-style" style="display: none;">
+                  <option value="minimal" selected>Minimal</option>
+                  <option value="glass">Glass</option>
+                </select>
               </div>
               <div class="setting-row">
                 <label class="toggle-label" style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: rgba(255,255,255,0.85); cursor: pointer;">
@@ -1552,6 +1754,7 @@
                   </div>
                 </label>
               </div>
+              <small class="setting-performance-note"><strong>Resource use:</strong> Wallpaper Mode keeps a full-screen render surface active; visual effects and motion art can add CPU/GPU load and RAM use.</small>
 
               <div class="setting-row" id="setting-wallpaper-monitor-row">
                 <label>Target Display</label>
@@ -1574,13 +1777,7 @@
                   </div>
                 </label>
               </div>
-
-              <div class="setting-row" style="margin-top: 6px;">
-                <button id="btn-start-wallpaper-edit" type="button" class="btn-secondary" style="width: 100%; border-radius: 10px; padding: 8px 14px; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 8px;">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
-                  Interactive Drag Mode
-                </button>
-              </div>
+              <small class="setting-performance-note"><strong>Resource use:</strong> Audio-reactive lyric bloom adds CPU/GPU compositing and temporary RAM/graphics memory while Wallpaper Mode is active.</small>
 
               <div class="setting-row" id="setting-wallpaper-style-row">
                 <label>Wallpaper Presentation</label>
@@ -1725,9 +1922,43 @@
                 </label>
               </div>
 
+              <div class="setting-row">
+                <label class="toggle-label" style="display:flex;align-items:center;justify-content:space-between;font-size:12.5px;cursor:pointer;">
+                  <span>Reduce motion</span>
+                  <div class="toggle-switch"><input type="checkbox" id="check-reduced-motion" /><span class="toggle-slider"></span></div>
+                </label>
+              </div>
+              <div class="setting-motion-toggle">
+                <div class="setting-row">
+                  <label class="toggle-label" style="display:flex;align-items:center;justify-content:space-between;font-size:12px;cursor:pointer;">
+                    <span>Album art transitions</span>
+                    <div class="toggle-switch"><input type="checkbox" id="check-motion-art" checked /><span class="toggle-slider"></span></div>
+                  </label>
+                </div>
+                <small class="setting-performance-note"><strong>Resource use:</strong> Transitions briefly composite artwork layers and use a small amount of extra CPU/GPU and RAM when art changes.</small>
+              </div>
+              <div class="setting-motion-toggle">
+                <div class="setting-row">
+                  <label class="toggle-label" style="display:flex;align-items:center;justify-content:space-between;font-size:12px;cursor:pointer;">
+                    <span>Dynamic Island dust effect</span>
+                    <div class="toggle-switch"><input type="checkbox" id="check-motion-dust" checked /><span class="toggle-slider"></span></div>
+                  </label>
+                </div>
+                <small class="setting-performance-note"><strong>Resource use:</strong> Dust particles briefly use CPU/GPU work and RAM/graphics memory during Island transitions.</small>
+              </div>
+              <div class="setting-motion-toggle">
+                <div class="setting-row">
+                  <label class="toggle-label" style="display:flex;align-items:center;justify-content:space-between;font-size:12px;cursor:pointer;">
+                    <span>Dynamic Island visualizer motion</span>
+                    <div class="toggle-switch"><input type="checkbox" id="check-motion-visualizer" checked /><span class="toggle-slider"></span></div>
+                  </label>
+                </div>
+                <small class="setting-performance-note"><strong>Resource use:</strong> Live audio data updates the Island indicator during playback and uses CPU/GPU plus a small RAM buffer.</small>
+              </div>
+
               <div class="setting-row" style="margin-top: 6px;">
                 <button id="btn-rerun-setup" class="btn-secondary" style="width: 100%; padding: 8px 12px; font-size: 12px; border-radius: 10px; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer;">
-                  <span>✨ Run Setup Wizard Again</span>
+                  <span> Run Setup Wizard Again</span>
                 </button>
               </div>
             </div>
@@ -1744,7 +1975,18 @@
             </div>
 
             <div class="settings-group">
+              <h4>Playback &amp; Lyrics Diagnostics</h4>
+              <div id="lyrics-diagnostics" class="lyrics-diagnostics" aria-live="polite">
+                <div><span>Track</span><strong id="diag-track">Waiting for music</strong></div>
+                <div><span>Playback</span><strong id="diag-playback">No active source</strong></div>
+                <div><span>Lyrics</span><strong id="diag-lyrics">Not loaded</strong></div>
+              </div>
+              <button id="btn-copy-diagnostics" class="btn-secondary" style="width:100%;margin-top:8px;padding:7px;border-radius:8px;">Copy diagnostics</button>
+            </div>
+
+            <div class="settings-group">
               <h4>Keyboard Shortcuts &amp; Gestures</h4>
+              <div class="shortcut-editor-hint">Click <b>Change</b>, then press a key combination. Use Ctrl, Alt, or Shift with a key.</div>
               <div class="shortcuts-grid">
                 <div class="shortcuts-category-card">
                   <div class="shortcuts-category-title">
@@ -1782,8 +2024,8 @@
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path><polyline points="16 6 12 2 8 6"></polyline><line x1="12" y1="2" x2="12" y2="15"></line></svg>
                     <span>Lyrics &amp; Sharing</span>
                   </div>
-                  <div class="shortcut-row" data-shortcut-action="share" role="button" tabindex="0" title="Share Lyric Card (Coming Soon)">
-                    <span class="shortcut-row-label">Share Card Studio <span class="badge-coming-soon">Coming Soon</span></span>
+                  <div class="shortcut-row" data-shortcut-action="share" role="button" tabindex="0" title="Lyric Share Card (Coming in Next Update)">
+                    <span class="shortcut-row-label">Lyric Share Card <small style="opacity:0.5;font-size:10px;margin-left:4px;">(Next Update)</small></span>
                     <kbd class="kbd-badge navigation">Ctrl + Shift + S</kbd>
                   </div>
                   <div class="shortcut-row" data-shortcut-action="copy" role="button" tabindex="0" title="Click to copy active lyric text">
@@ -1852,7 +2094,7 @@
           </button>
           <div class="album-art-modal-media-wrapper">
             <img id="album-art-modal-img" class="album-art-modal-img" src="" alt="Album Art" />
-            <video id="album-art-modal-video" class="album-art-modal-video" loop muted autoplay playsinline style="display: none;"></video>
+            <video id="album-art-modal-video" class="album-art-modal-video" loop muted playsinline preload="none" style="display: none;"></video>
           </div>
           <div class="album-art-modal-info">
             <div id="album-art-modal-title" class="album-art-modal-title">Song Title</div>
@@ -1861,414 +2103,120 @@
         </div>
       </div>
 
-      <!-- Interactive Viral Lyric Share Card Modal -->
-      <div id="share-card-modal" class="share-card-modal">
-        <div class="share-modal-backdrop" id="share-modal-backdrop"></div>
-        <div class="share-modal-dialog">
-          <!-- Luxury "Coming Soon" Experience Overlay -->
-          <div class="share-coming-soon-overlay" id="share-coming-soon-overlay">
-            <button type="button" class="share-cs-close-btn" id="btn-share-cs-close" title="Close (Esc)">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      <div id="share-options-modal" class="share-options-modal share-options-popover" hidden>
+        <section class="share-options-dialog" role="dialog" aria-labelledby="share-options-title">
+          <header class="share-options-header">
+            <div><h2 id="share-options-title">Share this song</h2><p id="share-options-track">Choose how you want to share it.</p></div>
+            <button type="button" class="share-options-close" data-share-options-close aria-label="Close">×</button>
+          </header>
+          <div id="share-options-main" class="share-options-main">
+            <button type="button" id="btn-share-copy-link" class="share-choice-card">
+              <span class="share-choice-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.07 0l3-3A5 5 0 0 0 13 2.93l-1.72 1.72"/><path d="M14 11a5 5 0 0 0-7.07 0l-3 3A5 5 0 0 0 11 21.07l1.72-1.72"/></svg></span><span><strong>Copy music link</strong><small>Choose a music service</small></span>
             </button>
-            <div class="share-cs-badge">
-              <span class="share-cs-badge-dot"></span>
-              <span>COMING SOON</span>
-            </div>
-            <div class="share-cs-icon-halo">
-              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
-                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
-              </svg>
-            </div>
-            <h2 class="share-cs-title">Lyric Share Studio</h2>
-            <p class="share-cs-subtitle">
-              Stunning lyric quote cards, animated kinetic stories, and high-resolution video exports for Apple Music, Spotify, and social media are currently in craftsmanship.
-            </p>
-            <div class="share-cs-features-grid">
-              <div class="share-cs-feature-card">
-                <div class="share-cs-feature-icon">✨</div>
-                <div class="share-cs-feature-title">Editorial Presets</div>
-                <div class="share-cs-feature-desc">Glass box, classic vinyl, &amp; poster designs</div>
-              </div>
-              <div class="share-cs-feature-card">
-                <div class="share-cs-feature-icon">🎬</div>
-                <div class="share-cs-feature-title">Kinetic Stories</div>
-                <div class="share-cs-feature-desc">Animated MP4 video stories synced to lyrics</div>
-              </div>
-              <div class="share-cs-feature-card">
-                <div class="share-cs-feature-icon">📐</div>
-                <div class="share-cs-feature-title">Multi-Format</div>
-                <div class="share-cs-feature-desc">9:16 Story, 1:1 Square, 4:5 Feed &amp; 16:9 Landscape</div>
-              </div>
-              <div class="share-cs-feature-card">
-                <div class="share-cs-feature-icon">💎</div>
-                <div class="share-cs-feature-title">4K Ultra-HD</div>
-                <div class="share-cs-feature-desc">Razor-sharp rasterization ready for Instagram &amp; X</div>
-              </div>
-            </div>
-            <div class="share-cs-actions">
-              <button type="button" class="share-cs-dismiss-btn" id="btn-share-cs-dismiss">
-                <span>Got It</span>
-              </button>
+            <button type="button" id="btn-share-open-card" class="share-choice-card share-choice-card-disabled" disabled aria-disabled="true" title="Under development — coming in a future update">
+              <span class="share-choice-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M8 9h8M8 13h5"/><path d="M15.5 16.5 18 19l3.5-3.5"/></svg></span><span><strong>Lyric share card</strong><small>Under development — coming in a future update</small></span>
+            </button>
+          </div>
+          <div id="share-link-providers" class="share-link-providers" hidden>
+            <button type="button" id="btn-share-links-back" class="share-links-back">‹ Back</button>
+            <div id="share-provider-list" class="share-provider-list"></div>
+            <button type="button" id="btn-share-copy-all-links" class="share-copy-all-links" aria-live="polite">Copy all service links</button>
+          </div>
+        </section>
+      </div>
+
+      <!-- About Song Modal (Apple HIG Last.fm Insights) -->
+      <div id="about-song-modal" class="lf-modal-overlay" aria-hidden="true" role="dialog" aria-labelledby="about-song-title">
+        <div class="lf-modal-backdrop" id="about-song-backdrop"></div>
+        <div class="lf-modal-dialog">
+          <button type="button" class="lf-modal-close-btn" id="about-song-close" aria-label="Close dialog">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+          <div class="lf-modal-eyebrow">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+            <span>About Song</span>
+          </div>
+          <div class="lf-modal-hero">
+            <img id="about-song-art" class="lf-modal-art" src="assets/icon.png" alt="Cover Art" />
+            <div class="lf-modal-hero-info">
+              <h2 id="about-song-title" class="lf-modal-title">Track Title</h2>
+              <a id="about-song-artist" class="lf-modal-artist-link" title="View artist info">Artist Name</a>
+              <p id="about-song-album" class="lf-modal-subtitle">Album Name</p>
             </div>
           </div>
-          <div class="share-modal-header">
-            <div class="share-modal-title">
-              <div class="share-modal-icon-badge">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                  <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
-                  <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
-                </svg>
-              </div>
-              <div class="share-title-text-group">
-                <span class="share-title-main">Share Card Studio</span>
-                <span class="share-title-sub">Luxury Lyric Posters &amp; Stories</span>
-              </div>
+          <div class="lf-stats-grid">
+            <div class="lf-stat-card">
+              <span id="about-song-listeners" class="lf-stat-value">-</span>
+              <span class="lf-stat-label">Listeners</span>
             </div>
-            <div class="share-header-actions">
-              <div class="share-shortcut-pills" title="Studio Keyboard Shortcuts">
-                <span class="share-shortcut-pill"><kbd>Ctrl+C</kbd> Copy</span>
-                <span class="share-shortcut-pill"><kbd>Ctrl+S</kbd> Save</span>
-              </div>
-              <button id="share-modal-close" class="share-modal-close-btn" title="Close Studio (Esc)">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              </button>
+            <div class="lf-stat-card">
+              <span id="about-song-playcount" class="lf-stat-value">-</span>
+              <span class="lf-stat-label">Scrobbles</span>
+            </div>
+            <div class="lf-stat-card">
+              <span id="about-song-user-stat" class="lf-stat-value">-</span>
+              <span class="lf-stat-label" id="about-song-user-label">Your Plays</span>
             </div>
           </div>
-
-          <div class="share-modal-body">
-            <!-- Left Pane: Interactive Live Card Preview -->
-            <div class="share-preview-pane">
-              <div class="share-canvas-container" id="share-canvas-container">
-                <canvas id="share-card-canvas"></canvas>
-              </div>
-            </div>
-
-            <!-- Right Controls Pane -->
-            <div class="share-controls-pane">
-              <!-- Scrollable controls container -->
-              <div class="share-controls-scroll-area" id="share-controls-scroll-area">
-                <!-- Top-Level Editorial Design Selector -->
-                <div class="share-design-system-section">
-                <div class="share-presets-header">
-                  <span class="share-control-label">Editorial Presets</span>
-                  <span class="share-preset-active-indicator" id="share-preset-status">Design 1 Active</span>
-                </div>
-                <div class="share-presets-row">
-                  <!-- Design 0: Glass Box (Frosted Glass Floating Card) -->
-                  <button type="button" class="share-preset-card active" data-design="glass" id="preset-card-glass" title="Featured: Frosted glass floating box on aesthetic background">
-                    <div class="share-preset-thumb-wrapper">
-                      <canvas class="share-preset-preview-canvas" id="preset-preview-glass" width="108" height="192"></canvas>
-                      <div class="share-preset-badge">Featured</div>
-                    </div>
-                    <div class="share-preset-info">
-                      <span class="share-preset-title">Glass Box</span>
-                      <span class="share-preset-desc">Aesthetic frosted card</span>
-                    </div>
-                    <div class="share-preset-check">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                    </div>
-                  </button>
-
-                  <!-- Design 1: Classic (Spotify / Apple Music Inspired Poster) -->
-                  <button type="button" class="share-preset-card" data-design="classic" id="preset-card-classic" title="Design 1: Classic Spotify-inspired poster layout">
-                    <div class="share-preset-thumb-wrapper">
-                      <canvas class="share-preset-preview-canvas" id="preset-preview-classic" width="108" height="192"></canvas>
-                      <div class="share-preset-badge">Design 1</div>
-                    </div>
-                    <div class="share-preset-info">
-                      <span class="share-preset-title">Classic</span>
-                      <span class="share-preset-desc">Spotify-inspired poster</span>
-                    </div>
-                    <div class="share-preset-check">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                    </div>
-                  </button>
-
-                  <!-- Design 2: Cinematic (Full-bleed Frosted Atmosphere) -->
-                  <button type="button" class="share-preset-card" data-design="cinematic" id="preset-card-cinematic" title="Design 2: Cinematic full-bleed frosted atmosphere">
-                    <div class="share-preset-thumb-wrapper">
-                      <canvas class="share-preset-preview-canvas" id="preset-preview-cinematic" width="108" height="192"></canvas>
-                      <div class="share-preset-badge">Design 2</div>
-                    </div>
-                    <div class="share-preset-info">
-                      <span class="share-preset-title">Cinematic</span>
-                      <span class="share-preset-desc">Frosted artwork canvas</span>
-                    </div>
-                    <div class="share-preset-check">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                    </div>
-                  </button>
-
-                  <!-- Design 3: Kinetic (Animated Lyric Video) -->
-                  <button type="button" class="share-preset-card" data-design="kinetic" id="preset-card-kinetic" title="Design 3: Editorial kinetic typography video">
-                    <div class="share-preset-thumb-wrapper">
-                      <canvas class="share-preset-preview-canvas" id="preset-preview-kinetic" width="108" height="192"></canvas>
-                      <div class="share-preset-badge">Design 3</div>
-                    </div>
-                    <div class="share-preset-info">
-                      <span class="share-preset-title">Kinetic</span>
-                      <span class="share-preset-desc">Animated video</span>
-                    </div>
-                    <div class="share-preset-check">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                    </div>
-                  </button>
-                </div>
-
-                <!-- Readymade Static Share Card Options (Content & Orientation) -->
-                <div class="share-glass-options-row" id="share-glass-options-row">
-                  <div class="share-option-col">
-                    <span class="share-control-label">Card Content</span>
-                    <div class="share-pill-selector" id="share-content-type-selector">
-                      <button type="button" class="share-pill-btn active" data-content="lyrics_art" id="btn-content-lyrics-art" title="Lyrics with Album Art thumbnail at bottom">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-                        <span>Lyrics + Art</span>
-                      </button>
-                      <button type="button" class="share-pill-btn" data-content="art_track" id="btn-content-art-track" title="Prominent Album Artwork with Track Name & Artist">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                        <span>Art + Track</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div class="share-option-col">
-                    <span class="share-control-label">Orientation</span>
-                    <div class="share-pill-selector" id="share-orientation-toggle-selector">
-                      <button type="button" class="share-pill-btn active" data-orientation="story" id="btn-orient-vertical" title="Vertical 9:16 Story (Mobile / Stories)">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="3"/></svg>
-                        <span>Vertical</span>
-                      </button>
-                      <button type="button" class="share-pill-btn" data-orientation="landscape" id="btn-orient-horizontal" title="Horizontal 16:9 Landscape (Desktop / Widescreen)">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/></svg>
-                        <span>Horizontal</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Custom Mode (Separate Customization Mode) -->
-                <div class="share-custom-mode-wrapper">
-                  <div class="share-custom-card" data-design="custom" id="preset-card-custom" role="button" tabindex="0" title="Custom Mode: Customize all aspects freely" aria-controls="share-custom-controls-drawer" aria-expanded="false">
-                    <div class="share-custom-card-content">
-                      <div class="share-custom-icon">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>
-                        </svg>
-                      </div>
-                      <div class="share-custom-text">
-                        <span class="share-custom-title">Custom</span>
-                        <span class="share-custom-desc">Customize everything</span>
-                      </div>
-                    </div>
-                    <div class="share-custom-arrow">
-                      <span class="share-custom-badge" id="share-custom-state-badge">Customize</span>
-                      <button type="button" class="share-custom-chevron-btn" id="share-custom-chevron-btn" aria-label="Toggle Custom controls" aria-expanded="false" aria-controls="share-custom-controls-drawer" title="Toggle Custom controls">
-                        <svg class="share-custom-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Granular Customization Controls Drawer -->
-              <div class="share-custom-controls-drawer" id="share-custom-controls-drawer">
-                <!-- Aspect Ratio Toggle -->
-                <div class="share-control-section">
-                  <label class="share-control-label">Aspect Ratio</label>
-                <div class="share-pill-selector" id="share-ratio-selector">
-                  <button type="button" class="share-ratio-btn active" data-ratio="story" title="9:16 Vertical Story (IG, TikTok)">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="3"/></svg>
-                    <span>Story</span>
-                  </button>
-                  <button type="button" class="share-ratio-btn" data-ratio="square" title="1:1 Square (Instagram Feed, Album Cover)">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
-                    <span>Square</span>
-                  </button>
-                  <button type="button" class="share-ratio-btn" data-ratio="portrait" title="4:5 Portrait (IG Feed &amp; Threads)">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2.5"/></svg>
-                    <span>Feed</span>
-                  </button>
-                  <button type="button" class="share-ratio-btn" data-ratio="landscape" title="16:9 Landscape (Twitter/X, Discord, Wallpaper)">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/></svg>
-                    <span>Wide</span>
-                  </button>
-                </div>
-              </div>
-
-              <!-- Theme Swatches -->
-              <div class="share-control-section">
-                <label class="share-control-label">Visual Theme</label>
-                <div class="share-theme-grid" id="share-theme-selector">
-                  <button type="button" class="share-theme-card active" data-theme="mesh">
-                    <div class="theme-swatch-thumb theme-mesh-thumb"></div>
-                    <span class="theme-name">Fluid Mesh</span>
-                  </button>
-                  <button type="button" class="share-theme-card" data-theme="obsidian">
-                    <div class="theme-swatch-thumb theme-obsidian-thumb"></div>
-                    <span class="theme-name">Obsidian</span>
-                  </button>
-                  <button type="button" class="share-theme-card" data-theme="vinyl">
-                    <div class="theme-swatch-thumb theme-vinyl-thumb"></div>
-                    <span class="theme-name">Vinyl Record</span>
-                  </button>
-                  <button type="button" class="share-theme-card" data-theme="cassette">
-                    <div class="theme-swatch-thumb theme-cassette-thumb"></div>
-                    <span class="theme-name">Cassette Tape</span>
-                  </button>
-                  <button type="button" class="share-theme-card" data-theme="bloom">
-                    <div class="theme-swatch-thumb theme-bloom-thumb"></div>
-                    <span class="theme-name">Fluid Bloom</span>
-                  </button>
-                  <button type="button" class="share-theme-card" data-theme="sunset">
-                    <div class="theme-swatch-thumb theme-sunset-thumb"></div>
-                    <span class="theme-name">Sunset Glow</span>
-                  </button>
-                  <button type="button" class="share-theme-card" data-theme="glass">
-                    <div class="theme-swatch-thumb theme-glass-thumb"></div>
-                    <span class="theme-name">Liquid Glass</span>
-                  </button>
-                  <button type="button" class="share-theme-card" data-theme="aurora">
-                    <div class="theme-swatch-thumb theme-aurora-thumb"></div>
-                    <span class="theme-name">Aurora Glow</span>
-                  </button>
-                  <button type="button" class="share-theme-card" data-theme="editorial">
-                    <div class="theme-swatch-thumb theme-editorial-thumb"></div>
-                    <span class="theme-name">Editorial</span>
-                  </button>
-                  <button type="button" class="share-theme-card" data-theme="cyberpunk">
-                    <div class="theme-swatch-thumb theme-cyberpunk-thumb"></div>
-                    <span class="theme-name">Cyberpunk</span>
-                  </button>
-                </div>
-              </div>
-
-              <!-- Translation Mode (shown when translations are available) -->
-              <div class="share-control-section" id="share-trans-section">
-                <div class="share-section-header">
-                  <label class="share-control-label">Translation</label>
-                  <span class="share-badge-hint" id="share-trans-badge">Bilingual</span>
-                </div>
-                <div class="share-pill-selector" id="share-trans-selector">
-                  <button type="button" class="share-trans-btn active" data-trans="original">Original</button>
-                  <button type="button" class="share-trans-btn" data-trans="bilingual">Bilingual</button>
-                  <button type="button" class="share-trans-btn" data-trans="translation">Translation</button>
-                </div>
-              </div>
-
-              <!-- Typography & Alignment -->
-              <div class="share-control-section">
-                <label class="share-control-label">Typography &amp; Layout</label>
-                <div class="share-pill-selector" id="share-font-selector">
-                  <button type="button" class="share-font-btn active" data-font="sans">Modern</button>
-                  <button type="button" class="share-font-btn" data-font="serif">Serif</button>
-                  <button type="button" class="share-font-btn" data-font="mono">Mono</button>
-                  <button type="button" class="share-font-btn" data-font="soft">Soft</button>
-                </div>
-                <div class="share-sub-selectors-row">
-                  <div class="share-pill-selector share-align-selector" id="share-align-selector">
-                    <button type="button" class="share-align-btn" data-align="left" title="Left Align">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="17" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="17" y1="18" x2="3" y2="18"/></svg>
-                    </button>
-                    <button type="button" class="share-align-btn active" data-align="center" title="Center Align">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="10" x2="6" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="18" y1="18" x2="6" y2="18"/></svg>
-                    </button>
-                    <button type="button" class="share-align-btn" data-align="right" title="Right Align">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="21" y1="10" x2="7" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="21" y1="18" x2="7" y2="18"/></svg>
-                    </button>
-                  </div>
-                  <div class="share-pill-selector share-scale-selector" id="share-scale-selector">
-                    <button type="button" class="share-scale-btn" data-scale="compact" title="Compact Font Scale">S</button>
-                    <button type="button" class="share-scale-btn active" data-scale="normal" title="Standard Font Scale">M</button>
-                    <button type="button" class="share-scale-btn" data-scale="large" title="Large Font Scale">L</button>
-                    <button type="button" class="share-scale-btn" data-scale="heroic" title="Massive Punchline Scale">XL</button>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Card Elements & Options -->
-              <div class="share-control-section">
-                <label class="share-control-label">Card Elements</label>
-                <div class="share-toggles-grid">
-                  <label class="share-toggle-chip" title="Show Now Playing Progress Scrubber Bar">
-                    <input type="checkbox" id="share-toggle-scrubber" checked />
-                    <span class="share-chip-indicator"></span>
-                    <span class="share-chip-label">Scrubber</span>
-                  </label>
-                  <label class="share-toggle-chip" title="Show Album Artwork">
-                    <input type="checkbox" id="share-toggle-art" checked />
-                    <span class="share-chip-indicator"></span>
-                    <span class="share-chip-label">Album Art</span>
-                  </label>
-                  <label class="share-toggle-chip" title="Show Starting Timestamp">
-                    <input type="checkbox" id="share-toggle-timestamp" checked />
-                    <span class="share-chip-indicator"></span>
-                    <span class="share-chip-label">Timestamp</span>
-                  </label>
-                  <label class="share-toggle-chip" title="Show Watermark Badge">
-                    <input type="checkbox" id="share-toggle-watermark" checked />
-                    <span class="share-chip-indicator"></span>
-                    <span class="share-chip-label">Watermark</span>
-                  </label>
-                  <label class="share-toggle-chip" title="Apply Analog Film Grain Texture">
-                    <input type="checkbox" id="share-toggle-grain" checked />
-                    <span class="share-chip-indicator"></span>
-                    <span class="share-chip-label">Film Grain</span>
-                  </label>
-                  <label class="share-toggle-chip" title="Export in Razor-Sharp 4K Ultra-HD">
-                    <input type="checkbox" id="share-toggle-2x" checked />
-                    <span class="share-chip-indicator"></span>
-                    <span class="share-chip-label">4K Ultra-HD</span>
-                  </label>
-                </div>
-              </div>
-
-              <!-- Multi-line Lyric Selection with Search -->
-              <div class="share-control-section">
-                <div class="share-section-header">
-                  <label class="share-control-label">Select Lines</label>
-                  <div class="share-section-meta">
-                    <span class="share-badge-hint" id="share-lines-count-badge">1 line</span>
-                    <span class="share-hint-text">Max 6 lines • ★ Star = Hero</span>
-                  </div>
-                </div>
-                <div class="share-search-bar">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                  <input type="text" id="share-line-search" placeholder="Search lyrics..." autocomplete="off" />
-                </div>
-                <div class="share-line-picker" id="share-line-picker">
-                  <!-- Populated dynamically with checkboxes/chips for full song lyrics -->
-                </div>
-              </div>
-              <div class="share-custom-bottom-spacer" aria-hidden="true"></div>
-            </div>
-            <!-- End of Scrollable controls container -->
-          </div>
-
-          <!-- Actions: Copy PNG / Download PNG / Copy Text -->
-          <div class="share-modal-actions">
-                <button type="button" id="btn-share-copy-img" class="share-action-btn btn-primary-gradient" title="Copy Card PNG to Clipboard (Ctrl+C)">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                  <span id="share-copy-text">Copy Card</span>
-                </button>
-                <button type="button" id="btn-share-download-img" class="share-action-btn btn-secondary-glass" title="Download PNG Image (Ctrl+S)">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                  <span>Save Image</span>
-                </button>
-                <button type="button" id="btn-share-export-video" class="share-action-btn btn-secondary-glass" title="Export MP4 Video Story">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                  <span id="share-export-video-text">Export Video (MP4)</span>
-                </button>
-                <button type="button" id="btn-share-copy-text" class="share-action-btn btn-secondary-glass" title="Copy Selected Lyrics as Formatted Text">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-                  <span id="share-copy-quote-text">Copy Text</span>
-                </button>
-              </div>
-            </div>
+          <div id="about-song-tags" class="lf-tags-container"></div>
+          <h3 class="lf-modal-section-title">Track Story &amp; Wiki</h3>
+          <div id="about-song-wiki" class="lf-modal-body-text">Loading track information...</div>
+          <div class="lf-modal-actions">
+            <a id="about-song-link-lastfm" class="lf-btn-action btn-lastfm" target="_blank" rel="noopener">Open on Last.fm</a>
+            <a id="about-song-link-apple" class="lf-btn-action btn-apple" target="_blank" rel="noopener">Apple Music</a>
+            <a id="about-song-link-spotify" class="lf-btn-action btn-spotify" target="_blank" rel="noopener">Spotify</a>
           </div>
         </div>
       </div>
 
+      <!-- About Artist Page Modal (Apple HIG Last.fm Insights) -->
+      <div id="about-artist-modal" class="lf-modal-overlay" aria-hidden="true" role="dialog" aria-labelledby="about-artist-title">
+        <div class="lf-modal-backdrop" id="about-artist-backdrop"></div>
+        <div class="lf-modal-dialog">
+          <button type="button" class="lf-modal-close-btn" id="about-artist-close" aria-label="Close dialog">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+          <div class="lf-modal-eyebrow">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+            <span>About Artist</span>
+          </div>
+          <div class="lf-modal-hero">
+            <img id="about-artist-art" class="lf-modal-art" src="assets/icon.png" alt="Artist Artwork" />
+            <div class="lf-modal-hero-info">
+              <h2 id="about-artist-title" class="lf-modal-title">Artist Name</h2>
+              <p id="about-artist-subtitle" class="lf-modal-subtitle">Last.fm Global Artist Profile</p>
+            </div>
+          </div>
+          <div class="lf-stats-grid">
+            <div class="lf-stat-card">
+              <span id="about-artist-listeners" class="lf-stat-value">-</span>
+              <span class="lf-stat-label">Global Listeners</span>
+            </div>
+            <div class="lf-stat-card">
+              <span id="about-artist-playcount" class="lf-stat-value">-</span>
+              <span class="lf-stat-label">Total Scrobbles</span>
+            </div>
+            <div class="lf-stat-card">
+              <span id="about-artist-tour" class="lf-stat-value">-</span>
+              <span class="lf-stat-label">Tour Status</span>
+            </div>
+          </div>
+          <div id="about-artist-tags" class="lf-tags-container"></div>
+          <h3 class="lf-modal-section-title">Biography</h3>
+          <div id="about-artist-bio" class="lf-modal-body-text">Loading artist biography...</div>
+          <h3 class="lf-modal-section-title">Top Tracks</h3>
+          <div id="about-artist-tracks" class="lf-top-tracks-list"></div>
+          <h3 class="lf-modal-section-title">Similar Artists</h3>
+          <div id="about-artist-similar" class="lf-similar-container"></div>
+          <div class="lf-modal-actions">
+            <a id="about-artist-link-lastfm" class="lf-btn-action btn-lastfm" target="_blank" rel="noopener">View on Last.fm</a>
+            <a id="about-artist-link-apple" class="lf-btn-action btn-apple" target="_blank" rel="noopener">Apple Music</a>
+            <a id="about-artist-link-spotify" class="lf-btn-action btn-spotify" target="_blank" rel="noopener">Spotify</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Interactive Viral Lyric Share Card Modal -->
       <!-- Desktop Edit Overlay -->
       <div id="desktop-edit-overlay" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 99999; background: rgba(0,0,0,0.3); pointer-events: auto;">
         <div style="position: absolute; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); border: 2px solid #1db954; border-radius: 8px; padding: 15px 30px; display: flex; flex-direction: column; align-items: center; gap: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">

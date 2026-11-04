@@ -1,6 +1,6 @@
 [package]
 name = "lyricflow"
-version = "1.44.3"
+version = "1.50.0"
 description = "LyricFlow - Dynamic Desktop Lyrics Overlay"
 authors = ["badghost"]
 edition = "2021"
@@ -29,6 +29,7 @@ open = "5.1"
 strsim = "0.11"
 urlencoding = "2.1"
 ring = "0.17"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 webview2-com = "=0.38.2"
