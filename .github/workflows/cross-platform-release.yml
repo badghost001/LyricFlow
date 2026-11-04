@@ -66,14 +66,33 @@ jobs:
           tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
           releaseName: "LyricFlow ${{ github.ref_name }}"
           releaseBody: |
-            ## LyricFlow ${{ github.ref_name }}
+            ## What's New in LyricFlow ${{ github.ref_name }}
 
-            - Word-synced lyrics are fetched automatically when available, without requiring manual refetch.
-            - Improved Windows SMTC playback clock continuity.
-            - Improved Pearl Light contrast across lyrics, controls, settings, and notifications.
-            - Graceful handling of unavailable Genius annotation responses.
+            ### 🎨 Studio Split View (Redesigned Main UI)
+            - Dual-pane layout with adaptive album artwork, ambient background glow, song details, and audio visualizer on the left.
+            - Silky-smooth, word-by-word synchronized lyrics scrolling on the right with responsive tall artwork scaling.
 
-            See [README](https://github.com/badghost001/LyricFlow#readme) for project setup and existing features.
+            ### 📌 Windows Taskbar Mode
+            - Minimalist frosted glass lyric ribbon docked directly onto the Windows taskbar.
+            - Real-time word and syllable highlights with playhead scrubber and media controls.
+
+            ### 🎬 Cinematic & Kinetic Modes
+            - Dynamic typography choreography and audio-reactive generative visualizers turning tracks into an immersive music video.
+
+            ### ⚡ Redeveloped Word-by-Word Engine & qApple
+            - Ground-up rebuild of the word-by-word karaoke engine with sub-millisecond cadence interpolation and drift correction.
+            - Reliable qApple word-level lyrics from Apple Music with automated multi-mirror failover and cache resilience.
+
+            ### 🪄 Animated Artworks (Apple Motion Art)
+            - Hardware-accelerated decoding and smooth ambient playback for official animated album artworks on supported releases.
+
+            ### 🚀 Deep Performance Optimizations
+            - 3-Phase CPU reduction, GPU compositor layer containment, background defrost throttling, and sub-16ms layout frame rates.
+
+            ### 💡 Genius Annotations & Fact Cards
+            - Contextual in-line annotations and crowdsourced lyrical interpretations right beside active lyric lines.
+
+            See [README](https://github.com/badghost001/LyricFlow#readme) for full application documentation and setup.
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
