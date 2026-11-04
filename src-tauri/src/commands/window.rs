@@ -921,7 +921,7 @@ mod workerw {
 pub async fn set_wallpaper_mode(
     app: AppHandle,
     enabled: bool,
-    _monitor_target: Option<String>,
+    monitor_target: Option<String>,
 ) -> Result<(), String> {
     use tauri::Emitter;
     crate::log_to_file(&format!(
@@ -1111,8 +1111,12 @@ pub async fn set_wallpaper_mode(
         }
         #[cfg(not(target_os = "windows"))]
         {
-            let _ = &main_win;
+            let _ = (&main_win, &monitor_target);
         }
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = &monitor_target;
     }
     let _ = app.emit("set-wallpaper-mode-state", enabled);
     Ok(())
