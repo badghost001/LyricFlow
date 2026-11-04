@@ -15,8 +15,13 @@ fs.rmSync(resolvedTarget, { recursive: true, force: true });
 fs.mkdirSync(path.dirname(resolvedTarget), { recursive: true });
 fs.cpSync(sourceDir, resolvedTarget, {
   recursive: true,
-  filter: (entry) => path.resolve(entry) !== path.join(sourceDir, 'edge_glow.html')
+  filter: (entry) => path.basename(entry).toLowerCase() !== 'edge_glow.html'
 });
+
+const stagedEdgeGlow = path.join(resolvedTarget, 'edge_glow.html');
+if (fs.existsSync(stagedEdgeGlow)) {
+  fs.rmSync(stagedEdgeGlow, { force: true });
+}
 
 if (fs.existsSync(path.join(resolvedTarget, 'edge_glow.html'))) {
   throw new Error('Deprecated edge_glow.html must not be included in the Tauri frontend bundle.');
