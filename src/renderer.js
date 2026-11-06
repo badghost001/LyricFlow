@@ -7181,6 +7181,25 @@ async function bootstrapApp() {
       config = null;
     }
 
+    // Restore Last.fm session and sync dual-storage redundancy
+    if (window.lastFM && typeof window.lastFM.loadConfig === 'function') {
+      window.lastFM.loadConfig(config?.lastfm);
+      try { updateLastfmUI(); } catch (_) {}
+    }
+    // Synchronize Spotify sp_dc dual-storage backup
+    if (config?.sp_dc) {
+      try { localStorage.setItem("lyricflow_sp_dc", config.sp_dc); } catch (_) {}
+    } else if (!config?.sp_dc) {
+      try {
+        const backupSpDc = localStorage.getItem("lyricflow_sp_dc");
+        if (backupSpDc) {
+          config = config || {};
+          config.sp_dc = backupSpDc;
+          window.electronAPI?.saveConfig?.({ sp_dc: backupSpDc });
+        }
+      } catch (_) {}
+    }
+
     // If silent startup or taskbar mode, immediately bypass loading visuals
     if (isStartupMode || isTaskbarActiveInHost || (config && (config.taskbar_mode || config.taskbarMode))) {
       dismissLoadingScreen(true);
@@ -7192,9 +7211,12 @@ async function bootstrapApp() {
     initDOMElements();
     const hadPersistedInstallState = Boolean(
       localStorage.getItem("lyrics_overlay_settings") ||
+      localStorage.getItem("lastfm_config") ||
+      localStorage.getItem("lyricflow_sp_dc") ||
       (config && (
         (config.settings && Object.keys(config.settings).length > 0) ||
-        config.sp_dc || config.access_token || config.localMode || config.window || config.window_bounds
+        config.sp_dc || config.access_token || config.localMode || config.window || config.window_bounds ||
+        (config.lastfm && config.lastfm.sessionKey)
       ))
     );
     loadLocalSettings(true); // skipIPC = true prevents duplicate IPC calls during boot
@@ -7202,11 +7224,11 @@ async function bootstrapApp() {
     // Existing installations predate the setup completion marker. Their saved
     // settings/config mean they have already been through the app; don't mistake
     // a missing marker for a first launch after an update.
-    const onboardingWasStarted = localStorage.getItem("lyricflow_onboarding_started") === "true";
-    if (hadPersistedInstallState && !onboardingWasStarted &&
-        localStorage.getItem("lyricflow_setup_done") !== "true" && settings.hasCompletedSetup !== true) {
+    if (hadPersistedInstallState &&
+        (localStorage.getItem("lyricflow_setup_done") !== "true" || settings.hasCompletedSetup !== true)) {
       settings.hasCompletedSetup = true;
       localStorage.setItem("lyricflow_setup_done", "true");
+      localStorage.removeItem("lyricflow_onboarding_started");
       saveLocalSettings();
     }
 
@@ -10326,8 +10348,7 @@ function setupUIHandlers() {
             if (res && (res.sp_dc || res.access_token || res.success)) {
               obBtnLoginSpotify.textContent = "✓ Connected!";
               obBtnLoginSpotify.style.background = "#1DB954";
-              config = res;
-              config.localMode = false;
+              config = { ...(config || {}), ...(res || {}), localMode: false };
               if (res.sp_dc && !res.access_token) {
                 try {
                   const token = await window.electronAPI.getAccessToken(res.sp_dc);
@@ -10476,8 +10497,7 @@ function setupUIHandlers() {
       try {
         const authConfig = await window.electronAPI.loginViaWeb();
         if (authConfig && (authConfig.sp_dc || authConfig.access_token || authConfig.success)) {
-          config = authConfig;
-          config.localMode = false;
+          config = { ...(config || {}), ...(authConfig || {}), localMode: false };
           
           if (!config.access_token && config.sp_dc) {
             if (authStatus) authStatus.textContent = "Getting access token...";
@@ -10580,6 +10600,7 @@ function setupUIHandlers() {
         } catch (e) {}
 
         config = {
+          ...(config || {}),
           sp_dc: spDcVal,
           access_token: token || "",
           localMode: false
@@ -13288,8 +13309,7 @@ function setupUIHandlers() {
       try {
         const authConfig = await window.electronAPI.loginViaWeb();
         if (authConfig && (authConfig.sp_dc || authConfig.access_token || authConfig.success)) {
-          config = authConfig;
-          config.localMode = false;
+          config = { ...(config || {}), ...(authConfig || {}), localMode: false };
           if (!config.access_token && config.sp_dc) {
             try {
               const token = await window.electronAPI.getAccessToken(config.sp_dc);

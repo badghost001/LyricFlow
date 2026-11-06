@@ -38,7 +38,26 @@ pub fn load_config() -> Result<Option<serde_json::Value>, String> {
 #[tauri::command]
 pub fn save_config(config: serde_json::Value) -> Result<(), String> {
     let path = get_config_path();
-    let data = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
+    let mut final_json = if path.exists() {
+        let existing_data = fs::read_to_string(&path).unwrap_or_default();
+        serde_json::from_str::<serde_json::Value>(&existing_data).unwrap_or_else(|_| serde_json::json!({}))
+    } else {
+        serde_json::json!({})
+    };
+
+    if let Some(new_obj) = config.as_object() {
+        if let Some(final_obj) = final_json.as_object_mut() {
+            for (k, v) in new_obj {
+                final_obj.insert(k.clone(), v.clone());
+            }
+        } else {
+            final_json = config;
+        }
+    } else {
+        final_json = config;
+    }
+
+    let data = serde_json::to_string_pretty(&final_json).map_err(|e| e.to_string())?;
     fs::write(&path, data).map_err(|e| e.to_string())?;
     Ok(())
 }

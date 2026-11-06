@@ -13,26 +13,63 @@ class LastFMManager {
     this.isLoved = false;
   }
 
-  loadConfig() {
-    const saved = localStorage.getItem("lastfm_config");
-    if (saved) {
+  loadConfig(configData = null) {
+    let parsed = null;
+    try {
+      const saved = localStorage.getItem("lastfm_config");
+      if (saved) {
+        parsed = JSON.parse(saved);
+      }
+    } catch(e) {}
+
+    // If localStorage was cleared or missing, restore from persistent disk config.json
+    if ((!parsed || !parsed.sessionKey) && configData && configData.sessionKey) {
+      parsed = configData;
       try {
-        const parsed = JSON.parse(saved);
-        this.sessionKey = parsed.sessionKey || '';
-        this.username = parsed.username || '';
-        if (parsed.isScrobblingEnabled !== undefined) {
-          this.isScrobblingEnabled = parsed.isScrobblingEnabled;
-        }
+        localStorage.setItem("lastfm_config", JSON.stringify(parsed));
       } catch(e) {}
+    }
+
+    if (parsed) {
+      this.sessionKey = parsed.sessionKey || '';
+      this.username = parsed.username || '';
+      if (parsed.isScrobblingEnabled !== undefined) {
+        this.isScrobblingEnabled = parsed.isScrobblingEnabled;
+      }
+    }
+
+    // Mirror to disk config if session exists in localStorage but is not yet stored on disk
+    if (this.sessionKey && (!configData || !configData.sessionKey)) {
+      this._mirrorToDiskConfig();
     }
   }
 
   saveConfig() {
-    localStorage.setItem("lastfm_config", JSON.stringify({
+    const payload = {
       sessionKey: this.sessionKey,
       username: this.username,
       isScrobblingEnabled: this.isScrobblingEnabled
-    }));
+    };
+    try {
+      localStorage.setItem("lastfm_config", JSON.stringify(payload));
+    } catch(e) {}
+    this._mirrorToDiskConfig();
+  }
+
+  _mirrorToDiskConfig() {
+    try {
+      if (window.electronAPI && typeof window.electronAPI.saveConfig === 'function') {
+        const payload = {
+          sessionKey: this.sessionKey,
+          username: this.username,
+          isScrobblingEnabled: this.isScrobblingEnabled
+        };
+        if (typeof config !== 'undefined' && config) {
+          config.lastfm = payload;
+        }
+        window.electronAPI.saveConfig({ lastfm: payload });
+      }
+    } catch(_) {}
   }
 
   isConnected() {

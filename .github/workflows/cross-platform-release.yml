@@ -68,6 +68,14 @@ jobs:
           releaseBody: |
             ## What's New in LyricFlow ${{ github.ref_name }}
 
+            ### ⚡ Sub-Second Fast Lyrics Fetching
+            - Eliminated sequential waterfall delays; fast providers like LRCLIB (150ms) and NetEase display immediately without waiting on slow/unindexed scrapers.
+            - Reduced scraper timeout budget to 2.2s and stopped redundant retry cascades on unindexed tracks.
+
+            ### 🔒 Persistent OTA Login Retention
+            - Dual-tier storage redundancy ensures Spotify (`sp_dc`) and Last.fm logins are retained across OTA updates, WebView2 refreshes, and app upgrades.
+            - Returning authenticated users bypass the onboarding wizard and stay logged in.
+
             ### 🎨 Studio Split View (Redesigned Main UI)
             - Dual-pane layout with adaptive album artwork, ambient background glow, song details, and audio visualizer on the left.
             - Silky-smooth, word-by-word synchronized lyrics scrolling on the right with responsive tall artwork scaling.

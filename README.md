@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/badghost001/LyricFlow/releases/latest"><img src="https://img.shields.io/badge/release-v1.50.0-1ed760.svg?style=flat-square" alt="Latest Release" /></a>
+  <a href="https://github.com/badghost001/LyricFlow/releases/latest"><img src="https://img.shields.io/badge/release-v1.50.2-1ed760.svg?style=flat-square" alt="Latest Release" /></a>
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue.svg?style=flat-square" alt="Supported Platforms" />
   <img src="https://img.shields.io/badge/sync-Word--by--Word%20%26%20Syllables-f59e0b.svg?style=flat-square" alt="Sync Fidelity" />
   <img src="https://img.shields.io/badge/architecture-Rust%20(Tauri%20v2)%20%2B%20Web-6366f1.svg?style=flat-square" alt="Architecture" />
@@ -149,7 +149,7 @@ flowchart TD
 
 ### 1. Download Installer (Recommended)
 Download the newest release for your system from [GitHub Releases](https://github.com/badghost001/LyricFlow/releases/latest):
-* **Windows:** `LyricFlow-Setup-1.50.0.exe` (NSIS Installer) or portable standalone build.
+* **Windows:** `LyricFlow-Setup-1.50.2.exe` (NSIS Installer) or portable standalone build.
 * **macOS:** Universal `.dmg` (Apple Silicon & Intel).
 * **Linux:** `.AppImage` or `.deb` packages.
 
