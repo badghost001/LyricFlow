@@ -62,7 +62,7 @@ pub async fn query_all_candidates(
         let fast_race = async {
             let (q, l) = tokio::join!(
                 tokio::time::timeout(
-                    std::time::Duration::from_millis(8500),
+                    std::time::Duration::from_millis(2200),
                     search_qapple(client, track, artist, duration_ms)
                 ),
                 search_lrclib(client, &clean_t, &clean_a, duration_sec)
@@ -662,7 +662,7 @@ async fn search_lrc_red(
         if let Ok(res) = client
             .get(&search_url)
             .header("User-Agent", "LyricFlow/1.44 (https://github.com/badghost/lyricflow-tauri; contact@lyricflow.app)")
-            .timeout(std::time::Duration::from_millis(3000))
+            .timeout(std::time::Duration::from_millis(1500))
             .send()
             .await
         {

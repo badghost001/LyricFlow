@@ -469,7 +469,7 @@
       const controllers = fallbackEndpoints.map(() => new AbortController());
       const abortFromParent = () => controllers.forEach(controller => controller.abort());
       options.signal?.addEventListener('abort', abortFromParent, { once: true });
-      const mirrorTimeout = Math.min(2500, options.timeoutMs || this.timeoutMs);
+      const mirrorTimeout = Math.min(1500, options.timeoutMs || this.timeoutMs);
       const timeoutId = setTimeout(abortFromParent, mirrorTimeout);
       try {
         const attempts = fallbackEndpoints.map((endpoint, index) =>
@@ -513,7 +513,7 @@
       const controller = new AbortController();
       const abortFromParent = () => controller.abort();
       signal?.addEventListener('abort', abortFromParent, { once: true });
-      const timeoutId = setTimeout(() => controller.abort(), 7000);
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
 
       try {
         const reqTitle = String(metadata?.title || cleanTitle || '');
@@ -775,11 +775,12 @@
           } catch (_) {}
         }
         if (hasAppleSourceConstraint) {
-          // Allow upstream Apple scraper sufficient time to query and return cold cache results
+          // Allow upstream Apple scraper sufficient time to query and return cold cache results.
+          // Capped at 2000ms to eliminate multi-second waterfalls on unindexed tracks.
           const probeController = new AbortController();
           const onParentAbort = () => probeController.abort();
           controller.signal.addEventListener('abort', onParentAbort, { once: true });
-          const probeTimeoutId = setTimeout(() => probeController.abort(), 6000);
+          const probeTimeoutId = setTimeout(() => probeController.abort(), 2000);
           try {
             const probeRes = await fetch(url, {
               method: 'GET',
@@ -789,21 +790,18 @@
               },
               signal: probeController.signal
             });
-            if (probeRes.ok) {
-              response = probeRes;
-            }
+            response = probeRes;
           } catch (probeErr) {
             if (controller.signal.aborted) throw probeErr;
-            devLog(`[lyrics] initial Apple scraper probe timed out or failed; falling back to clean query`);
+            devLog(`[lyrics] Apple scraper probe timed out or failed; skipping redundant retry`);
           } finally {
             clearTimeout(probeTimeoutId);
             controller.signal.removeEventListener('abort', onParentAbort);
           }
         }
 
-        if (!response) {
-          const targetUrl = (hasAppleSourceConstraint && appleRetryUrl) ? appleRetryUrl : url;
-          response = await fetch(targetUrl, {
+        if (!response && !hasAppleSourceConstraint) {
+          response = await fetch(url, {
             method: 'GET',
             headers: {
               'Accept': 'application/json',
@@ -812,7 +810,7 @@
             signal: controller.signal
           });
         }
-        if (!response.ok && (response.status === 404 || response.status === 400 || response.status === 429)) {
+        if (response && !response.ok && (response.status === 404 || response.status === 400 || response.status === 429) && !options.preferQApple) {
           const safeRetryUrl = retryUrl;
           if (safeRetryUrl && safeRetryUrl !== url) {
             try {
@@ -862,8 +860,8 @@
             }
           }
         }
-        if (!response.ok) {
-          devLog(`[lyrics] ${endpoint} returned HTTP ${response.status}`);
+        if (!response || !response.ok) {
+          if (response) devLog(`[lyrics] ${endpoint} returned HTTP ${response.status}`);
           return null;
         }
         let data;
